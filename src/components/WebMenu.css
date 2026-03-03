@@ -1,0 +1,131 @@
+.web-menu {
+  position: relative;
+  z-index: 60;
+  background: #101010;
+  border-bottom: 1px solid #1f1f1f;
+  padding: 0 16px;
+}
+
+.web-menu__list,
+.web-menu__dropdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.web-menu__list {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+}
+
+.web-menu__item {
+  position: relative;
+}
+
+.web-menu__button {
+  border: 0;
+  background: transparent;
+  color: #d8d8d8;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.web-menu__button-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 14px;
+}
+
+.web-menu__button-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.web-menu__button-trailing {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.web-menu__shortcut {
+  color: #818181;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+.web-menu__submenu-caret {
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.web-menu__button:hover {
+  background: #1d1d1d;
+  color: #ffffff;
+}
+
+.web-menu__button--open {
+  background: #1d1d1d;
+  color: #ffffff;
+}
+
+.web-menu__button--disabled,
+.web-menu__button:disabled {
+  color: #707070;
+  cursor: default;
+  background: transparent;
+}
+
+.web-menu__button--disabled:hover,
+.web-menu__button:disabled:hover {
+  color: #707070;
+  background: transparent;
+}
+
+.web-menu__dropdown {
+  position: relative;
+  min-width: 190px;
+  background: #151515;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+.web-menu__submenu {
+  display: none;
+  position: absolute;
+  z-index: 61;
+}
+
+.web-menu__submenu--below {
+  top: 100%;
+  left: 0;
+}
+
+.web-menu__submenu--side {
+  top: 0;
+  left: 100%;
+}
+
+.web-menu__submenu--open {
+  display: block;
+}
+
+.web-menu__dropdown .web-menu__item {
+  width: 100%;
+}
+
+.web-menu__dropdown .web-menu__button {
+  width: 100%;
+  text-align: left;
+}

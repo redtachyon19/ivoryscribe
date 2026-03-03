@@ -1,0 +1,54 @@
+.app {
+  min-height: 100vh;
+  background-color: #0f0f0f;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.app-brand {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  z-index: 15;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-brand--with-menu {
+  top: 62px;
+}
+
+.app-brand__name {
+  font-family: "EB Garamond", serif;
+  color: #f4f0ea;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.app-brand__name {
+  font-size: 28px;
+  font-weight: 500;
+}
+
+.app-brand__tagline {
+  font-family: "EB Garamond", serif;
+  color: #f4f0ea;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.92;
+}
