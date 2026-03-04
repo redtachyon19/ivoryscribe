@@ -93,7 +93,7 @@ function MenuList({
             >
               <span className="web-menu__button-content">
                 <span className="web-menu__button-label">
-                  {Icon ? <Icon size={14} strokeWidth={2} aria-hidden="true" /> : null}
+                  {Icon ? <Icon size={14} strokeWidth={2} aria-hidden={true} /> : null}
                   <span>{item.label}</span>
                 </span>
                 {showTrailing ? (

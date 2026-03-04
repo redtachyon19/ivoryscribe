@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type SetStateAction } from "react"
-import { BookText, Folder, GripVertical, NotebookText, Pencil } from "lucide-react"
+import { BookText, Folder, GripVertical, NotebookText, Pencil, SquareArrowOutUpRight } from "lucide-react"
 import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../core/editorEvents"
 import { collectTabIds, getProjectEntryTerms, type Project, type ProjectKind } from "../core/projects"
 import "./ProjectDashboard.css"
@@ -90,11 +90,71 @@ export default function ProjectDashboard({
   const [folderDropTarget, setFolderDropTarget] = useState<FolderDropTarget | null>(null)
   const createMenuWrapRef = useRef<HTMLDivElement | null>(null)
   const dragPreviewElementRef = useRef<HTMLElement | null>(null)
+  const renameTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const titleScrollFrameRef = useRef<number | null>(null)
+  const titleScrollDirectionRef = useRef<1 | -1>(1)
 
   const closeCreateMenus = () => {
     setIsCreateMenuOpen(false)
     setOpenFolderCreateMenuId(null)
   }
+
+  const stopTitleAutoScroll = (resetElement?: HTMLHeadingElement) => {
+    if (titleScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(titleScrollFrameRef.current)
+      titleScrollFrameRef.current = null
+    }
+
+    titleScrollDirectionRef.current = 1
+
+    if (resetElement) {
+      resetElement.scrollTop = 0
+    }
+  }
+
+  const startTitleAutoScroll = (element: HTMLHeadingElement) => {
+    stopTitleAutoScroll()
+
+    const maxScroll = element.scrollHeight - element.clientHeight
+    if (maxScroll <= 0) {
+      return
+    }
+
+    let previousTime = performance.now()
+    const speed = 18
+    let currentTop = element.scrollTop
+
+    const step = (time: number) => {
+      const elapsedSeconds = (time - previousTime) / 1000
+      previousTime = time
+
+      const maxTop = element.scrollHeight - element.clientHeight
+      if (maxTop <= 0) {
+        stopTitleAutoScroll(element)
+        return
+      }
+
+      const nextTop = Math.min(maxTop, currentTop + speed * elapsedSeconds)
+
+      currentTop = nextTop
+      element.scrollTop = currentTop
+
+      if (currentTop >= maxTop) {
+        titleScrollFrameRef.current = null
+        return
+      }
+
+      titleScrollFrameRef.current = window.requestAnimationFrame(step)
+    }
+
+    titleScrollFrameRef.current = window.requestAnimationFrame(step)
+  }
+
+  useEffect(() => {
+    return () => {
+      stopTitleAutoScroll()
+    }
+  }, [])
 
   useEffect(() => {
     if (!isCreateMenuOpen && !openFolderCreateMenuId) {
@@ -248,6 +308,66 @@ export default function ProjectDashboard({
     }
 
     cancelRename()
+  }
+
+  const resizeRenameTextarea = (element: HTMLTextAreaElement) => {
+    element.style.height = "0px"
+    const computed = window.getComputedStyle(element)
+    const lineHeight = Number.parseFloat(computed.lineHeight) || 20
+    const verticalPadding = Number.parseFloat(computed.paddingTop) + Number.parseFloat(computed.paddingBottom)
+    const maxHeight = lineHeight * 3 + verticalPadding
+    const nextHeight = Math.min(element.scrollHeight, maxHeight)
+    element.style.height = `${nextHeight}px`
+    element.style.overflowY = element.scrollHeight > maxHeight ? "auto" : "hidden"
+  }
+
+  useEffect(() => {
+    if (!editingProjectId || !renameTextareaRef.current) {
+      return
+    }
+
+    resizeRenameTextarea(renameTextareaRef.current)
+  }, [editingProjectId, editingName])
+
+  const renderProjectRenameEditor = () => {
+    return (
+      <div className="project-card__rename-wrap">
+        <textarea
+          className="project-card__rename-input"
+          value={editingName}
+          autoFocus
+          rows={1}
+          ref={(element) => {
+            renameTextareaRef.current = element
+            if (element) {
+              resizeRenameTextarea(element)
+            }
+          }}
+          onFocus={(event) => {
+            event.target.select()
+            resizeRenameTextarea(event.target)
+          }}
+          onChange={(event) => {
+            setEditingName(event.target.value)
+            resizeRenameTextarea(event.target)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault()
+              commitRename()
+            }
+
+            if (event.key === "Escape") {
+              event.preventDefault()
+              cancelRename()
+            }
+          }}
+          onBlur={() => {
+            commitRename()
+          }}
+        />
+      </div>
+    )
   }
 
   const openProjectSettings = (project: Project) => {
@@ -817,35 +937,18 @@ export default function ProjectDashboard({
                   </div>
                 </div>
                 {editingProjectId === project.id ? (
-                  <div className="project-card__rename-wrap">
-                    <input
-                      className="project-card__rename-input"
-                      value={editingName}
-                      autoFocus
-                      onFocus={(event) => {
-                        event.target.select()
-                      }}
-                      onChange={(event) => {
-                        setEditingName(event.target.value)
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault()
-                          commitRename()
-                        }
-
-                        if (event.key === "Escape") {
-                          event.preventDefault()
-                          cancelRename()
-                        }
-                      }}
-                      onBlur={() => {
-                        commitRename()
-                      }}
-                    />
-                  </div>
+                  renderProjectRenameEditor()
                 ) : (
                   <h2
+                    onMouseEnter={(event) => {
+                      startTitleAutoScroll(event.currentTarget)
+                    }}
+                    onWheel={() => {
+                      stopTitleAutoScroll()
+                    }}
+                    onMouseLeave={(event) => {
+                      stopTitleAutoScroll(event.currentTarget)
+                    }}
                     onClick={() => {
                       startRename(project.id, project.name)
                     }}
@@ -870,7 +973,8 @@ export default function ProjectDashboard({
                     onOpenProject(project.id)
                   }}
                 >
-                  Open Project
+                  <span>Open</span>
+                  <SquareArrowOutUpRight size={13} strokeWidth={2} aria-hidden="true" />
                 </button>
               </div>
             </li>
@@ -1140,35 +1244,18 @@ export default function ProjectDashboard({
                     </div>
                   </div>
                     {editingProjectId === project.id ? (
-                      <div className="project-card__rename-wrap">
-                        <input
-                          className="project-card__rename-input"
-                          value={editingName}
-                          autoFocus
-                          onFocus={(event) => {
-                            event.target.select()
-                          }}
-                          onChange={(event) => {
-                            setEditingName(event.target.value)
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault()
-                              commitRename()
-                            }
-
-                            if (event.key === "Escape") {
-                              event.preventDefault()
-                              cancelRename()
-                            }
-                          }}
-                          onBlur={() => {
-                            commitRename()
-                          }}
-                        />
-                      </div>
+                        renderProjectRenameEditor()
                     ) : (
                       <h2
+                        onMouseEnter={(event) => {
+                          startTitleAutoScroll(event.currentTarget)
+                        }}
+                        onWheel={() => {
+                          stopTitleAutoScroll()
+                        }}
+                        onMouseLeave={(event) => {
+                          stopTitleAutoScroll(event.currentTarget)
+                        }}
                         onClick={() => {
                           startRename(project.id, project.name)
                         }}
@@ -1193,7 +1280,8 @@ export default function ProjectDashboard({
                       onOpenProject(project.id)
                     }}
                   >
-                    Open Project
+                    <span>Open</span>
+                    <SquareArrowOutUpRight size={13} strokeWidth={2} aria-hidden="true" />
                   </button>
                 </div>
               </li>
@@ -1276,35 +1364,18 @@ export default function ProjectDashboard({
                   </div>
                 </div>
                 {editingProjectId === project.id ? (
-                  <div className="project-card__rename-wrap">
-                    <input
-                      className="project-card__rename-input"
-                      value={editingName}
-                      autoFocus
-                      onFocus={(event) => {
-                        event.target.select()
-                      }}
-                      onChange={(event) => {
-                        setEditingName(event.target.value)
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault()
-                          commitRename()
-                        }
-
-                        if (event.key === "Escape") {
-                          event.preventDefault()
-                          cancelRename()
-                        }
-                      }}
-                      onBlur={() => {
-                        commitRename()
-                      }}
-                    />
-                  </div>
+                  renderProjectRenameEditor()
                 ) : (
                   <h2
+                    onMouseEnter={(event) => {
+                      startTitleAutoScroll(event.currentTarget)
+                    }}
+                    onWheel={() => {
+                      stopTitleAutoScroll()
+                    }}
+                    onMouseLeave={(event) => {
+                      stopTitleAutoScroll(event.currentTarget)
+                    }}
                     onClick={() => {
                       startRename(project.id, project.name)
                     }}
@@ -1329,7 +1400,8 @@ export default function ProjectDashboard({
                     onOpenProject(project.id)
                   }}
                 >
-                  Open Project
+                  <span>Open</span>
+                  <SquareArrowOutUpRight size={13} strokeWidth={2} aria-hidden="true" />
                 </button>
               </div>
             </li>

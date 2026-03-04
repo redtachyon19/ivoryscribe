@@ -1,0 +1,94 @@
+.global-settings__trigger {
+  position: fixed;
+  top: 18px;
+  right: 16px;
+  z-index: 170;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--menu-dropdown-border, #2f2f2f);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--menu-bg, #101010) 92%, transparent);
+  color: var(--menu-button, #f3f3f3);
+  font-family: "EB Garamond", serif;
+  font-size: 15px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: opacity 320ms ease-out, background-color 140ms ease;
+}
+
+.global-settings__trigger--with-menu {
+  top: 62px;
+}
+
+.global-settings__trigger:hover {
+  background: var(--menu-button-hover-bg, #2a2a2a);
+}
+
+.global-settings__trigger--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.global-settings__overlay {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  z-index: 165;
+  background: rgba(8, 8, 8, 0.48);
+  backdrop-filter: blur(2px);
+}
+
+.global-settings__modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(340px, calc(100vw - 24px));
+  z-index: 168;
+  border: 1px solid var(--menu-dropdown-border, #2a2a2a);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 96%, transparent);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: "Times", "Times New Roman", serif;
+  font-size: 18px;
+}
+
+.global-settings__modal h2 {
+  margin: 0;
+  font-family: "EB Garamond", serif;
+  font-weight: 400;
+  color: var(--menu-button, #efefef);
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.global-settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.global-settings__field span {
+  color: var(--menu-button, #e6e6e6);
+  font-family: "Times", "Times New Roman", serif;
+  font-size: 18px;
+}
+
+.global-settings__field select,
+.global-settings__field input[type="range"] {
+  width: 100%;
+}
+
+.global-settings__field select {
+  border: 1px solid var(--menu-dropdown-border, #2e2e2e);
+  border-radius: 8px;
+  background: var(--menu-bg, #1d1d1d);
+  color: var(--menu-button, #ededed);
+  padding: 8px 10px;
+  font-family: "Times", "Times New Roman", serif;
+  font-size: 18px;
+}

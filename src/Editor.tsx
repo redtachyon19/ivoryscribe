@@ -5,12 +5,17 @@ import {
   EDITOR_COMMAND_EVENT,
   EDITOR_FONT_FAMILY_CHANGE_EVENT,
   EDITOR_FONT_SIZE_CHANGE_EVENT,
+  EDITOR_FONT_SIZE_SET_EVENT,
   type EditorCommand,
 } from "./core/editorEvents"
 import "./Editor.css"
 
 type FontSizeChangeDetail = {
   delta: number
+}
+
+type FontSizeSetDetail = {
+  value: number
 }
 
 type FontFamilyChangeDetail = {
@@ -34,6 +39,7 @@ type EditorProps = {
   content: string
   onDocumentTitleChange: (nextTitle: string) => void
   onContentChange: (nextContent: string) => void
+  onTypingStateChange?: (isTyping: boolean) => void
 }
 
 export default function Editor({
@@ -42,12 +48,27 @@ export default function Editor({
   content,
   onDocumentTitleChange,
   onContentChange,
+  onTypingStateChange,
 }: EditorProps) {
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
   const caretRef = useRef<HTMLDivElement | null>(null)
+  const typingUiTimeoutRef = useRef<number | null>(null)
   const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE)
   const [fontFamily, setFontFamily] = useState(DEFAULT_FONT_FAMILY)
   const [titleDraft, setTitleDraft] = useState(documentTitle)
+
+  const markUiTypingActivity = () => {
+    onTypingStateChange?.(true)
+
+    if (typingUiTimeoutRef.current) {
+      window.clearTimeout(typingUiTimeoutRef.current)
+    }
+
+    typingUiTimeoutRef.current = window.setTimeout(() => {
+      onTypingStateChange?.(false)
+      typingUiTimeoutRef.current = null
+    }, 450)
+  }
 
   const syncEmptyState = (currentEditor: Parameters<NonNullable<Parameters<typeof useEditor>[0]["onUpdate"]>>[0]["editor"]) => {
     currentEditor.view.dom.setAttribute("data-empty", currentEditor.isEmpty ? "true" : "false")
@@ -56,6 +77,15 @@ export default function Editor({
   useEffect(() => {
     setTitleDraft(documentTitle)
   }, [documentTitle, documentId])
+
+  useEffect(() => {
+    return () => {
+      if (typingUiTimeoutRef.current) {
+        window.clearTimeout(typingUiTimeoutRef.current)
+      }
+      onTypingStateChange?.(false)
+    }
+  }, [onTypingStateChange])
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -109,6 +139,17 @@ export default function Editor({
         const nextSize = currentSize + delta
         return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, nextSize))
       })
+    }
+
+    const onFontSizeSet = (event: Event) => {
+      const customEvent = event as CustomEvent<FontSizeSetDetail>
+      const value = customEvent.detail?.value
+
+      if (typeof value !== "number" || Number.isNaN(value)) {
+        return
+      }
+
+      setFontSize(Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value)))
     }
 
     const onFontFamilyChange = (event: Event) => {
@@ -208,11 +249,13 @@ export default function Editor({
     }
 
     window.addEventListener(EDITOR_FONT_SIZE_CHANGE_EVENT, onFontSizeChange as EventListener)
+    window.addEventListener(EDITOR_FONT_SIZE_SET_EVENT, onFontSizeSet as EventListener)
     window.addEventListener(EDITOR_FONT_FAMILY_CHANGE_EVENT, onFontFamilyChange as EventListener)
     window.addEventListener(EDITOR_COMMAND_EVENT, onEditorCommand as EventListener)
 
     return () => {
       window.removeEventListener(EDITOR_FONT_SIZE_CHANGE_EVENT, onFontSizeChange as EventListener)
+      window.removeEventListener(EDITOR_FONT_SIZE_SET_EVENT, onFontSizeSet as EventListener)
       window.removeEventListener(EDITOR_FONT_FAMILY_CHANGE_EVENT, onFontFamilyChange as EventListener)
       window.removeEventListener(EDITOR_COMMAND_EVENT, onEditorCommand as EventListener)
     }
@@ -242,7 +285,7 @@ export default function Editor({
       caret.classList.remove("typing-caret--typing")
     }
 
-    const markTypingActivity = () => {
+    const markCaretTypingActivity = () => {
       caret.classList.add("typing-caret--typing")
 
       if (typingTimeoutId) {
@@ -315,7 +358,8 @@ export default function Editor({
       const isEditingKey = event.key === "Backspace" || event.key === "Delete" || event.key === "Enter"
 
       if (isCharacter || isEditingKey) {
-        markTypingActivity()
+        markCaretTypingActivity()
+        markUiTypingActivity()
       }
     }
 
@@ -345,7 +389,7 @@ export default function Editor({
       window.removeEventListener("scroll", onWindowScroll, true)
       editor.view.dom.removeEventListener("keydown", onKeyDown)
     }
-  }, [editor])
+  }, [editor, onTypingStateChange])
 
   return (
     <div
@@ -358,6 +402,7 @@ export default function Editor({
         value={titleDraft}
         onChange={(event) => {
           setTitleDraft(event.target.value)
+          markUiTypingActivity()
         }}
         onBlur={() => {
           onDocumentTitleChange(titleDraft)
@@ -367,12 +412,18 @@ export default function Editor({
             event.preventDefault()
             onDocumentTitleChange(titleDraft)
             event.currentTarget.blur()
+            return
           }
 
           if (event.key === "Escape") {
             event.preventDefault()
             setTitleDraft(documentTitle)
             event.currentTarget.blur()
+            return
+          }
+
+          if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key.length === 1 || event.key === "Backspace" || event.key === "Delete")) {
+            markUiTypingActivity()
           }
         }}
         aria-label="Document title"

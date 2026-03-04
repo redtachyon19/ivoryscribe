@@ -1,10 +1,28 @@
 import { useEffect, useMemo, useState } from "react"
 import "./App.css"
+import GlobalSettings from "./components/GlobalSettings"
 import WebMenu from "./components/WebMenu"
+import { FONT_OPTIONS, PALETTE_OPTIONS, type Palette } from "./core/appearance"
+import {
+  APP_COLOR_PALETTE_CHANGE_EVENT,
+  EDITOR_FONT_FAMILY_CHANGE_EVENT,
+  EDITOR_FONT_SIZE_CHANGE_EVENT,
+  EDITOR_FONT_SIZE_SET_EVENT,
+  requestAppColorPaletteChange,
+  requestEditorFontFamilyChange,
+  requestEditorFontSizeSet,
+} from "./core/editorEvents"
 import { projectWorkspaceMenu } from "./core/menu"
 import { DEFAULT_DOCUMENT_CONTENT, createProject, type Project, type ProjectKind } from "./core/projects"
 import EditorWorkspace from "./pages/EditorWorkspace"
 import ProjectDashboard from "./pages/ProjectDashboard"
+
+const MIN_FONT_SIZE = 20
+const MAX_FONT_SIZE = 84
+
+function clampFontSize(value: number) {
+  return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value))
+}
 
 export default function App() {
   // The app has two high-level screens: project dashboard and editor workspace.
@@ -14,6 +32,12 @@ export default function App() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [bookCounter, setBookCounter] = useState(2)
   const [blogCounter, setBlogCounter] = useState(1)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isMenuBarEnabled, setIsMenuBarEnabled] = useState(true)
+  const [isEditorTyping, setIsEditorTyping] = useState(false)
+  const [selectedFont, setSelectedFont] = useState<string>(FONT_OPTIONS[0]!.value)
+  const [fontSize, setFontSize] = useState(32)
+  const [palette, setPalette] = useState<Palette>("ivory")
 
   // Resolve the active project ID to a real project object with a fallback.
   const activeProject = useMemo(() => {
@@ -38,6 +62,66 @@ export default function App() {
       setActiveProjectId(projects[0].id)
     }
   }, [projects, activeProjectId])
+
+  useEffect(() => {
+    const onFontFamilyChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ fontFamily: string }>
+      const nextFontFamily = customEvent.detail?.fontFamily
+      if (!nextFontFamily) {
+        return
+      }
+
+      setSelectedFont(nextFontFamily)
+    }
+
+    const onFontSizeChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ delta: number }>
+      const delta = customEvent.detail?.delta ?? 0
+
+      if (!delta) {
+        return
+      }
+
+      setFontSize((current) => clampFontSize(current + delta))
+    }
+
+    const onFontSizeSet = (event: Event) => {
+      const customEvent = event as CustomEvent<{ value: number }>
+      const value = customEvent.detail?.value
+      if (typeof value !== "number" || Number.isNaN(value)) {
+        return
+      }
+
+      setFontSize(clampFontSize(value))
+    }
+
+    const onPaletteChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ palette: string }>
+      const nextPalette = customEvent.detail?.palette
+      if (!nextPalette) {
+        return
+      }
+
+      const isSupported = PALETTE_OPTIONS.some((option) => option.value === nextPalette)
+      if (!isSupported) {
+        return
+      }
+
+      setPalette(nextPalette as Palette)
+    }
+
+    window.addEventListener(EDITOR_FONT_FAMILY_CHANGE_EVENT, onFontFamilyChange as EventListener)
+    window.addEventListener(EDITOR_FONT_SIZE_CHANGE_EVENT, onFontSizeChange as EventListener)
+    window.addEventListener(EDITOR_FONT_SIZE_SET_EVENT, onFontSizeSet as EventListener)
+    window.addEventListener(APP_COLOR_PALETTE_CHANGE_EVENT, onPaletteChange as EventListener)
+
+    return () => {
+      window.removeEventListener(EDITOR_FONT_FAMILY_CHANGE_EVENT, onFontFamilyChange as EventListener)
+      window.removeEventListener(EDITOR_FONT_SIZE_CHANGE_EVENT, onFontSizeChange as EventListener)
+      window.removeEventListener(EDITOR_FONT_SIZE_SET_EVENT, onFontSizeSet as EventListener)
+      window.removeEventListener(APP_COLOR_PALETTE_CHANGE_EVENT, onPaletteChange as EventListener)
+    }
+  }, [])
 
   // Central helper used by editor page children to mutate only the active project.
   const updateActiveProject = (updater: (project: Project) => Project) => {
@@ -85,13 +169,21 @@ export default function App() {
     setView("editor")
   }
 
+  const applyFontFamily = (fontFamily: string) => {
+    requestEditorFontFamilyChange(fontFamily)
+  }
+
+  const applyFontSize = (nextFontSize: number) => {
+    requestEditorFontSizeSet(clampFontSize(nextFontSize))
+  }
+
   return (
-    <div className="app">
+    <div className={`app app--palette-${palette}`.trim()}>
       <main className="app-main">
-        <WebMenu items={view === "projects" ? projectWorkspaceMenu : undefined} />
+        {isMenuBarEnabled ? <WebMenu items={view === "projects" ? projectWorkspaceMenu : undefined} /> : null}
         <button
           type="button"
-          className={`app-brand ${view === "editor" || view === "projects" ? "app-brand--with-menu" : ""}`.trim()}
+          className={`app-brand ${isMenuBarEnabled && (view === "editor" || view === "projects") ? "app-brand--with-menu" : ""}`.trim()}
           aria-label="Go to projects"
           onClick={() => {
             setView("projects")
@@ -115,9 +207,35 @@ export default function App() {
           <EditorWorkspace
             project={activeProject}
             activeContent={activeContent}
+            menuBarEnabled={isMenuBarEnabled}
+            isEditorTyping={isEditorTyping}
             onProjectChange={updateActiveProject}
+            onEditorTypingStateChange={setIsEditorTyping}
           />
         )}
+
+        <GlobalSettings
+          isOpen={isSettingsOpen}
+          menuBarEnabled={isMenuBarEnabled}
+          hideTrigger={isEditorTyping}
+          selectedFont={selectedFont}
+          fontSize={fontSize}
+          palette={palette}
+          paletteOptions={PALETTE_OPTIONS}
+          fontOptions={[...FONT_OPTIONS]}
+          onToggleOpen={() => {
+            setIsSettingsOpen((current) => !current)
+          }}
+          onClose={() => {
+            setIsSettingsOpen(false)
+          }}
+          onMenuBarEnabledChange={setIsMenuBarEnabled}
+          onFontChange={applyFontFamily}
+          onFontSizeChange={applyFontSize}
+          onPaletteChange={(nextPalette) => {
+            requestAppColorPaletteChange(nextPalette)
+          }}
+        />
       </main>
     </div>
   )

@@ -1,6 +1,8 @@
 export const EDITOR_FONT_SIZE_CHANGE_EVENT = "editor:font-size-change"
+export const EDITOR_FONT_SIZE_SET_EVENT = "editor:font-size-set"
 export const EDITOR_FONT_FAMILY_CHANGE_EVENT = "editor:font-family-change"
 export const EDITOR_COMMAND_EVENT = "editor:command"
+export const APP_COLOR_PALETTE_CHANGE_EVENT = "app:color-palette-change"
 export const EXPORT_ALL_TABS_PDF_EVENT = "app:export-all-tabs-pdf"
 export const PROJECTS_CREATE_BOOK_EVENT = "projects:create-book"
 export const PROJECTS_CREATE_BLOG_EVENT = "projects:create-blog"
@@ -22,8 +24,16 @@ type FontSizeChangeDetail = {
   delta: number
 }
 
+type FontSizeSetDetail = {
+  value: number
+}
+
 type FontFamilyChangeDetail = {
   fontFamily: string
+}
+
+type ColorPaletteChangeDetail = {
+  palette: string
 }
 
 type EditorCommandDetail = {
@@ -38,9 +48,25 @@ export function requestEditorFontSizeChange(delta: number) {
   window.dispatchEvent(event)
 }
 
+export function requestEditorFontSizeSet(value: number) {
+  const event = new CustomEvent<FontSizeSetDetail>(EDITOR_FONT_SIZE_SET_EVENT, {
+    detail: { value },
+  })
+
+  window.dispatchEvent(event)
+}
+
 export function requestEditorFontFamilyChange(fontFamily: string) {
   const event = new CustomEvent<FontFamilyChangeDetail>(EDITOR_FONT_FAMILY_CHANGE_EVENT, {
     detail: { fontFamily },
+  })
+
+  window.dispatchEvent(event)
+}
+
+export function requestAppColorPaletteChange(palette: string) {
+  const event = new CustomEvent<ColorPaletteChangeDetail>(APP_COLOR_PALETTE_CHANGE_EVENT, {
+    detail: { palette },
   })
 
   window.dispatchEvent(event)

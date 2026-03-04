@@ -1,6 +1,8 @@
 import { useEffect, useMemo } from "react"
+import { BookText, NotebookText } from "lucide-react"
 import Editor from "../Editor"
 import DocumentTabs from "../components/DocumentTabs"
+import TuskAiTab from "../components/TuskAiTab"
 import { EXPORT_ALL_TABS_PDF_EVENT } from "../core/editorEvents"
 import { exportProjectAsPdf } from "../core/pdfExport"
 import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../core/projects"
@@ -65,11 +67,22 @@ function getNextEntryName(tabs: Project["tabs"], singular: string): string {
 type EditorWorkspaceProps = {
   project: Project
   activeContent: string
+  menuBarEnabled: boolean
+  isEditorTyping: boolean
   onProjectChange: (updater: (project: Project) => Project) => void
+  onEditorTypingStateChange: (isTyping: boolean) => void
 }
 
-export default function EditorWorkspace({ project, activeContent, onProjectChange }: EditorWorkspaceProps) {
+export default function EditorWorkspace({
+  project,
+  activeContent,
+  menuBarEnabled,
+  isEditorTyping,
+  onProjectChange,
+  onEditorTypingStateChange,
+}: EditorWorkspaceProps) {
   const entryTerms = getProjectEntryTerms(project.kind)
+  const ProjectIcon = project.kind === "Book" ? BookText : NotebookText
 
   const activeDocumentTitle = useMemo(() => {
     if (!project.activeId) {
@@ -93,13 +106,18 @@ export default function EditorWorkspace({ project, activeContent, onProjectChang
 
   return (
     <>
-      <div className="editor-workspace__project-label" aria-live="polite">
-        {project.name}
+      <div
+        className={`editor-workspace__project-label ${menuBarEnabled ? "editor-workspace__project-label--with-menu" : ""} ${isEditorTyping ? "editor-workspace__project-label--hidden" : ""}`.trim()}
+        aria-live="polite"
+      >
+        <ProjectIcon size={14} strokeWidth={2} aria-hidden={true} />
+        <span>{project.name}</span>
       </div>
       <DocumentTabs
         tabs={project.tabs}
         projectKind={project.kind}
         activeId={project.activeId}
+        hideToggle={isEditorTyping}
         onTabsChange={(updater) => {
           // Tab operations can add/reorder/nest docs, so normalize project invariants afterward.
           onProjectChange((currentProject) => normalizeProjectAfterTabs(currentProject, updater(currentProject.tabs)))
@@ -111,10 +129,12 @@ export default function EditorWorkspace({ project, activeContent, onProjectChang
           }))
         }}
       />
+      <TuskAiTab hideToggle={isEditorTyping} />
       <Editor
         documentId={project.activeId}
         documentTitle={activeDocumentTitle}
         content={activeContent}
+        onTypingStateChange={onEditorTypingStateChange}
         onDocumentTitleChange={(nextTitle) => {
           onProjectChange((currentProject) => {
             if (!currentProject.activeId) {

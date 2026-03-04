@@ -3,10 +3,12 @@ import {
   requestCreateBlogProject,
   requestCreateBookProject,
   requestCreateProjectFolder,
+  requestAppColorPaletteChange,
   requestEditorFontFamilyChange,
   requestEditorFontSizeChange,
   requestExportAllTabsPdf,
 } from "./editorEvents"
+import { FONT_OPTIONS, PALETTE_OPTIONS } from "./appearance"
 
 export type MenuItem = {
   label: string
@@ -107,62 +109,12 @@ const viewMenuItem: MenuItem = {
   submenu: [
     {
       label: "Change Font",
-      submenu: [
-        {
-          label: "Times (Default)",
-          action: () => {
-            requestEditorFontFamilyChange('"Times", "Times New Roman", serif')
-          },
+      submenu: FONT_OPTIONS.map((option) => ({
+        label: option.label,
+        action: () => {
+          requestEditorFontFamilyChange(option.value)
         },
-        {
-          label: "Times New Roman",
-          action: () => {
-            requestEditorFontFamilyChange('"Times New Roman", serif')
-          },
-        },
-        {
-          label: "Roboto Mono",
-          action: () => {
-            requestEditorFontFamilyChange('"Roboto Mono", monospace')
-          },
-        },
-        {
-          label: "Arial",
-          action: () => {
-            requestEditorFontFamilyChange("Arial, sans-serif")
-          },
-        },
-        {
-          label: "Calibri",
-          action: () => {
-            requestEditorFontFamilyChange("Calibri, sans-serif")
-          },
-        },
-        {
-          label: "Courier",
-          action: () => {
-            requestEditorFontFamilyChange('"Courier New", Courier, monospace')
-          },
-        },
-        {
-          label: "EB Garamond",
-          action: () => {
-            requestEditorFontFamilyChange('"EB Garamond", serif')
-          },
-        },
-        {
-          label: "Montserrat",
-          action: () => {
-            requestEditorFontFamilyChange('"Montserrat", sans-serif')
-          },
-        },
-        {
-          label: "Custom Uploaded Font",
-          action: () => {
-            console.log("Custom Uploaded Font")
-          },
-        },
-      ],
+      })),
     },
     {
       label: "Increase Font Size",
@@ -178,50 +130,83 @@ const viewMenuItem: MenuItem = {
     },
     {
       label: "Change Color Palette",
-      submenu: [
-        {
-          label: "Ivory Tusk (Default)",
-          action: () => {
-            console.log("Ivory Tusk (Default)")
-          },
+      submenu: PALETTE_OPTIONS.map((option) => ({
+        label: option.label,
+        action: () => {
+          requestAppColorPaletteChange(option.value)
         },
-        {
-          label: "Elephant (Dark Mode)",
-          action: () => {
-            console.log("Elephant (Dark Mode)")
-          },
-        },
-        {
-          label: "Moon & Midnight",
-          action: () => {
-            console.log("Moon & Midnight")
-          },
-        },
-        {
-          label: "Sunset Savannah",
-          action: () => {
-            console.log("Sunset Savannah")
-          },
-        },
-        {
-          label: "Woodland Forrest",
-          action: () => {
-            console.log("Woodland Forrest")
-          },
-        },
-        {
-          label: "Glaciers & Waterfalls",
-          action: () => {
-            console.log("Glaciers & Waterfalls")
-          },
-        },
-        {
-          label: "(Custom)",
-          action: () => {
-            console.log("(Custom)")
-          },
-        },
-      ],
+      })),
+    },
+  ],
+}
+
+const windowMenuItem: MenuItem = {
+  label: "Window",
+  submenu: [
+    {
+      label: "Reload Window",
+      shortcut: "⌘R",
+      action: () => {
+        if (typeof window !== "undefined") {
+          window.location.reload()
+        }
+      },
+    },
+    {
+      label: "Toggle Full Screen",
+      shortcut: "⌃⌘F",
+      action: () => {
+        if (typeof document === "undefined") {
+          return
+        }
+
+        if (document.fullscreenElement) {
+          void document.exitFullscreen()
+          return
+        }
+
+        void document.documentElement.requestFullscreen()
+      },
+    },
+  ],
+}
+
+const helpMenuItem: MenuItem = {
+  label: "Help",
+  submenu: [
+    {
+      label: "Keyboard Shortcuts",
+      action: () => {
+        if (typeof window === "undefined") {
+          return
+        }
+
+        window.alert(
+          [
+            "Keyboard Shortcuts",
+            "",
+            "Undo: ⌘Z",
+            "Redo: ⇧⌘Z",
+            "Bold: ⌘B",
+            "Italic: ⌘I",
+            "Underline: ⌘U",
+            "Select All: ⌘A",
+            "Copy: ⌘C",
+            "Paste: ⌘V",
+            "Cut: ⌘X",
+          ].join("\n"),
+        )
+      },
+    },
+    {
+      label: "About Ivoryscribe",
+      action: () => {
+        if (typeof window === "undefined") {
+          return
+        }
+
+        window.alert("Ivoryscribe\nWrite an epic. Save a species.")
+      },
     },
   ],
 }
@@ -273,6 +258,8 @@ export const projectWorkspaceMenu: MenuItem[] = [
     label: "Settings",
     disabled: true,
   },
+  windowMenuItem,
+  helpMenuItem,
 ]
 
 export const appMenu: MenuItem[] = [
@@ -307,4 +294,6 @@ export const appMenu: MenuItem[] = [
       console.log("Settings")
     },
   },
+  windowMenuItem,
+  helpMenuItem,
 ]

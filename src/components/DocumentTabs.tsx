@@ -423,11 +423,12 @@ type DocumentTabsProps = {
   tabs: DocumentTab[]
   projectKind: ProjectKind
   activeId: string | null
+  hideToggle?: boolean
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
   onSelect: (id: string) => void
 }
 
-export default function DocumentTabs({ tabs, projectKind, activeId, onTabsChange, onSelect }: DocumentTabsProps) {
+export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle = false, onTabsChange, onSelect }: DocumentTabsProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget>(null)
@@ -546,12 +547,12 @@ export default function DocumentTabs({ tabs, projectKind, activeId, onTabsChange
     <div className="doc-tabs" aria-hidden={!isOpen}>
       <button
         type="button"
-        className={`doc-tabs__toggle ${isOpen ? "doc-tabs__toggle--shifted" : ""}`.trim()}
+        className={`doc-tabs__toggle ${isOpen ? "doc-tabs__toggle--shifted" : ""} ${hideToggle ? "doc-tabs__toggle--hidden" : ""}`.trim()}
         onClick={() => {
           setIsOpen((open) => !open)
         }}
       >
-        <TableOfContents size={14} strokeWidth={2} aria-hidden="true" />
+        <TableOfContents size={14} strokeWidth={2} aria-hidden={true} />
         {isOpen ? `Hide ${plural.toLowerCase()}` : `Show ${plural.toLowerCase()}`}
       </button>
 

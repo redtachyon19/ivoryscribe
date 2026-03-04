@@ -1,8 +1,8 @@
 .web-menu {
   position: relative;
   z-index: 60;
-  background: #101010;
-  border-bottom: 1px solid #1f1f1f;
+  background: var(--menu-bg, #101010);
+  border-bottom: 1px solid var(--menu-border, #1f1f1f);
   padding: 0 16px;
 }
 
@@ -27,7 +27,7 @@
 .web-menu__button {
   border: 0;
   background: transparent;
-  color: #d8d8d8;
+  color: var(--menu-button, #d8d8d8);
   padding: 8px 10px;
   border-radius: 6px;
   font-size: 14px;
@@ -69,12 +69,12 @@
 }
 
 .web-menu__button:hover {
-  background: #1d1d1d;
+  background: var(--menu-button-hover-bg, #1d1d1d);
   color: #ffffff;
 }
 
 .web-menu__button--open {
-  background: #1d1d1d;
+  background: var(--menu-button-hover-bg, #1d1d1d);
   color: #ffffff;
 }
 
@@ -94,8 +94,8 @@
 .web-menu__dropdown {
   position: relative;
   min-width: 190px;
-  background: #151515;
-  border: 1px solid #2a2a2a;
+  background: var(--menu-dropdown-bg, #151515);
+  border: 1px solid var(--menu-dropdown-border, #2a2a2a);
   border-radius: 8px;
   padding: 6px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
