@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type SetStateAction } from "react"
-import { BookText, Folder, GripVertical, NotebookText, Pencil, SquareArrowOutUpRight } from "lucide-react"
+import { BookText, Folder, GripVertical, NotebookText, Pencil, Plus, Rocket, X } from "lucide-react"
 import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../core/editorEvents"
 import { collectTabIds, getProjectEntryTerms, type Project, type ProjectKind } from "../core/projects"
 import "./ProjectDashboard.css"
@@ -48,6 +48,18 @@ function hexToRgba(hex: string, alpha: number) {
   const green = Number.parseInt(normalized.slice(2, 4), 16)
   const blue = Number.parseInt(normalized.slice(4, 6), 16)
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`
+}
+
+function formatProjectDate(dateValue: string) {
+  const parsed = new Date(dateValue)
+  if (Number.isNaN(parsed.getTime())) {
+    return "--.--.----"
+  }
+
+  const month = String(parsed.getMonth() + 1).padStart(2, "0")
+  const day = String(parsed.getDate()).padStart(2, "0")
+  const year = parsed.getFullYear()
+  return `${month}.${day}.${year}`
 }
 
 type ProjectDashboardProps = {
@@ -783,13 +795,14 @@ export default function ProjectDashboard({
               <button
                 type="button"
                 className="project-hub__plus-btn"
-                aria-label="Create project"
+                aria-label={isCreateMenuOpen ? "Cancel" : "Create project"}
                 onClick={() => {
                   setOpenFolderCreateMenuId(null)
                   setIsCreateMenuOpen((open) => !open)
                 }}
               >
-                +
+                {isCreateMenuOpen ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Plus size={14} strokeWidth={2} aria-hidden={true} />}
+                <span className="project-hub__plus-btn-label">{isCreateMenuOpen ? "Cancel" : "Create Project"}</span>
               </button>
 
               {isCreateMenuOpen ? (
@@ -915,24 +928,23 @@ export default function ProjectDashboard({
 
               <div className="project-card__content">
                 <div className="project-card__top-row">
-                  <div className="project-card__meta">
-                    {project.kind === "Book" ? (
-                      <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                    ) : (
-                      <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                    )}
-                    <span>{project.kind}</span>
-                  </div>
+                  <span className="project-card__created-date">{formatProjectDate(project.createdAt)}</span>
                   <div className="project-card__actions">
                     <button
                       type="button"
                       className="project-card__icon-btn"
-                      aria-label={`Edit ${project.name}`}
+                      aria-label={openProjectSettingsId === project.id ? "Cancel" : `Edit ${project.name}`}
                       onClick={() => {
+                        if (openProjectSettingsId === project.id) {
+                          closeProjectSettings()
+                          return
+                        }
+
                         openProjectSettings(project)
                       }}
                     >
-                      <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+                      {openProjectSettingsId === project.id ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Pencil size={14} strokeWidth={2} aria-hidden={true} />}
+                      <span className="project-card__icon-btn-label">{openProjectSettingsId === project.id ? "Cancel" : "Edit Project"}</span>
                     </button>
                   </div>
                 </div>
@@ -956,16 +968,28 @@ export default function ProjectDashboard({
                     {project.name}
                   </h2>
                 )}
-                <p>
-                  {(() => {
-                    const count = collectTabIds(project.tabs).length
-                    const { singular, plural } = getProjectEntryTerms(project.kind)
-                    return `${count} ${count === 1 ? singular.toLowerCase() : plural.toLowerCase()}`
-                  })()}
-                </p>
+                <div className="project-card__meta">
+                  <span className="project-card__meta-kind">
+                    {project.kind === "Book" ? (
+                      <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
+                    ) : (
+                      <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
+                    )}
+                    <span>{project.kind}</span>
+                  </span>
+                  <span className="project-card__meta-separator">·</span>
+                  <span className="project-card__meta-count">
+                    {(() => {
+                      const count = collectTabIds(project.tabs).length
+                      const { singular, plural } = getProjectEntryTerms(project.kind)
+                      return `${count} ${count === 1 ? singular.toLowerCase() : plural.toLowerCase()}`
+                    })()}
+                  </span>
+                </div>
                 <button
                   type="button"
                   className="project-card__open"
+                  aria-label={`Launch ${project.name}`}
                   onClick={() => {
                     if (editingProjectId === project.id) {
                       return
@@ -973,8 +997,8 @@ export default function ProjectDashboard({
                     onOpenProject(project.id)
                   }}
                 >
-                  <span>Open</span>
-                  <SquareArrowOutUpRight size={13} strokeWidth={2} aria-hidden="true" />
+                  <Rocket size={13} strokeWidth={2} aria-hidden={true} />
+                  <span className="project-card__open-label">Launch Project</span>
                 </button>
               </div>
             </li>
@@ -1094,14 +1118,15 @@ export default function ProjectDashboard({
                   <button
                     type="button"
                     className="project-folder__plus-btn"
-                    aria-label={`Create project in ${folder.name}`}
+                    aria-label={openFolderCreateMenuId === folder.id ? "Cancel" : `Create project in ${folder.name}`}
                     aria-expanded={openFolderCreateMenuId === folder.id}
                     onClick={() => {
                       setIsCreateMenuOpen(false)
                       setOpenFolderCreateMenuId((currentId) => (currentId === folder.id ? null : folder.id))
                     }}
                   >
-                    +
+                    {openFolderCreateMenuId === folder.id ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Plus size={14} strokeWidth={2} aria-hidden={true} />}
+                    <span className="project-folder__plus-btn-label">{openFolderCreateMenuId === folder.id ? "Cancel" : "Create Project"}</span>
                   </button>
 
                   {openFolderCreateMenuId === folder.id ? (
@@ -1222,24 +1247,23 @@ export default function ProjectDashboard({
 
                 <div className="project-card__content">
                   <div className="project-card__top-row">
-                    <div className="project-card__meta">
-                      {project.kind === "Book" ? (
-                        <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                      ) : (
-                        <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                      )}
-                      <span>{project.kind}</span>
-                    </div>
+                    <span className="project-card__created-date">{formatProjectDate(project.createdAt)}</span>
                     <div className="project-card__actions">
                       <button
                         type="button"
                         className="project-card__icon-btn"
-                        aria-label={`Edit ${project.name}`}
+                        aria-label={openProjectSettingsId === project.id ? "Cancel" : `Edit ${project.name}`}
                         onClick={() => {
+                          if (openProjectSettingsId === project.id) {
+                            closeProjectSettings()
+                            return
+                          }
+
                           openProjectSettings(project)
                         }}
                       >
-                        <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+                        {openProjectSettingsId === project.id ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Pencil size={14} strokeWidth={2} aria-hidden={true} />}
+                        <span className="project-card__icon-btn-label">{openProjectSettingsId === project.id ? "Cancel" : "Edit Project"}</span>
                       </button>
                     </div>
                   </div>
@@ -1263,16 +1287,28 @@ export default function ProjectDashboard({
                         {project.name}
                       </h2>
                     )}
-                  <p>
-                    {(() => {
-                      const count = collectTabIds(project.tabs).length
-                      const { singular, plural } = getProjectEntryTerms(project.kind)
-                      return `${count} ${count === 1 ? singular.toLowerCase() : plural.toLowerCase()}`
-                    })()}
-                  </p>
+                  <div className="project-card__meta">
+                    <span className="project-card__meta-kind">
+                      {project.kind === "Book" ? (
+                        <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
+                      ) : (
+                        <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
+                      )}
+                      <span>{project.kind}</span>
+                    </span>
+                    <span className="project-card__meta-separator">·</span>
+                    <span className="project-card__meta-count">
+                      {(() => {
+                        const count = collectTabIds(project.tabs).length
+                        const { singular, plural } = getProjectEntryTerms(project.kind)
+                        return `${count} ${count === 1 ? singular.toLowerCase() : plural.toLowerCase()}`
+                      })()}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     className="project-card__open"
+                    aria-label={`Launch ${project.name}`}
                     onClick={() => {
                       if (editingProjectId === project.id) {
                         return
@@ -1280,8 +1316,8 @@ export default function ProjectDashboard({
                       onOpenProject(project.id)
                     }}
                   >
-                    <span>Open</span>
-                    <SquareArrowOutUpRight size={13} strokeWidth={2} aria-hidden="true" />
+                    <Rocket size={13} strokeWidth={2} aria-hidden={true} />
+                    <span className="project-card__open-label">Launch Project</span>
                   </button>
                 </div>
               </li>
@@ -1342,24 +1378,23 @@ export default function ProjectDashboard({
 
               <div className="project-card__content">
                 <div className="project-card__top-row">
-                  <div className="project-card__meta">
-                    {project.kind === "Book" ? (
-                      <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                    ) : (
-                      <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                    )}
-                    <span>{project.kind}</span>
-                  </div>
+                  <span className="project-card__created-date">{formatProjectDate(project.createdAt)}</span>
                   <div className="project-card__actions">
                     <button
                       type="button"
                       className="project-card__icon-btn"
-                      aria-label={`Edit ${project.name}`}
+                      aria-label={openProjectSettingsId === project.id ? "Cancel" : `Edit ${project.name}`}
                       onClick={() => {
+                        if (openProjectSettingsId === project.id) {
+                          closeProjectSettings()
+                          return
+                        }
+
                         openProjectSettings(project)
                       }}
                     >
-                      <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+                      {openProjectSettingsId === project.id ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Pencil size={14} strokeWidth={2} aria-hidden={true} />}
+                      <span className="project-card__icon-btn-label">{openProjectSettingsId === project.id ? "Cancel" : "Edit Project"}</span>
                     </button>
                   </div>
                 </div>
@@ -1383,16 +1418,28 @@ export default function ProjectDashboard({
                     {project.name}
                   </h2>
                 )}
-                <p>
-                  {(() => {
-                    const count = collectTabIds(project.tabs).length
-                    const { singular, plural } = getProjectEntryTerms(project.kind)
-                    return `${count} ${count === 1 ? singular.toLowerCase() : plural.toLowerCase()}`
-                  })()}
-                </p>
+                <div className="project-card__meta">
+                  <span className="project-card__meta-kind">
+                    {project.kind === "Book" ? (
+                      <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
+                    ) : (
+                      <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
+                    )}
+                    <span>{project.kind}</span>
+                  </span>
+                  <span className="project-card__meta-separator">·</span>
+                  <span className="project-card__meta-count">
+                    {(() => {
+                      const count = collectTabIds(project.tabs).length
+                      const { singular, plural } = getProjectEntryTerms(project.kind)
+                      return `${count} ${count === 1 ? singular.toLowerCase() : plural.toLowerCase()}`
+                    })()}
+                  </span>
+                </div>
                 <button
                   type="button"
                   className="project-card__open"
+                  aria-label={`Launch ${project.name}`}
                   onClick={() => {
                     if (editingProjectId === project.id) {
                       return
@@ -1400,8 +1447,8 @@ export default function ProjectDashboard({
                     onOpenProject(project.id)
                   }}
                 >
-                  <span>Open</span>
-                  <SquareArrowOutUpRight size={13} strokeWidth={2} aria-hidden="true" />
+                  <Rocket size={13} strokeWidth={2} aria-hidden={true} />
+                  <span className="project-card__open-label">Launch Project</span>
                 </button>
               </div>
             </li>

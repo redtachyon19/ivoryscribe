@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Brain, X } from "lucide-react"
 import "./TuskAiTab.css"
 
 type TuskAiTabProps = {
@@ -7,17 +8,20 @@ type TuskAiTabProps = {
 
 export default function TuskAiTab({ hideToggle = false }: TuskAiTabProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const toggleLabel = isOpen ? "Close Tusk AI" : "Open Tusk AI"
 
   return (
     <div className="tuskai-tab" aria-hidden={!isOpen}>
       <button
         type="button"
         className={`tuskai-tab__toggle ${isOpen ? "tuskai-tab__toggle--shifted" : ""} ${hideToggle ? "tuskai-tab__toggle--hidden" : ""}`.trim()}
+        aria-label={toggleLabel}
         onClick={() => {
           setIsOpen((open) => !open)
         }}
       >
-        {isOpen ? "Hide Tusk AI" : "Show Tusk AI"}
+        {isOpen ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Brain size={14} strokeWidth={2} aria-hidden={true} />}
+        <span className="tuskai-tab__toggle-label">{toggleLabel}</span>
       </button>
 
       <button

@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from "react"
-import { Pencil, TableOfContents, Trash2 } from "lucide-react"
+import { Pencil, Plus, TableOfContents, Trash2, X } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../core/projects"
 import "./DocumentTabs.css"
 
@@ -437,6 +437,8 @@ export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle =
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const { singular, plural } = getProjectEntryTerms(projectKind)
   const panelTitle = projectKind === "Book" ? "Table of Contents" : "Blog Posts"
+  const toggleLabel = isOpen ? `Hide ${plural.toLowerCase()}` : `Show ${plural.toLowerCase()}`
+  const addLabel = `Create ${singular}`
   const pendingDeleteTitle = pendingDeleteId ? findNode(tabs, pendingDeleteId)?.title ?? singular : null
 
   const addRootDocument = () => {
@@ -547,13 +549,14 @@ export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle =
     <div className="doc-tabs" aria-hidden={!isOpen}>
       <button
         type="button"
-        className={`doc-tabs__toggle ${isOpen ? "doc-tabs__toggle--shifted" : ""} ${hideToggle ? "doc-tabs__toggle--hidden" : ""}`.trim()}
+        className={`doc-tabs__toggle ${isOpen ? "doc-tabs__toggle--open doc-tabs__toggle--shifted" : ""} ${hideToggle ? "doc-tabs__toggle--hidden" : ""}`.trim()}
+        aria-label={toggleLabel}
         onClick={() => {
           setIsOpen((open) => !open)
         }}
       >
-        <TableOfContents size={14} strokeWidth={2} aria-hidden={true} />
-        {isOpen ? `Hide ${plural.toLowerCase()}` : `Show ${plural.toLowerCase()}`}
+        {isOpen ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <TableOfContents size={14} strokeWidth={2} aria-hidden={true} />}
+        <span className="doc-tabs__toggle-label">{toggleLabel}</span>
       </button>
 
       <button
@@ -568,8 +571,9 @@ export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle =
       <aside className={`doc-tabs__panel ${isOpen ? "doc-tabs__panel--open" : ""}`.trim()}>
         <header className="doc-tabs__header">
           <h2>{panelTitle}</h2>
-          <button type="button" className="doc-tabs__add-btn" onClick={addRootDocument}>
-            + Create {singular}
+          <button type="button" className="doc-tabs__add-btn" onClick={addRootDocument} aria-label={addLabel}>
+            <Plus size={14} strokeWidth={2} aria-hidden={true} />
+            <span className="doc-tabs__add-btn-label">{addLabel}</span>
           </button>
         </header>
 

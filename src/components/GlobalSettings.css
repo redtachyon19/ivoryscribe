@@ -5,16 +5,23 @@
   z-index: 170;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border: 1px solid var(--menu-dropdown-border, #2f2f2f);
+  justify-content: center;
+  width: 36px;
+  height: 34px;
+  overflow: visible;
+  border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--menu-bg, #101010) 92%, transparent);
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+  outline: none;
   color: var(--menu-button, #f3f3f3);
-  font-family: "EB Garamond", serif;
+  font-family: "Times", "Times New Roman", serif;
   font-size: 15px;
-  padding: 8px 12px;
+  padding: 8px;
   cursor: pointer;
-  transition: opacity 320ms ease-out, background-color 140ms ease;
+  transition: opacity 320ms ease-out, background-color 140ms ease, border-color 140ms ease;
 }
 
 .global-settings__trigger--with-menu {
@@ -25,9 +32,32 @@
   background: var(--menu-button-hover-bg, #2a2a2a);
 }
 
+.global-settings__trigger:focus-visible {
+  background: var(--menu-button-hover-bg, #2a2a2a);
+  outline: none;
+  box-shadow: none;
+}
+
 .global-settings__trigger--hidden {
   opacity: 0;
   pointer-events: none;
+}
+
+.global-settings__trigger-label {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translate3d(6px, -50%, 0);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 180ms ease;
+}
+
+.global-settings__trigger:hover .global-settings__trigger-label,
+.global-settings__trigger:focus-visible .global-settings__trigger-label {
+  opacity: 0.64;
+  transform: translate3d(0, -50%, 0);
 }
 
 .global-settings__overlay {

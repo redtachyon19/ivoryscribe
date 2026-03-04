@@ -10,6 +10,7 @@ export type ProjectKind = "Book" | "Blog"
 export type Project = {
   id: string
   name: string
+  createdAt: string
   kind: ProjectKind
   color: string
   folderId: string | null
@@ -120,6 +121,7 @@ export function createProject(name: string, kind: ProjectKind): Project {
   return {
     id: createId(),
     name,
+    createdAt: new Date().toISOString(),
     kind,
     color,
     folderId: null,

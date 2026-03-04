@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react"
+import { Settings, X } from "lucide-react"
 import "./GlobalSettings.css"
 
 type PaletteOption = {
@@ -44,16 +44,18 @@ export default function GlobalSettings({
   onFontSizeChange,
   onPaletteChange,
 }: GlobalSettingsProps) {
+  const triggerLabel = isOpen ? "Close Settings" : "Open Settings"
+
   return (
     <>
       <button
         type="button"
-        className={`global-settings__trigger ${menuBarEnabled ? "global-settings__trigger--with-menu" : ""} ${hideTrigger ? "global-settings__trigger--hidden" : ""}`.trim()}
-        aria-label="Open settings"
+        className={`global-settings__trigger ${isOpen ? "global-settings__trigger--open" : ""} ${menuBarEnabled ? "global-settings__trigger--with-menu" : ""} ${hideTrigger ? "global-settings__trigger--hidden" : ""}`.trim()}
+        aria-label={triggerLabel}
         onClick={onToggleOpen}
       >
-        <Settings size={16} strokeWidth={2} aria-hidden={true} />
-        Settings
+        {isOpen ? <X size={16} strokeWidth={2} aria-hidden={true} /> : <Settings size={16} strokeWidth={2} aria-hidden={true} />}
+        <span className="global-settings__trigger-label">{triggerLabel}</span>
       </button>
 
       {isOpen ? (

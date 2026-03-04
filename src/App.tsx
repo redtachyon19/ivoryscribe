@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import "./App.css"
 import GlobalSettings from "./components/GlobalSettings"
 import WebMenu from "./components/WebMenu"
@@ -170,6 +170,7 @@ export default function App() {
   }
 
   const applyFontFamily = (fontFamily: string) => {
+    setSelectedFont(fontFamily)
     requestEditorFontFamilyChange(fontFamily)
   }
 
@@ -177,8 +178,13 @@ export default function App() {
     requestEditorFontSizeSet(clampFontSize(nextFontSize))
   }
 
+  const isDefaultFont = selectedFont === FONT_OPTIONS[0]!.value
+
   return (
-    <div className={`app app--palette-${palette}`.trim()}>
+    <div
+      className={`app app--palette-${palette} ${!isDefaultFont ? "app--custom-font" : ""}`.trim()}
+      style={{ "--app-font-family": selectedFont } as CSSProperties}
+    >
       <main className="app-main">
         {isMenuBarEnabled ? <WebMenu items={view === "projects" ? projectWorkspaceMenu : undefined} /> : null}
         <button

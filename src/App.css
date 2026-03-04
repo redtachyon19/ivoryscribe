@@ -22,6 +22,22 @@
   flex-direction: column;
 }
 
+.app--custom-font,
+.app--custom-font *,
+.app--custom-font *::before,
+.app--custom-font *::after {
+  font-family: inherit !important;
+}
+
+.app--custom-font {
+  font-family: var(--app-font-family) !important;
+}
+
+.app--custom-font .app-brand__name,
+.app--custom-font .app-brand__tagline {
+  font-family: "EB Garamond", serif !important;
+}
+
 .app--palette-elephant {
   --app-bg: #121212;
   --brand-color: #e9e9e9;
