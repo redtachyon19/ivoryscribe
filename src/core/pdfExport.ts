@@ -1,11 +1,171 @@
 import { jsPDF } from "jspdf"
 import { DEFAULT_DOCUMENT_CONTENT, collectTabSequence, type Project } from "./projects"
 
+const PARAGRAPH_TAGS = new Set(["p", "li", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "pre"])
+
+function appendTextChunk(buffer: string[], value: string) {
+  const normalized = value.replace(/\s+/g, " ")
+  if (!normalized) {
+    return
+  }
+
+  const previous = buffer[buffer.length - 1] ?? ""
+  const shouldInsertSpace = Boolean(previous) && !/[\n\s]$/.test(previous) && !/^\s/.test(normalized)
+  if (shouldInsertSpace) {
+    buffer.push(" ")
+  }
+
+  buffer.push(normalized)
+}
+
+function extractInlineText(node: Node, buffer: string[]) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    appendTextChunk(buffer, node.textContent ?? "")
+    return
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return
+  }
+
+  const element = node as HTMLElement
+  const tag = element.tagName.toLowerCase()
+
+  if (tag === "br") {
+    const previous = buffer[buffer.length - 1] ?? ""
+    if (!previous.endsWith("\n")) {
+      buffer.push("\n")
+    }
+    return
+  }
+
+  for (const child of Array.from(element.childNodes)) {
+    extractInlineText(child, buffer)
+  }
+}
+
+function flushInlineBuffer(fragments: Array<string | null>, inlineBuffer: string[]) {
+  const text = inlineBuffer.join("").trim()
+  if (text) {
+    fragments.push(text)
+  }
+  inlineBuffer.length = 0
+}
+
+function extractParagraphFragments(node: Node, fragments: Array<string | null>, inlineBuffer: string[]) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    appendTextChunk(inlineBuffer, node.textContent ?? "")
+    return
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return
+  }
+
+  const element = node as HTMLElement
+  const tag = element.tagName.toLowerCase()
+
+  if (tag === "br") {
+    const previous = inlineBuffer[inlineBuffer.length - 1] ?? ""
+    if (!previous.endsWith("\n")) {
+      inlineBuffer.push("\n")
+    }
+    return
+  }
+
+  if (PARAGRAPH_TAGS.has(tag)) {
+    flushInlineBuffer(fragments, inlineBuffer)
+    const paragraphBuffer: string[] = []
+    for (const child of Array.from(element.childNodes)) {
+      extractInlineText(child, paragraphBuffer)
+    }
+    const paragraphText = paragraphBuffer.join("").trim()
+    if (paragraphText) {
+      fragments.push(paragraphText)
+    } else {
+      // Empty block node acts as an explicit paragraph separator.
+      fragments.push(null)
+    }
+    return
+  }
+
+  for (const child of Array.from(element.childNodes)) {
+    extractParagraphFragments(child, fragments, inlineBuffer)
+  }
+}
+
 // We export plain text to keep output predictable and avoid rich-text rendering quirks.
 function htmlToPlainText(html: string): string {
   const parser = new DOMParser()
   const document = parser.parseFromString(html, "text/html")
-  return (document.body.textContent ?? "").replace(/\n{3,}/g, "\n\n").trim()
+  const fragments: Array<string | null> = []
+  const inlineBuffer: string[] = []
+
+  for (const child of Array.from(document.body.childNodes)) {
+    extractParagraphFragments(child, fragments, inlineBuffer)
+  }
+
+  flushInlineBuffer(fragments, inlineBuffer)
+
+  // Preserve explicit editor paragraph boundaries so export layout matches writing flow.
+  const paragraphs: string[] = []
+
+  for (const fragment of fragments) {
+    if (fragment === null) {
+      paragraphs.push("")
+      continue
+    }
+
+    paragraphs.push(fragment)
+  }
+
+  return paragraphs.join("\n")
+}
+
+function wrapTextPreservingBreaks(pdf: jsPDF, value: string, maxWidth: number): string[] {
+  const normalized = value.replace(/\r\n?/g, "\n")
+  const paragraphs = normalized.split("\n")
+  const lines: string[] = []
+
+  for (let index = 0; index < paragraphs.length; index += 1) {
+    const paragraph = paragraphs[index]
+    if (!paragraph.trim()) {
+      lines.push("")
+      continue
+    }
+
+    const wrapped = pdf.splitTextToSize(paragraph, maxWidth) as string[]
+    lines.push(...wrapped)
+
+    if (index < paragraphs.length - 1) {
+      lines.push("")
+    }
+  }
+
+  return lines.length > 0 ? lines : [""]
+}
+
+function countPagesForDocumentLines(
+  lines: string[],
+  contentTop: number,
+  contentBottom: number,
+  normalLineHeight: number,
+  paragraphBreakHeight: number,
+) {
+  let pages = 1
+  let y = contentTop
+
+  for (const line of lines) {
+    const lineHeight = line.trim() ? normalLineHeight : paragraphBreakHeight
+    if (y + lineHeight > contentBottom) {
+      pages += 1
+      y = contentTop
+    }
+
+    y += lineHeight
+  }
+
+  return pages
 }
 
 function collectTabSequenceWithDepth(
@@ -43,26 +203,35 @@ export function exportProjectAsPdf(project: Project) {
   const sequence = collectTabSequence(project.tabs)
   const tocSequence = collectTabSequenceWithDepth(project.tabs)
   const pdf = new jsPDF({ unit: "pt", format: "letter" })
-  const marginX = 48
-  const headerY = 28
-  const headerRuleY = 38
-  const contentTop = 66
+  // Letter page with true 1-inch margins.
+  const marginX = 72
+  const marginY = 72
+  const headerY = marginY
+  const headerRuleY = headerY + 10
+  const contentTop = headerRuleY + 24
   const tocHeadingY = contentTop
-  const tocEntriesTop = contentTop + 28
-  const footerYGap = 32
+  const tocEntriesTop = contentTop + 32
   const lineHeight = 16
+  const paragraphBreakHeight = 24
   const pageWidth = pdf.internal.pageSize.getWidth()
   const pageHeight = pdf.internal.pageSize.getHeight()
   const contentWidth = pageWidth - marginX * 2
-  const contentBottom = pageHeight - footerYGap
+  const contentBottom = pageHeight - marginY
   const pageHeaderByNumber: string[] = []
-  const maxDocumentLinesPerPage = Math.floor((contentBottom - contentTop) / lineHeight)
+
+  const bodyFontFamily = "times"
+  const bodyFontStyle = "normal"
+  const bodyFontSize = 12
+
+  // Keep measurement and rendering in sync so line wrapping is accurate.
+  pdf.setFont(bodyFontFamily, bodyFontStyle)
+  pdf.setFontSize(bodyFontSize)
 
   const documentEntries = sequence.map((tab) => {
     const plainText = htmlToPlainText(project.contentById[tab.id] ?? DEFAULT_DOCUMENT_CONTENT)
     const safeText = plainText || "(Empty document)"
-    const lines = pdf.splitTextToSize(safeText, contentWidth) as string[]
-    const pagesNeeded = Math.max(1, Math.ceil(lines.length / maxDocumentLinesPerPage))
+    const lines = wrapTextPreservingBreaks(pdf, safeText, contentWidth)
+    const pagesNeeded = countPagesForDocumentLines(lines, contentTop, contentBottom, lineHeight, paragraphBreakHeight)
     return {
       ...tab,
       lines,
@@ -103,8 +272,8 @@ export function exportProjectAsPdf(project: Project) {
     const entries = tocSequence.slice(startIndex, startIndex + tocEntriesPerPage)
     let y = tocEntriesTop
 
-    pdf.setFont("times", "normal")
-    pdf.setFontSize(12)
+    pdf.setFont(bodyFontFamily, bodyFontStyle)
+    pdf.setFontSize(bodyFontSize)
 
     for (const entry of entries) {
       const indent = entry.depth * 18
@@ -141,7 +310,10 @@ export function exportProjectAsPdf(project: Project) {
     let y = contentTop
 
     while (lineIndex < tab.lines.length) {
-      if (y + lineHeight > contentBottom) {
+      const line = tab.lines[lineIndex]
+      const currentLineHeight = line.trim() ? lineHeight : paragraphBreakHeight
+
+      if (y + currentLineHeight > contentBottom) {
         pdf.addPage()
         currentPage += 1
         pdf.setPage(currentPage)
@@ -149,10 +321,12 @@ export function exportProjectAsPdf(project: Project) {
         y = contentTop
       }
 
-      pdf.setFont("times", "normal")
-      pdf.setFontSize(12)
-      pdf.text(tab.lines[lineIndex], marginX, y)
-      y += lineHeight
+      pdf.setFont(bodyFontFamily, bodyFontStyle)
+      pdf.setFontSize(bodyFontSize)
+      if (line.trim()) {
+        pdf.text(line, marginX, y)
+      }
+      y += currentLineHeight
       lineIndex += 1
     }
   }

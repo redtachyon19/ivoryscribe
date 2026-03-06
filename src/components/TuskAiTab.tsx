@@ -14,7 +14,7 @@ export default function TuskAiTab({ hideToggle = false }: TuskAiTabProps) {
     <div className="tuskai-tab" aria-hidden={!isOpen}>
       <button
         type="button"
-        className={`tuskai-tab__toggle ${isOpen ? "tuskai-tab__toggle--shifted" : ""} ${hideToggle ? "tuskai-tab__toggle--hidden" : ""}`.trim()}
+        className={`tuskai-tab__toggle ${isOpen ? "tuskai-tab__toggle--open tuskai-tab__toggle--shifted" : ""} ${hideToggle ? "tuskai-tab__toggle--hidden" : ""}`.trim()}
         aria-label={toggleLabel}
         onClick={() => {
           setIsOpen((open) => !open)

@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
+import Highlight from "@tiptap/extension-highlight"
+import { Flag, FlagOff } from "lucide-react"
 import {
   EDITOR_COMMAND_EVENT,
   EDITOR_FONT_FAMILY_CHANGE_EVENT,
@@ -26,17 +28,24 @@ type EditorCommandDetail = {
   command: EditorCommand
 }
 
+type HighlightRange = {
+  from: number
+  to: number
+}
+
 const MIN_FONT_SIZE = 20
 const MAX_FONT_SIZE = 84
 const DEFAULT_FONT_SIZE = 32
 const DEFAULT_FONT_FAMILY = '"Times", "Times New Roman", serif'
 const DEFAULT_DOCUMENT_CONTENT = "<p></p>"
 const BODY_PLACEHOLDER = "Start your epic..."
+const FLAG_HIGHLIGHT_COLOR = "rgba(239, 68, 68, 0.3)"
 
 type EditorProps = {
   documentId: string | null
   documentTitle: string
   content: string
+  flagsEnabled: boolean
   onDocumentTitleChange: (nextTitle: string) => void
   onContentChange: (nextContent: string) => void
   onTypingStateChange?: (isTyping: boolean) => void
@@ -46,6 +55,7 @@ export default function Editor({
   documentId,
   documentTitle,
   content,
+  flagsEnabled,
   onDocumentTitleChange,
   onContentChange,
   onTypingStateChange,
@@ -53,11 +63,68 @@ export default function Editor({
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
   const caretRef = useRef<HTMLDivElement | null>(null)
   const typingUiTimeoutRef = useRef<number | null>(null)
+  const [hoverLineTop, setHoverLineTop] = useState<number | null>(null)
+  const [hoverLineAnchor, setHoverLineAnchor] = useState<number | null>(null)
+  const [isFlagRailHovered, setIsFlagRailHovered] = useState(false)
+  const [isUiTyping, setIsUiTyping] = useState(false)
+  const [flaggedAnchorsByDocument, setFlaggedAnchorsByDocument] = useState<Record<string, number[]>>({})
+  const [highlightRangesByDocument, setHighlightRangesByDocument] = useState<Record<string, Record<number, HighlightRange>>>({})
+  const [flaggedLineTops, setFlaggedLineTops] = useState<Record<number, number>>({})
   const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE)
   const [fontFamily, setFontFamily] = useState(DEFAULT_FONT_FAMILY)
   const [titleDraft, setTitleDraft] = useState(documentTitle)
+  const activeDocumentKey = documentId ?? "__default_document__"
+  const flaggedAnchors = useMemo(
+    () => new Set(flaggedAnchorsByDocument[activeDocumentKey] ?? []),
+    [flaggedAnchorsByDocument, activeDocumentKey],
+  )
+
+  const highlightSelectionIfPresent = () => {
+    if (!editor) {
+      return null
+    }
+
+    const { from, to } = editor.state.selection
+    if (from === to) {
+      return null
+    }
+
+    editor.chain().focus().setHighlight({ color: FLAG_HIGHLIGHT_COLOR }).run()
+    return { from, to }
+  }
+
+  const removeHighlightForAnchor = (anchor: number) => {
+    if (!editor) {
+      return
+    }
+
+    const range = highlightRangesByDocument[activeDocumentKey]?.[anchor]
+    if (!range) {
+      return
+    }
+
+    const { from, to } = range
+    if (from >= to) {
+      return
+    }
+
+    const previousSelection = editor.state.selection
+
+    try {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from, to })
+        .unsetHighlight()
+        .setTextSelection({ from: previousSelection.from, to: previousSelection.to })
+        .run()
+    } catch {
+      // no-op when mapped positions are no longer valid
+    }
+  }
 
   const markUiTypingActivity = () => {
+    setIsUiTyping(true)
     onTypingStateChange?.(true)
 
     if (typingUiTimeoutRef.current) {
@@ -65,6 +132,7 @@ export default function Editor({
     }
 
     typingUiTimeoutRef.current = window.setTimeout(() => {
+      setIsUiTyping(false)
       onTypingStateChange?.(false)
       typingUiTimeoutRef.current = null
     }, 450)
@@ -79,16 +147,81 @@ export default function Editor({
   }, [documentTitle, documentId])
 
   useEffect(() => {
+    // Hide transient UI while switching active documents.
+    setHoverLineAnchor(null)
+    setHoverLineTop(null)
+    setIsFlagRailHovered(false)
+    setFlaggedLineTops({})
+  }, [documentId])
+
+  useEffect(() => {
+    if (flagsEnabled) {
+      return
+    }
+
+    // Immediately clear hover-only flag affordances when feature is turned off.
+    setIsFlagRailHovered(false)
+    setHoverLineTop(null)
+    setHoverLineAnchor(null)
+  }, [flagsEnabled])
+
+  const updateHoverLineFromPointer = (clientY: number) => {
+    if (!editor || !flagsEnabled) {
+      return false
+    }
+
+    const editorSurface = editorSurfaceRef.current
+    if (!editorSurface) {
+      return false
+    }
+
+    const contentRect = editor.view.dom.getBoundingClientRect()
+    const surfaceRect = editorSurface.getBoundingClientRect()
+    const probeX = contentRect.left + 8
+    const target = editor.view.posAtCoords({
+      left: probeX,
+      top: clientY,
+    })
+
+    if (!target) {
+      return false
+    }
+
+    try {
+      const coords = editor.view.coordsAtPos(target.pos)
+
+      // Ignore paragraph spacing gaps so the create flag only appears on real line boxes.
+      const verticalPadding = 2
+      if (clientY < coords.top - verticalPadding || clientY > coords.bottom + verticalPadding) {
+        return false
+      }
+
+      const top = coords.top - surfaceRect.top
+      setHoverLineTop((previous) => (previous === top ? previous : top))
+      setHoverLineAnchor((previous) => (previous === target.pos ? previous : target.pos))
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  useEffect(() => {
     return () => {
       if (typingUiTimeoutRef.current) {
         window.clearTimeout(typingUiTimeoutRef.current)
       }
+      setIsUiTyping(false)
       onTypingStateChange?.(false)
     }
   }, [onTypingStateChange])
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit,
+      Highlight.configure({
+        multicolor: true,
+      }),
+    ],
     editorProps: {
       attributes: {
         "data-placeholder": BODY_PLACEHOLDER,
@@ -306,11 +439,42 @@ export default function Editor({
       caret.classList.remove("typing-caret--hidden")
     }
 
+    const updateFlaggedLineTops = (surfaceRect: DOMRect) => {
+      const anchors = flaggedAnchorsByDocument[activeDocumentKey] ?? []
+
+      if (anchors.length === 0) {
+        setFlaggedLineTops((previous) => (Object.keys(previous).length === 0 ? previous : {}))
+        return
+      }
+
+      const next: Record<number, number> = {}
+      for (const anchor of anchors) {
+        try {
+          const coords = editor.view.coordsAtPos(anchor)
+          next[anchor] = coords.top - surfaceRect.top
+        } catch {
+          // Skip anchors that no longer resolve after document changes.
+        }
+      }
+
+      setFlaggedLineTops((previous) => {
+        const prevKeys = Object.keys(previous)
+        const nextKeys = Object.keys(next)
+        const unchanged =
+          prevKeys.length === nextKeys.length &&
+          nextKeys.every((key) => previous[Number(key)] === next[Number(key)])
+
+        return unchanged ? previous : next
+      })
+    }
+
     // Draw a custom blinking caret that follows the editor selection.
     const updateCaret = () => {
       frameId = 0
 
       const view = editor.view
+      const surfaceRect = editorSurface.getBoundingClientRect()
+      updateFlaggedLineTops(surfaceRect)
       const { from, to } = view.state.selection
 
       if (!view.hasFocus() || from !== to) {
@@ -326,7 +490,6 @@ export default function Editor({
         return
       }
 
-      const surfaceRect = editorSurface.getBoundingClientRect()
       const left = coords.left - surfaceRect.left
       const top = coords.top - surfaceRect.top
       const height = Math.max(coords.bottom - coords.top, 26)
@@ -344,7 +507,66 @@ export default function Editor({
     }
 
     const onSelectionUpdate = () => scheduleCaretUpdate()
-    const onTransaction = () => scheduleCaretUpdate()
+    const onTransaction = ({ transaction }: { transaction: { docChanged: boolean; mapping: { map: (pos: number, assoc?: number) => number } } }) => {
+      if (transaction.docChanged) {
+        setFlaggedAnchorsByDocument((current) => {
+          const existing = current[activeDocumentKey]
+          if (!existing || existing.length === 0) {
+            return current
+          }
+
+          const mapped = Array.from(new Set(existing.map((anchor) => transaction.mapping.map(anchor, 1))))
+          const unchanged = mapped.length === existing.length && mapped.every((value, index) => value === existing[index])
+          if (unchanged) {
+            return current
+          }
+
+          return {
+            ...current,
+            [activeDocumentKey]: mapped,
+          }
+        })
+
+        setHighlightRangesByDocument((current) => {
+          const existing = current[activeDocumentKey]
+          if (!existing) {
+            return current
+          }
+
+          const mappedEntries = Object.entries(existing)
+            .map(([anchorKey, range]) => {
+              const mappedAnchor = transaction.mapping.map(Number(anchorKey), 1)
+              const mappedFrom = transaction.mapping.map(range.from, 1)
+              const mappedTo = transaction.mapping.map(range.to, -1)
+
+              if (mappedFrom >= mappedTo) {
+                return null
+              }
+
+              return [mappedAnchor, { from: mappedFrom, to: mappedTo }] as const
+            })
+            .filter((entry): entry is readonly [number, HighlightRange] => entry !== null)
+
+          const next: Record<number, HighlightRange> = {}
+          for (const [anchor, range] of mappedEntries) {
+            next[anchor] = range
+          }
+
+          const prevSerialized = JSON.stringify(existing)
+          const nextSerialized = JSON.stringify(next)
+          if (prevSerialized === nextSerialized) {
+            return current
+          }
+
+          return {
+            ...current,
+            [activeDocumentKey]: next,
+          }
+        })
+      }
+
+      scheduleCaretUpdate()
+    }
     const onEditorFocus = () => scheduleCaretUpdate()
     const onEditorBlur = () => hideCaret()
     const onWindowResize = () => scheduleCaretUpdate()
@@ -389,13 +611,43 @@ export default function Editor({
       window.removeEventListener("scroll", onWindowScroll, true)
       editor.view.dom.removeEventListener("keydown", onKeyDown)
     }
-  }, [editor, onTypingStateChange])
+  }, [editor, onTypingStateChange, flaggedAnchorsByDocument, activeDocumentKey])
+
+  const currentLineTop = hoverLineTop
+  const currentLineAnchor = hoverLineAnchor
+  const showFlagRailUi = flagsEnabled && (isFlagRailHovered || hoverLineTop !== null)
+  const shouldShowCreateFlag =
+    showFlagRailUi &&
+    !isUiTyping &&
+    currentLineTop !== null &&
+    currentLineAnchor !== null &&
+    !flaggedAnchors.has(currentLineAnchor)
 
   return (
     <div
       className="editor-container"
       ref={editorSurfaceRef}
       style={{ fontSize: `${fontSize}px`, fontFamily }}
+      onMouseMove={(event) => {
+        if (!flagsEnabled) {
+          return
+        }
+
+        const foundLine = updateHoverLineFromPointer(event.clientY)
+        if (!foundLine) {
+          setHoverLineTop(null)
+          setHoverLineAnchor(null)
+        }
+      }}
+      onMouseLeave={() => {
+        if (!flagsEnabled) {
+          return
+        }
+
+        setIsFlagRailHovered(false)
+        setHoverLineTop(null)
+        setHoverLineAnchor(null)
+      }}
     >
       <input
         className="editor-document-title"
@@ -429,6 +681,147 @@ export default function Editor({
         aria-label="Document title"
       />
       <EditorContent editor={editor} />
+      {flagsEnabled ? (
+        <div
+          className={`editor-flag-rail ${showFlagRailUi ? "editor-flag-rail--active" : ""} ${isUiTyping ? "editor-flag-rail--typing" : ""}`.trim()}
+          onMouseEnter={(event) => {
+            setIsFlagRailHovered(true)
+            const foundLine = updateHoverLineFromPointer(event.clientY)
+            if (!foundLine) {
+              setHoverLineTop(null)
+              setHoverLineAnchor(null)
+            }
+          }}
+          onMouseMove={(event) => {
+            const foundLine = updateHoverLineFromPointer(event.clientY)
+            if (!foundLine) {
+              setHoverLineTop(null)
+              setHoverLineAnchor(null)
+            }
+          }}
+          onMouseLeave={() => {
+            setIsFlagRailHovered(false)
+            setHoverLineTop(null)
+            setHoverLineAnchor(null)
+          }}
+          aria-hidden="true"
+        />
+      ) : null}
+      {flagsEnabled
+        ? (flaggedAnchorsByDocument[activeDocumentKey] ?? []).map((anchor) => {
+        const top = flaggedLineTops[anchor]
+
+        if (typeof top !== "number") {
+          return null
+        }
+
+        return (
+          <button
+            key={anchor}
+            type="button"
+            className={`editor-line-flag editor-line-flag--flagged editor-line-flag--persistent ${isUiTyping ? "editor-line-flag--typing" : ""}`.trim()}
+            style={{ transform: `translate3d(0, ${top}px, 0)` }}
+            onMouseDown={(event) => {
+              event.preventDefault()
+            }}
+            onClick={() => {
+              removeHighlightForAnchor(anchor)
+
+              setFlaggedAnchorsByDocument((current) => {
+                const existing = current[activeDocumentKey] ?? []
+                const next = existing.filter((value) => value !== anchor)
+
+                if (next.length === existing.length) {
+                  return current
+                }
+
+                return {
+                  ...current,
+                  [activeDocumentKey]: next,
+                }
+              })
+
+              setHighlightRangesByDocument((current) => {
+                const existing = current[activeDocumentKey]
+                if (!existing || !existing[anchor]) {
+                  return current
+                }
+
+                const next = { ...existing }
+                delete next[anchor]
+
+                return {
+                  ...current,
+                  [activeDocumentKey]: next,
+                }
+              })
+            }}
+            aria-label="Unflag line"
+          >
+            <span className="editor-line-flag__icon editor-line-flag__icon--default" aria-hidden="true">
+              <Flag size={15} strokeWidth={2.2} aria-hidden="true" />
+            </span>
+            <span className="editor-line-flag__icon editor-line-flag__icon--hover" aria-hidden="true">
+              <FlagOff size={15} strokeWidth={2.2} aria-hidden="true" />
+            </span>
+          </button>
+        )
+      })
+        : null}
+      {shouldShowCreateFlag ? (
+        <button
+          type="button"
+          className={`editor-line-flag editor-line-flag--create ${showFlagRailUi ? "editor-line-flag--revealed" : ""}`.trim()}
+          style={{ transform: `translate3d(0, ${currentLineTop}px, 0)` }}
+          onMouseDown={(event) => {
+            // Keep editor focus so caret/line tracking does not jump on click.
+            event.preventDefault()
+          }}
+          onMouseEnter={() => {
+            setIsFlagRailHovered(true)
+          }}
+          onMouseLeave={() => {
+            setIsFlagRailHovered(false)
+          }}
+          onClick={() => {
+            if (currentLineAnchor === null) {
+              return
+            }
+
+            const highlightedRange = highlightSelectionIfPresent()
+
+            setFlaggedAnchorsByDocument((current) => {
+              const existing = current[activeDocumentKey] ?? []
+              if (existing.includes(currentLineAnchor)) {
+                return current
+              }
+
+              return {
+                ...current,
+                [activeDocumentKey]: [...existing, currentLineAnchor],
+              }
+            })
+
+            if (highlightedRange) {
+              setHighlightRangesByDocument((current) => {
+                const existing = current[activeDocumentKey] ?? {}
+
+                return {
+                  ...current,
+                  [activeDocumentKey]: {
+                    ...existing,
+                    [currentLineAnchor]: highlightedRange,
+                  },
+                }
+              })
+            }
+          }}
+          aria-label="Flag hovered line"
+          aria-pressed={currentLineAnchor !== null && flaggedAnchors.has(currentLineAnchor)}
+        >
+          <Flag size={15} strokeWidth={2.2} aria-hidden="true" />
+        </button>
+      ) : null}
       <div className="typing-caret typing-caret--hidden" ref={caretRef} aria-hidden="true" />
     </div>
   )

@@ -24,6 +24,10 @@ function clampFontSize(value: number) {
   return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value))
 }
 
+function getSystemPalette(isDarkMode: boolean): Palette {
+  return isDarkMode ? "elephant" : "ivory"
+}
+
 export default function App() {
   // The app has two high-level screens: project dashboard and editor workspace.
   const [view, setView] = useState<"projects" | "editor">("editor")
@@ -33,9 +37,11 @@ export default function App() {
   const [bookCounter, setBookCounter] = useState(2)
   const [blogCounter, setBlogCounter] = useState(1)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isMenuBarEnabled, setIsMenuBarEnabled] = useState(true)
+  const [isMenuBarEnabled, setIsMenuBarEnabled] = useState(false)
+  const [isFlagsEnabled, setIsFlagsEnabled] = useState(false)
   const [isEditorTyping, setIsEditorTyping] = useState(false)
   const [selectedFont, setSelectedFont] = useState<string>(FONT_OPTIONS[0]!.value)
+  const [isGlobalTextEnabled, setIsGlobalTextEnabled] = useState(true)
   const [fontSize, setFontSize] = useState(32)
   const [palette, setPalette] = useState<Palette>("ivory")
 
@@ -62,6 +68,26 @@ export default function App() {
       setActiveProjectId(projects[0].id)
     }
   }, [projects, activeProjectId])
+
+  useEffect(() => {
+    const colorSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)")
+
+    const applySystemPalette = (isDarkMode: boolean) => {
+      setPalette(getSystemPalette(isDarkMode))
+    }
+
+    applySystemPalette(colorSchemeQuery.matches)
+
+    const onColorSchemeChange = (event: MediaQueryListEvent) => {
+      applySystemPalette(event.matches)
+    }
+
+    colorSchemeQuery.addEventListener("change", onColorSchemeChange)
+
+    return () => {
+      colorSchemeQuery.removeEventListener("change", onColorSchemeChange)
+    }
+  }, [])
 
   useEffect(() => {
     const onFontFamilyChange = (event: Event) => {
@@ -179,10 +205,11 @@ export default function App() {
   }
 
   const isDefaultFont = selectedFont === FONT_OPTIONS[0]!.value
+  const shouldApplyGlobalFont = isGlobalTextEnabled && !isDefaultFont
 
   return (
     <div
-      className={`app app--palette-${palette} ${!isDefaultFont ? "app--custom-font" : ""}`.trim()}
+      className={`app app--palette-${palette} ${shouldApplyGlobalFont ? "app--custom-font" : ""}`.trim()}
       style={{ "--app-font-family": selectedFont } as CSSProperties}
     >
       <main className="app-main">
@@ -214,6 +241,7 @@ export default function App() {
             project={activeProject}
             activeContent={activeContent}
             menuBarEnabled={isMenuBarEnabled}
+            flagsEnabled={isFlagsEnabled}
             isEditorTyping={isEditorTyping}
             onProjectChange={updateActiveProject}
             onEditorTypingStateChange={setIsEditorTyping}
@@ -223,8 +251,10 @@ export default function App() {
         <GlobalSettings
           isOpen={isSettingsOpen}
           menuBarEnabled={isMenuBarEnabled}
+          flagsEnabled={isFlagsEnabled}
           hideTrigger={isEditorTyping}
           selectedFont={selectedFont}
+          globalTextEnabled={isGlobalTextEnabled}
           fontSize={fontSize}
           palette={palette}
           paletteOptions={PALETTE_OPTIONS}
@@ -236,7 +266,9 @@ export default function App() {
             setIsSettingsOpen(false)
           }}
           onMenuBarEnabledChange={setIsMenuBarEnabled}
+          onFlagsEnabledChange={setIsFlagsEnabled}
           onFontChange={applyFontFamily}
+          onGlobalTextEnabledChange={setIsGlobalTextEnabled}
           onFontSizeChange={applyFontSize}
           onPaletteChange={(nextPalette) => {
             requestAppColorPaletteChange(nextPalette)

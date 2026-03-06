@@ -68,6 +68,7 @@ type EditorWorkspaceProps = {
   project: Project
   activeContent: string
   menuBarEnabled: boolean
+  flagsEnabled: boolean
   isEditorTyping: boolean
   onProjectChange: (updater: (project: Project) => Project) => void
   onEditorTypingStateChange: (isTyping: boolean) => void
@@ -77,6 +78,7 @@ export default function EditorWorkspace({
   project,
   activeContent,
   menuBarEnabled,
+  flagsEnabled,
   isEditorTyping,
   onProjectChange,
   onEditorTypingStateChange,
@@ -134,6 +136,7 @@ export default function EditorWorkspace({
         documentId={project.activeId}
         documentTitle={activeDocumentTitle}
         content={activeContent}
+        flagsEnabled={flagsEnabled}
         onTypingStateChange={onEditorTypingStateChange}
         onDocumentTitleChange={(nextTitle) => {
           onProjectChange((currentProject) => {

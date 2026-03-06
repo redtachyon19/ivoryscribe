@@ -1,4 +1,5 @@
 import { Settings, X } from "lucide-react"
+import { useEffect, useState } from "react"
 import "./GlobalSettings.css"
 
 type PaletteOption = {
@@ -14,8 +15,10 @@ type FontOption = {
 type GlobalSettingsProps = {
   isOpen: boolean
   menuBarEnabled: boolean
+  flagsEnabled: boolean
   hideTrigger?: boolean
   selectedFont: string
+  globalTextEnabled: boolean
   fontSize: number
   palette: string
   paletteOptions: PaletteOption[]
@@ -23,7 +26,9 @@ type GlobalSettingsProps = {
   onToggleOpen: () => void
   onClose: () => void
   onMenuBarEnabledChange: (enabled: boolean) => void
+  onFlagsEnabledChange: (enabled: boolean) => void
   onFontChange: (fontFamily: string) => void
+  onGlobalTextEnabledChange: (enabled: boolean) => void
   onFontSizeChange: (fontSize: number) => void
   onPaletteChange: (palette: string) => void
 }
@@ -31,8 +36,10 @@ type GlobalSettingsProps = {
 export default function GlobalSettings({
   isOpen,
   menuBarEnabled,
+  flagsEnabled,
   hideTrigger = false,
   selectedFont,
+  globalTextEnabled,
   fontSize,
   palette,
   paletteOptions,
@@ -40,11 +47,40 @@ export default function GlobalSettings({
   onToggleOpen,
   onClose,
   onMenuBarEnabledChange,
+  onFlagsEnabledChange,
   onFontChange,
+  onGlobalTextEnabledChange,
   onFontSizeChange,
   onPaletteChange,
 }: GlobalSettingsProps) {
+  const [isRendered, setIsRendered] = useState(isOpen)
+  const [isClosing, setIsClosing] = useState(false)
   const triggerLabel = isOpen ? "Close Settings" : "Open Settings"
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsRendered(true)
+      setIsClosing(false)
+      return
+    }
+
+    if (!isRendered) {
+      return
+    }
+
+    setIsClosing(true)
+    const timeoutId = window.setTimeout(() => {
+      setIsRendered(false)
+      setIsClosing(false)
+    }, 170)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [isOpen, isRendered])
+
+  const overlayStateClassName = isClosing ? "global-settings__overlay--closing" : "global-settings__overlay--opening"
+  const modalStateClassName = isClosing ? "global-settings__modal--closing" : "global-settings__modal--opening"
 
   return (
     <>
@@ -58,24 +94,50 @@ export default function GlobalSettings({
         <span className="global-settings__trigger-label">{triggerLabel}</span>
       </button>
 
-      {isOpen ? (
+      {isRendered ? (
         <>
-          <button type="button" className="global-settings__overlay" aria-label="Close settings" onClick={onClose} />
-          <section className="global-settings__modal" role="dialog" aria-modal="true" aria-label="Global settings">
+          <button
+            type="button"
+            className={`global-settings__overlay ${overlayStateClassName}`}
+            aria-label="Close settings"
+            onClick={onClose}
+          />
+          <section
+            className={`global-settings__modal ${modalStateClassName}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Global settings"
+          >
             <h2>Settings</h2>
 
-            <label className="global-settings__field" htmlFor="settings-menu-bar-toggle">
+            <label className="global-settings__field global-settings__field--toggle" htmlFor="settings-menu-bar-toggle">
               <span>Menu Bar</span>
-              <select
-                id="settings-menu-bar-toggle"
-                value={menuBarEnabled ? "on" : "off"}
-                onChange={(event) => {
-                  onMenuBarEnabledChange(event.target.value === "on")
-                }}
-              >
-                <option value="on">On</option>
-                <option value="off">Off</option>
-              </select>
+              <span className="global-settings__switch" aria-hidden="true">
+                <input
+                  id="settings-menu-bar-toggle"
+                  type="checkbox"
+                  checked={menuBarEnabled}
+                  onChange={(event) => {
+                    onMenuBarEnabledChange(event.target.checked)
+                  }}
+                />
+                <span className="global-settings__switch-track" />
+              </span>
+            </label>
+
+            <label className="global-settings__field global-settings__field--toggle" htmlFor="settings-flags-toggle">
+              <span>Flags</span>
+              <span className="global-settings__switch" aria-hidden="true">
+                <input
+                  id="settings-flags-toggle"
+                  type="checkbox"
+                  checked={flagsEnabled}
+                  onChange={(event) => {
+                    onFlagsEnabledChange(event.target.checked)
+                  }}
+                />
+                <span className="global-settings__switch-track" />
+              </span>
             </label>
 
             <label className="global-settings__field" htmlFor="settings-font-family">
@@ -93,6 +155,21 @@ export default function GlobalSettings({
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label className="global-settings__field global-settings__field--toggle" htmlFor="settings-global-text-toggle">
+              <span>Change global text</span>
+              <span className="global-settings__switch" aria-hidden="true">
+                <input
+                  id="settings-global-text-toggle"
+                  type="checkbox"
+                  checked={globalTextEnabled}
+                  onChange={(event) => {
+                    onGlobalTextEnabledChange(event.target.checked)
+                  }}
+                />
+                <span className="global-settings__switch-track" />
+              </span>
             </label>
 
             <label className="global-settings__field" htmlFor="settings-font-size">
