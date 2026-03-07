@@ -87,6 +87,7 @@
   font-family: "EB Garamond", serif;
   margin: 0;
   font-size: 21px;
+  font-weight: 400;
   letter-spacing: 0.02em;
   color: var(--menu-button, #e8e8e8);
 }
@@ -150,10 +151,6 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-.doc-tabs__row--drop-target {
-  box-shadow: inset 0 0 0 1px rgba(107, 204, 255, 0.5);
-}
-
 .doc-tabs__drop-line {
   height: 3px;
   border-radius: 999px;
@@ -188,6 +185,8 @@
   cursor: grab;
   font-size: 19px;
   line-height: 1.15;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .doc-tabs__label:active {
@@ -196,6 +195,32 @@
 
 .doc-tabs__label:hover {
   background: transparent;
+}
+
+.doc-tabs__label-marquee {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+}
+
+.doc-tabs__label-marquee-track {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 100%;
+  transform: translateX(0);
+}
+
+.doc-tabs__label-marquee-text {
+  white-space: nowrap;
+}
+
+.doc-tabs__label-marquee-gap {
+  flex: 0 0 28px;
+}
+
+.doc-tabs__label:hover .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track,
+.doc-tabs__label:focus-visible .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track {
+  animation: doc-tabs-label-marquee 15s linear infinite;
 }
 
 .doc-tabs__edit-btn {
@@ -393,6 +418,12 @@
   background: #3a1c1c;
 }
 
+.app--custom-font .doc-tabs__header h2,
+.app--custom-font .doc-tabs__label,
+.app--custom-font .doc-tabs__rename-input {
+  font-family: var(--app-font-family) !important;
+}
+
 @keyframes doc-tabs-toggle-x-spin-once {
   from {
     transform: rotate(0deg);
@@ -403,9 +434,24 @@
   }
 }
 
+@keyframes doc-tabs-label-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(calc(-1 * var(--doc-tabs-marquee-distance, 0px)));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .doc-tabs__toggle.doc-tabs__toggle--open:hover svg,
   .doc-tabs__toggle.doc-tabs__toggle--open:focus-visible svg {
+    animation: none;
+  }
+
+  .doc-tabs__label:hover .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track,
+  .doc-tabs__label:focus-visible .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track {
     animation: none;
   }
 }

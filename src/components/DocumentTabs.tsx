@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from "react"
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react"
 import { Pencil, Plus, TableOfContents, Trash2, X } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../core/projects"
 import "./DocumentTabs.css"
@@ -274,13 +274,54 @@ function TabNode({
   onCommitRename,
   onCancelRename,
 }: TabNodeProps) {
+  const marqueeViewportRef = useRef<HTMLSpanElement | null>(null)
+  const marqueeTextRef = useRef<HTMLSpanElement | null>(null)
+  const [marquee, setMarquee] = useState({ isOverflowing: false, loopDistance: 0 })
   const isActive = activeId === tab.id
   const isDragging = draggingId === tab.id
   const isEditing = editingId === tab.id
   const isDropBefore = dropTarget?.targetId === tab.id && dropTarget.mode === "before"
   const isDropAfter = dropTarget?.targetId === tab.id && dropTarget.mode === "after"
   const isDropInside = dropTarget?.targetId === tab.id && dropTarget.mode === "inside"
-  const isDropTarget = isDropBefore || isDropAfter || isDropInside
+
+  useEffect(() => {
+    const viewport = marqueeViewportRef.current
+    const text = marqueeTextRef.current
+
+    if (!viewport || !text) {
+      return
+    }
+
+    const measureMarquee = () => {
+      const viewportWidth = viewport.clientWidth
+      const textWidth = text.scrollWidth
+      const nextIsOverflowing = textWidth > viewportWidth + 1
+      const nextLoopDistance = nextIsOverflowing ? textWidth + 28 : 0
+
+      setMarquee((current) => {
+        if (current.isOverflowing === nextIsOverflowing && current.loopDistance === nextLoopDistance) {
+          return current
+        }
+
+        return {
+          isOverflowing: nextIsOverflowing,
+          loopDistance: nextLoopDistance,
+        }
+      })
+    }
+
+    measureMarquee()
+
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measureMarquee) : null
+    resizeObserver?.observe(viewport)
+    resizeObserver?.observe(text)
+    window.addEventListener("resize", measureMarquee)
+
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener("resize", measureMarquee)
+    }
+  }, [tab.title, depth, isEditing])
 
   return (
     <li
@@ -292,7 +333,7 @@ function TabNode({
       />
 
       <div
-        className={`doc-tabs__row ${isActive ? "doc-tabs__row--active" : ""} ${isDropTarget ? "doc-tabs__row--drop-target" : ""}`.trim()}
+        className={`doc-tabs__row ${isActive ? "doc-tabs__row--active" : ""}`.trim()}
         onDragOver={(event) => {
           event.preventDefault()
           event.stopPropagation()
@@ -354,7 +395,27 @@ function TabNode({
                 onStartRename(tab.id, tab.title)
               }}
             >
-              {tab.title}
+              <span
+                ref={marqueeViewportRef}
+                className={`doc-tabs__label-marquee ${marquee.isOverflowing ? "doc-tabs__label-marquee--overflowing" : ""}`.trim()}
+                style={
+                  marquee.isOverflowing
+                    ? ({ "--doc-tabs-marquee-distance": `${marquee.loopDistance}px` } as CSSProperties)
+                    : undefined
+                }
+              >
+                <span className="doc-tabs__label-marquee-track">
+                  <span ref={marqueeTextRef} className="doc-tabs__label-marquee-text">
+                    {tab.title}
+                  </span>
+                  {marquee.isOverflowing ? <span className="doc-tabs__label-marquee-gap" aria-hidden="true" /> : null}
+                  {marquee.isOverflowing ? (
+                    <span className="doc-tabs__label-marquee-text" aria-hidden="true">
+                      {tab.title}
+                    </span>
+                  ) : null}
+                </span>
+              </span>
             </button>
 
             <button

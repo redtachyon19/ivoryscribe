@@ -15,10 +15,11 @@ import {
 import { projectWorkspaceMenu } from "./core/menu"
 import { DEFAULT_DOCUMENT_CONTENT, createProject, type Project, type ProjectKind } from "./core/projects"
 import EditorWorkspace from "./pages/EditorWorkspace"
-import ProjectDashboard from "./pages/ProjectDashboard"
+import ProjectDashboard, { type ProjectFolder } from "./pages/ProjectDashboard"
 
 const MIN_FONT_SIZE = 20
 const MAX_FONT_SIZE = 84
+const VIEW_FADE_DURATION_MS = 240
 
 function clampFontSize(value: number) {
   return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value))
@@ -33,6 +34,7 @@ export default function App() {
   const [view, setView] = useState<"projects" | "editor">("editor")
   // All project data (tabs + content) lives at the App level so child pages stay stateless.
   const [projects, setProjects] = useState<Project[]>(() => [createProject("Book 1", "Book")])
+  const [folders, setFolders] = useState<ProjectFolder[]>([])
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [bookCounter, setBookCounter] = useState(2)
   const [blogCounter, setBlogCounter] = useState(1)
@@ -41,9 +43,10 @@ export default function App() {
   const [isFlagsEnabled, setIsFlagsEnabled] = useState(false)
   const [isEditorTyping, setIsEditorTyping] = useState(false)
   const [selectedFont, setSelectedFont] = useState<string>(FONT_OPTIONS[0]!.value)
-  const [isGlobalTextEnabled, setIsGlobalTextEnabled] = useState(true)
+  const [isGlobalTextEnabled, setIsGlobalTextEnabled] = useState(false)
   const [fontSize, setFontSize] = useState(32)
   const [palette, setPalette] = useState<Palette>("ivory")
+  const [viewFadePhase, setViewFadePhase] = useState<"idle" | "fading-out" | "fading-in">("idle")
 
   // Resolve the active project ID to a real project object with a fallback.
   const activeProject = useMemo(() => {
@@ -195,6 +198,44 @@ export default function App() {
     setView("editor")
   }
 
+  const returnToProjectDashboard = () => {
+    // Smoothly transition back to the dashboard instead of snapping between screens.
+    if (viewFadePhase !== "idle") {
+      return
+    }
+
+    setViewFadePhase("fading-out")
+  }
+
+  useEffect(() => {
+    if (viewFadePhase !== "fading-out") {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setView("projects")
+      setViewFadePhase("fading-in")
+    }, VIEW_FADE_DURATION_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [viewFadePhase])
+
+  useEffect(() => {
+    if (viewFadePhase !== "fading-in") {
+      return
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      setViewFadePhase("idle")
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+    }
+  }, [viewFadePhase])
+
   const applyFontFamily = (fontFamily: string) => {
     setSelectedFont(fontFamily)
     requestEditorFontFamilyChange(fontFamily)
@@ -204,8 +245,7 @@ export default function App() {
     requestEditorFontSizeSet(clampFontSize(nextFontSize))
   }
 
-  const isDefaultFont = selectedFont === FONT_OPTIONS[0]!.value
-  const shouldApplyGlobalFont = isGlobalTextEnabled && !isDefaultFont
+  const shouldApplyGlobalFont = isGlobalTextEnabled
 
   return (
     <div
@@ -227,26 +267,31 @@ export default function App() {
         </button>
 
         {/* Dashboard if requested (or if nothing is active), otherwise the editor workspace. */}
-        {view === "projects" || !activeProject ? (
-          <ProjectDashboard
-            projects={projects}
-            activeProjectId={activeProjectId}
-            onCreateProject={createNewProject}
-            onOpenProject={openProject}
-            setProjects={setProjects}
-            setActiveProjectId={setActiveProjectId}
-          />
-        ) : (
-          <EditorWorkspace
-            project={activeProject}
-            activeContent={activeContent}
-            menuBarEnabled={isMenuBarEnabled}
-            flagsEnabled={isFlagsEnabled}
-            isEditorTyping={isEditorTyping}
-            onProjectChange={updateActiveProject}
-            onEditorTypingStateChange={setIsEditorTyping}
-          />
-        )}
+        <div className={`app-view ${viewFadePhase === "fading-out" ? "app-view--fade-out" : ""} ${viewFadePhase === "fading-in" ? "app-view--fade-in" : ""}`.trim()}>
+          {view === "projects" || !activeProject ? (
+            <ProjectDashboard
+              projects={projects}
+              folders={folders}
+              activeProjectId={activeProjectId}
+              onCreateProject={createNewProject}
+              onOpenProject={openProject}
+              setProjects={setProjects}
+              setFolders={setFolders}
+              setActiveProjectId={setActiveProjectId}
+            />
+          ) : (
+            <EditorWorkspace
+              project={activeProject}
+              activeContent={activeContent}
+              menuBarEnabled={isMenuBarEnabled}
+              flagsEnabled={isFlagsEnabled}
+              isEditorTyping={isEditorTyping}
+              onReturnToDashboard={returnToProjectDashboard}
+              onProjectChange={updateActiveProject}
+              onEditorTypingStateChange={setIsEditorTyping}
+            />
+          )}
+        </div>
 
         <GlobalSettings
           isOpen={isSettingsOpen}

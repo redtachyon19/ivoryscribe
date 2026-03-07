@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react"
-import { BookText, NotebookText } from "lucide-react"
+import { BookText, Library, NotebookText } from "lucide-react"
 import Editor from "../Editor"
 import DocumentTabs from "../components/DocumentTabs"
 import TuskAiTab from "../components/TuskAiTab"
@@ -70,6 +70,7 @@ type EditorWorkspaceProps = {
   menuBarEnabled: boolean
   flagsEnabled: boolean
   isEditorTyping: boolean
+  onReturnToDashboard: () => void
   onProjectChange: (updater: (project: Project) => Project) => void
   onEditorTypingStateChange: (isTyping: boolean) => void
 }
@@ -80,6 +81,7 @@ export default function EditorWorkspace({
   menuBarEnabled,
   flagsEnabled,
   isEditorTyping,
+  onReturnToDashboard,
   onProjectChange,
   onEditorTypingStateChange,
 }: EditorWorkspaceProps) {
@@ -109,11 +111,24 @@ export default function EditorWorkspace({
   return (
     <>
       <div
-        className={`editor-workspace__project-label ${menuBarEnabled ? "editor-workspace__project-label--with-menu" : ""} ${isEditorTyping ? "editor-workspace__project-label--hidden" : ""}`.trim()}
+        className="editor-workspace__project-label-wrap"
         aria-live="polite"
       >
-        <ProjectIcon size={14} strokeWidth={2} aria-hidden={true} />
-        <span>{project.name}</span>
+        <button
+          type="button"
+          className={`editor-workspace__project-label ${menuBarEnabled ? "editor-workspace__project-label--with-menu" : ""} ${isEditorTyping ? "editor-workspace__project-label--hidden" : ""}`.trim()}
+          aria-label="Return to project dashboard"
+          onClick={onReturnToDashboard}
+        >
+          <span className="editor-workspace__project-label-content editor-workspace__project-label-content--default" aria-hidden={true}>
+            <ProjectIcon size={14} strokeWidth={2} />
+            <span>{project.name}</span>
+          </span>
+          <span className="editor-workspace__project-label-content editor-workspace__project-label-content--return" aria-hidden={true}>
+            <Library size={14} strokeWidth={2} />
+            <span>Return to project dashboard</span>
+          </span>
+        </button>
       </div>
       <DocumentTabs
         tabs={project.tabs}

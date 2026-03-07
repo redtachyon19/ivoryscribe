@@ -4,7 +4,7 @@ import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE
 import { collectTabIds, getProjectEntryTerms, type Project, type ProjectKind } from "../core/projects"
 import "./ProjectDashboard.css"
 
-type ProjectFolder = {
+export type ProjectFolder = {
   id: string
   name: string
   description: string
@@ -64,24 +64,27 @@ function formatProjectDate(dateValue: string) {
 
 type ProjectDashboardProps = {
   projects: Project[]
+  folders: ProjectFolder[]
   activeProjectId: string | null
   onCreateProject: (kind: ProjectKind, folderId?: string) => void
   onOpenProject: (projectId: string) => void
   setProjects: Dispatch<SetStateAction<Project[]>>
+  setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
 }
 
 export default function ProjectDashboard({
   projects,
+  folders,
   activeProjectId,
   onCreateProject,
   onOpenProject,
   setProjects,
+  setFolders,
   setActiveProjectId,
 }: ProjectDashboardProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
-  const [folders, setFolders] = useState<ProjectFolder[]>([])
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingFolderName, setEditingFolderName] = useState("")
   const [editingFolderDescriptionId, setEditingFolderDescriptionId] = useState<string | null>(null)
@@ -801,47 +804,50 @@ export default function ProjectDashboard({
                   setIsCreateMenuOpen((open) => !open)
                 }}
               >
-                {isCreateMenuOpen ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Plus size={14} strokeWidth={2} aria-hidden={true} />}
+                {isCreateMenuOpen ? <X size={16} strokeWidth={2} aria-hidden={true} /> : <Plus size={16} strokeWidth={2} aria-hidden={true} />}
                 <span className="project-hub__plus-btn-label">{isCreateMenuOpen ? "Cancel" : "Create Project"}</span>
               </button>
 
-              {isCreateMenuOpen ? (
-                <div className="project-hub__create-menu" role="menu" aria-label="Create project type">
-                  <button
-                    type="button"
-                    className="project-hub__create-option"
-                    onClick={() => {
-                      onCreateProject("Book")
-                      closeCreateMenus()
-                    }}
-                  >
-                    <BookText size={14} strokeWidth={2} aria-hidden="true" />
-                    <span>Book</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="project-hub__create-option"
-                    onClick={() => {
-                      onCreateProject("Blog")
-                      closeCreateMenus()
-                    }}
-                  >
-                    <NotebookText size={14} strokeWidth={2} aria-hidden="true" />
-                    <span>Blog</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="project-hub__create-option"
-                    onClick={() => {
-                      createFolder()
-                      closeCreateMenus()
-                    }}
-                  >
-                    <Folder size={14} strokeWidth={2} aria-hidden="true" />
-                    <span>Folder</span>
-                  </button>
-                </div>
-              ) : null}
+              <div
+                className={`project-hub__create-menu ${isCreateMenuOpen ? "project-hub__create-menu--open" : "project-hub__create-menu--closed"}`.trim()}
+                role="menu"
+                aria-label="Create project type"
+                aria-hidden={!isCreateMenuOpen}
+              >
+                <button
+                  type="button"
+                  className="project-hub__create-option"
+                  onClick={() => {
+                    onCreateProject("Book")
+                    closeCreateMenus()
+                  }}
+                >
+                  <BookText size={14} strokeWidth={2} aria-hidden="true" />
+                  <span>Book</span>
+                </button>
+                <button
+                  type="button"
+                  className="project-hub__create-option"
+                  onClick={() => {
+                    onCreateProject("Blog")
+                    closeCreateMenus()
+                  }}
+                >
+                  <NotebookText size={14} strokeWidth={2} aria-hidden="true" />
+                  <span>Blog</span>
+                </button>
+                <button
+                  type="button"
+                  className="project-hub__create-option"
+                  onClick={() => {
+                    createFolder()
+                    closeCreateMenus()
+                  }}
+                >
+                  <Folder size={14} strokeWidth={2} aria-hidden="true" />
+                  <span>Folder</span>
+                </button>
+              </div>
             </div>
           </div>
           <p>Your herd of projects, organized in one place.</p>
@@ -1117,7 +1123,7 @@ export default function ProjectDashboard({
                 <div className="project-folder__create-menu-wrap">
                   <button
                     type="button"
-                    className="project-folder__plus-btn"
+                    className="project-hub__plus-btn project-folder__plus-btn"
                     aria-label={openFolderCreateMenuId === folder.id ? "Cancel" : `Create project in ${folder.name}`}
                     aria-expanded={openFolderCreateMenuId === folder.id}
                     onClick={() => {
@@ -1125,36 +1131,39 @@ export default function ProjectDashboard({
                       setOpenFolderCreateMenuId((currentId) => (currentId === folder.id ? null : folder.id))
                     }}
                   >
-                    {openFolderCreateMenuId === folder.id ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Plus size={14} strokeWidth={2} aria-hidden={true} />}
-                    <span className="project-folder__plus-btn-label">{openFolderCreateMenuId === folder.id ? "Cancel" : "Create Project"}</span>
+                    {openFolderCreateMenuId === folder.id ? <X size={16} strokeWidth={2} aria-hidden={true} /> : <Plus size={16} strokeWidth={2} aria-hidden={true} />}
+                    <span className="project-hub__plus-btn-label project-folder__plus-btn-label">{openFolderCreateMenuId === folder.id ? "Cancel" : "Create Project"}</span>
                   </button>
 
-                  {openFolderCreateMenuId === folder.id ? (
-                    <div className="project-hub__create-menu" role="menu" aria-label={`Create project in ${folder.name}`}>
-                      <button
-                        type="button"
-                        className="project-hub__create-option"
-                        onClick={() => {
-                          onCreateProject("Book", folder.id)
-                          closeCreateMenus()
-                        }}
-                      >
-                        <BookText size={14} strokeWidth={2} aria-hidden="true" />
-                        <span>Book</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="project-hub__create-option"
-                        onClick={() => {
-                          onCreateProject("Blog", folder.id)
-                          closeCreateMenus()
-                        }}
-                      >
-                        <NotebookText size={14} strokeWidth={2} aria-hidden="true" />
-                        <span>Blog</span>
-                      </button>
-                    </div>
-                  ) : null}
+                  <div
+                    className={`project-hub__create-menu ${openFolderCreateMenuId === folder.id ? "project-hub__create-menu--open" : "project-hub__create-menu--closed"}`.trim()}
+                    role="menu"
+                    aria-label={`Create project in ${folder.name}`}
+                    aria-hidden={openFolderCreateMenuId !== folder.id}
+                  >
+                    <button
+                      type="button"
+                      className="project-hub__create-option"
+                      onClick={() => {
+                        onCreateProject("Book", folder.id)
+                        closeCreateMenus()
+                      }}
+                    >
+                      <BookText size={14} strokeWidth={2} aria-hidden="true" />
+                      <span>Book</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="project-hub__create-option"
+                      onClick={() => {
+                        onCreateProject("Blog", folder.id)
+                        closeCreateMenus()
+                      }}
+                    >
+                      <NotebookText size={14} strokeWidth={2} aria-hidden="true" />
+                      <span>Blog</span>
+                    </button>
+                  </div>
                 </div>
               </div>
               {editingFolderDescriptionId === folder.id ? (

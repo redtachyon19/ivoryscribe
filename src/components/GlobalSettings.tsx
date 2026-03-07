@@ -55,6 +55,7 @@ export default function GlobalSettings({
 }: GlobalSettingsProps) {
   const [isRendered, setIsRendered] = useState(isOpen)
   const [isClosing, setIsClosing] = useState(false)
+  const triggerIsLayeredAboveOverlay = isOpen || isRendered
   const triggerLabel = isOpen ? "Close Settings" : "Open Settings"
 
   useEffect(() => {
@@ -86,7 +87,7 @@ export default function GlobalSettings({
     <>
       <button
         type="button"
-        className={`global-settings__trigger ${isOpen ? "global-settings__trigger--open" : ""} ${menuBarEnabled ? "global-settings__trigger--with-menu" : ""} ${hideTrigger ? "global-settings__trigger--hidden" : ""}`.trim()}
+        className={`global-settings__trigger ${triggerIsLayeredAboveOverlay ? "global-settings__trigger--open" : ""} ${menuBarEnabled ? "global-settings__trigger--with-menu" : ""} ${hideTrigger ? "global-settings__trigger--hidden" : ""}`.trim()}
         aria-label={triggerLabel}
         onClick={onToggleOpen}
       >
