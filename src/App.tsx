@@ -318,6 +318,50 @@ export default function App() {
           onPaletteChange={(nextPalette) => {
             requestAppColorPaletteChange(nextPalette)
           }}
+          activeProjectName={activeProject?.name ?? ""}
+          activeProjectKind={activeProject?.kind ?? "Book"}
+          activeProjectColor={activeProject?.color ?? "#7ea8ff"}
+          onActiveProjectNameChange={(nextName) => {
+            updateActiveProject((currentProject) => ({
+              ...currentProject,
+              name: nextName,
+            }))
+          }}
+          onActiveProjectKindChange={(nextKind) => {
+            updateActiveProject((currentProject) => ({
+              ...currentProject,
+              kind: nextKind,
+            }))
+          }}
+          onActiveProjectColorChange={(nextColor) => {
+            updateActiveProject((currentProject) => ({
+              ...currentProject,
+              color: nextColor,
+            }))
+          }}
+          activeProjectFolderId={activeProject?.folderId ?? null}
+          projectFolderOptions={folders.map((folder) => ({ id: folder.id, name: folder.name }))}
+          onActiveProjectFolderChange={(nextFolderId) => {
+            updateActiveProject((currentProject) => ({
+              ...currentProject,
+              folderId: nextFolderId,
+              rootPosition: nextFolderId ? currentProject.rootPosition : "bottom",
+            }))
+          }}
+          onDeleteActiveProject={() => {
+            const projectIdToDelete = activeProjectId ?? activeProject?.id
+            if (!projectIdToDelete) {
+              return
+            }
+
+            setProjects((current) => {
+              const nextProjects = current.filter((project) => project.id !== projectIdToDelete)
+              setActiveProjectId(nextProjects[0]?.id ?? null)
+              return nextProjects
+            })
+
+            setIsSettingsOpen(false)
+          }}
         />
       </main>
     </div>
