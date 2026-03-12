@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react"
-import { Pencil, Plus, TableOfContents, Trash2, X } from "lucide-react"
+import { CornerDownRight, Pencil, Plus, TableOfContents, Trash2, X } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../core/projects"
 import "./DocumentTabs.css"
 
@@ -253,6 +253,7 @@ type TabNodeProps = {
   onEditingTitleChange: (value: string) => void
   onCommitRename: () => void
   onCancelRename: () => void
+  onRowRef: (id: string, element: HTMLDivElement | null) => void
 }
 
 function TabNode({
@@ -273,6 +274,7 @@ function TabNode({
   onEditingTitleChange,
   onCommitRename,
   onCancelRename,
+  onRowRef,
 }: TabNodeProps) {
   const marqueeViewportRef = useRef<HTMLSpanElement | null>(null)
   const marqueeTextRef = useRef<HTMLSpanElement | null>(null)
@@ -333,6 +335,9 @@ function TabNode({
       />
 
       <div
+        ref={(element) => {
+          onRowRef(tab.id, element)
+        }}
         className={`doc-tabs__row ${isActive ? "doc-tabs__row--active" : ""}`.trim()}
         onDragOver={(event) => {
           event.preventDefault()
@@ -395,6 +400,16 @@ function TabNode({
                 onStartRename(tab.id, tab.title)
               }}
             >
+              {depth > 0 ? (
+                <span
+                  className="doc-tabs__indent-icon"
+                  style={{ left: `${12 + (depth - 1) * 18}px` }}
+                  aria-hidden="true"
+                >
+                  <CornerDownRight size={13} strokeWidth={1.9} />
+                </span>
+              ) : null}
+
               <span
                 ref={marqueeViewportRef}
                 className={`doc-tabs__label-marquee ${marquee.isOverflowing ? "doc-tabs__label-marquee--overflowing" : ""}`.trim()}
@@ -472,6 +487,7 @@ function TabNode({
               onEditingTitleChange={onEditingTitleChange}
               onCommitRename={onCommitRename}
               onCancelRename={onCancelRename}
+              onRowRef={onRowRef}
             />
           ))}
         </ul>
@@ -496,11 +512,72 @@ export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle =
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const rootListRef = useRef<HTMLUListElement | null>(null)
+  const rowRefs = useRef<Record<string, HTMLDivElement>>({})
+  const [activeIndicatorStyle, setActiveIndicatorStyle] = useState<{ top: number; height: number; visible: boolean }>({
+    top: 0,
+    height: 0,
+    visible: false,
+  })
   const { singular, plural } = getProjectEntryTerms(projectKind)
   const panelTitle = projectKind === "Book" ? "Table of Contents" : "Blog Posts"
   const toggleLabel = isOpen ? `Hide ${plural.toLowerCase()}` : `Show ${plural.toLowerCase()}`
   const addLabel = `Create ${singular}`
   const pendingDeleteTitle = pendingDeleteId ? findNode(tabs, pendingDeleteId)?.title ?? singular : null
+
+  const registerRowRef = (id: string, element: HTMLDivElement | null) => {
+    if (element) {
+      rowRefs.current[id] = element
+      return
+    }
+
+    delete rowRefs.current[id]
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveIndicatorStyle((current) => (current.visible ? { top: 0, height: 0, visible: false } : current))
+      return
+    }
+
+    const rootList = rootListRef.current
+    const activeRow = activeId ? rowRefs.current[activeId] : null
+    if (!rootList || !activeRow) {
+      setActiveIndicatorStyle((current) => (current.visible ? { top: 0, height: 0, visible: false } : current))
+      return
+    }
+
+    const syncActiveIndicator = () => {
+      const listRect = rootList.getBoundingClientRect()
+      const rowRect = activeRow.getBoundingClientRect()
+      const top = rowRect.top - listRect.top
+      const height = rowRect.height
+
+      setActiveIndicatorStyle((current) => {
+        if (current.top === top && current.height === height && current.visible) {
+          return current
+        }
+
+        return {
+          top,
+          height,
+          visible: true,
+        }
+      })
+    }
+
+    syncActiveIndicator()
+    window.addEventListener("resize", syncActiveIndicator)
+
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncActiveIndicator) : null
+    resizeObserver?.observe(rootList)
+    resizeObserver?.observe(activeRow)
+
+    return () => {
+      window.removeEventListener("resize", syncActiveIndicator)
+      resizeObserver?.disconnect()
+    }
+  }, [activeId, isOpen, tabs])
 
   const addRootDocument = () => {
     const label = getNextEntryName(tabs, singular)
@@ -638,72 +715,94 @@ export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle =
           </button>
         </header>
 
-        <ul className="doc-tabs__list" onDragOver={handleRootListDragOver} onDrop={handleRootListDrop}>
-          {tabs.map((tab) => (
-            <TabNode
-              key={tab.id}
-              tab={tab}
-              depth={0}
-              activeId={activeId}
-              draggingId={draggingId}
-              dropTarget={dropTarget}
-              editingId={editingId}
-              editingTitle={editingTitle}
-              onSelect={onSelect}
-              onDragStart={(event, id) => {
-                if (editingId) {
-                  event.preventDefault()
-                  return
-                }
+        <div className="doc-tabs__list-shell">
+          <div
+            className="doc-tabs__active-indicator"
+            style={{
+              top: `${activeIndicatorStyle.top}px`,
+              height: `${activeIndicatorStyle.height}px`,
+              opacity: activeIndicatorStyle.visible ? 1 : 0,
+            }}
+            aria-hidden="true"
+          />
 
-                // Required by HTML5 DnD so drag operations are treated as move actions.
-                event.dataTransfer.effectAllowed = "move"
-                event.dataTransfer.setData("text/plain", id)
-                setDraggingId(id)
-              }}
-              onDragEnd={() => {
-                setDraggingId(null)
-                setDropTarget(null)
-              }}
-              onDropTargetChange={(target) => {
-                setDropTarget(target)
-              }}
-              onDropCommit={(targetId, mode) => {
-                if (!draggingId) {
-                  return
-                }
+          <ul ref={rootListRef} className="doc-tabs__list" onDragOver={handleRootListDragOver} onDrop={handleRootListDrop}>
+            {tabs.map((tab) => (
+              <TabNode
+                key={tab.id}
+                tab={tab}
+                depth={0}
+                activeId={activeId}
+                draggingId={draggingId}
+                dropTarget={dropTarget}
+                editingId={editingId}
+                editingTitle={editingTitle}
+                onSelect={onSelect}
+                onDragStart={(event, id) => {
+                  if (editingId) {
+                    event.preventDefault()
+                    return
+                  }
 
-                onTabsChange((current) => moveNode(current, draggingId, targetId, mode))
-                setDraggingId(null)
-                setDropTarget(null)
-              }}
-              onStartRename={startRename}
-              onRequestDelete={(id) => {
-                if (editingId === id) {
-                  cancelRename()
-                }
-                setPendingDeleteId(id)
-              }}
-              onEditingTitleChange={setEditingTitle}
-              onCommitRename={commitRename}
-              onCancelRename={cancelRename}
-            />
-          ))}
-        </ul>
+                  // Required by HTML5 DnD so drag operations are treated as move actions.
+                  event.dataTransfer.effectAllowed = "move"
+                  event.dataTransfer.setData("text/plain", id)
+                  setDraggingId(id)
+                }}
+                onDragEnd={() => {
+                  setDraggingId(null)
+                  setDropTarget(null)
+                }}
+                onDropTargetChange={(target) => {
+                  setDropTarget(target)
+                }}
+                onDropCommit={(targetId, mode) => {
+                  if (!draggingId) {
+                    return
+                  }
+
+                  onTabsChange((current) => moveNode(current, draggingId, targetId, mode))
+                  setDraggingId(null)
+                  setDropTarget(null)
+                }}
+                onStartRename={startRename}
+                onRequestDelete={(id) => {
+                  if (editingId === id) {
+                    cancelRename()
+                  }
+                  setPendingDeleteId(id)
+                }}
+                onEditingTitleChange={setEditingTitle}
+                onCommitRename={commitRename}
+                onCancelRename={cancelRename}
+                onRowRef={registerRowRef}
+              />
+            ))}
+          </ul>
+        </div>
       </aside>
 
       {pendingDeleteId ? (
         <div className="doc-tabs__delete-modal" role="dialog" aria-modal="true" aria-label={`Delete ${singular}`}>
-          <div className="doc-tabs__delete-card">
-            <h3>Delete {singular}</h3>
-            <p>Are you sure you want to delete "{pendingDeleteTitle}"?</p>
-            <div className="doc-tabs__delete-actions">
-              <button type="button" className="doc-tabs__delete-cancel" onClick={closeDeleteModal}>
-                Cancel
-              </button>
-              <button type="button" className="doc-tabs__delete-confirm" onClick={confirmDelete}>
-                Delete
-              </button>
+          <div className="doc-tabs__delete-frame">
+            <button
+              type="button"
+              className="doc-tabs__delete-floating-close"
+              onClick={closeDeleteModal}
+              aria-label={`Cancel delete ${singular}`}
+            >
+              <X size={16} strokeWidth={2} aria-hidden="true" />
+              <span className="doc-tabs__delete-floating-close-label">Cancel</span>
+            </button>
+            <div className="doc-tabs__delete-card">
+              <h3>Delete {singular}</h3>
+              <p>Are you sure you want to delete "{pendingDeleteTitle}"?</p>
+              <div className="doc-tabs__delete-actions">
+                <button type="button" className="doc-tabs__delete-confirm" onClick={confirmDelete}>
+                  <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

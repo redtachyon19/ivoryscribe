@@ -13,6 +13,7 @@ export type Project = {
   createdAt: string
   kind: ProjectKind
   color: string
+  wallpaperEmojis: string
   folderId: string | null
   rootPosition: "top" | "bottom"
   tabs: DocumentTab[]
@@ -124,6 +125,7 @@ export function createProject(name: string, kind: ProjectKind): Project {
     createdAt: new Date().toISOString(),
     kind,
     color,
+    wallpaperEmojis: "",
     folderId: null,
     rootPosition: "top",
     tabs,

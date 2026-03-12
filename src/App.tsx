@@ -29,6 +29,14 @@ function getSystemPalette(isDarkMode: boolean): Palette {
   return isDarkMode ? "elephant" : "ivory"
 }
 
+function getInitialPalette(): Palette {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return "ivory"
+  }
+
+  return getSystemPalette(window.matchMedia("(prefers-color-scheme: dark)").matches)
+}
+
 export default function App() {
   // The app has two high-level screens: project dashboard and editor workspace.
   const [view, setView] = useState<"projects" | "editor">("editor")
@@ -45,7 +53,7 @@ export default function App() {
   const [selectedFont, setSelectedFont] = useState<string>(FONT_OPTIONS[0]!.value)
   const [isGlobalTextEnabled, setIsGlobalTextEnabled] = useState(false)
   const [fontSize, setFontSize] = useState(32)
-  const [palette, setPalette] = useState<Palette>("ivory")
+  const [palette, setPalette] = useState<Palette>(() => getInitialPalette())
   const [viewFadePhase, setViewFadePhase] = useState<"idle" | "fading-out" | "fading-in">("idle")
 
   // Resolve the active project ID to a real project object with a fallback.
@@ -73,22 +81,33 @@ export default function App() {
   }, [projects, activeProjectId])
 
   useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return
+    }
+
     const colorSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)")
 
-    const applySystemPalette = (isDarkMode: boolean) => {
-      setPalette(getSystemPalette(isDarkMode))
-    }
-
-    applySystemPalette(colorSchemeQuery.matches)
-
     const onColorSchemeChange = (event: MediaQueryListEvent) => {
-      applySystemPalette(event.matches)
+      setPalette(getSystemPalette(event.matches))
     }
 
-    colorSchemeQuery.addEventListener("change", onColorSchemeChange)
+    const legacyColorSchemeQuery = colorSchemeQuery as MediaQueryList & {
+      addListener?: (listener: (event: MediaQueryListEvent) => void) => void
+      removeListener?: (listener: (event: MediaQueryListEvent) => void) => void
+    }
+
+    if ("addEventListener" in colorSchemeQuery) {
+      colorSchemeQuery.addEventListener("change", onColorSchemeChange)
+    } else if (legacyColorSchemeQuery.addListener) {
+      legacyColorSchemeQuery.addListener(onColorSchemeChange)
+    }
 
     return () => {
-      colorSchemeQuery.removeEventListener("change", onColorSchemeChange)
+      if ("removeEventListener" in colorSchemeQuery) {
+        colorSchemeQuery.removeEventListener("change", onColorSchemeChange)
+      } else if (legacyColorSchemeQuery.removeListener) {
+        legacyColorSchemeQuery.removeListener(onColorSchemeChange)
+      }
     }
   }, [])
 
@@ -295,6 +314,7 @@ export default function App() {
 
         <GlobalSettings
           isOpen={isSettingsOpen}
+          showProjectPreferences={view === "editor"}
           menuBarEnabled={isMenuBarEnabled}
           flagsEnabled={isFlagsEnabled}
           hideTrigger={isEditorTyping}
@@ -321,6 +341,7 @@ export default function App() {
           activeProjectName={activeProject?.name ?? ""}
           activeProjectKind={activeProject?.kind ?? "Book"}
           activeProjectColor={activeProject?.color ?? "#7ea8ff"}
+          activeProjectWallpaperEmojis={activeProject?.wallpaperEmojis ?? ""}
           onActiveProjectNameChange={(nextName) => {
             updateActiveProject((currentProject) => ({
               ...currentProject,
@@ -339,28 +360,11 @@ export default function App() {
               color: nextColor,
             }))
           }}
-          activeProjectFolderId={activeProject?.folderId ?? null}
-          projectFolderOptions={folders.map((folder) => ({ id: folder.id, name: folder.name }))}
-          onActiveProjectFolderChange={(nextFolderId) => {
+          onActiveProjectWallpaperEmojisChange={(nextWallpaperEmojis) => {
             updateActiveProject((currentProject) => ({
               ...currentProject,
-              folderId: nextFolderId,
-              rootPosition: nextFolderId ? currentProject.rootPosition : "bottom",
+              wallpaperEmojis: nextWallpaperEmojis,
             }))
-          }}
-          onDeleteActiveProject={() => {
-            const projectIdToDelete = activeProjectId ?? activeProject?.id
-            if (!projectIdToDelete) {
-              return
-            }
-
-            setProjects((current) => {
-              const nextProjects = current.filter((project) => project.id !== projectIdToDelete)
-              setActiveProjectId(nextProjects[0]?.id ?? null)
-              return nextProjects
-            })
-
-            setIsSettingsOpen(false)
           }}
         />
       </main>

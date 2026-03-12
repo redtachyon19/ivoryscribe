@@ -1,0 +1,110 @@
+.project-preferences-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.project-preferences-fields__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-preferences-fields__label {
+  color: var(--menu-button, #e6e6e6);
+  font-size: 17px;
+}
+
+.project-preferences-fields__input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
+  color: var(--menu-button, #f4f4f4);
+  font-size: 20px;
+  padding: 9px 10px;
+  outline: none;
+  font-family: "Times", "Times New Roman", serif;
+}
+
+.project-preferences-fields__input:focus {
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
+}
+
+.project-preferences-fields__input--color {
+  width: 120px;
+  height: 56px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 72%, transparent);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.22)),
+    color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
+  cursor: pointer;
+  align-self: flex-start;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 14px rgba(0, 0, 0, 0.32);
+  transition: transform 140ms ease, border-color 160ms ease, box-shadow 180ms ease;
+}
+
+.project-preferences-fields__input--color:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 18px rgba(0, 0, 0, 0.36);
+}
+
+.project-preferences-fields__input--color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.project-preferences-fields__input--color::-webkit-color-swatch {
+  border: 0;
+  border-radius: 9px;
+}
+
+.project-preferences-fields__input--color::-moz-color-swatch {
+  border: 0;
+  border-radius: 9px;
+}
+
+.project-preferences-fields__input--emoji {
+  font-family: "Noto Emoji", "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  letter-spacing: 0.05em;
+}
+
+.project-preferences-kind-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.project-preferences-kind-toggle__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
+  font-family: "Times", "Times New Roman", serif;
+  font-size: 20px;
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.project-preferences-kind-toggle__option:hover,
+.project-preferences-kind-toggle__option:focus-visible {
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
+  color: var(--menu-button, #ededed);
+  outline: none;
+}
+
+.project-preferences-kind-toggle__option--active {
+  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 52%, #0f0f0f);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, transparent);
+  color: var(--menu-button, #ededed);
+}

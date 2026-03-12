@@ -1,6 +1,7 @@
 import { Palette, ScrollText, Settings, UserRound, X } from "lucide-react"
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties } from "react"
 import type { ProjectKind } from "../core/projects"
+import ProjectPreferencesFields from "./ProjectPreferencesFields"
 import "./GlobalSettings.css"
 
 type PaletteOption = {
@@ -13,13 +14,9 @@ type FontOption = {
   label: string
 }
 
-type ProjectFolderOption = {
-  id: string
-  name: string
-}
-
 type GlobalSettingsProps = {
   isOpen: boolean
+  showProjectPreferences?: boolean
   menuBarEnabled: boolean
   flagsEnabled: boolean
   hideTrigger?: boolean
@@ -40,17 +37,16 @@ type GlobalSettingsProps = {
   activeProjectName: string
   activeProjectKind: ProjectKind
   activeProjectColor: string
+  activeProjectWallpaperEmojis: string
   onActiveProjectNameChange: (name: string) => void
   onActiveProjectKindChange: (kind: ProjectKind) => void
   onActiveProjectColorChange: (color: string) => void
-  activeProjectFolderId: string | null
-  projectFolderOptions: ProjectFolderOption[]
-  onActiveProjectFolderChange: (folderId: string | null) => void
-  onDeleteActiveProject: () => void
+  onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
 }
 
 export default function GlobalSettings({
   isOpen,
+  showProjectPreferences = true,
   menuBarEnabled,
   flagsEnabled,
   hideTrigger = false,
@@ -71,16 +67,14 @@ export default function GlobalSettings({
   activeProjectName,
   activeProjectKind,
   activeProjectColor,
+  activeProjectWallpaperEmojis,
   onActiveProjectNameChange,
   onActiveProjectKindChange,
   onActiveProjectColorChange,
-  activeProjectFolderId,
-  projectFolderOptions,
-  onActiveProjectFolderChange,
-  onDeleteActiveProject,
+  onActiveProjectWallpaperEmojisChange,
 }: GlobalSettingsProps) {
-  const sectionIds = ["account", "appearance", "project-preferences"] as const
-  type SectionId = (typeof sectionIds)[number]
+  type SectionId = "account" | "appearance" | "project-preferences"
+  const sectionIds: SectionId[] = showProjectPreferences ? ["account", "appearance", "project-preferences"] : ["account", "appearance"]
 
   const contentRef = useRef<HTMLDivElement | null>(null)
   const sectionNavRef = useRef<HTMLElement | null>(null)
@@ -104,17 +98,23 @@ export default function GlobalSettings({
   })
   const [isRendered, setIsRendered] = useState(isOpen)
   const [isClosing, setIsClosing] = useState(false)
-  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
-  const [deleteProjectNameInput, setDeleteProjectNameInput] = useState("")
-  const [deleteProjectError, setDeleteProjectError] = useState("")
   const triggerIsLayeredAboveOverlay = isOpen || isRendered
   const triggerLabel = isOpen ? "Close Settings" : "Open Settings"
 
   const sectionNavItems: { id: SectionId; label: string; icon: ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }> }[] = [
     { id: "account", label: "Account Settings", icon: UserRound },
     { id: "appearance", label: "Appearance", icon: Palette },
-    { id: "project-preferences", label: "Project Preferences", icon: ScrollText },
   ]
+
+  if (showProjectPreferences) {
+    sectionNavItems.push({ id: "project-preferences", label: "Project Preferences", icon: ScrollText })
+  }
+
+  useEffect(() => {
+    if (!showProjectPreferences && activeSection === "project-preferences") {
+      setActiveSection("account")
+    }
+  }, [activeSection, showProjectPreferences])
 
   useEffect(() => {
     if (isOpen) {
@@ -144,9 +144,6 @@ export default function GlobalSettings({
     }
 
     setActiveSection("account")
-    setIsDeleteConfirmOpen(false)
-    setDeleteProjectNameInput("")
-    setDeleteProjectError("")
     const scroller = contentRef.current
     if (scroller) {
       scroller.scrollTo({ top: 0, behavior: "auto" })
@@ -464,19 +461,6 @@ export default function GlobalSettings({
                       <span className="global-settings__switch-track" />
                     </span>
                   </label>
-                </section>
-
-                <section
-                  className="global-settings__section"
-                  data-settings-section="project-preferences"
-                  ref={(element) => {
-                    sectionRefs.current["project-preferences"] = element
-                  }}
-                >
-                  <h3 className="global-settings__section-title">
-                    <ScrollText size={18} strokeWidth={2} aria-hidden={true} />
-                    <span>Project Preferences</span>
-                  </h3>
 
                   <label className="global-settings__field global-settings__field--toggle" htmlFor="settings-flags-toggle">
                     <span>Flags</span>
@@ -492,140 +476,34 @@ export default function GlobalSettings({
                       <span className="global-settings__switch-track" />
                     </span>
                   </label>
-
-                  <label className="global-settings__field" htmlFor="settings-project-name">
-                    <span>Project Name</span>
-                    <input
-                      id="settings-project-name"
-                      type="text"
-                      value={activeProjectName}
-                      onChange={(event) => {
-                        onActiveProjectNameChange(event.target.value)
-                      }}
-                    />
-                  </label>
-
-                  <label className="global-settings__field" htmlFor="settings-project-kind">
-                    <span>Project Type</span>
-                    <select
-                      id="settings-project-kind"
-                      value={activeProjectKind}
-                      onChange={(event) => {
-                        onActiveProjectKindChange(event.target.value as ProjectKind)
-                      }}
-                    >
-                      <option value="Book">Book</option>
-                      <option value="Blog">Blog</option>
-                    </select>
-                  </label>
-
-                  <label className="global-settings__field" htmlFor="settings-project-folder">
-                    <span>Folder</span>
-                    <select
-                      id="settings-project-folder"
-                      value={activeProjectFolderId ?? ""}
-                      onChange={(event) => {
-                        onActiveProjectFolderChange(event.target.value || null)
-                      }}
-                    >
-                      <option value="">No Folder</option>
-                      {projectFolderOptions.map((folder) => (
-                        <option key={folder.id} value={folder.id}>
-                          {folder.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="global-settings__field" htmlFor="settings-project-color">
-                    <span>Project Color</span>
-                    <span className="global-settings__color-input-wrap">
-                      <input
-                        id="settings-project-color"
-                        className="global-settings__color-input"
-                        type="color"
-                        value={activeProjectColor}
-                        onChange={(event) => {
-                          onActiveProjectColorChange(event.target.value)
-                        }}
-                      />
-                      <span className="global-settings__color-value">{activeProjectColor}</span>
-                    </span>
-                  </label>
-
-                  <div className="global-settings__danger-zone" role="group" aria-label="Danger zone">
-                    <h4 className="global-settings__danger-zone-title">Danger Zone</h4>
-                    <p className="global-settings__danger-zone-copy">
-                      Deleting this project is permanent and cannot be undone.
-                    </p>
-
-                    {!isDeleteConfirmOpen ? (
-                      <button
-                        type="button"
-                        className="global-settings__danger-button"
-                        onClick={() => {
-                          setIsDeleteConfirmOpen(true)
-                          setDeleteProjectNameInput("")
-                          setDeleteProjectError("")
-                        }}
-                      >
-                        Delete Project
-                      </button>
-                    ) : (
-                      <div className="global-settings__danger-confirm">
-                        <label className="global-settings__field" htmlFor="settings-delete-project-confirm">
-                          <span>
-                            Type <strong>{activeProjectName}</strong> to confirm deletion.
-                          </span>
-                          <input
-                            id="settings-delete-project-confirm"
-                            type="text"
-                            value={deleteProjectNameInput}
-                            onChange={(event) => {
-                              setDeleteProjectNameInput(event.target.value)
-                              if (deleteProjectError) {
-                                setDeleteProjectError("")
-                              }
-                            }}
-                          />
-                        </label>
-
-                        {deleteProjectError ? <p className="global-settings__danger-error">{deleteProjectError}</p> : null}
-
-                        <div className="global-settings__danger-actions">
-                          <button
-                            type="button"
-                            className="global-settings__danger-cancel"
-                            onClick={() => {
-                              setIsDeleteConfirmOpen(false)
-                              setDeleteProjectNameInput("")
-                              setDeleteProjectError("")
-                            }}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            className="global-settings__danger-button"
-                            onClick={() => {
-                              if (deleteProjectNameInput !== activeProjectName) {
-                                setDeleteProjectError("Project name does not match.")
-                                return
-                              }
-
-                              onDeleteActiveProject()
-                              setIsDeleteConfirmOpen(false)
-                              setDeleteProjectNameInput("")
-                              setDeleteProjectError("")
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </section>
+
+                {showProjectPreferences ? (
+                  <section
+                    className="global-settings__section"
+                    data-settings-section="project-preferences"
+                    ref={(element) => {
+                      sectionRefs.current["project-preferences"] = element
+                    }}
+                  >
+                    <h3 className="global-settings__section-title">
+                      <ScrollText size={18} strokeWidth={2} aria-hidden={true} />
+                      <span>Project Preferences</span>
+                    </h3>
+
+                    <ProjectPreferencesFields
+                      fieldClassName="global-settings__field"
+                      projectName={activeProjectName}
+                      projectKind={activeProjectKind}
+                      projectColor={activeProjectColor}
+                      projectWallpaperEmojis={activeProjectWallpaperEmojis}
+                      onProjectNameChange={onActiveProjectNameChange}
+                      onProjectKindChange={onActiveProjectKindChange}
+                      onProjectColorChange={onActiveProjectColorChange}
+                      onProjectWallpaperEmojisChange={onActiveProjectWallpaperEmojisChange}
+                    />
+                  </section>
+                ) : null}
               </div>
             </div>
           </section>

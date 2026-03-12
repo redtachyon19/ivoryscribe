@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type SetStateAction } from "react"
-import { BookText, Folder, GripVertical, NotebookText, Pencil, Plus, Rocket, X } from "lucide-react"
+import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react"
+import { BookCopy, BookText, Folder, GripVertical, NotebookText, Plus, ScrollText, Settings2, Trash2, X } from "lucide-react"
 import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../core/editorEvents"
 import { collectTabIds, getProjectEntryTerms, type Project, type ProjectKind } from "../core/projects"
+import ProjectPreferencesFields from "../components/ProjectPreferencesFields"
 import "./ProjectDashboard.css"
 
 export type ProjectFolder = {
@@ -62,6 +63,89 @@ function formatProjectDate(dateValue: string) {
   return `${month}.${day}.${year}`
 }
 
+function splitGraphemes(value: string) {
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" })
+    return Array.from(segmenter.segment(value), (segment) => segment.segment)
+  }
+
+  return Array.from(value)
+}
+
+function extractEmojiTokens(value: string, maxCount = 3) {
+  const emojiPattern = /\p{Extended_Pictographic}/u
+  const tokens: string[] = []
+
+  for (const grapheme of splitGraphemes(value)) {
+    if (!emojiPattern.test(grapheme)) {
+      continue
+    }
+
+    tokens.push(grapheme)
+    if (tokens.length >= maxCount) {
+      break
+    }
+  }
+
+  return tokens
+}
+
+function normalizeProjectEmojiWallpaper(value: string) {
+  return extractEmojiTokens(value, 3).join(" ")
+}
+
+function buildDuplicateProjectName(baseName: string, existingNames: string[]) {
+  const taken = new Set(existingNames.map((name) => name.trim().toLowerCase()))
+  let suffix = 1
+
+  while (true) {
+    const candidate = suffix === 1 ? `${baseName} Copy` : `${baseName} Copy ${suffix}`
+    if (!taken.has(candidate.trim().toLowerCase())) {
+      return candidate
+    }
+
+    suffix += 1
+  }
+}
+
+function buildProjectEmojiWallpaperRows(value: string) {
+  const emojis = extractEmojiTokens(value, 3)
+  if (!emojis.length) {
+    return [] as string[]
+  }
+
+  const rowCount = 22
+  const symbolsPerRow = 30
+  const seedSource = emojis.join("|")
+  let seed = 0
+
+  for (let i = 0; i < seedSource.length; i += 1) {
+    seed = (seed * 31 + seedSource.charCodeAt(i)) >>> 0
+  }
+
+  // Deterministic PRNG so the pattern remains stable for a given emoji set.
+  const nextRandom = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    return seed / 4294967296
+  }
+
+  return Array.from({ length: rowCount }, () => {
+    let previousIndex = -1
+
+    return Array.from({ length: symbolsPerRow }, () => {
+      let index = Math.floor(nextRandom() * emojis.length)
+
+      // Prevent long runs of the same emoji when multiple choices exist.
+      if (emojis.length > 1 && index === previousIndex) {
+        index = (index + 1 + Math.floor(nextRandom() * (emojis.length - 1))) % emojis.length
+      }
+
+      previousIndex = index
+      return emojis[index]
+    }).join(" ")
+  })
+}
+
 type ProjectDashboardProps = {
   projects: Project[]
   folders: ProjectFolder[]
@@ -92,11 +176,17 @@ export default function ProjectDashboard({
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false)
   const [openFolderCreateMenuId, setOpenFolderCreateMenuId] = useState<string | null>(null)
   const [openProjectSettingsId, setOpenProjectSettingsId] = useState<string | null>(null)
+  const [isProjectSettingsRendered, setIsProjectSettingsRendered] = useState(false)
+  const [isProjectSettingsClosing, setIsProjectSettingsClosing] = useState(false)
   const [projectSettingsName, setProjectSettingsName] = useState("")
   const [projectSettingsColor, setProjectSettingsColor] = useState("#7ea8ff")
   const [projectSettingsKind, setProjectSettingsKind] = useState<ProjectKind>("Book")
+  const [projectSettingsWallpaperEmojis, setProjectSettingsWallpaperEmojis] = useState("")
   const [projectSettingsError, setProjectSettingsError] = useState("")
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null)
+  const [isDeleteModalRendered, setIsDeleteModalRendered] = useState(false)
+  const [isDeleteModalClosing, setIsDeleteModalClosing] = useState(false)
+  const [deleteModalProjectName, setDeleteModalProjectName] = useState("")
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("")
   const [deleteError, setDeleteError] = useState("")
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
@@ -106,6 +196,7 @@ export default function ProjectDashboard({
   const createMenuWrapRef = useRef<HTMLDivElement | null>(null)
   const dragPreviewElementRef = useRef<HTMLElement | null>(null)
   const renameTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const deleteConfirmationInputRef = useRef<HTMLInputElement | null>(null)
   const titleScrollFrameRef = useRef<number | null>(null)
   const titleScrollDirectionRef = useRef<1 | -1>(1)
 
@@ -226,15 +317,6 @@ export default function ProjectDashboard({
   const getProjectReorderPosition = (event: DragEvent<HTMLElement>, projectId: string): "before" | "after" => {
     const bounds = event.currentTarget.getBoundingClientRect()
     const xRatio = getPointerRatio(event.clientX, bounds.left, bounds.width)
-    const yRatio = getPointerRatio(event.clientY, bounds.top, bounds.height)
-
-    if (yRatio <= 0.35) {
-      return "before"
-    }
-
-    if (yRatio >= 0.65) {
-      return "after"
-    }
 
     if (xRatio <= 0.45) {
       return "before"
@@ -285,18 +367,13 @@ export default function ProjectDashboard({
   const pendingDeleteProject =
     pendingDeleteProjectId ? projects.find((project) => project.id === pendingDeleteProjectId) ?? null : null
   const settingsProject = openProjectSettingsId ? projects.find((project) => project.id === openProjectSettingsId) ?? null : null
+  const isProjectSettingsOpen = Boolean(settingsProject)
+  const isDeleteModalOpen = Boolean(pendingDeleteProject)
+  const deleteProjectName = pendingDeleteProject?.name ?? deleteModalProjectName
 
-  const requiredDeletePhrase = pendingDeleteProject ? `I wish to delete ${pendingDeleteProject.name}` : ""
-
-  const startRename = (projectId: string, currentName: string) => {
-    setEditingFolderId(null)
-    setEditingFolderName("")
-    setEditingFolderDescriptionId(null)
-    setEditingFolderDescription("")
-    setOpenProjectSettingsId(null)
-    setEditingProjectId(projectId)
-    setEditingName(currentName)
-  }
+  const requiredDeletePhrase = deleteProjectName ? `I wish to delete ${deleteProjectName}` : ""
+  const requiredDeleteCharacters = splitGraphemes(requiredDeletePhrase)
+  const enteredDeleteCharacters = splitGraphemes(deleteConfirmationText)
 
   const cancelRename = () => {
     setEditingProjectId(null)
@@ -390,18 +467,16 @@ export default function ProjectDashboard({
     setProjectSettingsName(project.name)
     setProjectSettingsColor(project.color)
     setProjectSettingsKind(project.kind)
+    setProjectSettingsWallpaperEmojis(project.wallpaperEmojis ?? "")
     setProjectSettingsError("")
   }
 
   const closeProjectSettings = () => {
     setOpenProjectSettingsId(null)
-    setProjectSettingsName("")
-    setProjectSettingsColor("#7ea8ff")
-    setProjectSettingsKind("Book")
     setProjectSettingsError("")
   }
 
-  const saveProjectSettings = () => {
+  useEffect(() => {
     if (!settingsProject) {
       return
     }
@@ -412,18 +487,88 @@ export default function ProjectDashboard({
       return
     }
 
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === settingsProject.id
-          ? {
-              ...project,
-              name: trimmedName,
-              color: projectSettingsColor,
-              kind: projectSettingsKind,
-            }
-          : project,
-      ),
-    )
+    setProjectSettingsError((current) => (current ? "" : current))
+
+    const normalizedWallpaper = normalizeProjectEmojiWallpaper(projectSettingsWallpaperEmojis)
+
+    setProjects((current) => {
+      let hasChanges = false
+
+      const nextProjects = current.map((project) => {
+        if (project.id !== settingsProject.id) {
+          return project
+        }
+
+        if (
+          project.name === trimmedName &&
+          project.color === projectSettingsColor &&
+          project.kind === projectSettingsKind &&
+          (project.wallpaperEmojis ?? "") === normalizedWallpaper
+        ) {
+          return project
+        }
+
+        hasChanges = true
+        return {
+          ...project,
+          name: trimmedName,
+          color: projectSettingsColor,
+          kind: projectSettingsKind,
+          wallpaperEmojis: normalizedWallpaper,
+        }
+      })
+
+      return hasChanges ? nextProjects : current
+    })
+  }, [projectSettingsColor, projectSettingsKind, projectSettingsName, projectSettingsWallpaperEmojis, setProjects, settingsProject])
+
+  const duplicateProjectFromSettings = () => {
+    if (!settingsProject) {
+      return
+    }
+
+    setProjects((current) => {
+      const sourceIndex = current.findIndex((project) => project.id === settingsProject.id)
+      if (sourceIndex === -1) {
+        return current
+      }
+
+      const source = current[sourceIndex]
+      const tabIdMap = new Map<string, string>()
+
+      const cloneTabsWithNewIds = (tabs: Project["tabs"]): Project["tabs"] => {
+        return tabs.map((tab) => {
+          const nextId = createLocalId()
+          tabIdMap.set(tab.id, nextId)
+
+          return {
+            ...tab,
+            id: nextId,
+            children: cloneTabsWithNewIds(tab.children),
+          }
+        })
+      }
+
+      const nextTabs = cloneTabsWithNewIds(source.tabs)
+      const nextContentById: Project["contentById"] = {}
+      tabIdMap.forEach((nextId, oldId) => {
+        nextContentById[nextId] = source.contentById[oldId] ?? ""
+      })
+
+      const duplicate: Project = {
+        ...source,
+        id: createLocalId(),
+        name: buildDuplicateProjectName(source.name, current.map((project) => project.name)),
+        createdAt: new Date().toISOString(),
+        tabs: nextTabs,
+        activeId: source.activeId ? (tabIdMap.get(source.activeId) ?? (nextTabs[0]?.id ?? null)) : (nextTabs[0]?.id ?? null),
+        contentById: nextContentById,
+      }
+
+      const nextProjects = [...current]
+      nextProjects.splice(sourceIndex + 1, 0, duplicate)
+      return nextProjects
+    })
 
     closeProjectSettings()
   }
@@ -512,7 +657,9 @@ export default function ProjectDashboard({
   }
 
   const openDeleteConfirmation = (projectId: string) => {
+    const project = projects.find((entry) => entry.id === projectId)
     setPendingDeleteProjectId(projectId)
+    setDeleteModalProjectName(project?.name ?? "")
     setDeleteConfirmationText("")
     setDeleteError("")
   }
@@ -573,6 +720,71 @@ export default function ProjectDashboard({
       window.removeEventListener(PROJECTS_CREATE_FOLDER_EVENT, handleCreateFolder)
     }
   }, [onCreateProject, folders.length])
+
+  useEffect(() => {
+    if (isProjectSettingsOpen) {
+      setIsProjectSettingsRendered(true)
+      setIsProjectSettingsClosing(false)
+      return
+    }
+
+    if (!isProjectSettingsRendered) {
+      return
+    }
+
+    setIsProjectSettingsClosing(true)
+    const timeoutId = window.setTimeout(() => {
+      setIsProjectSettingsRendered(false)
+      setIsProjectSettingsClosing(false)
+    }, 170)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [isProjectSettingsOpen, isProjectSettingsRendered])
+
+  useEffect(() => {
+    if (!isProjectSettingsRendered) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeProjectSettings()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isProjectSettingsRendered])
+
+  useEffect(() => {
+    if (isDeleteModalOpen) {
+      setIsDeleteModalRendered(true)
+      setIsDeleteModalClosing(false)
+      if (pendingDeleteProject) {
+        setDeleteModalProjectName(pendingDeleteProject.name)
+      }
+      return
+    }
+
+    if (!isDeleteModalRendered) {
+      return
+    }
+
+    setIsDeleteModalClosing(true)
+    const timeoutId = window.setTimeout(() => {
+      setIsDeleteModalRendered(false)
+      setIsDeleteModalClosing(false)
+      setDeleteModalProjectName("")
+    }, 170)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [isDeleteModalOpen, isDeleteModalRendered, pendingDeleteProject])
 
   const moveProjectToFolder = (projectId: string, folderId: string | null, rootPosition: "top" | "bottom" = "bottom") => {
     setProjects((current) => {
@@ -788,9 +1000,156 @@ export default function ProjectDashboard({
     return projects.filter((project) => getResolvedFolderId(project.folderId) === folderId)
   }
 
+  const renderProjectCard = (project: Project) => {
+    const entryCount = collectTabIds(project.tabs).length
+    const { singular, plural } = getProjectEntryTerms(project.kind)
+    const entryLabel = entryCount === 1 ? singular.toLowerCase() : plural.toLowerCase()
+    const wallpaperRows = buildProjectEmojiWallpaperRows(project.wallpaperEmojis ?? "")
+
+    const handleProjectCardClick = (event: ReactMouseEvent<HTMLElement>) => {
+      if (editingProjectId === project.id) {
+        return
+      }
+
+      const target = event.target
+      if (target instanceof Element && target.closest("button, input, textarea, select, label")) {
+        return
+      }
+
+      onOpenProject(project.id)
+    }
+
+    const updateProjectDropTarget = (event: DragEvent<HTMLElement>) => {
+      if (!draggingProjectId || draggingProjectId === project.id) {
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+      const position = getProjectReorderPosition(event, project.id)
+      if (
+        dropTarget?.type !== "project" ||
+        dropTarget.projectId !== project.id ||
+        dropTarget.position !== position
+      ) {
+        setDropTarget({ type: "project", projectId: project.id, position })
+      }
+    }
+
+    return (
+      <li
+        key={project.id}
+        className={`project-card ${getProjectDropClassName(project.id)} ${draggingProjectId === project.id ? "project-card--dragging" : ""}`.trim()}
+        style={
+          {
+            "--project-accent": project.color,
+            "--project-accent-soft": hexToRgba(project.color, 0.14),
+          } as CSSProperties
+        }
+        onDragEnter={updateProjectDropTarget}
+        onDragOver={updateProjectDropTarget}
+        onDrop={(event) => {
+          if (!draggingProjectId || draggingProjectId === project.id) {
+            return
+          }
+
+          event.preventDefault()
+          event.stopPropagation()
+          handleProjectDrop()
+        }}
+        onClick={handleProjectCardClick}
+      >
+        {wallpaperRows.length ? (
+          <div className="project-card__emoji-wallpaper" aria-hidden="true">
+            <div className="project-card__emoji-wallpaper-grid">
+              {wallpaperRows.map((row, index) => (
+                <span key={`${project.id}-wallpaper-row-${index}`} className="project-card__emoji-wallpaper-row">
+                  {row}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          className="project-card__drag-handle"
+          aria-label={`Drag ${project.name}`}
+          draggable
+          onDragStart={(event) => {
+            handleProjectDragStart(project.id, event)
+          }}
+          onDragEnd={() => {
+            handleProjectDragEnd()
+          }}
+        >
+          <GripVertical size={14} strokeWidth={2} aria-hidden="true" />
+        </button>
+
+        <div className="project-card__content">
+          <div className="project-card__top-row">
+            <div className="project-card__actions">
+              <button
+                type="button"
+                className="project-card__icon-btn"
+                aria-label={openProjectSettingsId === project.id ? "Cancel" : `Edit ${project.name}`}
+                onClick={() => {
+                  if (openProjectSettingsId === project.id) {
+                    closeProjectSettings()
+                    return
+                  }
+
+                  openProjectSettings(project)
+                }}
+              >
+                {openProjectSettingsId === project.id ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Settings2 size={14} strokeWidth={2} aria-hidden={true} />}
+                <span className="project-card__icon-btn-label">{openProjectSettingsId === project.id ? "Cancel" : "Edit Project"}</span>
+              </button>
+            </div>
+          </div>
+
+          {editingProjectId === project.id ? (
+            renderProjectRenameEditor()
+          ) : (
+            <h2
+              onMouseEnter={(event) => {
+                startTitleAutoScroll(event.currentTarget)
+              }}
+              onWheel={() => {
+                stopTitleAutoScroll()
+              }}
+              onMouseLeave={(event) => {
+                stopTitleAutoScroll(event.currentTarget)
+              }}
+            >
+              {project.name}
+            </h2>
+          )}
+
+          <div className="project-card__details" aria-label={`Type ${project.kind}, ${entryCount} ${entryLabel}, last edited ${formatProjectDate(project.createdAt)}`}>
+            <div className="project-card__meta">
+              <span className="project-card__meta-kind">
+                {project.kind === "Book" ? (
+                  <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
+                ) : (
+                  <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
+                )}
+                <span>{project.kind}</span>
+              </span>
+              <span className="project-card__meta-separator" aria-hidden="true">&middot;</span>
+              <span className="project-card__meta-count">{`${entryCount} ${entryLabel}`}</span>
+            </div>
+            <span className="project-card__last-edited">{`Last edited ${formatProjectDate(project.createdAt)}`}</span>
+          </div>
+
+        </div>
+      </li>
+    )
+  }
+
   return (
     <section className="project-hub" aria-label="Projects home">
-      <div className={`project-hub__content ${pendingDeleteProject || settingsProject ? "project-hub__content--blurred" : ""}`.trim()}>
+      <div className={`project-hub__content ${isDeleteModalRendered || isProjectSettingsRendered ? "project-hub__content--blurred" : ""}`.trim()}>
         <header className="project-hub__header">
           <div className="project-hub__title-row">
             <h1>Projects</h1>
@@ -881,134 +1240,7 @@ export default function ProjectDashboard({
             }}
           />
 
-          {topRootProjects.map((project) => (
-            <li
-              key={project.id}
-              className={`project-card ${getProjectDropClassName(project.id)} ${draggingProjectId === project.id ? "project-card--dragging" : ""}`.trim()}
-              style={
-                {
-                  "--project-accent": project.color,
-                  "--project-accent-soft": hexToRgba(project.color, 0.14),
-                } as CSSProperties
-              }
-              onDragOver={(event) => {
-                if (!draggingProjectId || draggingProjectId === project.id) {
-                  return
-                }
-
-                event.preventDefault()
-                event.stopPropagation()
-                const position = getProjectReorderPosition(event, project.id)
-                if (
-                  dropTarget?.type !== "project" ||
-                  dropTarget.projectId !== project.id ||
-                  dropTarget.position !== position
-                ) {
-                  setDropTarget({ type: "project", projectId: project.id, position })
-                }
-              }}
-              onDrop={(event) => {
-                if (!draggingProjectId || draggingProjectId === project.id) {
-                  return
-                }
-
-                event.preventDefault()
-                event.stopPropagation()
-                handleProjectDrop()
-              }}
-            >
-              <button
-                type="button"
-                className="project-card__drag-handle"
-                aria-label={`Drag ${project.name}`}
-                draggable
-                onDragStart={(event) => {
-                  handleProjectDragStart(project.id, event)
-                }}
-                onDragEnd={() => {
-                  handleProjectDragEnd()
-                }}
-              >
-                <GripVertical size={14} strokeWidth={2} aria-hidden="true" />
-              </button>
-
-              <div className="project-card__content">
-                <div className="project-card__top-row">
-                  <span className="project-card__created-date">{formatProjectDate(project.createdAt)}</span>
-                  <div className="project-card__actions">
-                    <button
-                      type="button"
-                      className="project-card__icon-btn"
-                      aria-label={openProjectSettingsId === project.id ? "Cancel" : `Edit ${project.name}`}
-                      onClick={() => {
-                        if (openProjectSettingsId === project.id) {
-                          closeProjectSettings()
-                          return
-                        }
-
-                        openProjectSettings(project)
-                      }}
-                    >
-                      {openProjectSettingsId === project.id ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Pencil size={14} strokeWidth={2} aria-hidden={true} />}
-                      <span className="project-card__icon-btn-label">{openProjectSettingsId === project.id ? "Cancel" : "Edit Project"}</span>
-                    </button>
-                  </div>
-                </div>
-                {editingProjectId === project.id ? (
-                  renderProjectRenameEditor()
-                ) : (
-                  <h2
-                    onMouseEnter={(event) => {
-                      startTitleAutoScroll(event.currentTarget)
-                    }}
-                    onWheel={() => {
-                      stopTitleAutoScroll()
-                    }}
-                    onMouseLeave={(event) => {
-                      stopTitleAutoScroll(event.currentTarget)
-                    }}
-                    onClick={() => {
-                      startRename(project.id, project.name)
-                    }}
-                  >
-                    {project.name}
-                  </h2>
-                )}
-                <div className="project-card__meta">
-                  <span className="project-card__meta-kind">
-                    {project.kind === "Book" ? (
-                      <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                    ) : (
-                      <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                    )}
-                    <span>{project.kind}</span>
-                  </span>
-                  <span className="project-card__meta-separator">·</span>
-                  <span className="project-card__meta-count">
-                    {(() => {
-                      const count = collectTabIds(project.tabs).length
-                      const { singular, plural } = getProjectEntryTerms(project.kind)
-                      return `${count} ${count === 1 ? singular.toLowerCase() : plural.toLowerCase()}`
-                    })()}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="project-card__open"
-                  aria-label={`Launch ${project.name}`}
-                  onClick={() => {
-                    if (editingProjectId === project.id) {
-                      return
-                    }
-                    onOpenProject(project.id)
-                  }}
-                >
-                  <Rocket size={13} strokeWidth={2} aria-hidden={true} />
-                  <span className="project-card__open-label">Launch Project</span>
-                </button>
-              </div>
-            </li>
-          ))}
+          {topRootProjects.map((project) => renderProjectCard(project))}
 
           {folders.flatMap((folder) => [
             <li
@@ -1203,265 +1435,11 @@ export default function ProjectDashboard({
                 </p>
               )}
             </li>,
-            ...getProjectsForFolder(folder.id).map((project) => (
-              <li
-                key={project.id}
-                className={`project-card ${getProjectDropClassName(project.id)} ${draggingProjectId === project.id ? "project-card--dragging" : ""}`.trim()}
-                style={
-                  {
-                    "--project-accent": project.color,
-                    "--project-accent-soft": hexToRgba(project.color, 0.14),
-                  } as CSSProperties
-                }
-                onDragOver={(event) => {
-                  if (!draggingProjectId || draggingProjectId === project.id) {
-                    return
-                  }
-
-                  event.preventDefault()
-                  event.stopPropagation()
-                  const position = getProjectReorderPosition(event, project.id)
-                  if (
-                    dropTarget?.type !== "project" ||
-                    dropTarget.projectId !== project.id ||
-                    dropTarget.position !== position
-                  ) {
-                    setDropTarget({ type: "project", projectId: project.id, position })
-                  }
-                }}
-                onDrop={(event) => {
-                  if (!draggingProjectId || draggingProjectId === project.id) {
-                    return
-                  }
-
-                  event.preventDefault()
-                  event.stopPropagation()
-                  handleProjectDrop()
-                }}
-              >
-                <button
-                  type="button"
-                  className="project-card__drag-handle"
-                  aria-label={`Drag ${project.name}`}
-                  draggable
-                  onDragStart={(event) => {
-                    handleProjectDragStart(project.id, event)
-                  }}
-                  onDragEnd={() => {
-                    handleProjectDragEnd()
-                  }}
-                >
-                  <GripVertical size={14} strokeWidth={2} aria-hidden="true" />
-                </button>
-
-                <div className="project-card__content">
-                  <div className="project-card__top-row">
-                    <span className="project-card__created-date">{formatProjectDate(project.createdAt)}</span>
-                    <div className="project-card__actions">
-                      <button
-                        type="button"
-                        className="project-card__icon-btn"
-                        aria-label={openProjectSettingsId === project.id ? "Cancel" : `Edit ${project.name}`}
-                        onClick={() => {
-                          if (openProjectSettingsId === project.id) {
-                            closeProjectSettings()
-                            return
-                          }
-
-                          openProjectSettings(project)
-                        }}
-                      >
-                        {openProjectSettingsId === project.id ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Pencil size={14} strokeWidth={2} aria-hidden={true} />}
-                        <span className="project-card__icon-btn-label">{openProjectSettingsId === project.id ? "Cancel" : "Edit Project"}</span>
-                      </button>
-                    </div>
-                  </div>
-                    {editingProjectId === project.id ? (
-                        renderProjectRenameEditor()
-                    ) : (
-                      <h2
-                        onMouseEnter={(event) => {
-                          startTitleAutoScroll(event.currentTarget)
-                        }}
-                        onWheel={() => {
-                          stopTitleAutoScroll()
-                        }}
-                        onMouseLeave={(event) => {
-                          stopTitleAutoScroll(event.currentTarget)
-                        }}
-                        onClick={() => {
-                          startRename(project.id, project.name)
-                        }}
-                      >
-                        {project.name}
-                      </h2>
-                    )}
-                  <div className="project-card__meta">
-                    <span className="project-card__meta-kind">
-                      {project.kind === "Book" ? (
-                        <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                      ) : (
-                        <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                      )}
-                      <span>{project.kind}</span>
-                    </span>
-                    <span className="project-card__meta-separator">·</span>
-                    <span className="project-card__meta-count">
-                      {(() => {
-                        const count = collectTabIds(project.tabs).length
-                        const { singular, plural } = getProjectEntryTerms(project.kind)
-                        return `${count} ${count === 1 ? singular.toLowerCase() : plural.toLowerCase()}`
-                      })()}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="project-card__open"
-                    aria-label={`Launch ${project.name}`}
-                    onClick={() => {
-                      if (editingProjectId === project.id) {
-                        return
-                      }
-                      onOpenProject(project.id)
-                    }}
-                  >
-                    <Rocket size={13} strokeWidth={2} aria-hidden={true} />
-                    <span className="project-card__open-label">Launch Project</span>
-                  </button>
-                </div>
-              </li>
-            )),
+            ...getProjectsForFolder(folder.id).map((project) => renderProjectCard(project)),
           ])}
 
           {/* Existing projects list acts as the launchpad into the editor workspace. */}
-          {bottomRootProjects.map((project) => (
-            <li
-              key={project.id}
-              className={`project-card ${getProjectDropClassName(project.id)} ${draggingProjectId === project.id ? "project-card--dragging" : ""}`.trim()}
-              style={
-                {
-                  "--project-accent": project.color,
-                  "--project-accent-soft": hexToRgba(project.color, 0.14),
-                } as CSSProperties
-              }
-              onDragOver={(event) => {
-                if (!draggingProjectId || draggingProjectId === project.id) {
-                  return
-                }
-
-                event.preventDefault()
-                event.stopPropagation()
-                const position = getProjectReorderPosition(event, project.id)
-                if (
-                  dropTarget?.type !== "project" ||
-                  dropTarget.projectId !== project.id ||
-                  dropTarget.position !== position
-                ) {
-                  setDropTarget({ type: "project", projectId: project.id, position })
-                }
-              }}
-              onDrop={(event) => {
-                if (!draggingProjectId || draggingProjectId === project.id) {
-                  return
-                }
-
-                event.preventDefault()
-                event.stopPropagation()
-                handleProjectDrop()
-              }}
-            >
-              <button
-                type="button"
-                className="project-card__drag-handle"
-                aria-label={`Drag ${project.name}`}
-                draggable
-                onDragStart={(event) => {
-                  handleProjectDragStart(project.id, event)
-                }}
-                onDragEnd={() => {
-                  handleProjectDragEnd()
-                }}
-              >
-                <GripVertical size={14} strokeWidth={2} aria-hidden="true" />
-              </button>
-
-              <div className="project-card__content">
-                <div className="project-card__top-row">
-                  <span className="project-card__created-date">{formatProjectDate(project.createdAt)}</span>
-                  <div className="project-card__actions">
-                    <button
-                      type="button"
-                      className="project-card__icon-btn"
-                      aria-label={openProjectSettingsId === project.id ? "Cancel" : `Edit ${project.name}`}
-                      onClick={() => {
-                        if (openProjectSettingsId === project.id) {
-                          closeProjectSettings()
-                          return
-                        }
-
-                        openProjectSettings(project)
-                      }}
-                    >
-                      {openProjectSettingsId === project.id ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <Pencil size={14} strokeWidth={2} aria-hidden={true} />}
-                      <span className="project-card__icon-btn-label">{openProjectSettingsId === project.id ? "Cancel" : "Edit Project"}</span>
-                    </button>
-                  </div>
-                </div>
-                {editingProjectId === project.id ? (
-                  renderProjectRenameEditor()
-                ) : (
-                  <h2
-                    onMouseEnter={(event) => {
-                      startTitleAutoScroll(event.currentTarget)
-                    }}
-                    onWheel={() => {
-                      stopTitleAutoScroll()
-                    }}
-                    onMouseLeave={(event) => {
-                      stopTitleAutoScroll(event.currentTarget)
-                    }}
-                    onClick={() => {
-                      startRename(project.id, project.name)
-                    }}
-                  >
-                    {project.name}
-                  </h2>
-                )}
-                <div className="project-card__meta">
-                  <span className="project-card__meta-kind">
-                    {project.kind === "Book" ? (
-                      <BookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                    ) : (
-                      <NotebookText size={13} strokeWidth={1.9} aria-hidden="true" />
-                    )}
-                    <span>{project.kind}</span>
-                  </span>
-                  <span className="project-card__meta-separator">·</span>
-                  <span className="project-card__meta-count">
-                    {(() => {
-                      const count = collectTabIds(project.tabs).length
-                      const { singular, plural } = getProjectEntryTerms(project.kind)
-                      return `${count} ${count === 1 ? singular.toLowerCase() : plural.toLowerCase()}`
-                    })()}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="project-card__open"
-                  aria-label={`Launch ${project.name}`}
-                  onClick={() => {
-                    if (editingProjectId === project.id) {
-                      return
-                    }
-                    onOpenProject(project.id)
-                  }}
-                >
-                  <Rocket size={13} strokeWidth={2} aria-hidden={true} />
-                  <span className="project-card__open-label">Launch Project</span>
-                </button>
-              </div>
-            </li>
-          ))}
+          {bottomRootProjects.map((project) => renderProjectCard(project))}
 
           <li
             className={`project-hub__root-drop ${getRootDropClassName("bottom")}`.trim()}
@@ -1498,127 +1476,196 @@ export default function ProjectDashboard({
         ) : null}
       </div>
 
-      {settingsProject ? (
-        <div
-          className="project-settings-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Edit project settings"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeProjectSettings()
-            }
-          }}
-        >
-          <div className="project-settings-modal__card">
-            <h3>Edit Project</h3>
+      {isProjectSettingsRendered ? (
+        <>
+          <div
+            className={`project-settings-modal__overlay ${isProjectSettingsClosing ? "project-settings-modal__overlay--closing" : "project-settings-modal__overlay--opening"}`.trim()}
+            onMouseDown={closeProjectSettings}
+            aria-hidden="true"
+          />
+          <div className="project-settings-modal__frame">
+            <button
+              type="button"
+              className={`project-settings-modal__floating-close ${isProjectSettingsClosing ? "project-settings-modal__floating-close--closing" : "project-settings-modal__floating-close--opening"}`.trim()}
+              onClick={closeProjectSettings}
+              aria-label="Close project settings"
+            >
+              <X size={16} strokeWidth={2} aria-hidden="true" />
+              <span className="project-settings-modal__floating-close-label">Close Settings</span>
+            </button>
+            <div
+              className={`project-settings-modal__modal ${isProjectSettingsClosing ? "project-settings-modal__modal--closing" : "project-settings-modal__modal--opening"}`.trim()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="project-settings-title"
+            >
+              <div className="project-settings-modal__header">
+                <h3 id="project-settings-title" className="project-settings-modal__title">
+                  <ScrollText size={19} strokeWidth={1.9} aria-hidden="true" />
+                  <span>Project Preferences</span>
+                </h3>
+              </div>
 
-            <label className="project-settings-modal__field">
-              <span>Name</span>
-              <input
-                type="text"
-                value={projectSettingsName}
-                onChange={(event) => {
-                  setProjectSettingsName(event.target.value)
-                  if (projectSettingsError) {
-                    setProjectSettingsError("")
-                  }
-                }}
-              />
-            </label>
-
-            <label className="project-settings-modal__field">
-              <span>Type</span>
-              <select
-                value={projectSettingsKind}
-                onChange={(event) => {
-                  const nextKind = event.target.value === "Blog" ? "Blog" : "Book"
-                  setProjectSettingsKind(nextKind)
-                }}
-              >
-                <option value="Book">Book</option>
-                <option value="Blog">Blog</option>
-              </select>
-            </label>
-
-            <label className="project-settings-modal__field">
-              <span>Color</span>
-              <input
-                type="color"
-                value={projectSettingsColor}
-                onChange={(event) => {
-                  setProjectSettingsColor(event.target.value)
-                }}
-              />
-            </label>
+            <ProjectPreferencesFields
+              fieldClassName="project-settings-modal__field"
+              projectName={projectSettingsName}
+              projectKind={projectSettingsKind}
+              projectColor={projectSettingsColor}
+              projectWallpaperEmojis={projectSettingsWallpaperEmojis}
+              onProjectNameChange={(nextName) => {
+                setProjectSettingsName(nextName)
+                if (projectSettingsError) {
+                  setProjectSettingsError("")
+                }
+              }}
+              onProjectKindChange={setProjectSettingsKind}
+              onProjectColorChange={setProjectSettingsColor}
+              onProjectWallpaperEmojisChange={setProjectSettingsWallpaperEmojis}
+            />
 
             {projectSettingsError ? <p className="project-settings-modal__error">{projectSettingsError}</p> : null}
 
-            <div className="project-settings-modal__actions">
-              <button type="button" className="project-settings-modal__btn" onClick={closeProjectSettings}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="project-settings-modal__btn project-settings-modal__btn--danger"
-                onClick={() => {
-                  closeProjectSettings()
-                  openDeleteConfirmation(settingsProject.id)
-                }}
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                className="project-settings-modal__btn project-settings-modal__btn--primary"
-                onClick={saveProjectSettings}
-              >
-                Save
-              </button>
+              <div className="project-settings-modal__actions">
+                <button
+                  type="button"
+                  className="project-settings-modal__btn"
+                  onClick={duplicateProjectFromSettings}
+                  disabled={!settingsProject}
+                >
+                  <BookCopy size={14} strokeWidth={2} aria-hidden={true} />
+                  Duplicate
+                </button>
+                <button
+                  type="button"
+                  className="project-settings-modal__btn project-settings-modal__btn--danger"
+                  onClick={() => {
+                    if (!settingsProject) {
+                      return
+                    }
+
+                    closeProjectSettings()
+                    openDeleteConfirmation(settingsProject.id)
+                  }}
+                >
+                  <Trash2 size={14} strokeWidth={2} aria-hidden={true} />
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       ) : null}
 
-      {pendingDeleteProject ? (
-        <div className="project-delete-modal" role="dialog" aria-modal="true" aria-label="Delete project confirmation">
-          <div className="project-delete-modal__card">
-            <h3>Delete Project</h3>
-            <p>Are you sure you want to delete the project "{pendingDeleteProject.name}"?</p>
-            <p>If so, exactly type out the project name:</p>
-            <p className="project-delete-modal__phrase">{requiredDeletePhrase}</p>
+      {isDeleteModalRendered ? (
+        <>
+          <div
+            className={`project-settings-modal__overlay ${isDeleteModalClosing ? "project-settings-modal__overlay--closing" : "project-settings-modal__overlay--opening"}`.trim()}
+            onMouseDown={closeDeleteConfirmation}
+            aria-hidden="true"
+          />
+          <div className="project-settings-modal__frame">
+            <button
+              type="button"
+              className={`project-settings-modal__floating-close ${isDeleteModalClosing ? "project-settings-modal__floating-close--closing" : "project-settings-modal__floating-close--opening"}`.trim()}
+              onClick={closeDeleteConfirmation}
+              aria-label="Close delete confirmation"
+            >
+              <X size={16} strokeWidth={2} aria-hidden="true" />
+              <span className="project-settings-modal__floating-close-label">Cancel</span>
+            </button>
 
-            <input
-              className="project-delete-modal__input"
-              value={deleteConfirmationText}
-              autoFocus
-              onChange={(event) => {
-                setDeleteConfirmationText(event.target.value)
-                if (deleteError) {
-                  setDeleteError("")
-                }
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault()
-                  confirmDelete()
-                }
-              }}
-              placeholder="Type confirmation text exactly"
-            />
+            <div
+              className={`project-settings-modal__modal ${isDeleteModalClosing ? "project-settings-modal__modal--closing" : "project-settings-modal__modal--opening"} project-delete-modal__modal`.trim()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="project-delete-title"
+            >
+              <div className="project-settings-modal__header">
+                <h3 id="project-delete-title" className="project-settings-modal__title">
+                  <Trash2 size={19} strokeWidth={1.9} aria-hidden="true" />
+                  <span>Delete Project</span>
+                </h3>
+              </div>
 
-            {deleteError ? <p className="project-delete-modal__error">{deleteError}</p> : null}
+              <p className="project-delete-modal__copy">
+                This project is about to go extinct? Are you sure you want to delete "{deleteProjectName}"? (This
+                action is not reversable.)
+              </p>
+              <p className="project-delete-modal__copy">Type the exact phrase below to confirm deletion.</p>
 
-            <div className="project-delete-modal__actions">
-              <button type="button" className="project-delete-modal__cancel" onClick={closeDeleteConfirmation}>
-                Cancel
-              </button>
-              <button type="button" className="project-delete-modal__delete" onClick={confirmDelete}>
-                Delete
-              </button>
+              <div className="project-delete-modal__spacer" aria-hidden="true" />
+
+              <div
+                className="project-delete-modal__typing-box"
+                onClick={() => {
+                  deleteConfirmationInputRef.current?.focus()
+                }}
+              >
+                <p className="project-delete-modal__typing-text" aria-hidden="true">
+                  {requiredDeleteCharacters.map((character, index) => {
+                    const typedCharacter = enteredDeleteCharacters[index]
+                    const stateClassName =
+                      typedCharacter === undefined
+                        ? "project-delete-modal__typing-char--pending"
+                        : typedCharacter === character
+                          ? "project-delete-modal__typing-char--correct"
+                          : "project-delete-modal__typing-char--wrong"
+
+                    return (
+                      <span key={`required-${index}`} className={`project-delete-modal__typing-char ${stateClassName}`}>
+                        {character}
+                      </span>
+                    )
+                  })}
+                  {enteredDeleteCharacters.slice(requiredDeleteCharacters.length).map((character, index) => (
+                    <span
+                      key={`overflow-${index}`}
+                      className="project-delete-modal__typing-char project-delete-modal__typing-char--wrong"
+                    >
+                      {character}
+                    </span>
+                  ))}
+                </p>
+
+                <input
+                  ref={deleteConfirmationInputRef}
+                  className="project-delete-modal__typing-input"
+                  value={deleteConfirmationText}
+                  autoFocus
+                  onChange={(event) => {
+                    setDeleteConfirmationText(event.target.value)
+                    if (deleteError) {
+                      setDeleteError("")
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      confirmDelete()
+                    }
+                  }}
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  aria-label="Type the required delete confirmation phrase"
+                />
+              </div>
+
+              {deleteError ? <p className="project-settings-modal__error">{deleteError}</p> : null}
+
+              <div className="project-settings-modal__actions">
+                <button
+                  type="button"
+                  className="project-settings-modal__btn project-settings-modal__btn--danger"
+                  onClick={confirmDelete}
+                >
+                  <Trash2 size={14} strokeWidth={2} aria-hidden={true} />
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       ) : null}
     </section>
   )

@@ -139,7 +139,18 @@ export default function Editor({
   }
 
   const syncEmptyState = (currentEditor: Parameters<NonNullable<Parameters<typeof useEditor>[0]["onUpdate"]>>[0]["editor"]) => {
-    currentEditor.view.dom.setAttribute("data-empty", currentEditor.isEmpty ? "true" : "false")
+    try {
+      const editorView = currentEditor.view
+      const editorDom = editorView?.dom
+
+      if (!editorDom) {
+        return
+      }
+
+      editorDom.setAttribute("data-empty", currentEditor.isEmpty ? "true" : "false")
+    } catch {
+      // TipTap can momentarily expose an editor instance before internals are fully ready.
+    }
   }
 
   useEffect(() => {
@@ -411,6 +422,19 @@ export default function Editor({
       return
     }
 
+    const getEditorView = () => {
+      try {
+        const view = editor.view
+        if (!view?.dom) {
+          return null
+        }
+
+        return view
+      } catch {
+        return null
+      }
+    }
+
     let frameId = 0
     let typingTimeoutId = 0
 
@@ -440,6 +464,11 @@ export default function Editor({
     }
 
     const updateFlaggedLineTops = (surfaceRect: DOMRect) => {
+      const view = getEditorView()
+      if (!view) {
+        return
+      }
+
       const anchors = flaggedAnchorsByDocument[activeDocumentKey] ?? []
 
       if (anchors.length === 0) {
@@ -450,7 +479,7 @@ export default function Editor({
       const next: Record<number, number> = {}
       for (const anchor of anchors) {
         try {
-          const coords = editor.view.coordsAtPos(anchor)
+          const coords = view.coordsAtPos(anchor)
           next[anchor] = coords.top - surfaceRect.top
         } catch {
           // Skip anchors that no longer resolve after document changes.
@@ -472,10 +501,24 @@ export default function Editor({
     const updateCaret = () => {
       frameId = 0
 
-      const view = editor.view
+      const view = getEditorView()
+      if (!view) {
+        hideCaret()
+        return
+      }
+
       const surfaceRect = editorSurface.getBoundingClientRect()
       updateFlaggedLineTops(surfaceRect)
-      const { from, to } = view.state.selection
+
+      let from = 0
+      let to = 0
+      try {
+        from = view.state.selection.from
+        to = view.state.selection.to
+      } catch {
+        hideCaret()
+        return
+      }
 
       if (!view.hasFocus() || from !== to) {
         hideCaret()
@@ -592,7 +635,9 @@ export default function Editor({
 
     window.addEventListener("resize", onWindowResize)
     window.addEventListener("scroll", onWindowScroll, true)
-    editor.view.dom.addEventListener("keydown", onKeyDown)
+
+    const editorDom = getEditorView()?.dom ?? null
+    editorDom?.addEventListener("keydown", onKeyDown)
 
     scheduleCaretUpdate()
 
@@ -609,7 +654,7 @@ export default function Editor({
       editor.off("blur", onEditorBlur)
       window.removeEventListener("resize", onWindowResize)
       window.removeEventListener("scroll", onWindowScroll, true)
-      editor.view.dom.removeEventListener("keydown", onKeyDown)
+      editorDom?.removeEventListener("keydown", onKeyDown)
     }
   }, [editor, onTypingStateChange, flaggedAnchorsByDocument, activeDocumentKey])
 
