@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import "./App.css"
 import GlobalSettings from "./components/GlobalSettings"
 import GlobalCaretOverlay from "./components/GlobalCaretOverlay"
@@ -16,6 +16,18 @@ import {
 import { projectWorkspaceMenu } from "./core/menu"
 import { exportProjectAsPdf } from "./core/pdfExport"
 import { DEFAULT_DOCUMENT_CONTENT, createProject, type Project, type ProjectKind } from "./core/projects"
+import {
+  createDocument,
+  deleteAccount,
+  deleteDocument,
+  getDocuments,
+  getPreferences,
+  updateAccountPassword,
+  updateAccountProfile,
+  updateDocument,
+  updatePreferences,
+} from "./core/api"
+import AuthGateway from "./pages/AuthGateway"
 import EditorWorkspace from "./pages/EditorWorkspace"
 import ProjectDashboard, { type ProjectFolder } from "./pages/ProjectDashboard"
 
@@ -24,6 +36,127 @@ const MAX_FONT_SIZE = 84
 const VIEW_FADE_DURATION_MS = 240
 const DEFAULT_CUSTOM_BACKGROUND = "#0f0f0f"
 const DEFAULT_CUSTOM_ACCENT = "#9ab8ff"
+const SESSION_STORAGE_KEY = "ivoryscribe.session"
+const PROJECT_RECORD_TYPE = "ivory-project"
+
+type UserSession = {
+  token: string
+  user: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    isEmailVerified: boolean
+  }
+}
+
+type PreferencesPayload = {
+  theme?: {
+    palette?: string
+    customPaletteBackground?: string
+    customPaletteAccent?: string
+  }
+  editorSettings?: {
+    selectedFont?: string
+    fontSize?: number
+    customFontName?: string
+    isCustomFontSelected?: boolean
+    isGlobalTextEnabled?: boolean
+  }
+  uiSettings?: {
+    folders?: ProjectFolder[]
+    activeProjectId?: string | null
+    menuBarEnabled?: boolean
+    flagsEnabled?: boolean
+    view?: "projects" | "editor"
+    bookCounter?: number
+    blogCounter?: number
+  }
+}
+
+function getSessionFromStorage(): UserSession | null {
+  if (typeof window === "undefined") {
+    return null
+  }
+
+  const raw = window.localStorage.getItem(SESSION_STORAGE_KEY)
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as UserSession
+    if (!parsed?.token || !parsed?.user?.id || !parsed?.user?.email) {
+      return null
+    }
+
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function setSessionInStorage(session: UserSession | null) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  if (!session) {
+    window.localStorage.removeItem(SESSION_STORAGE_KEY)
+    return
+  }
+
+  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session))
+}
+
+function extractCounterFromNames(projects: Project[], kind: ProjectKind) {
+  const prefix = kind === "Book" ? "Book" : "Blog"
+  const matcher = new RegExp(`^${prefix}\\s+(\\d+)$`, "i")
+  const max = projects.reduce((currentMax, project) => {
+    if (project.kind !== kind) {
+      return currentMax
+    }
+
+    const match = project.name.match(matcher)
+    if (!match) {
+      return currentMax
+    }
+
+    const value = Number.parseInt(match[1], 10)
+    return Number.isNaN(value) ? currentMax : Math.max(currentMax, value)
+  }, 0)
+
+  return max + 1
+}
+
+function isProjectSnapshot(value: unknown): value is Project {
+  if (!value || typeof value !== "object") {
+    return false
+  }
+
+  const candidate = value as Partial<Project>
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.kind === "string" &&
+    Array.isArray(candidate.tabs) &&
+    typeof candidate.contentById === "object" &&
+    candidate.contentById !== null
+  )
+}
+
+function parseProjectFromDocument(documentRecord: { title: string; content: string; metadata: Record<string, unknown> }) {
+  try {
+    const parsedContent = JSON.parse(documentRecord.content)
+    if (!isProjectSnapshot(parsedContent)) {
+      return null
+    }
+
+    return parsedContent
+  } catch {
+    return null
+  }
+}
 
 function hexToRgb(value: string) {
   const normalized = value.trim().replace("#", "")
@@ -86,13 +219,18 @@ function getInitialPalette(): Palette {
 }
 
 export default function App() {
+  const [session, setSession] = useState<UserSession | null>(() => getSessionFromStorage())
+  const [isAuthBootstrapping, setIsAuthBootstrapping] = useState(true)
+  const [authLoadError, setAuthLoadError] = useState("")
+  const [projectDocumentMap, setProjectDocumentMap] = useState<Record<string, string>>({})
+  const [isWorkspaceHydrated, setIsWorkspaceHydrated] = useState(false)
   // The app has two high-level screens: project dashboard and editor workspace.
-  const [view, setView] = useState<"projects" | "editor">("editor")
+  const [view, setView] = useState<"projects" | "editor">("projects")
   // All project data (tabs + content) lives at the App level so child pages stay stateless.
-  const [projects, setProjects] = useState<Project[]>(() => [createProject("Book 1", "Book")])
+  const [projects, setProjects] = useState<Project[]>([])
   const [folders, setFolders] = useState<ProjectFolder[]>([])
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
-  const [bookCounter, setBookCounter] = useState(2)
+  const [bookCounter, setBookCounter] = useState(1)
   const [blogCounter, setBlogCounter] = useState(1)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isMenuBarEnabled, setIsMenuBarEnabled] = useState(false)
@@ -107,6 +245,326 @@ export default function App() {
   const [customPaletteBackground, setCustomPaletteBackground] = useState(DEFAULT_CUSTOM_BACKGROUND)
   const [customPaletteAccent, setCustomPaletteAccent] = useState(DEFAULT_CUSTOM_ACCENT)
   const [viewFadePhase, setViewFadePhase] = useState<"idle" | "fading-out" | "fading-in">("idle")
+  const saveTimeoutRef = useRef<number | null>(null)
+  const isSyncingRef = useRef(false)
+  const hydrateWorkspace = async (token: string) => {
+    const [documentsResult, preferencesResult] = await Promise.allSettled([getDocuments(token), getPreferences(token)])
+
+    if (documentsResult.status === "rejected") {
+      throw documentsResult.reason
+    }
+
+    if (preferencesResult.status === "rejected") {
+      throw preferencesResult.reason
+    }
+
+    const documents = documentsResult.value
+    const preferences = preferencesResult.value
+
+    const nextProjects: Project[] = []
+    const nextDocumentMap: Record<string, string> = {}
+
+    for (const documentRecord of documents) {
+      if (documentRecord.metadata?.recordType !== PROJECT_RECORD_TYPE) {
+        continue
+      }
+
+      const project = parseProjectFromDocument(documentRecord)
+      if (!project) {
+        continue
+      }
+
+      nextProjects.push(project)
+      nextDocumentMap[project.id] = documentRecord.id
+    }
+
+    const projectList = nextProjects.length ? nextProjects : [createProject("Book 1", "Book")]
+    const uiSettings = (preferences.uiSettings ?? {}) as PreferencesPayload["uiSettings"]
+    const themeSettings = (preferences.theme ?? {}) as PreferencesPayload["theme"]
+    const editorSettings = (preferences.editorSettings ?? {}) as PreferencesPayload["editorSettings"]
+
+    setProjects(projectList)
+    setProjectDocumentMap(nextDocumentMap)
+    setFolders(Array.isArray(uiSettings?.folders) ? uiSettings.folders : [])
+
+    const requestedActiveProjectId = uiSettings?.activeProjectId
+    const resolvedActiveProjectId =
+      typeof requestedActiveProjectId === "string" && projectList.some((project) => project.id === requestedActiveProjectId)
+        ? requestedActiveProjectId
+        : (projectList[0]?.id ?? null)
+    setActiveProjectId(resolvedActiveProjectId)
+
+    setView(uiSettings?.view === "editor" || uiSettings?.view === "projects" ? uiSettings.view : "projects")
+    setIsMenuBarEnabled(Boolean(uiSettings?.menuBarEnabled))
+    setIsFlagsEnabled(Boolean(uiSettings?.flagsEnabled))
+
+    const loadedPalette =
+      typeof themeSettings?.palette === "string" &&
+      PALETTE_OPTIONS.some((option) => option.value === themeSettings.palette)
+        ? (themeSettings.palette as Palette)
+        : getInitialPalette()
+    setPalette(loadedPalette)
+    setCustomPaletteBackground(themeSettings?.customPaletteBackground ?? DEFAULT_CUSTOM_BACKGROUND)
+    setCustomPaletteAccent(themeSettings?.customPaletteAccent ?? DEFAULT_CUSTOM_ACCENT)
+
+    setSelectedFont(editorSettings?.selectedFont ?? FONT_OPTIONS[0]!.value)
+    setFontSize(clampFontSize(typeof editorSettings?.fontSize === "number" ? editorSettings.fontSize : 32))
+    setCustomFontName(editorSettings?.customFontName ?? "")
+    setIsCustomFontSelected(Boolean(editorSettings?.isCustomFontSelected))
+    setIsGlobalTextEnabled(Boolean(editorSettings?.isGlobalTextEnabled))
+
+    setBookCounter(typeof uiSettings?.bookCounter === "number" ? uiSettings.bookCounter : extractCounterFromNames(projectList, "Book"))
+    setBlogCounter(typeof uiSettings?.blogCounter === "number" ? uiSettings.blogCounter : extractCounterFromNames(projectList, "Blog"))
+  }
+
+  useEffect(() => {
+    const bootstrapSession = async () => {
+      if (!session) {
+        setIsAuthBootstrapping(false)
+        setIsWorkspaceHydrated(false)
+        setAuthLoadError("")
+        return
+      }
+
+      try {
+        await hydrateWorkspace(session.token)
+        setIsWorkspaceHydrated(true)
+        setAuthLoadError("")
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Workspace load failed"
+
+        if (message.includes("[401]") || message.toLowerCase().includes("unauthorized")) {
+          setSession(null)
+          setSessionInStorage(null)
+          setAuthLoadError("Your session expired. Please log in again.")
+        } else {
+          const fallbackProject = createProject("Book 1", "Book")
+          setProjects([fallbackProject])
+          setProjectDocumentMap({})
+          setFolders([])
+          setActiveProjectId(fallbackProject.id)
+          setView("projects")
+          setBookCounter(2)
+          setBlogCounter(1)
+          setIsWorkspaceHydrated(true)
+          setAuthLoadError("")
+        }
+      } finally {
+        setIsAuthBootstrapping(false)
+      }
+    }
+
+    void bootstrapSession()
+  }, [session])
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        window.clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!session || !isWorkspaceHydrated) {
+      return
+    }
+
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current)
+    }
+
+    saveTimeoutRef.current = window.setTimeout(() => {
+      if (isSyncingRef.current) {
+        return
+      }
+
+      isSyncingRef.current = true
+
+      const syncWorkspace = async () => {
+        try {
+          const remoteDocuments = await getDocuments(session.token)
+          const remoteProjectDocuments = remoteDocuments.filter(
+            (documentRecord) => documentRecord.metadata?.recordType === PROJECT_RECORD_TYPE,
+          )
+
+          const remoteByProjectId = new Map<string, string>()
+          for (const documentRecord of remoteProjectDocuments) {
+            const projectId =
+              typeof documentRecord.metadata?.projectId === "string"
+                ? documentRecord.metadata.projectId
+                : undefined
+            if (!projectId) {
+              continue
+            }
+            remoteByProjectId.set(projectId, documentRecord.id)
+          }
+
+          const nextDocumentMap: Record<string, string> = {}
+
+          for (const project of projects) {
+            const payload = {
+              title: project.name,
+              content: JSON.stringify(project),
+              metadata: {
+                recordType: PROJECT_RECORD_TYPE,
+                projectId: project.id,
+              },
+              theme: {
+                projectColor: project.color,
+              },
+            }
+
+            const existingDocumentId = projectDocumentMap[project.id] ?? remoteByProjectId.get(project.id)
+            if (existingDocumentId) {
+              await updateDocument(session.token, existingDocumentId, payload)
+              nextDocumentMap[project.id] = existingDocumentId
+              continue
+            }
+
+            const created = await createDocument(session.token, payload)
+            nextDocumentMap[project.id] = created.id
+          }
+
+          const localProjectIds = new Set(projects.map((project) => project.id))
+          for (const documentRecord of remoteProjectDocuments) {
+            const projectId =
+              typeof documentRecord.metadata?.projectId === "string"
+                ? documentRecord.metadata.projectId
+                : null
+
+            if (!projectId || localProjectIds.has(projectId)) {
+              continue
+            }
+
+            await deleteDocument(session.token, documentRecord.id)
+          }
+
+          setProjectDocumentMap(nextDocumentMap)
+
+          await updatePreferences(session.token, {
+            theme: {
+              palette,
+              customPaletteBackground,
+              customPaletteAccent,
+            },
+            editorSettings: {
+              selectedFont,
+              fontSize,
+              customFontName,
+              isCustomFontSelected,
+              isGlobalTextEnabled,
+            },
+            uiSettings: {
+              folders,
+              activeProjectId,
+              menuBarEnabled: isMenuBarEnabled,
+              flagsEnabled: isFlagsEnabled,
+              view,
+              bookCounter,
+              blogCounter,
+            },
+          })
+        } catch {
+          // Keep the app responsive even if sync fails temporarily.
+        } finally {
+          isSyncingRef.current = false
+        }
+      }
+
+      void syncWorkspace()
+    }, 700)
+  }, [
+    activeProjectId,
+    blogCounter,
+    bookCounter,
+    customFontName,
+    customPaletteAccent,
+    customPaletteBackground,
+    folders,
+    fontSize,
+    isCustomFontSelected,
+    isFlagsEnabled,
+    isGlobalTextEnabled,
+    isMenuBarEnabled,
+    isWorkspaceHydrated,
+    palette,
+    projectDocumentMap,
+    projects,
+    selectedFont,
+    session,
+    view,
+  ])
+
+  const handleAuthenticated = async (nextSession: UserSession) => {
+    setAuthLoadError("")
+    setSession(nextSession)
+    setSessionInStorage(nextSession)
+  }
+
+  const logout = () => {
+    setSession(null)
+    setSessionInStorage(null)
+    setAuthLoadError("")
+    setIsWorkspaceHydrated(false)
+    setProjects([])
+    setFolders([])
+    setProjectDocumentMap({})
+    setActiveProjectId(null)
+    setView("projects")
+  }
+
+  const updateSessionUser = (nextUser: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    isEmailVerified: boolean
+  }) => {
+    setSession((currentSession) => {
+      if (!currentSession) {
+        return currentSession
+      }
+
+      const nextSession = {
+        ...currentSession,
+        user: {
+          ...currentSession.user,
+          ...nextUser,
+        },
+      }
+
+      setSessionInStorage(nextSession)
+      return nextSession
+    })
+  }
+
+  const handleAccountProfileSave = async (input: { firstName: string; lastName: string }) => {
+    if (!session) {
+      throw new Error("You need to be logged in to update account settings.")
+    }
+
+    const updatedUser = await updateAccountProfile(session.token, input)
+    updateSessionUser(updatedUser)
+  }
+
+  const handleAccountPasswordChange = async (input: { currentPassword: string; newPassword: string }) => {
+    if (!session) {
+      throw new Error("You need to be logged in to update your password.")
+    }
+
+    await updateAccountPassword(session.token, input)
+  }
+
+  const handleAccountDelete = async (input: { currentPassword: string }) => {
+    if (!session) {
+      throw new Error("You need to be logged in to delete your account.")
+    }
+
+    await deleteAccount(session.token, input)
+    logout()
+  }
+
 
   // Resolve the active project ID to a real project object with a fallback.
   const activeProject = useMemo(() => {
@@ -368,6 +826,24 @@ export default function App() {
     return variables as CSSProperties
   }, [customPaletteAccent, customPaletteBackground, palette, selectedFont])
 
+  if (isAuthBootstrapping) {
+    return (
+      <div className={`app app--palette-${palette}`.trim()} style={appStyleVariables}>
+        <section className="app-loading">
+          <p>Loading workspace...</p>
+        </section>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return (
+      <div className={`app app--palette-${palette}`.trim()} style={appStyleVariables}>
+        <AuthGateway onAuthenticated={handleAuthenticated} loadError={authLoadError} />
+      </div>
+    )
+  }
+
   return (
     <div
       className={`app app--palette-${palette} ${shouldApplyGlobalFont ? "app--custom-font" : ""}`.trim()}
@@ -448,6 +924,8 @@ export default function App() {
           customPaletteAccent={customPaletteAccent}
           onCustomPaletteBackgroundChange={setCustomPaletteBackground}
           onCustomPaletteAccentChange={setCustomPaletteAccent}
+          accountFirstName={session.user.firstName ?? ""}
+          accountLastName={session.user.lastName ?? ""}
           activeProjectName={activeProject?.name ?? ""}
           activeProjectKind={activeProject?.kind ?? "Book"}
           activeProjectColor={activeProject?.color ?? "#7ea8ff"}
@@ -483,6 +961,10 @@ export default function App() {
 
             exportProjectAsPdf(activeProject)
           }}
+          onSaveAccountProfile={handleAccountProfileSave}
+          onChangeAccountPassword={handleAccountPasswordChange}
+          onDeleteAccount={handleAccountDelete}
+          onSignOut={logout}
         />
       </main>
       <GlobalCaretOverlay />

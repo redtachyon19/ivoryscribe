@@ -1,4 +1,4 @@
-import { AArrowDown, AArrowUp, ChevronDown, CornerDownRight, Palette, ScrollText, Settings, UserRound, X } from "lucide-react"
+import { AArrowDown, AArrowUp, ChevronDown, CornerDownRight, LockKeyhole, LogOut, Palette, ScrollText, Settings, Trash2, UserRound, X } from "lucide-react"
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties } from "react"
 import type { ProjectKind } from "../core/projects"
 import ProjectPreferencesFields from "./ProjectPreferencesFields"
@@ -42,6 +42,8 @@ type GlobalSettingsProps = {
   customPaletteAccent: string
   onCustomPaletteBackgroundChange: (color: string) => void
   onCustomPaletteAccentChange: (color: string) => void
+  accountFirstName: string
+  accountLastName: string
   activeProjectName: string
   activeProjectKind: ProjectKind
   activeProjectColor: string
@@ -51,6 +53,10 @@ type GlobalSettingsProps = {
   onActiveProjectColorChange: (color: string) => void
   onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onExportProjectAsPdf: () => void
+  onSaveAccountProfile: (input: { firstName: string; lastName: string }) => Promise<void> | void
+  onChangeAccountPassword: (input: { currentPassword: string; newPassword: string }) => Promise<void> | void
+  onDeleteAccount: (input: { currentPassword: string }) => Promise<void> | void
+  onSignOut: () => void
 }
 
 export default function GlobalSettings({
@@ -81,6 +87,8 @@ export default function GlobalSettings({
   customPaletteAccent,
   onCustomPaletteBackgroundChange,
   onCustomPaletteAccentChange,
+  accountFirstName,
+  accountLastName,
   activeProjectName,
   activeProjectKind,
   activeProjectColor,
@@ -90,6 +98,10 @@ export default function GlobalSettings({
   onActiveProjectColorChange,
   onActiveProjectWallpaperEmojisChange,
   onExportProjectAsPdf,
+  onSaveAccountProfile,
+  onChangeAccountPassword,
+  onDeleteAccount,
+  onSignOut,
 }: GlobalSettingsProps) {
   type SectionId = "account" | "appearance" | "project-preferences"
   const sectionIds: SectionId[] = showProjectPreferences ? ["account", "appearance", "project-preferences"] : ["account", "appearance"]
@@ -123,6 +135,20 @@ export default function GlobalSettings({
   const [customFontDraft, setCustomFontDraft] = useState(customFontName)
   const [customBackgroundHexDraft, setCustomBackgroundHexDraft] = useState(customPaletteBackground.toUpperCase())
   const [customAccentHexDraft, setCustomAccentHexDraft] = useState(customPaletteAccent.toUpperCase())
+  const [accountFirstNameDraft, setAccountFirstNameDraft] = useState(accountFirstName)
+  const [accountLastNameDraft, setAccountLastNameDraft] = useState(accountLastName)
+  const [currentPasswordDraft, setCurrentPasswordDraft] = useState("")
+  const [newPasswordDraft, setNewPasswordDraft] = useState("")
+  const [confirmPasswordDraft, setConfirmPasswordDraft] = useState("")
+  const [accountFeedback, setAccountFeedback] = useState("")
+  const [accountError, setAccountError] = useState("")
+  const [passwordFeedback, setPasswordFeedback] = useState("")
+  const [passwordError, setPasswordError] = useState("")
+  const [isSavingAccount, setIsSavingAccount] = useState(false)
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
+  const [deleteAccountError, setDeleteAccountError] = useState("")
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
   const CUSTOM_FONT_OPTION_VALUE = "__custom_local_font__"
   const MIN_FONT_SIZE = 20
   const MAX_FONT_SIZE = 84
@@ -176,6 +202,14 @@ export default function GlobalSettings({
   }, [customPaletteAccent])
 
   useEffect(() => {
+    setAccountFirstNameDraft(accountFirstName)
+  }, [accountFirstName])
+
+  useEffect(() => {
+    setAccountLastNameDraft(accountLastName)
+  }, [accountLastName])
+
+  useEffect(() => {
     if (isOpen) {
       setIsRendered(true)
       setIsClosing(false)
@@ -213,8 +247,26 @@ export default function GlobalSettings({
     if (!isOpen || !isRendered) {
       setIsFontMenuOpen(false)
       setIsPaletteMenuOpen(false)
+      setIsPasswordModalOpen(false)
     }
   }, [isOpen, isRendered])
+
+  useEffect(() => {
+    if (!isPasswordModalOpen) {
+      return
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsPasswordModalOpen(false)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [isPasswordModalOpen])
 
   useEffect(() => {
     if (!isFontMenuOpen && !isPaletteMenuOpen) {
@@ -382,6 +434,125 @@ export default function GlobalSettings({
     section.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 
+  const saveAccountProfile = async () => {
+    const nextFirstName = accountFirstNameDraft.trim()
+    const nextLastName = accountLastNameDraft.trim()
+
+    if (!nextFirstName || !nextLastName) {
+      setAccountError("First and last name are required.")
+      setAccountFeedback("")
+      return
+    }
+
+    if (nextFirstName.length > 80 || nextLastName.length > 80) {
+      setAccountError("First and last name must be 80 characters or fewer.")
+      setAccountFeedback("")
+      return
+    }
+
+    setIsSavingAccount(true)
+    setAccountError("")
+    setAccountFeedback("")
+
+    try {
+      await onSaveAccountProfile({
+        firstName: nextFirstName,
+        lastName: nextLastName,
+      })
+      setAccountFeedback("Account details updated.")
+    } catch (error) {
+      setAccountError(error instanceof Error ? error.message : "Failed to update account details")
+    } finally {
+      setIsSavingAccount(false)
+    }
+  }
+
+  const updatePassword = async () => {
+    if (!currentPasswordDraft || !newPasswordDraft || !confirmPasswordDraft) {
+      setPasswordError("Current password, new password, and confirmation are required.")
+      setPasswordFeedback("")
+      return
+    }
+
+    if (newPasswordDraft.length < 8) {
+      setPasswordError("New password must be at least 8 characters.")
+      setPasswordFeedback("")
+      return
+    }
+
+    if (newPasswordDraft !== confirmPasswordDraft) {
+      setPasswordError("New password and confirmation do not match.")
+      setPasswordFeedback("")
+      return
+    }
+
+    setIsUpdatingPassword(true)
+    setPasswordError("")
+    setPasswordFeedback("")
+
+    try {
+      await onChangeAccountPassword({
+        currentPassword: currentPasswordDraft,
+        newPassword: newPasswordDraft,
+      })
+      setCurrentPasswordDraft("")
+      setNewPasswordDraft("")
+      setConfirmPasswordDraft("")
+      setPasswordFeedback("Password updated.")
+      setIsPasswordModalOpen(false)
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : "Failed to update password")
+    } finally {
+      setIsUpdatingPassword(false)
+    }
+  }
+
+  const openPasswordModal = () => {
+    setCurrentPasswordDraft("")
+    setNewPasswordDraft("")
+    setConfirmPasswordDraft("")
+    setPasswordError("")
+    setPasswordFeedback("")
+    setIsPasswordModalOpen(true)
+  }
+
+  const deleteAccount = async (currentPassword: string) => {
+    setIsDeletingAccount(true)
+    setDeleteAccountError("")
+
+    try {
+      await onDeleteAccount({ currentPassword })
+    } catch (error) {
+      setDeleteAccountError(error instanceof Error ? error.message : "Failed to delete account")
+    } finally {
+      setIsDeletingAccount(false)
+    }
+  }
+
+  const handleDeleteAccountClick = () => {
+    const deleteConfirmValue = window.prompt('Type "DELETE" to confirm account deletion.')
+    if (deleteConfirmValue === null) {
+      return
+    }
+
+    if (deleteConfirmValue.trim() !== "DELETE") {
+      setDeleteAccountError('Type "DELETE" to confirm account deletion.')
+      return
+    }
+
+    const currentPassword = window.prompt("Enter your current password to delete your account.")
+    if (currentPassword === null) {
+      return
+    }
+
+    if (!currentPassword) {
+      setDeleteAccountError("Current password is required to delete your account.")
+      return
+    }
+
+    void deleteAccount(currentPassword)
+  }
+
   const overlayStateClassName = isClosing ? "global-settings__overlay--closing" : "global-settings__overlay--opening"
   const modalStateClassName = isClosing ? "global-settings__modal--closing" : "global-settings__modal--opening"
   const sectionIndicatorInlineStyle = {
@@ -457,9 +628,83 @@ export default function GlobalSettings({
                     <UserRound size={18} strokeWidth={2} aria-hidden={true} />
                     <span>Account Settings</span>
                   </h3>
-                  <p className="global-settings__section-copy">
-                    Account tools are reserved for identity and sync features. More account controls are coming soon.
-                  </p>
+
+                  <label className="global-settings__field" htmlFor="settings-account-first-name">
+                    <span>First name</span>
+                    <input
+                      id="settings-account-first-name"
+                      type="text"
+                      value={accountFirstNameDraft}
+                      onChange={(event) => {
+                        setAccountFirstNameDraft(event.target.value)
+                      }}
+                      maxLength={80}
+                      autoComplete="given-name"
+                      disabled={isSavingAccount}
+                    />
+                  </label>
+
+                  <label className="global-settings__field" htmlFor="settings-account-last-name">
+                    <span>Last name</span>
+                    <input
+                      id="settings-account-last-name"
+                      type="text"
+                      value={accountLastNameDraft}
+                      onChange={(event) => {
+                        setAccountLastNameDraft(event.target.value)
+                      }}
+                      maxLength={80}
+                      autoComplete="family-name"
+                      disabled={isSavingAccount}
+                    />
+                  </label>
+
+                  <div className="global-settings__account-actions">
+                    <button
+                      type="button"
+                      className="global-settings__account-action"
+                      onClick={() => {
+                        void saveAccountProfile()
+                      }}
+                      disabled={isSavingAccount}
+                    >
+                      {isSavingAccount ? "Saving..." : "Save account details"}
+                    </button>
+                    {accountFeedback ? <p className="global-settings__account-feedback">{accountFeedback}</p> : null}
+                    {accountError ? <p className="global-settings__account-error">{accountError}</p> : null}
+                  </div>
+
+                  <div className="global-settings__account-footer-actions">
+                    <button
+                      type="button"
+                      className="global-settings__account-action global-settings__account-action--minimal"
+                      onClick={openPasswordModal}
+                      disabled={isUpdatingPassword}
+                    >
+                      <LockKeyhole size={14} strokeWidth={2} aria-hidden={true} />
+                      Change password
+                    </button>
+                    <button
+                      type="button"
+                      className="global-settings__account-action global-settings__account-action--minimal"
+                      onClick={onSignOut}
+                    >
+                      <LogOut size={14} strokeWidth={2} aria-hidden={true} />
+                      Sign out
+                    </button>
+                    <button
+                      type="button"
+                      className="global-settings__account-action global-settings__account-action--danger-minimal"
+                      onClick={handleDeleteAccountClick}
+                      disabled={isDeletingAccount}
+                    >
+                      <Trash2 size={14} strokeWidth={2} aria-hidden={true} />
+                      {isDeletingAccount ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+
+                  {passwordFeedback ? <p className="global-settings__account-feedback">{passwordFeedback}</p> : null}
+                  {deleteAccountError ? <p className="global-settings__account-error">{deleteAccountError}</p> : null}
                 </section>
 
                 <section
@@ -815,6 +1060,99 @@ export default function GlobalSettings({
               </div>
             </div>
           </section>
+
+          {isPasswordModalOpen ? (
+            <>
+              <button
+                type="button"
+                className="global-settings__password-overlay"
+                aria-label="Close password dialog"
+                onClick={() => {
+                  setIsPasswordModalOpen(false)
+                }}
+              />
+
+              <section
+                className="global-settings__password-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Change password"
+              >
+                <h3 className="global-settings__password-modal-title">
+                  <LockKeyhole size={18} strokeWidth={2} aria-hidden={true} />
+                  <span>Change Password</span>
+                </h3>
+
+                <label className="global-settings__field" htmlFor="settings-account-current-password-modal">
+                  <span>Current password</span>
+                  <input
+                    id="settings-account-current-password-modal"
+                    type="password"
+                    value={currentPasswordDraft}
+                    onChange={(event) => {
+                      setCurrentPasswordDraft(event.target.value)
+                    }}
+                    autoComplete="current-password"
+                    disabled={isUpdatingPassword}
+                  />
+                </label>
+
+                <label className="global-settings__field" htmlFor="settings-account-new-password-modal">
+                  <span>New password</span>
+                  <input
+                    id="settings-account-new-password-modal"
+                    type="password"
+                    value={newPasswordDraft}
+                    onChange={(event) => {
+                      setNewPasswordDraft(event.target.value)
+                    }}
+                    autoComplete="new-password"
+                    disabled={isUpdatingPassword}
+                  />
+                </label>
+
+                <label className="global-settings__field" htmlFor="settings-account-confirm-password-modal">
+                  <span>Confirm new password</span>
+                  <input
+                    id="settings-account-confirm-password-modal"
+                    type="password"
+                    value={confirmPasswordDraft}
+                    onChange={(event) => {
+                      setConfirmPasswordDraft(event.target.value)
+                    }}
+                    autoComplete="new-password"
+                    disabled={isUpdatingPassword}
+                  />
+                </label>
+
+                {passwordError ? <p className="global-settings__account-error">{passwordError}</p> : null}
+
+                <div className="global-settings__password-modal-actions">
+                  <button
+                    type="button"
+                    className="global-settings__account-action global-settings__account-action--minimal"
+                    onClick={() => {
+                      setIsPasswordModalOpen(false)
+                    }}
+                    disabled={isUpdatingPassword}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="global-settings__account-action global-settings__account-action--minimal"
+                    onClick={() => {
+                      void updatePassword()
+                    }}
+                    disabled={isUpdatingPassword}
+                  >
+                    <LockKeyhole size={14} strokeWidth={2} aria-hidden={true} />
+                    {isUpdatingPassword ? "Updating..." : "Update password"}
+                  </button>
+                </div>
+              </section>
+            </>
+          ) : null}
         </>
       ) : null}
     </>
