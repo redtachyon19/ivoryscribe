@@ -1,0 +1,272 @@
+type AuthResponse = {
+  token: string
+  user: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    isEmailVerified: boolean
+  }
+}
+
+export type EmailVerificationRecord = {
+  userId: string
+  email: string
+  emailMasked: string
+}
+
+export type EmailVerificationPendingResponse = {
+  message?: string
+  requiresEmailVerification: true
+  verification: EmailVerificationRecord
+}
+
+function isEmailVerificationPendingResponse(value: unknown): value is EmailVerificationPendingResponse {
+  if (!value || typeof value !== "object") {
+    return false
+  }
+
+  const candidate = value as Partial<EmailVerificationPendingResponse>
+  return (
+    candidate.requiresEmailVerification === true &&
+    Boolean(candidate.verification?.userId) &&
+    Boolean(candidate.verification?.email)
+  )
+}
+
+export class ApiError extends Error {
+  status: number
+  payload: unknown
+
+  constructor(status: number, message: string, payload: unknown) {
+    super(message)
+    this.status = status
+    this.payload = payload
+  }
+}
+
+type DocumentRecord = {
+  id: string
+  title: string
+  content: string
+  theme: Record<string, unknown>
+  metadata: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+type PreferencesRecord = {
+  id: string
+  theme: Record<string, unknown>
+  editorSettings: Record<string, unknown>
+  uiSettings: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:4000"
+
+function isLikelyNetworkFailure(message: string) {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes("load failed") ||
+    normalized.includes("failed to fetch") ||
+    normalized.includes("networkerror") ||
+    normalized.includes("network request failed") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("network error")
+  )
+}
+
+async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+  const headers = new Headers(options.headers)
+
+  if (!headers.has("Content-Type") && options.body) {
+    headers.set("Content-Type", "application/json")
+  }
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`)
+  }
+
+  let response: Response
+
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+    })
+  } catch (error) {
+    const originalMessage = error instanceof Error ? error.message : "Request failed"
+    if (isLikelyNetworkFailure(originalMessage)) {
+      throw new Error(`[NETWORK] Unable to reach backend at ${API_BASE}. Check that the API server is running.`)
+    }
+
+    throw new Error(`[NETWORK] ${originalMessage}`)
+  }
+
+  const payload = (await response.json().catch(() => ({}))) as { message?: string; details?: string }
+
+  if (!response.ok) {
+    const details = payload.details ? ` (${payload.details})` : ""
+    throw new ApiError(response.status, `[${response.status}] ${payload.message ?? "Request failed"}${details}`, payload)
+  }
+
+  return payload as T
+}
+
+export async function login(email: string, password: string) {
+  return request<AuthResponse>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  })
+}
+
+export async function register(firstName: string, lastName: string, email: string, password: string) {
+  const payload = await request<AuthResponse | EmailVerificationPendingResponse>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ firstName, lastName, email, password }),
+  })
+
+  if (isEmailVerificationPendingResponse(payload)) {
+    return payload
+  }
+
+  return payload
+}
+
+export async function verifyEmail(userId: string, code: string) {
+  return request<AuthResponse>("/api/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ userId, code }),
+  })
+}
+
+export async function resendEmailVerification(userId: string) {
+  return request<EmailVerificationPendingResponse>("/api/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  })
+}
+
+export async function updateAccountProfile(token: string, input: { firstName: string; lastName: string }) {
+  const payload = await request<{
+    user: {
+      id: string
+      firstName: string
+      lastName: string
+      email: string
+      isEmailVerified: boolean
+    }
+  }>(
+    "/api/auth/account",
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+
+  return payload.user
+}
+
+export async function updateAccountPassword(
+  token: string,
+  input: { currentPassword: string; newPassword: string },
+) {
+  return request<{ message: string }>(
+    "/api/auth/password",
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+}
+
+export async function deleteAccount(token: string, input: { currentPassword: string }) {
+  return request<{ message: string }>(
+    "/api/auth/account",
+    {
+      method: "DELETE",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+}
+
+export async function getDocuments(token: string) {
+  const payload = await request<{ documents: DocumentRecord[] }>("/api/documents", {}, token)
+  return payload.documents
+}
+
+export async function createDocument(
+  token: string,
+  input: { title: string; content: string; theme?: Record<string, unknown>; metadata?: Record<string, unknown> },
+) {
+  const payload = await request<{ document: DocumentRecord }>(
+    "/api/documents",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+
+  return payload.document
+}
+
+export async function updateDocument(
+  token: string,
+  id: string,
+  input: { title?: string; content?: string; theme?: Record<string, unknown>; metadata?: Record<string, unknown> },
+) {
+  const payload = await request<{ document: DocumentRecord }>(
+    `/api/documents/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+
+  return payload.document
+}
+
+export async function deleteDocument(token: string, id: string) {
+  const response = await fetch(`${API_BASE}/api/documents/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error("Failed to delete document")
+  }
+}
+
+export async function getPreferences(token: string) {
+  const payload = await request<{ preferences: PreferencesRecord }>("/api/preferences", {}, token)
+  return payload.preferences
+}
+
+export async function updatePreferences(
+  token: string,
+  input: {
+    theme?: Record<string, unknown>
+    editorSettings?: Record<string, unknown>
+    uiSettings?: Record<string, unknown>
+  },
+) {
+  const payload = await request<{ preferences: PreferencesRecord }>(
+    "/api/preferences",
+    {
+      method: "PUT",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+
+  return payload.preferences
+}

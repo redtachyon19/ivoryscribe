@@ -222,6 +222,142 @@
   line-height: 1.45;
 }
 
+.global-settings__account-action {
+  align-self: flex-start;
+  border: 1px solid color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 60%, transparent);
+  color: var(--menu-button, #ededed);
+  font-family: "Times", "Times New Roman", serif;
+  font-size: 16px;
+  line-height: 1.2;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.global-settings__account-action:disabled {
+  opacity: 0.56;
+  cursor: default;
+}
+
+.global-settings__account-action--minimal {
+  align-self: flex-end;
+  border-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.global-settings__account-action--danger-minimal {
+  align-self: flex-end;
+  border-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #d38d8d;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.global-settings__account-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.global-settings__account-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.global-settings__account-feedback,
+.global-settings__account-error {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.global-settings__account-feedback {
+  color: color-mix(in srgb, #9de0b0 82%, var(--menu-button, #ededed));
+}
+
+.global-settings__account-error {
+  color: color-mix(in srgb, #ffb8b8 92%, transparent);
+}
+
+.global-settings__account-action:hover,
+.global-settings__account-action:focus-visible {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 82%, transparent);
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 44%, transparent);
+  outline: none;
+}
+
+.global-settings__account-action--minimal:hover,
+.global-settings__account-action--minimal:focus-visible {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
+  border-color: transparent;
+  color: var(--menu-button, #ededed);
+}
+
+.global-settings__account-action--danger-minimal:hover,
+.global-settings__account-action--danger-minimal:focus-visible {
+  background: rgba(255, 123, 123, 0.18);
+  border-color: transparent;
+  color: #ff9f9f;
+}
+
+.global-settings__password-overlay {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: rgba(8, 8, 8, 0.44);
+  z-index: 170;
+}
+
+.global-settings__password-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, calc(100vw - 28px));
+  border: 1px solid var(--menu-dropdown-border, #2a2a2a);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 96%, transparent);
+  padding: 16px;
+  z-index: 171;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.global-settings__password-modal-title {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--menu-button, #efefef);
+  font-family: "EB Garamond", serif;
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.global-settings__password-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
 .global-settings__modal--opening {
   animation: global-settings-modal-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
@@ -549,6 +685,18 @@
   font-size: 18px;
 }
 
+.global-settings__field input[type="password"] {
+  box-sizing: border-box;
+  min-width: 0;
+  border: 1px solid var(--menu-dropdown-border, #2e2e2e);
+  border-radius: 8px;
+  background: var(--menu-bg, #1d1d1d);
+  color: var(--menu-button, #ededed);
+  padding: 8px 10px;
+  font-family: "Times", "Times New Roman", serif;
+  font-size: 18px;
+}
+
 .global-settings__field input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -710,6 +858,7 @@
 }
 
 .global-settings__field input[type="text"]:focus-visible,
+.global-settings__field input[type="password"]:focus-visible,
 .global-settings__field select:focus-visible,
 .global-settings__field input[type="color"]:focus-visible,
 .global-settings__field input[type="range"]:focus-visible {
@@ -790,83 +939,6 @@
   outline-offset: 2px;
 }
 
-.global-settings__danger-zone {
-  margin-top: 6px;
-  border: 1px solid color-mix(in srgb, #ff6b6b 58%, transparent);
-  border-radius: 10px;
-  padding: 12px;
-  background: color-mix(in srgb, #6b1f1f 28%, transparent);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.global-settings__danger-zone-title {
-  margin: 0;
-  color: #ff9f9f;
-  font-size: 21px;
-  line-height: 1.1;
-  font-family: "EB Garamond", serif;
-  font-weight: 500;
-}
-
-.global-settings__danger-zone-copy {
-  margin: 0;
-  color: color-mix(in srgb, #ffdede 86%, transparent);
-  font-size: 16px;
-  line-height: 1.35;
-}
-
-.global-settings__danger-confirm {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.global-settings__danger-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.global-settings__danger-button,
-.global-settings__danger-cancel {
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-family: "Times", "Times New Roman", serif;
-  font-size: 17px;
-  cursor: pointer;
-}
-
-.global-settings__danger-button {
-  background: #b12626;
-  color: #fff2f2;
-}
-
-.global-settings__danger-button:hover,
-.global-settings__danger-button:focus-visible {
-  background: #cb3333;
-  outline: none;
-}
-
-.global-settings__danger-cancel {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 88%, transparent);
-  color: var(--menu-button, #ededed);
-}
-
-.global-settings__danger-cancel:hover,
-.global-settings__danger-cancel:focus-visible {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 98%, transparent);
-  outline: none;
-}
-
-.global-settings__danger-error {
-  margin: 0;
-  color: #ffb3b3;
-  font-size: 15px;
-}
-
 @media (max-width: 760px) {
   .global-settings__modal {
     width: min(560px, calc(100vw - 16px));
@@ -903,5 +975,10 @@
   .global-settings__content {
     max-height: 64vh;
     gap: 20px;
+  }
+
+  .global-settings__password-modal {
+    width: min(420px, calc(100vw - 20px));
+    padding: 14px;
   }
 }
