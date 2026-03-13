@@ -500,7 +500,25 @@
 .doc-tabs__delete-card p {
   margin: 10px 0 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
-  font-size: 14px;
+  font-size: 16px;
+}
+
+.doc-tabs__delete-subtree-note {
+  margin-top: 12px;
+}
+
+.doc-tabs__delete-subtree-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  max-height: 180px;
+  overflow-y: auto;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 76%, transparent);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.doc-tabs__delete-subtree-list li + li {
+  margin-top: 4px;
 }
 
 .doc-tabs__delete-actions {

@@ -235,6 +235,10 @@ function getNextEntryName(tabs: DocumentTab[], singular: string): string {
   return `${singular} ${candidate}`
 }
 
+function collectDescendantTitles(node: DocumentTab): string[] {
+  return node.children.flatMap((child) => [child.title, ...collectDescendantTitles(child)])
+}
+
 type TabNodeProps = {
   tab: DocumentTab
   depth: number
@@ -520,10 +524,13 @@ export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle =
     visible: false,
   })
   const { singular, plural } = getProjectEntryTerms(projectKind)
+  const deleteEntryNoun = projectKind === "Book" ? "chapter" : "post"
+  const subEntryLabel = projectKind === "Book" ? "sub chapters" : "sub posts"
   const panelTitle = projectKind === "Book" ? "Table of Contents" : "Blog Posts"
   const toggleLabel = isOpen ? `Hide ${plural.toLowerCase()}` : `Show ${plural.toLowerCase()}`
   const addLabel = `Create ${singular}`
-  const pendingDeleteTitle = pendingDeleteId ? findNode(tabs, pendingDeleteId)?.title ?? singular : null
+  const pendingDeleteNode = pendingDeleteId ? findNode(tabs, pendingDeleteId) : null
+  const pendingDeleteDescendantTitles = pendingDeleteNode ? collectDescendantTitles(pendingDeleteNode) : []
 
   const registerRowRef = (id: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -796,7 +803,17 @@ export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle =
             </button>
             <div className="doc-tabs__delete-card">
               <h3>Delete {singular}</h3>
-              <p>Are you sure you want to delete "{pendingDeleteTitle}"?</p>
+              <p>Are you sure you are ready to stomp this {deleteEntryNoun} for good?</p>
+              {pendingDeleteDescendantTitles.length > 0 ? (
+                <>
+                  <p className="doc-tabs__delete-subtree-note">This will also delete all {subEntryLabel}.</p>
+                  <ul className="doc-tabs__delete-subtree-list" aria-label={`Sub ${plural.toLowerCase()} that will be deleted`}>
+                    {pendingDeleteDescendantTitles.map((title, index) => (
+                      <li key={`${title}-${index}`}>{title}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
               <div className="doc-tabs__delete-actions">
                 <button type="button" className="doc-tabs__delete-confirm" onClick={confirmDelete}>
                   <Trash2 size={14} strokeWidth={2} aria-hidden="true" />

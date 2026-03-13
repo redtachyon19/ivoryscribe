@@ -25,7 +25,7 @@
   font-family: "EB Garamond", serif;
   font-weight: 400;
   margin: 0;
-  color: #f4f4f4;
+  color: var(--brand-color, #f4f4f4);
   font-size: 58px;
   line-height: 1.05;
   letter-spacing: 0.01em;
@@ -41,7 +41,7 @@
 
 .project-hub__header p {
   margin: 8px 0 0;
-  color: #b8b8b8;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
   font-size: 16px;
   font-family: "Times New Roman", Times, serif;
 }
@@ -174,11 +174,14 @@
 }
 
 .project-hub__list {
+  --project-card-width: 222px;
+  --project-card-height: 292px;
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+  grid-template-columns: repeat(auto-fill, var(--project-card-width));
+  justify-content: flex-start;
   gap: 14px;
 }
 
@@ -403,12 +406,13 @@
   overflow: hidden;
   border: 0;
   border-radius: 14px;
-  background: linear-gradient(0deg, var(--project-accent-soft), var(--project-accent-soft)), #141414;
+  background: linear-gradient(0deg, var(--project-accent-soft), var(--project-accent-soft)), var(--menu-bg, #141414);
   padding: 14px 14px 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 292px;
+  min-height: var(--project-card-height, 292px);
+  height: var(--project-card-height, 292px);
   cursor: pointer;
   box-shadow: inset var(--project-accent-line-width) 0 0 var(--project-accent);
   transition: transform 120ms ease, opacity 120ms ease, border-color 120ms ease, background-color 160ms ease, box-shadow 160ms ease;
@@ -417,7 +421,7 @@
 .project-card:hover,
 .project-card:focus-within {
   background: linear-gradient(0deg, var(--project-accent-soft), var(--project-accent-soft)),
-    color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, #141414);
+    color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, var(--menu-bg, #141414));
   box-shadow:
     inset var(--project-accent-line-width) 0 0 var(--project-accent),
     0 0 0 1px color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
@@ -426,7 +430,7 @@
 .project-card:active {
   transform: translateY(1px);
   background: linear-gradient(0deg, var(--project-accent-soft), var(--project-accent-soft)),
-    color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, #141414);
+    color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, var(--menu-bg, #141414));
   box-shadow:
     inset var(--project-accent-line-width) 0 0 var(--project-accent),
     0 0 0 1px color-mix(in srgb, var(--menu-button, #ededed) 34%, transparent);
@@ -437,7 +441,7 @@
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.12;
+  opacity: var(--project-wallpaper-opacity, 0.12);
   overflow: hidden;
 }
 
@@ -465,6 +469,7 @@
   font-size: 22px;
   line-height: 1;
   white-space: pre;
+  filter: var(--project-wallpaper-filter, none);
 }
 
 .project-card__emoji-wallpaper-row {
@@ -486,8 +491,9 @@
 
 .project-card--drag-preview {
   opacity: 0.96;
-  transform: scale(0.99);
-  box-shadow: inset var(--project-accent-line-width) 0 0 var(--project-accent), 0 14px 28px rgba(0, 0, 0, 0.38);
+  transform: none;
+  box-shadow: inset var(--project-accent-line-width) 0 0 var(--project-accent),
+    0 14px 28px color-mix(in srgb, var(--app-bg, #0f0f0f) 72%, #000000);
 }
 
 .project-card--drop-before {
@@ -530,7 +536,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #ffffff;
+  color: var(--menu-button, #ffffff);
   width: 18px;
   height: 22px;
   display: inline-flex;
@@ -599,11 +605,11 @@
 
 .project-card__meta-separator,
 .project-card__meta-count {
-  color: rgba(255, 255, 255, 0.64);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 64%, transparent);
 }
 
 .project-card__last-edited {
-  color: rgba(255, 255, 255, 0.62);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
   font-family: "Times New Roman", Times, serif;
   font-size: 12px;
   letter-spacing: 0.01em;
@@ -682,10 +688,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #343434;
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #343434) 88%, transparent);
   border-radius: 6px;
-  background: #1d1d1d;
-  color: #ebebeb;
+  background: color-mix(in srgb, var(--menu-bg, #1d1d1d) 88%, transparent);
+  color: var(--menu-button, #ebebeb);
   font-size: 12px;
   min-width: 32px;
   height: 26px;
@@ -694,7 +700,7 @@
 }
 
 .project-card__color-picker:hover {
-  background: #2a2a2a;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 88%, transparent);
 }
 
 .project-card__color-picker input[type="color"] {
@@ -713,7 +719,7 @@
   resize: none;
   font-family: "EB Garamond", serif;
   font-weight: 400;
-  color: #f2f2f2;
+  color: var(--menu-button, #f2f2f2);
   font-size: clamp(17px, 1.75vw, 22px);
   line-height: 1.12;
   min-height: 1.12em;
@@ -724,7 +730,7 @@
   white-space: pre-wrap;
   overflow-y: hidden;
   outline: none;
-  caret-color: #f2f2f2;
+  caret-color: var(--app-accent, #9ab8ff);
 }
 
 .project-card__rename-input:hover {
@@ -744,7 +750,7 @@
   font-family: "EB Garamond", serif;
   font-weight: 400;
   margin: 0;
-  color: #f2f2f2;
+  color: var(--menu-button, #f2f2f2);
   font-size: clamp(17px, 1.75vw, 22px);
   line-height: 1.12;
   cursor: inherit;
@@ -764,7 +770,7 @@
 .project-card p {
   font-family: "Times New Roman", Times, serif;
   margin: 0;
-  color: #bcbcbc;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
   font-size: 13px;
 }
 

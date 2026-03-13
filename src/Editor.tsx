@@ -436,7 +436,62 @@ export default function Editor({
     }
 
     let frameId = 0
+    let followFrameId = 0
     let typingTimeoutId = 0
+
+    const CARET_FOLLOW_FACTOR = 0.22
+    const CARET_FOLLOW_SNAP_DISTANCE = 0.35
+    const caretMotion = {
+      currentLeft: 0,
+      currentTop: 0,
+      currentHeight: 26,
+      targetLeft: 0,
+      targetTop: 0,
+      targetHeight: 26,
+      initialized: false,
+    }
+
+    const applyCaretPosition = () => {
+      caret.style.transform = `translate3d(${caretMotion.currentLeft}px, ${caretMotion.currentTop}px, 0)`
+      caret.style.height = `${caretMotion.currentHeight}px`
+    }
+
+    const followCaretMotion = () => {
+      followFrameId = 0
+
+      const leftDelta = caretMotion.targetLeft - caretMotion.currentLeft
+      const topDelta = caretMotion.targetTop - caretMotion.currentTop
+      const heightDelta = caretMotion.targetHeight - caretMotion.currentHeight
+
+      caretMotion.currentLeft += leftDelta * CARET_FOLLOW_FACTOR
+      caretMotion.currentTop += topDelta * CARET_FOLLOW_FACTOR
+      caretMotion.currentHeight += heightDelta * CARET_FOLLOW_FACTOR
+
+      applyCaretPosition()
+
+      const isCloseEnough =
+        Math.abs(leftDelta) < CARET_FOLLOW_SNAP_DISTANCE &&
+        Math.abs(topDelta) < CARET_FOLLOW_SNAP_DISTANCE &&
+        Math.abs(heightDelta) < CARET_FOLLOW_SNAP_DISTANCE
+
+      if (isCloseEnough) {
+        caretMotion.currentLeft = caretMotion.targetLeft
+        caretMotion.currentTop = caretMotion.targetTop
+        caretMotion.currentHeight = caretMotion.targetHeight
+        applyCaretPosition()
+        return
+      }
+
+      followFrameId = window.requestAnimationFrame(followCaretMotion)
+    }
+
+    const scheduleCaretFollow = () => {
+      if (followFrameId) {
+        return
+      }
+
+      followFrameId = window.requestAnimationFrame(followCaretMotion)
+    }
 
     const stopTypingState = () => {
       caret.classList.remove("typing-caret--typing")
@@ -537,8 +592,20 @@ export default function Editor({
       const top = coords.top - surfaceRect.top
       const height = Math.max(coords.bottom - coords.top, 26)
 
-      caret.style.transform = `translate3d(${left}px, ${top}px, 0)`
-      caret.style.height = `${height}px`
+      caretMotion.targetLeft = left
+      caretMotion.targetTop = top
+      caretMotion.targetHeight = height
+
+      if (!caretMotion.initialized) {
+        caretMotion.currentLeft = left
+        caretMotion.currentTop = top
+        caretMotion.currentHeight = height
+        caretMotion.initialized = true
+        applyCaretPosition()
+      } else {
+        scheduleCaretFollow()
+      }
+
       showCaret()
     }
 
@@ -644,6 +711,9 @@ export default function Editor({
     return () => {
       if (frameId) {
         window.cancelAnimationFrame(frameId)
+      }
+      if (followFrameId) {
+        window.cancelAnimationFrame(followFrameId)
       }
       if (typingTimeoutId) {
         window.clearTimeout(typingTimeoutId)

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react"
 import { BookCopy, BookText, Folder, GripVertical, NotebookText, Plus, ScrollText, Settings2, Trash2, X } from "lucide-react"
 import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../core/editorEvents"
+import { exportProjectAsPdf } from "../core/pdfExport"
 import { collectTabIds, getProjectEntryTerms, type Project, type ProjectKind } from "../core/projects"
 import ProjectPreferencesFields from "../components/ProjectPreferencesFields"
 import "./ProjectDashboard.css"
@@ -881,6 +882,10 @@ export default function ProjectDashboard({
     const bounds = sourceCard.getBoundingClientRect()
     dragPreview.classList.add("project-card--drag-preview")
     dragPreview.style.width = `${Math.round(bounds.width)}px`
+    dragPreview.style.height = `${Math.round(bounds.height)}px`
+    dragPreview.style.minHeight = `${Math.round(bounds.height)}px`
+    dragPreview.style.maxHeight = `${Math.round(bounds.height)}px`
+    dragPreview.style.boxSizing = "border-box"
     dragPreview.style.position = "fixed"
     dragPreview.style.top = "-1000px"
     dragPreview.style.left = "-1000px"
@@ -1521,6 +1526,13 @@ export default function ProjectDashboard({
               onProjectKindChange={setProjectSettingsKind}
               onProjectColorChange={setProjectSettingsColor}
               onProjectWallpaperEmojisChange={setProjectSettingsWallpaperEmojis}
+              onExportAsPdf={() => {
+                if (!settingsProject) {
+                  return
+                }
+
+                exportProjectAsPdf(settingsProject)
+              }}
             />
 
             {projectSettingsError ? <p className="project-settings-modal__error">{projectSettingsError}</p> : null}

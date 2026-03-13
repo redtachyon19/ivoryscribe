@@ -18,6 +18,8 @@
   --editor-text: #15110b;
   --editor-title: #1a130b;
   --editor-placeholder: rgba(62, 50, 30, 0.42);
+  --project-wallpaper-opacity: 0.2;
+  --project-wallpaper-filter: grayscale(1) brightness(0.22) contrast(1.2);
 
   min-height: 100vh;
   background-color: var(--app-bg);
@@ -70,6 +72,8 @@
   --editor-text: #f0f0f0;
   --editor-title: #f0f0f0;
   --editor-placeholder: rgba(220, 220, 220, 0.45);
+  --project-wallpaper-opacity: 0.12;
+  --project-wallpaper-filter: none;
 }
 
 .app--palette-midnight {
@@ -85,6 +89,8 @@
   --editor-text: #f5f5f5;
   --editor-title: #ffffff;
   --editor-placeholder: rgba(230, 230, 230, 0.5);
+  --project-wallpaper-opacity: 0.12;
+  --project-wallpaper-filter: none;
 }
 
 .app--palette-sunset {
@@ -100,6 +106,8 @@
   --editor-text: #ffece1;
   --editor-title: #ffefe7;
   --editor-placeholder: rgba(255, 221, 201, 0.5);
+  --project-wallpaper-opacity: 0.12;
+  --project-wallpaper-filter: none;
 }
 
 .app--palette-woodland {
@@ -115,6 +123,8 @@
   --editor-text: #ebf8e5;
   --editor-title: #f1faed;
   --editor-placeholder: rgba(210, 236, 198, 0.5);
+  --project-wallpaper-opacity: 0.12;
+  --project-wallpaper-filter: none;
 }
 
 .app--palette-glacier {
@@ -130,6 +140,8 @@
   --editor-text: #e7f8ff;
   --editor-title: #eefbff;
   --editor-placeholder: rgba(198, 228, 243, 0.52);
+  --project-wallpaper-opacity: 0.12;
+  --project-wallpaper-filter: none;
 }
 
 .app--palette-custom {
@@ -145,6 +157,8 @@
   --editor-text: #ffffff;
   --editor-title: #f5f2ec;
   --editor-placeholder: rgba(215, 215, 215, 0.45);
+  --project-wallpaper-opacity: 0.12;
+  --project-wallpaper-filter: none;
 }
 
 .app-main {

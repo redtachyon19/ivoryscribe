@@ -1,4 +1,5 @@
-import { BookText, NotebookText } from "lucide-react"
+import { useEffect, useState } from "react"
+import { BookText, Download, NotebookText } from "lucide-react"
 import type { ProjectKind } from "../core/projects"
 import "./ProjectPreferencesFields.css"
 
@@ -12,6 +13,7 @@ type ProjectPreferencesFieldsProps = {
   onProjectKindChange: (kind: ProjectKind) => void
   onProjectColorChange: (color: string) => void
   onProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
+  onExportAsPdf: () => void
 }
 
 function splitGraphemes(value: string) {
@@ -45,6 +47,21 @@ function normalizeProjectEmojiWallpaper(value: string) {
   return extractEmojiTokens(value, 3).join(" ")
 }
 
+function normalizeHexInput(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return ""
+  }
+
+  const prefixed = trimmed.startsWith("#") ? trimmed : `#${trimmed}`
+  const cleaned = prefixed.slice(1).replace(/[^0-9a-fA-F]/g, "").slice(0, 6)
+  return `#${cleaned}`.toUpperCase()
+}
+
+function isCompleteHexColor(value: string) {
+  return /^#[0-9A-F]{6}$/.test(value)
+}
+
 export default function ProjectPreferencesFields({
   fieldClassName,
   projectName,
@@ -55,7 +72,14 @@ export default function ProjectPreferencesFields({
   onProjectKindChange,
   onProjectColorChange,
   onProjectWallpaperEmojisChange,
+  onExportAsPdf,
 }: ProjectPreferencesFieldsProps) {
+  const [projectColorHexDraft, setProjectColorHexDraft] = useState(projectColor.toUpperCase())
+
+  useEffect(() => {
+    setProjectColorHexDraft(projectColor.toUpperCase())
+  }, [projectColor])
+
   return (
     <div className="project-preferences-fields">
       <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
@@ -102,14 +126,40 @@ export default function ProjectPreferencesFields({
 
       <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
         <span className="project-preferences-fields__label">Color</span>
-        <input
-          className="project-preferences-fields__input project-preferences-fields__input--color"
-          type="color"
-          value={projectColor}
-          onChange={(event) => {
-            onProjectColorChange(event.target.value)
-          }}
-        />
+        <div className="project-preferences-fields__color-input-wrap">
+          <input
+            className="project-preferences-fields__input project-preferences-fields__input--color"
+            type="color"
+            value={projectColor}
+            onChange={(event) => {
+              const nextValue = event.target.value.toUpperCase()
+              onProjectColorChange(nextValue)
+              setProjectColorHexDraft(nextValue)
+            }}
+          />
+          <input
+            className="project-preferences-fields__color-value-input"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            spellCheck={false}
+            value={projectColorHexDraft}
+            onChange={(event) => {
+              const nextDraft = normalizeHexInput(event.target.value)
+              setProjectColorHexDraft(nextDraft)
+              if (isCompleteHexColor(nextDraft)) {
+                onProjectColorChange(nextDraft)
+              }
+            }}
+            onBlur={() => {
+              if (!isCompleteHexColor(projectColorHexDraft)) {
+                setProjectColorHexDraft(projectColor.toUpperCase())
+              }
+            }}
+            placeholder="#000000"
+            aria-label="Project color hex"
+          />
+        </div>
       </label>
 
       <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
@@ -128,6 +178,18 @@ export default function ProjectPreferencesFields({
           aria-label="Card emoji wallpaper"
         />
       </label>
+
+      <div className={`${fieldClassName} project-preferences-fields__field`.trim()}>
+        <span className="project-preferences-fields__label">Export</span>
+        <button
+          type="button"
+          className="project-preferences-fields__export-btn"
+          onClick={onExportAsPdf}
+        >
+          <Download size={17} strokeWidth={2} aria-hidden="true" />
+          <span>Export as PDF</span>
+        </button>
+      </div>
     </div>
   )
 }

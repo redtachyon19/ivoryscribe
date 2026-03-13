@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react"
 import "./App.css"
 import GlobalSettings from "./components/GlobalSettings"
+import GlobalCaretOverlay from "./components/GlobalCaretOverlay"
 import WebMenu from "./components/WebMenu"
 import { FONT_OPTIONS, PALETTE_OPTIONS, type Palette } from "./core/appearance"
 import {
@@ -13,6 +14,7 @@ import {
   requestEditorFontSizeSet,
 } from "./core/editorEvents"
 import { projectWorkspaceMenu } from "./core/menu"
+import { exportProjectAsPdf } from "./core/pdfExport"
 import { DEFAULT_DOCUMENT_CONTENT, createProject, type Project, type ProjectKind } from "./core/projects"
 import EditorWorkspace from "./pages/EditorWorkspace"
 import ProjectDashboard, { type ProjectFolder } from "./pages/ProjectDashboard"
@@ -20,6 +22,52 @@ import ProjectDashboard, { type ProjectFolder } from "./pages/ProjectDashboard"
 const MIN_FONT_SIZE = 20
 const MAX_FONT_SIZE = 84
 const VIEW_FADE_DURATION_MS = 240
+const DEFAULT_CUSTOM_BACKGROUND = "#0f0f0f"
+const DEFAULT_CUSTOM_ACCENT = "#9ab8ff"
+
+function hexToRgb(value: string) {
+  const normalized = value.trim().replace("#", "")
+  if (normalized.length !== 6) {
+    return null
+  }
+
+  const parsed = Number.parseInt(normalized, 16)
+  if (Number.isNaN(parsed)) {
+    return null
+  }
+
+  return {
+    r: (parsed >> 16) & 255,
+    g: (parsed >> 8) & 255,
+    b: parsed & 255,
+  }
+}
+
+function mixHexColors(base: string, target: string, ratio: number) {
+  const from = hexToRgb(base)
+  const to = hexToRgb(target)
+
+  if (!from || !to) {
+    return base
+  }
+
+  const clampRatio = Math.min(1, Math.max(0, ratio))
+  const r = Math.round(from.r + (to.r - from.r) * clampRatio)
+  const g = Math.round(from.g + (to.g - from.g) * clampRatio)
+  const b = Math.round(from.b + (to.b - from.b) * clampRatio)
+
+  return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`
+}
+
+function pickReadableTextColor(background: string) {
+  const rgb = hexToRgb(background)
+  if (!rgb) {
+    return "#f5f5f5"
+  }
+
+  const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000
+  return brightness >= 150 ? "#111111" : "#f5f5f5"
+}
 
 function clampFontSize(value: number) {
   return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value))
@@ -51,9 +99,13 @@ export default function App() {
   const [isFlagsEnabled, setIsFlagsEnabled] = useState(false)
   const [isEditorTyping, setIsEditorTyping] = useState(false)
   const [selectedFont, setSelectedFont] = useState<string>(FONT_OPTIONS[0]!.value)
+  const [customFontName, setCustomFontName] = useState("")
+  const [isCustomFontSelected, setIsCustomFontSelected] = useState(false)
   const [isGlobalTextEnabled, setIsGlobalTextEnabled] = useState(false)
   const [fontSize, setFontSize] = useState(32)
   const [palette, setPalette] = useState<Palette>(() => getInitialPalette())
+  const [customPaletteBackground, setCustomPaletteBackground] = useState(DEFAULT_CUSTOM_BACKGROUND)
+  const [customPaletteAccent, setCustomPaletteAccent] = useState(DEFAULT_CUSTOM_ACCENT)
   const [viewFadePhase, setViewFadePhase] = useState<"idle" | "fading-out" | "fading-in">("idle")
 
   // Resolve the active project ID to a real project object with a fallback.
@@ -257,7 +309,23 @@ export default function App() {
 
   const applyFontFamily = (fontFamily: string) => {
     setSelectedFont(fontFamily)
+    setCustomFontName("")
+    setIsCustomFontSelected(false)
     requestEditorFontFamilyChange(fontFamily)
+  }
+
+  const applyCustomFontName = (fontName: string) => {
+    const trimmedName = fontName.trim()
+    setCustomFontName(trimmedName)
+    setIsCustomFontSelected(true)
+
+    if (!trimmedName) {
+      return
+    }
+
+    const nextFontFamily = `"${trimmedName}", "Times", "Times New Roman", serif`
+    setSelectedFont(nextFontFamily)
+    requestEditorFontFamilyChange(nextFontFamily)
   }
 
   const applyFontSize = (nextFontSize: number) => {
@@ -265,11 +333,45 @@ export default function App() {
   }
 
   const shouldApplyGlobalFont = isGlobalTextEnabled
+  const appStyleVariables = useMemo(() => {
+    const variables: Record<string, string> = {
+      "--app-font-family": selectedFont,
+    }
+
+    if (palette !== "custom") {
+      return variables as CSSProperties
+    }
+
+    const textColor = pickReadableTextColor(customPaletteBackground)
+    const menuBackground = mixHexColors(customPaletteBackground, textColor === "#111111" ? "#ffffff" : "#000000", 0.06)
+    const menuHover = mixHexColors(customPaletteBackground, textColor === "#111111" ? "#ffffff" : "#000000", 0.12)
+    const dropdownBackground = mixHexColors(customPaletteBackground, textColor === "#111111" ? "#ffffff" : "#000000", 0.09)
+    const borderColor = mixHexColors(customPaletteBackground, textColor, 0.18)
+    const placeholderColor = textColor === "#111111" ? "rgba(17, 17, 17, 0.44)" : "rgba(245, 245, 245, 0.46)"
+    const isLightTextMode = textColor === "#111111"
+
+    variables["--app-bg"] = customPaletteBackground
+    variables["--app-accent"] = customPaletteAccent
+    variables["--brand-color"] = textColor
+    variables["--menu-bg"] = menuBackground
+    variables["--menu-border"] = borderColor
+    variables["--menu-button"] = textColor
+    variables["--menu-button-hover-bg"] = menuHover
+    variables["--menu-dropdown-bg"] = dropdownBackground
+    variables["--menu-dropdown-border"] = borderColor
+    variables["--editor-text"] = textColor
+    variables["--editor-title"] = textColor
+    variables["--editor-placeholder"] = placeholderColor
+    variables["--project-wallpaper-opacity"] = isLightTextMode ? "0.2" : "0.12"
+    variables["--project-wallpaper-filter"] = isLightTextMode ? "grayscale(1) brightness(0.22) contrast(1.2)" : "none"
+
+    return variables as CSSProperties
+  }, [customPaletteAccent, customPaletteBackground, palette, selectedFont])
 
   return (
     <div
       className={`app app--palette-${palette} ${shouldApplyGlobalFont ? "app--custom-font" : ""}`.trim()}
-      style={{ "--app-font-family": selectedFont } as CSSProperties}
+      style={appStyleVariables}
     >
       <main className="app-main">
         {isMenuBarEnabled ? <WebMenu items={view === "projects" ? projectWorkspaceMenu : undefined} /> : null}
@@ -324,6 +426,8 @@ export default function App() {
           palette={palette}
           paletteOptions={PALETTE_OPTIONS}
           fontOptions={[...FONT_OPTIONS]}
+          customFontName={customFontName}
+          customFontSelected={isCustomFontSelected}
           onToggleOpen={() => {
             setIsSettingsOpen((current) => !current)
           }}
@@ -333,11 +437,17 @@ export default function App() {
           onMenuBarEnabledChange={setIsMenuBarEnabled}
           onFlagsEnabledChange={setIsFlagsEnabled}
           onFontChange={applyFontFamily}
+          onCustomFontNameChange={applyCustomFontName}
+          onCustomFontSelectedChange={setIsCustomFontSelected}
           onGlobalTextEnabledChange={setIsGlobalTextEnabled}
           onFontSizeChange={applyFontSize}
           onPaletteChange={(nextPalette) => {
             requestAppColorPaletteChange(nextPalette)
           }}
+          customPaletteBackground={customPaletteBackground}
+          customPaletteAccent={customPaletteAccent}
+          onCustomPaletteBackgroundChange={setCustomPaletteBackground}
+          onCustomPaletteAccentChange={setCustomPaletteAccent}
           activeProjectName={activeProject?.name ?? ""}
           activeProjectKind={activeProject?.kind ?? "Book"}
           activeProjectColor={activeProject?.color ?? "#7ea8ff"}
@@ -366,8 +476,16 @@ export default function App() {
               wallpaperEmojis: nextWallpaperEmojis,
             }))
           }}
+          onExportProjectAsPdf={() => {
+            if (!activeProject) {
+              return
+            }
+
+            exportProjectAsPdf(activeProject)
+          }}
         />
       </main>
+      <GlobalCaretOverlay />
     </div>
   )
 }
