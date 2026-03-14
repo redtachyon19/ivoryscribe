@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import "./App.css"
-import GlobalSettings from "./components/GlobalSettings"
-import GlobalCaretOverlay from "./components/GlobalCaretOverlay"
-import WebMenu from "./components/WebMenu"
+import GlobalSettings from "./webapp/components/GlobalSettings"
+import GlobalCaretOverlay from "./webapp/components/GlobalCaretOverlay"
+import WebMenu from "./webapp/components/WebMenu"
 import { FONT_OPTIONS, PALETTE_OPTIONS, type Palette } from "./core/appearance"
 import {
   APP_COLOR_PALETTE_CHANGE_EVENT,
@@ -17,19 +17,25 @@ import { projectWorkspaceMenu } from "./core/menu"
 import { exportProjectAsPdf } from "./core/pdfExport"
 import { DEFAULT_DOCUMENT_CONTENT, createProject, type Project, type ProjectKind } from "./core/projects"
 import {
+  confirmAccountEmailChange,
+  confirmAccountDeletionCode,
   createDocument,
-  deleteAccount,
   deleteDocument,
   getDocuments,
   getPreferences,
-  updateAccountPassword,
+  requestAccountEmailChange,
+  requestPasswordResetLink,
+  requestAccountDeletion,
+  verifyCurrentEmailForAccountChange,
   updateAccountProfile,
   updateDocument,
   updatePreferences,
 } from "./core/api"
-import AuthGateway from "./pages/AuthGateway"
-import EditorWorkspace from "./pages/EditorWorkspace"
-import ProjectDashboard, { type ProjectFolder } from "./pages/ProjectDashboard"
+import Home from "./landing/pages/Home"
+import AuthPage from "./webapp/pages/AuthPage"
+import EditorWorkspace from "./webapp/pages/EditorWorkspace"
+import PasswordResetPage from "./webapp/pages/PasswordResetPage"
+import ProjectLibrary, { type ProjectFolder } from "./webapp/pages/ProjectLibrary"
 
 const MIN_FONT_SIZE = 20
 const MAX_FONT_SIZE = 84
@@ -224,7 +230,7 @@ export default function App() {
   const [authLoadError, setAuthLoadError] = useState("")
   const [projectDocumentMap, setProjectDocumentMap] = useState<Record<string, string>>({})
   const [isWorkspaceHydrated, setIsWorkspaceHydrated] = useState(false)
-  // The app has two high-level screens: project dashboard and editor workspace.
+  // The app has two high-level screens: project library and editor workspace.
   const [view, setView] = useState<"projects" | "editor">("projects")
   // All project data (tabs + content) lives at the App level so child pages stay stateless.
   const [projects, setProjects] = useState<Project[]>([])
@@ -245,8 +251,26 @@ export default function App() {
   const [customPaletteBackground, setCustomPaletteBackground] = useState(DEFAULT_CUSTOM_BACKGROUND)
   const [customPaletteAccent, setCustomPaletteAccent] = useState(DEFAULT_CUSTOM_ACCENT)
   const [viewFadePhase, setViewFadePhase] = useState<"idle" | "fading-out" | "fading-in">("idle")
+  const [currentLocation, setCurrentLocation] = useState(() =>
+    typeof window === "undefined" ? "/" : `${window.location.pathname}${window.location.search}`,
+  )
   const saveTimeoutRef = useRef<number | null>(null)
   const isSyncingRef = useRef(false)
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    const onPopState = () => {
+      setCurrentLocation(`${window.location.pathname}${window.location.search}`)
+    }
+
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+    }
+  }, [])
   const hydrateWorkspace = async (token: string) => {
     const [documentsResult, preferencesResult] = await Promise.allSettled([getDocuments(token), getPreferences(token)])
 
@@ -500,6 +524,13 @@ export default function App() {
     setAuthLoadError("")
     setSession(nextSession)
     setSessionInStorage(nextSession)
+
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", "/app")
+      setCurrentLocation("/app")
+    }
+
+    setView("projects")
   }
 
   const logout = () => {
@@ -548,20 +579,49 @@ export default function App() {
     updateSessionUser(updatedUser)
   }
 
-  const handleAccountPasswordChange = async (input: { currentPassword: string; newPassword: string }) => {
+  const handleAccountPasswordResetRequest = async () => {
     if (!session) {
       throw new Error("You need to be logged in to update your password.")
     }
 
-    await updateAccountPassword(session.token, input)
+    return requestPasswordResetLink(session.token)
   }
 
-  const handleAccountDelete = async (input: { currentPassword: string }) => {
+  const handleAccountEmailChangeRequest = async (email: string) => {
+    if (!session) {
+      throw new Error("You need to be logged in to change your email.")
+    }
+
+    return requestAccountEmailChange(session.token, email)
+  }
+
+  const handleAccountCurrentEmailChangeVerify = async (code: string) => {
+    if (!session) {
+      throw new Error("You need to be logged in to verify your current email.")
+    }
+
+    return verifyCurrentEmailForAccountChange(session.token, code)
+  }
+
+  const handleAccountEmailChangeConfirm = async (code: string) => {
+    if (!session) {
+      throw new Error("You need to be logged in to confirm your email change.")
+    }
+
+    const updatedUser = await confirmAccountEmailChange(session.token, code)
+    updateSessionUser(updatedUser)
+  }
+
+  const handleAccountDeletionRequest = async () => {
     if (!session) {
       throw new Error("You need to be logged in to delete your account.")
     }
 
-    await deleteAccount(session.token, input)
+    return requestAccountDeletion(session.token)
+  }
+
+  const handleAccountDeletionCodeConfirm = async (input: { userId: string; code: string }) => {
+    await confirmAccountDeletionCode(input)
     logout()
   }
 
@@ -727,7 +787,7 @@ export default function App() {
     setView("editor")
   }
 
-  const returnToProjectDashboard = () => {
+  const returnToProjectLibrary = () => {
     // Smoothly transition back to the dashboard instead of snapping between screens.
     if (viewFadePhase !== "idle") {
       return
@@ -826,6 +886,42 @@ export default function App() {
     return variables as CSSProperties
   }, [customPaletteAccent, customPaletteBackground, palette, selectedFont])
 
+  const currentPathname = useMemo(() => {
+    if (typeof window === "undefined") {
+      return "/"
+    }
+
+    return new URL(currentLocation, window.location.origin).pathname
+  }, [currentLocation])
+
+  const passwordResetToken = useMemo(() => {
+    if (typeof window === "undefined" || currentPathname !== "/reset-password") {
+      return ""
+    }
+
+    const url = new URL(currentLocation, window.location.origin)
+    return url.searchParams.get("token")?.trim() ?? ""
+  }, [currentLocation, currentPathname])
+
+  if (currentPathname === "/reset-password") {
+    return (
+      <div className={`app app--palette-${palette}`.trim()} style={appStyleVariables}>
+        <PasswordResetPage
+          token={passwordResetToken}
+          onBackToApp={() => {
+            if (typeof window === "undefined") {
+              return
+            }
+
+            const nextPath = session ? "/app" : "/auth"
+            window.history.replaceState({}, "", nextPath)
+            setCurrentLocation(nextPath)
+          }}
+        />
+      </div>
+    )
+  }
+
   if (isAuthBootstrapping) {
     return (
       <div className={`app app--palette-${palette}`.trim()} style={appStyleVariables}>
@@ -836,10 +932,54 @@ export default function App() {
     )
   }
 
-  if (!session) {
+  if (currentPathname === "/") {
     return (
       <div className={`app app--palette-${palette}`.trim()} style={appStyleVariables}>
-        <AuthGateway onAuthenticated={handleAuthenticated} loadError={authLoadError} />
+        <Home
+          isLoggedIn={Boolean(session)}
+          onLaunchDashboard={() => {
+            if (typeof window !== "undefined") {
+              window.history.replaceState({}, "", "/app")
+              setCurrentLocation("/app")
+            }
+
+            setView("projects")
+          }}
+          onOpenAuth={() => {
+            if (typeof window !== "undefined") {
+              window.history.pushState({}, "", "/auth")
+              setCurrentLocation("/auth")
+            }
+          }}
+        />
+      </div>
+    )
+  }
+
+  if (currentPathname === "/auth" || !session) {
+    return (
+      <div className={`app app--palette-${palette}`.trim()} style={appStyleVariables}>
+        <AuthPage
+          onAuthenticated={handleAuthenticated}
+          loadError={authLoadError}
+          isLoggedIn={Boolean(session)}
+          signedInFirstName={session?.user.firstName ?? ""}
+          onLaunchDashboard={() => {
+            if (typeof window !== "undefined") {
+              window.history.replaceState({}, "", "/app")
+              setCurrentLocation("/app")
+            }
+
+            setView("projects")
+          }}
+          onSignOut={logout}
+          onBackToLanding={() => {
+            if (typeof window !== "undefined") {
+              window.history.pushState({}, "", "/")
+              setCurrentLocation("/")
+            }
+          }}
+        />
       </div>
     )
   }
@@ -854,9 +994,12 @@ export default function App() {
         <button
           type="button"
           className={`app-brand ${isMenuBarEnabled && (view === "editor" || view === "projects") ? "app-brand--with-menu" : ""}`.trim()}
-          aria-label="Go to projects"
+          aria-label="Go to home page"
           onClick={() => {
-            setView("projects")
+            if (typeof window !== "undefined") {
+              window.history.pushState({}, "", "/")
+              setCurrentLocation("/")
+            }
           }}
         >
           <span className="app-brand__name">ivoryscribe</span>
@@ -866,7 +1009,7 @@ export default function App() {
         {/* Dashboard if requested (or if nothing is active), otherwise the editor workspace. */}
         <div className={`app-view ${viewFadePhase === "fading-out" ? "app-view--fade-out" : ""} ${viewFadePhase === "fading-in" ? "app-view--fade-in" : ""}`.trim()}>
           {view === "projects" || !activeProject ? (
-            <ProjectDashboard
+            <ProjectLibrary
               projects={projects}
               folders={folders}
               activeProjectId={activeProjectId}
@@ -883,7 +1026,7 @@ export default function App() {
               menuBarEnabled={isMenuBarEnabled}
               flagsEnabled={isFlagsEnabled}
               isEditorTyping={isEditorTyping}
-              onReturnToDashboard={returnToProjectDashboard}
+              onReturnToDashboard={returnToProjectLibrary}
               onProjectChange={updateActiveProject}
               onEditorTypingStateChange={setIsEditorTyping}
             />
@@ -926,6 +1069,7 @@ export default function App() {
           onCustomPaletteAccentChange={setCustomPaletteAccent}
           accountFirstName={session.user.firstName ?? ""}
           accountLastName={session.user.lastName ?? ""}
+          accountEmail={session.user.email ?? ""}
           activeProjectName={activeProject?.name ?? ""}
           activeProjectKind={activeProject?.kind ?? "Book"}
           activeProjectColor={activeProject?.color ?? "#7ea8ff"}
@@ -962,8 +1106,12 @@ export default function App() {
             exportProjectAsPdf(activeProject)
           }}
           onSaveAccountProfile={handleAccountProfileSave}
-          onChangeAccountPassword={handleAccountPasswordChange}
-          onDeleteAccount={handleAccountDelete}
+          onRequestAccountEmailChange={handleAccountEmailChangeRequest}
+          onVerifyCurrentAccountEmailChange={handleAccountCurrentEmailChangeVerify}
+          onConfirmAccountEmailChange={handleAccountEmailChangeConfirm}
+          onRequestPasswordReset={handleAccountPasswordResetRequest}
+          onRequestAccountDeletion={handleAccountDeletionRequest}
+          onConfirmAccountDeletionCode={handleAccountDeletionCodeConfirm}
           onSignOut={logout}
         />
       </main>

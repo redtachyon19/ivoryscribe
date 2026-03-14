@@ -42,7 +42,7 @@
 .project-hub__header p {
   margin: 8px 0 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
-  font-size: 16px;
+  font-size: 20px;
   font-family: "Times New Roman", Times, serif;
 }
 

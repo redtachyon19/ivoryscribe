@@ -1,11 +1,11 @@
 import { useEffect, useMemo } from "react"
 import { BookText, Library, NotebookText } from "lucide-react"
-import Editor from "../Editor"
+import Editor from "../../Editor"
 import DocumentTabs from "../components/DocumentTabs"
 import TuskAiTab from "../components/TuskAiTab"
-import { EXPORT_ALL_TABS_PDF_EVENT } from "../core/editorEvents"
-import { exportProjectAsPdf } from "../core/pdfExport"
-import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../core/projects"
+import { EXPORT_ALL_TABS_PDF_EVENT } from "../../core/editorEvents"
+import { exportProjectAsPdf } from "../../core/pdfExport"
+import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../core/projects"
 import "./EditorWorkspace.css"
 
 function findTabTitleById(tabs: Project["tabs"], targetId: string): string | null {
@@ -117,7 +117,7 @@ export default function EditorWorkspace({
         <button
           type="button"
           className={`editor-workspace__project-label ${menuBarEnabled ? "editor-workspace__project-label--with-menu" : ""} ${isEditorTyping ? "editor-workspace__project-label--hidden" : ""}`.trim()}
-          aria-label="Return to project dashboard"
+          aria-label="Return to project library"
           onClick={onReturnToDashboard}
         >
           <span className="editor-workspace__project-label-content editor-workspace__project-label-content--default" aria-hidden={true}>
@@ -126,7 +126,7 @@ export default function EditorWorkspace({
           </span>
           <span className="editor-workspace__project-label-content editor-workspace__project-label-content--return" aria-hidden={true}>
             <Library size={14} strokeWidth={2} />
-            <span>Return to project dashboard</span>
+            <span>Return to project library</span>
           </span>
         </button>
       </div>

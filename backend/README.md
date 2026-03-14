@@ -55,6 +55,20 @@ For local development, keep `DB_SYNC_MODE=safe` to avoid accidental data loss.
 - `POST /api/auth/resend-verification`
   - body: `{ "userId": "<uuid>" }`
   - re-sends verification code by email
+- `POST /api/auth/request-account-deletion` (authenticated)
+  - sends account deletion confirmation email link
+- `POST /api/auth/request-password-reset` (authenticated)
+  - sends password reset link by email
+- `GET /api/auth/password-reset-info?token=<token>`
+  - validates reset token and returns username for reset UI
+- `POST /api/auth/reset-password`
+  - body: `{ "token": "<token>", "newPassword": "new-password" }`
+  - updates password when token is valid and not expired
+- `POST /api/auth/confirm-account-deletion-code`
+  - body: `{ "userId": "<uuid>", "code": "123456" }`
+  - deletes account if code is valid and not expired
+- `GET /api/auth/confirm-account-deletion?token=<token>`
+  - deletes account when email link token is valid and not expired
 
 `/register` returns verification metadata. `/verify-email` and `/login` (for verified users) return:
 
@@ -79,8 +93,10 @@ Set these in `backend/.env`:
 
 - `RESEND_API_KEY=...`
 - `RESEND_FROM_EMAIL="IvoryScribe <onboarding@resend.dev>"`
+- `FRONTEND_PUBLIC_URL="http://localhost:5173"` (used in password reset email links)
 
 For local schema migration, run once with `DB_SYNC_MODE=alter` so new email verification columns are created, then switch back to `safe`.
+Run once in `alter` mode after pulling account deletion changes so the deletion challenge columns are created.
 
 ## 4. Document Endpoints (Authenticated)
 
