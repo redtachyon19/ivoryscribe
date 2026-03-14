@@ -170,28 +170,121 @@ export async function updateAccountProfile(token: string, input: { firstName: st
   return payload.user
 }
 
-export async function updateAccountPassword(
-  token: string,
-  input: { currentPassword: string; newPassword: string },
-) {
-  return request<{ message: string }>(
-    "/api/auth/password",
+export async function requestAccountEmailChange(token: string, email: string) {
+  return request<{
+    message: string
+    change: {
+      currentEmail: string
+      newEmail: string
+      step: "verify-current-email"
+    }
+  }>(
+    "/api/auth/request-email-change",
     {
-      method: "PATCH",
-      body: JSON.stringify(input),
+      method: "POST",
+      body: JSON.stringify({ email }),
     },
     token,
   )
 }
 
-export async function deleteAccount(token: string, input: { currentPassword: string }) {
-  return request<{ message: string }>(
-    "/api/auth/account",
+export async function verifyCurrentEmailForAccountChange(token: string, code: string) {
+  return request<{
+    message: string
+    change: {
+      currentEmail: string
+      newEmail: string
+      step: "verify-new-email"
+    }
+  }>(
+    "/api/auth/verify-current-email-change",
     {
-      method: "DELETE",
-      body: JSON.stringify(input),
+      method: "POST",
+      body: JSON.stringify({ code }),
     },
     token,
+  )
+}
+
+export async function confirmAccountEmailChange(token: string, code: string) {
+  const payload = await request<{
+    message: string
+    user: {
+      id: string
+      firstName: string
+      lastName: string
+      email: string
+      isEmailVerified: boolean
+    }
+  }>(
+    "/api/auth/confirm-email-change",
+    {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    },
+    token,
+  )
+
+  return payload.user
+}
+
+export async function requestPasswordResetLink(token: string) {
+  return request<{
+    message: string
+    reset: {
+      username: string
+      email: string
+    }
+  }>(
+    "/api/auth/request-password-reset",
+    {
+      method: "POST",
+    },
+    token,
+  )
+}
+
+export async function getPasswordResetInfo(token: string) {
+  return request<{
+    reset: {
+      username: string
+    }
+  }>(`/api/auth/password-reset-info?token=${encodeURIComponent(token)}`)
+}
+
+export async function resetPasswordFromToken(input: { token: string; newPassword: string }) {
+  return request<{ message: string }>(
+    "/api/auth/reset-password",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  )
+}
+
+export async function requestAccountDeletion(token: string) {
+  return request<{
+    message: string
+    deletion: {
+      userId: string
+      email: string
+    }
+  }>(
+    "/api/auth/request-account-deletion",
+    {
+      method: "POST",
+    },
+    token,
+  )
+}
+
+export async function confirmAccountDeletionCode(input: { userId: string; code: string }) {
+  return request<{ message: string }>(
+    "/api/auth/confirm-account-deletion-code",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
   )
 }
 

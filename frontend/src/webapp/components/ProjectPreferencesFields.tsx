@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { BookText, Download, NotebookText } from "lucide-react"
-import type { ProjectKind } from "../core/projects"
+import type { ProjectKind } from "../../core/projects"
 import "./ProjectPreferencesFields.css"
 
 type ProjectPreferencesFieldsProps = {

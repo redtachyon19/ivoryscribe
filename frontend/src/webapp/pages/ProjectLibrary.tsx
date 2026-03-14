@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react"
 import { BookCopy, BookText, Folder, GripVertical, NotebookText, Plus, ScrollText, Settings2, Trash2, X } from "lucide-react"
-import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../core/editorEvents"
-import { exportProjectAsPdf } from "../core/pdfExport"
-import { collectTabIds, getProjectEntryTerms, type Project, type ProjectKind } from "../core/projects"
+import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
+import { exportProjectAsPdf } from "../../core/pdfExport"
+import { collectTabIds, getProjectEntryTerms, type Project, type ProjectKind } from "../../core/projects"
 import ProjectPreferencesFields from "../components/ProjectPreferencesFields"
-import "./ProjectDashboard.css"
+import "./ProjectLibrary.css"
 
 export type ProjectFolder = {
   id: string
@@ -147,7 +147,7 @@ function buildProjectEmojiWallpaperRows(value: string) {
   })
 }
 
-type ProjectDashboardProps = {
+type ProjectLibraryProps = {
   projects: Project[]
   folders: ProjectFolder[]
   activeProjectId: string | null
@@ -158,7 +158,7 @@ type ProjectDashboardProps = {
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
 }
 
-export default function ProjectDashboard({
+export default function ProjectLibrary({
   projects,
   folders,
   activeProjectId,
@@ -167,7 +167,7 @@ export default function ProjectDashboard({
   setProjects,
   setFolders,
   setActiveProjectId,
-}: ProjectDashboardProps) {
+}: ProjectLibraryProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState("")
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -1157,7 +1157,7 @@ export default function ProjectDashboard({
       <div className={`project-hub__content ${isDeleteModalRendered || isProjectSettingsRendered ? "project-hub__content--blurred" : ""}`.trim()}>
         <header className="project-hub__header">
           <div className="project-hub__title-row">
-            <h1>Projects</h1>
+            <h1>Project Library</h1>
             <div className="project-hub__create-menu-wrap" ref={createMenuWrapRef}>
               <button
                 type="button"

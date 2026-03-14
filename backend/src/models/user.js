@@ -50,6 +50,26 @@ export default function createUserModel(sequelize) {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      accountDeletionToken: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      accountDeletionCode: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      accountDeletionExpiresAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      passwordResetToken: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      passwordResetExpiresAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       name: {
         type: DataTypes.STRING,
         allowNull: false,

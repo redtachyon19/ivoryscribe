@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react"
 import { CornerDownRight, Pencil, Plus, TableOfContents, Trash2, X } from "lucide-react"
-import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../core/projects"
+import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../core/projects"
 import "./DocumentTabs.css"
 
 type DropMode = "before" | "after" | "inside"

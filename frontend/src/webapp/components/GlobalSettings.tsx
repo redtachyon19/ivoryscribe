@@ -1,6 +1,6 @@
-import { AArrowDown, AArrowUp, ChevronDown, CornerDownRight, LockKeyhole, LogOut, Palette, ScrollText, Settings, Trash2, UserRound, X } from "lucide-react"
+import { AArrowDown, AArrowUp, ChevronDown, CornerDownRight, Lock, LockKeyhole, LockOpen, LogOut, Palette, ScrollText, Settings, Trash2, UserRound, X } from "lucide-react"
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties } from "react"
-import type { ProjectKind } from "../core/projects"
+import type { ProjectKind } from "../../core/projects"
 import ProjectPreferencesFields from "./ProjectPreferencesFields"
 import "./GlobalSettings.css"
 
@@ -44,6 +44,7 @@ type GlobalSettingsProps = {
   onCustomPaletteAccentChange: (color: string) => void
   accountFirstName: string
   accountLastName: string
+  accountEmail: string
   activeProjectName: string
   activeProjectKind: ProjectKind
   activeProjectColor: string
@@ -54,8 +55,12 @@ type GlobalSettingsProps = {
   onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onExportProjectAsPdf: () => void
   onSaveAccountProfile: (input: { firstName: string; lastName: string }) => Promise<void> | void
-  onChangeAccountPassword: (input: { currentPassword: string; newPassword: string }) => Promise<void> | void
-  onDeleteAccount: (input: { currentPassword: string }) => Promise<void> | void
+  onRequestAccountEmailChange: (email: string) => Promise<{ message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }> | { message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }
+  onVerifyCurrentAccountEmailChange: (code: string) => Promise<{ message: string; change: { currentEmail: string; newEmail: string; step: "verify-new-email" } }> | { message: string; change: { currentEmail: string; newEmail: string; step: "verify-new-email" } }
+  onConfirmAccountEmailChange: (code: string) => Promise<void> | void
+  onRequestPasswordReset: () => Promise<{ message: string; reset: { username: string; email: string } }> | { message: string; reset: { username: string; email: string } }
+  onRequestAccountDeletion: () => Promise<{ message: string; deletion: { userId: string; email: string } }> | { message: string; deletion: { userId: string; email: string } }
+  onConfirmAccountDeletionCode: (input: { userId: string; code: string }) => Promise<void> | void
   onSignOut: () => void
 }
 
@@ -89,6 +94,7 @@ export default function GlobalSettings({
   onCustomPaletteAccentChange,
   accountFirstName,
   accountLastName,
+  accountEmail,
   activeProjectName,
   activeProjectKind,
   activeProjectColor,
@@ -99,10 +105,25 @@ export default function GlobalSettings({
   onActiveProjectWallpaperEmojisChange,
   onExportProjectAsPdf,
   onSaveAccountProfile,
-  onChangeAccountPassword,
-  onDeleteAccount,
+  onRequestAccountEmailChange,
+  onVerifyCurrentAccountEmailChange,
+  onConfirmAccountEmailChange,
+  onRequestPasswordReset,
+  onRequestAccountDeletion,
+  onConfirmAccountDeletionCode,
   onSignOut,
 }: GlobalSettingsProps) {
+  type ActionFeedback = {
+    kind: "password" | "delete"
+    title: string
+    message: string
+    isError: boolean
+    email?: string
+    userId?: string
+    code?: string
+    isSubmitting?: boolean
+  }
+
   type SectionId = "account" | "appearance" | "project-preferences"
   const sectionIds: SectionId[] = showProjectPreferences ? ["account", "appearance", "project-preferences"] : ["account", "appearance"]
 
@@ -137,18 +158,25 @@ export default function GlobalSettings({
   const [customAccentHexDraft, setCustomAccentHexDraft] = useState(customPaletteAccent.toUpperCase())
   const [accountFirstNameDraft, setAccountFirstNameDraft] = useState(accountFirstName)
   const [accountLastNameDraft, setAccountLastNameDraft] = useState(accountLastName)
-  const [currentPasswordDraft, setCurrentPasswordDraft] = useState("")
-  const [newPasswordDraft, setNewPasswordDraft] = useState("")
-  const [confirmPasswordDraft, setConfirmPasswordDraft] = useState("")
-  const [accountFeedback, setAccountFeedback] = useState("")
+  const [accountEmailDraft, setAccountEmailDraft] = useState(accountEmail)
+  const [currentEmailCodeDraft, setCurrentEmailCodeDraft] = useState("")
+  const [newEmailCodeDraft, setNewEmailCodeDraft] = useState("")
+  const [pendingAccountEmail, setPendingAccountEmail] = useState("")
+  const [emailChangeStep, setEmailChangeStep] = useState<"idle" | "verify-current-email" | "verify-new-email">("idle")
+  const [accountEmailFeedback, setAccountEmailFeedback] = useState("")
+  const [accountEmailError, setAccountEmailError] = useState("")
+  const [isEmailFieldUnlocked, setIsEmailFieldUnlocked] = useState(false)
   const [accountError, setAccountError] = useState("")
-  const [passwordFeedback, setPasswordFeedback] = useState("")
-  const [passwordError, setPasswordError] = useState("")
-  const [isSavingAccount, setIsSavingAccount] = useState(false)
+  const [isRequestingEmailChange, setIsRequestingEmailChange] = useState(false)
+  const [isVerifyingCurrentEmailChange, setIsVerifyingCurrentEmailChange] = useState(false)
+  const [isConfirmingEmailChange, setIsConfirmingEmailChange] = useState(false)
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
-  const [deleteAccountError, setDeleteAccountError] = useState("")
   const [isDeletingAccount, setIsDeletingAccount] = useState(false)
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null)
+  const [actionFeedbackSnapshot, setActionFeedbackSnapshot] = useState<ActionFeedback | null>(null)
+  const [isActionFeedbackRendered, setIsActionFeedbackRendered] = useState(false)
+  const [isActionFeedbackClosing, setIsActionFeedbackClosing] = useState(false)
+  const accountAutoSaveRequestRef = useRef(0)
   const CUSTOM_FONT_OPTION_VALUE = "__custom_local_font__"
   const MIN_FONT_SIZE = 20
   const MAX_FONT_SIZE = 84
@@ -165,8 +193,31 @@ export default function GlobalSettings({
   }
 
   const isCompleteHexColor = (value: string) => /^#[0-9A-F]{6}$/.test(value)
+  const isActionFeedbackOpen = Boolean(actionFeedback)
+  const activeActionFeedback = actionFeedback ?? actionFeedbackSnapshot
   const triggerIsLayeredAboveOverlay = isOpen || isRendered
   const triggerLabel = isOpen ? "Close Settings" : "Open Settings"
+
+  const openActionFeedback = (nextFeedback: ActionFeedback) => {
+    setActionFeedback(nextFeedback)
+    setActionFeedbackSnapshot(nextFeedback)
+  }
+
+  const closeActionFeedback = () => {
+    setActionFeedback(null)
+  }
+
+  const updateDeleteFeedback = (updater: (current: ActionFeedback) => ActionFeedback) => {
+    setActionFeedback((current) => {
+      if (!current || current.kind !== "delete") {
+        return current
+      }
+
+      const next = updater(current)
+      setActionFeedbackSnapshot(next)
+      return next
+    })
+  }
 
   const sectionNavItems: { id: SectionId; label: string; icon: ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }> }[] = [
     { id: "account", label: "Account Settings", icon: UserRound },
@@ -210,6 +261,13 @@ export default function GlobalSettings({
   }, [accountLastName])
 
   useEffect(() => {
+    setAccountEmailDraft(accountEmail)
+    setIsEmailFieldUnlocked(false)
+  }, [accountEmail])
+
+  const hasEmailDraftChanged = accountEmailDraft.trim().toLowerCase() !== accountEmail.trim().toLowerCase()
+
+  useEffect(() => {
     if (isOpen) {
       setIsRendered(true)
       setIsClosing(false)
@@ -247,18 +305,40 @@ export default function GlobalSettings({
     if (!isOpen || !isRendered) {
       setIsFontMenuOpen(false)
       setIsPaletteMenuOpen(false)
-      setIsPasswordModalOpen(false)
     }
   }, [isOpen, isRendered])
 
   useEffect(() => {
-    if (!isPasswordModalOpen) {
+    if (isActionFeedbackOpen) {
+      setIsActionFeedbackRendered(true)
+      setIsActionFeedbackClosing(false)
+      return
+    }
+
+    if (!isActionFeedbackRendered) {
+      return
+    }
+
+    setIsActionFeedbackClosing(true)
+    const timeoutId = window.setTimeout(() => {
+      setIsActionFeedbackRendered(false)
+      setIsActionFeedbackClosing(false)
+      setActionFeedbackSnapshot(null)
+    }, 170)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [isActionFeedbackOpen, isActionFeedbackRendered])
+
+  useEffect(() => {
+    if (!isActionFeedbackRendered) {
       return
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsPasswordModalOpen(false)
+        closeActionFeedback()
       }
     }
 
@@ -266,7 +346,7 @@ export default function GlobalSettings({
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
-  }, [isPasswordModalOpen])
+  }, [isActionFeedbackRendered])
 
   useEffect(() => {
     if (!isFontMenuOpen && !isPaletteMenuOpen) {
@@ -434,123 +514,255 @@ export default function GlobalSettings({
     section.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 
-  const saveAccountProfile = async () => {
+  useEffect(() => {
     const nextFirstName = accountFirstNameDraft.trim()
     const nextLastName = accountLastNameDraft.trim()
+    const currentFirstName = accountFirstName.trim()
+    const currentLastName = accountLastName.trim()
 
     if (!nextFirstName || !nextLastName) {
-      setAccountError("First and last name are required.")
-      setAccountFeedback("")
       return
     }
 
     if (nextFirstName.length > 80 || nextLastName.length > 80) {
       setAccountError("First and last name must be 80 characters or fewer.")
-      setAccountFeedback("")
       return
     }
 
-    setIsSavingAccount(true)
+    if (nextFirstName === currentFirstName && nextLastName === currentLastName) {
+      return
+    }
+
     setAccountError("")
-    setAccountFeedback("")
+
+    const requestId = accountAutoSaveRequestRef.current + 1
+    accountAutoSaveRequestRef.current = requestId
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        await onSaveAccountProfile({
+          firstName: nextFirstName,
+          lastName: nextLastName,
+        })
+      } catch (error) {
+        if (accountAutoSaveRequestRef.current === requestId) {
+          setAccountError(error instanceof Error ? error.message : "Failed to update account details")
+        }
+      } finally {
+        if (accountAutoSaveRequestRef.current === requestId) {
+        }
+      }
+    }, 420)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [accountFirstNameDraft, accountLastNameDraft, accountFirstName, accountLastName, onSaveAccountProfile])
+
+  const requestAccountEmailChange = async () => {
+    const nextEmail = accountEmailDraft.trim().toLowerCase()
+
+    if (!nextEmail) {
+      setAccountEmailError("Email is required.")
+      setAccountEmailFeedback("")
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
+      setAccountEmailError("Enter a valid email address.")
+      setAccountEmailFeedback("")
+      return
+    }
+
+    if (nextEmail === accountEmail.toLowerCase()) {
+      setAccountEmailError("This is already your current email.")
+      setAccountEmailFeedback("")
+      return
+    }
+
+    setIsRequestingEmailChange(true)
+    setAccountEmailError("")
+    setAccountEmailFeedback("")
 
     try {
-      await onSaveAccountProfile({
-        firstName: nextFirstName,
-        lastName: nextLastName,
-      })
-      setAccountFeedback("Account details updated.")
+      const result = await onRequestAccountEmailChange(nextEmail)
+      setPendingAccountEmail(result.change.newEmail)
+      setEmailChangeStep("verify-current-email")
+      setCurrentEmailCodeDraft("")
+      setNewEmailCodeDraft("")
+      setAccountEmailFeedback(`Code sent to your current email (${result.change.currentEmail}). Enter it to continue.`)
     } catch (error) {
-      setAccountError(error instanceof Error ? error.message : "Failed to update account details")
+      setAccountEmailError(error instanceof Error ? error.message : "Failed to request email change")
     } finally {
-      setIsSavingAccount(false)
+      setIsRequestingEmailChange(false)
     }
   }
 
-  const updatePassword = async () => {
-    if (!currentPasswordDraft || !newPasswordDraft || !confirmPasswordDraft) {
-      setPasswordError("Current password, new password, and confirmation are required.")
-      setPasswordFeedback("")
+  const verifyCurrentAccountEmailChange = async () => {
+    const code = currentEmailCodeDraft.trim()
+    if (!/^\d{6}$/.test(code)) {
+      setAccountEmailError("Enter the 6-digit code sent to your current email.")
+      setAccountEmailFeedback("")
       return
     }
 
-    if (newPasswordDraft.length < 8) {
-      setPasswordError("New password must be at least 8 characters.")
-      setPasswordFeedback("")
-      return
-    }
-
-    if (newPasswordDraft !== confirmPasswordDraft) {
-      setPasswordError("New password and confirmation do not match.")
-      setPasswordFeedback("")
-      return
-    }
-
-    setIsUpdatingPassword(true)
-    setPasswordError("")
-    setPasswordFeedback("")
+    setIsVerifyingCurrentEmailChange(true)
+    setAccountEmailError("")
+    setAccountEmailFeedback("")
 
     try {
-      await onChangeAccountPassword({
-        currentPassword: currentPasswordDraft,
-        newPassword: newPasswordDraft,
-      })
-      setCurrentPasswordDraft("")
-      setNewPasswordDraft("")
-      setConfirmPasswordDraft("")
-      setPasswordFeedback("Password updated.")
-      setIsPasswordModalOpen(false)
+      const result = await onVerifyCurrentAccountEmailChange(code)
+      setEmailChangeStep("verify-new-email")
+      setPendingAccountEmail(result.change.newEmail)
+      setNewEmailCodeDraft("")
+      setAccountEmailFeedback(`Current email verified. Enter the 6-digit code sent to ${result.change.newEmail}.`)
     } catch (error) {
-      setPasswordError(error instanceof Error ? error.message : "Failed to update password")
+      setAccountEmailError(error instanceof Error ? error.message : "Failed to verify current email")
+    } finally {
+      setIsVerifyingCurrentEmailChange(false)
+    }
+  }
+
+  const confirmAccountEmailChange = async () => {
+    const code = newEmailCodeDraft.trim()
+    if (!/^\d{6}$/.test(code)) {
+      setAccountEmailError("Enter the 6-digit code sent to your new email.")
+      setAccountEmailFeedback("")
+      return
+    }
+
+    setIsConfirmingEmailChange(true)
+    setAccountEmailError("")
+    setAccountEmailFeedback("")
+
+    try {
+      await onConfirmAccountEmailChange(code)
+      setPendingAccountEmail("")
+      setEmailChangeStep("idle")
+      setCurrentEmailCodeDraft("")
+      setNewEmailCodeDraft("")
+      setAccountEmailFeedback("Email updated successfully.")
+    } catch (error) {
+      setAccountEmailError(error instanceof Error ? error.message : "Failed to confirm email change")
+    } finally {
+      setIsConfirmingEmailChange(false)
+    }
+  }
+
+  const requestPasswordReset = async () => {
+    setIsUpdatingPassword(true)
+    onClose()
+
+    openActionFeedback({
+      kind: "password",
+      title: "Reset Password",
+      message: "Sending password reset email...",
+      isError: false,
+    })
+
+    try {
+      const result = await onRequestPasswordReset()
+      openActionFeedback({
+        kind: "password",
+        title: "Reset Link Sent",
+        message: `Password reset email sent to ${result.reset.email}. Open the link in that email to set your new password.`,
+        isError: false,
+      })
+    } catch (error) {
+      openActionFeedback({
+        kind: "password",
+        title: "Unable To Send Reset Link",
+        message: error instanceof Error ? error.message : "Failed to request password reset",
+        isError: true,
+      })
     } finally {
       setIsUpdatingPassword(false)
     }
   }
 
-  const openPasswordModal = () => {
-    setCurrentPasswordDraft("")
-    setNewPasswordDraft("")
-    setConfirmPasswordDraft("")
-    setPasswordError("")
-    setPasswordFeedback("")
-    setIsPasswordModalOpen(true)
-  }
-
-  const deleteAccount = async (currentPassword: string) => {
+  const requestAccountDeletion = async () => {
     setIsDeletingAccount(true)
-    setDeleteAccountError("")
+    onClose()
+
+    openActionFeedback({
+      kind: "delete",
+      title: "Delete Account",
+      message: "Sending deletion confirmation email...",
+      isError: false,
+      email: "",
+      userId: "",
+      code: "",
+      isSubmitting: false,
+    })
 
     try {
-      await onDeleteAccount({ currentPassword })
+      const result = await onRequestAccountDeletion()
+      updateDeleteFeedback((current) => ({
+        ...current,
+        title: "Delete Account",
+        message: `A delete confirmation email was sent to ${result.deletion.email}. Enter the 6-digit code from that email to delete your account now, or use the email link.`,
+        isError: false,
+        email: result.deletion.email,
+        userId: result.deletion.userId,
+        code: current.code ?? "",
+        isSubmitting: false,
+      }))
     } catch (error) {
-      setDeleteAccountError(error instanceof Error ? error.message : "Failed to delete account")
+      updateDeleteFeedback((current) => ({
+        ...current,
+        title: "Unable To Send Deletion Link",
+        message: error instanceof Error ? error.message : "Failed to delete account",
+        isError: true,
+        isSubmitting: false,
+      }))
     } finally {
       setIsDeletingAccount(false)
     }
   }
 
-  const handleDeleteAccountClick = () => {
-    const deleteConfirmValue = window.prompt('Type "DELETE" to confirm account deletion.')
-    if (deleteConfirmValue === null) {
+  const confirmDeleteAccountWithCode = async () => {
+    if (!activeActionFeedback || activeActionFeedback.kind !== "delete") {
       return
     }
 
-    if (deleteConfirmValue.trim() !== "DELETE") {
-      setDeleteAccountError('Type "DELETE" to confirm account deletion.')
+    const userId = (activeActionFeedback.userId ?? "").trim()
+    const code = (activeActionFeedback.code ?? "").trim()
+
+    if (!userId) {
+      updateDeleteFeedback((current) => ({
+        ...current,
+        isError: true,
+        message: "Missing deletion request. Please request account deletion again.",
+      }))
       return
     }
 
-    const currentPassword = window.prompt("Enter your current password to delete your account.")
-    if (currentPassword === null) {
+    if (!/^\d{6}$/.test(code)) {
+      updateDeleteFeedback((current) => ({
+        ...current,
+        isError: true,
+        message: "Enter the 6-digit code from your deletion email.",
+      }))
       return
     }
 
-    if (!currentPassword) {
-      setDeleteAccountError("Current password is required to delete your account.")
-      return
-    }
+    updateDeleteFeedback((current) => ({
+      ...current,
+      isSubmitting: true,
+      isError: false,
+    }))
 
-    void deleteAccount(currentPassword)
+    try {
+      await onConfirmAccountDeletionCode({ userId, code })
+      closeActionFeedback()
+    } catch (error) {
+      updateDeleteFeedback((current) => ({
+        ...current,
+        isSubmitting: false,
+        isError: true,
+        message: error instanceof Error ? error.message : "Failed to confirm account deletion",
+      }))
+    }
   }
 
   const overlayStateClassName = isClosing ? "global-settings__overlay--closing" : "global-settings__overlay--opening"
@@ -629,60 +841,171 @@ export default function GlobalSettings({
                     <span>Account Settings</span>
                   </h3>
 
-                  <label className="global-settings__field" htmlFor="settings-account-first-name">
-                    <span>First name</span>
-                    <input
-                      id="settings-account-first-name"
-                      type="text"
-                      value={accountFirstNameDraft}
-                      onChange={(event) => {
-                        setAccountFirstNameDraft(event.target.value)
-                      }}
-                      maxLength={80}
-                      autoComplete="given-name"
-                      disabled={isSavingAccount}
-                    />
-                  </label>
+                  <div className="global-settings__name-row">
+                    <label className="global-settings__field" htmlFor="settings-account-first-name">
+                      <span>First name</span>
+                      <input
+                        id="settings-account-first-name"
+                        type="text"
+                        value={accountFirstNameDraft}
+                        onChange={(event) => {
+                          setAccountFirstNameDraft(event.target.value)
+                        }}
+                        onBlur={() => {
+                          if (!accountFirstNameDraft.trim()) {
+                            setAccountFirstNameDraft(accountFirstName)
+                          }
+                        }}
+                        maxLength={80}
+                        autoComplete="given-name"
+                      />
+                    </label>
 
-                  <label className="global-settings__field" htmlFor="settings-account-last-name">
-                    <span>Last name</span>
-                    <input
-                      id="settings-account-last-name"
-                      type="text"
-                      value={accountLastNameDraft}
-                      onChange={(event) => {
-                        setAccountLastNameDraft(event.target.value)
-                      }}
-                      maxLength={80}
-                      autoComplete="family-name"
-                      disabled={isSavingAccount}
-                    />
-                  </label>
+                    <label className="global-settings__field" htmlFor="settings-account-last-name">
+                      <span>Last name</span>
+                      <input
+                        id="settings-account-last-name"
+                        type="text"
+                        value={accountLastNameDraft}
+                        onChange={(event) => {
+                          setAccountLastNameDraft(event.target.value)
+                        }}
+                        onBlur={() => {
+                          if (!accountLastNameDraft.trim()) {
+                            setAccountLastNameDraft(accountLastName)
+                          }
+                        }}
+                        maxLength={80}
+                        autoComplete="family-name"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="global-settings__field">
+                    <span>Email</span>
+                    <div className="global-settings__email-field-row">
+                      <input
+                        className={`global-settings__email-input ${isEmailFieldUnlocked ? "global-settings__email-input--unlocked" : "global-settings__email-input--locked"}`.trim()}
+                        id="settings-account-email"
+                        type="text"
+                        value={accountEmailDraft}
+                        onChange={(event) => {
+                          setAccountEmailDraft(event.target.value)
+                        }}
+                        autoComplete="email"
+                        spellCheck={false}
+                        disabled={!isEmailFieldUnlocked || isRequestingEmailChange || isVerifyingCurrentEmailChange || isConfirmingEmailChange}
+                      />
+                      <button
+                        type="button"
+                        className="global-settings__email-lock-btn"
+                        aria-label={isEmailFieldUnlocked ? "Lock email field" : "Unlock email field"}
+                        title={isEmailFieldUnlocked ? "Lock email field" : "Unlock email field"}
+                        onClick={() => {
+                          setIsEmailFieldUnlocked((current) => !current)
+                        }}
+                        disabled={isRequestingEmailChange || isVerifyingCurrentEmailChange || isConfirmingEmailChange}
+                      >
+                        {isEmailFieldUnlocked ? <LockOpen size={15} strokeWidth={2} aria-hidden={true} /> : <Lock size={15} strokeWidth={2} aria-hidden={true} />}
+                      </button>
+                    </div>
+                  </div>
 
                   <div className="global-settings__account-actions">
-                    <button
-                      type="button"
-                      className="global-settings__account-action"
-                      onClick={() => {
-                        void saveAccountProfile()
-                      }}
-                      disabled={isSavingAccount}
-                    >
-                      {isSavingAccount ? "Saving..." : "Save account details"}
-                    </button>
-                    {accountFeedback ? <p className="global-settings__account-feedback">{accountFeedback}</p> : null}
-                    {accountError ? <p className="global-settings__account-error">{accountError}</p> : null}
+                    {hasEmailDraftChanged ? (
+                      <button
+                        type="button"
+                        className="global-settings__account-action"
+                        onClick={() => {
+                          void requestAccountEmailChange()
+                        }}
+                        disabled={!isEmailFieldUnlocked || isRequestingEmailChange || isVerifyingCurrentEmailChange || isConfirmingEmailChange}
+                      >
+                        {isRequestingEmailChange ? "Sending..." : "Save email change"}
+                      </button>
+                    ) : null}
+
+                    {emailChangeStep === "verify-current-email" ? (
+                      <label className="global-settings__field" htmlFor="settings-account-email-current-code">
+                        <span>Current email code</span>
+                        <input
+                          id="settings-account-email-current-code"
+                          type="text"
+                          inputMode="numeric"
+                          value={currentEmailCodeDraft}
+                          onChange={(event) => {
+                            setCurrentEmailCodeDraft(event.target.value.replace(/\D/g, "").slice(0, 6))
+                          }}
+                          autoComplete="one-time-code"
+                          placeholder="123456"
+                          disabled={isVerifyingCurrentEmailChange}
+                        />
+                      </label>
+                    ) : null}
+
+                    {emailChangeStep === "verify-current-email" ? (
+                      <button
+                        type="button"
+                        className="global-settings__account-action"
+                        onClick={() => {
+                          void verifyCurrentAccountEmailChange()
+                        }}
+                        disabled={isVerifyingCurrentEmailChange}
+                      >
+                        {isVerifyingCurrentEmailChange ? "Verifying..." : "Verify current email"}
+                      </button>
+                    ) : null}
+
+                    {emailChangeStep === "verify-new-email" ? (
+                      <label className="global-settings__field" htmlFor="settings-account-email-new-code">
+                        <span>New email code</span>
+                        <input
+                          id="settings-account-email-new-code"
+                          type="text"
+                          inputMode="numeric"
+                          value={newEmailCodeDraft}
+                          onChange={(event) => {
+                            setNewEmailCodeDraft(event.target.value.replace(/\D/g, "").slice(0, 6))
+                          }}
+                          autoComplete="one-time-code"
+                          placeholder="123456"
+                          disabled={isConfirmingEmailChange}
+                        />
+                      </label>
+                    ) : null}
+
+                    {emailChangeStep === "verify-new-email" ? (
+                      <button
+                        type="button"
+                        className="global-settings__account-action"
+                        onClick={() => {
+                          void confirmAccountEmailChange()
+                        }}
+                        disabled={isConfirmingEmailChange}
+                      >
+                        {isConfirmingEmailChange ? "Confirming..." : "Confirm email change"}
+                      </button>
+                    ) : null}
+
+                    {pendingAccountEmail ? <p className="global-settings__section-copy">Pending new email: {pendingAccountEmail}</p> : null}
+
+                    {accountEmailFeedback ? <p className="global-settings__account-feedback">{accountEmailFeedback}</p> : null}
+                    {accountEmailError ? <p className="global-settings__account-error">{accountEmailError}</p> : null}
                   </div>
+
+                  {accountError ? <p className="global-settings__account-error">{accountError}</p> : null}
 
                   <div className="global-settings__account-footer-actions">
                     <button
                       type="button"
                       className="global-settings__account-action global-settings__account-action--minimal"
-                      onClick={openPasswordModal}
+                      onClick={() => {
+                        void requestPasswordReset()
+                      }}
                       disabled={isUpdatingPassword}
                     >
                       <LockKeyhole size={14} strokeWidth={2} aria-hidden={true} />
-                      Change password
+                      {isUpdatingPassword ? "Sending..." : "Change password"}
                     </button>
                     <button
                       type="button"
@@ -695,16 +1018,16 @@ export default function GlobalSettings({
                     <button
                       type="button"
                       className="global-settings__account-action global-settings__account-action--danger-minimal"
-                      onClick={handleDeleteAccountClick}
+                      onClick={() => {
+                        void requestAccountDeletion()
+                      }}
                       disabled={isDeletingAccount}
                     >
                       <Trash2 size={14} strokeWidth={2} aria-hidden={true} />
-                      {isDeletingAccount ? "Deleting..." : "Delete"}
+                      {isDeletingAccount ? "Sending..." : "Delete"}
                     </button>
                   </div>
 
-                  {passwordFeedback ? <p className="global-settings__account-feedback">{passwordFeedback}</p> : null}
-                  {deleteAccountError ? <p className="global-settings__account-error">{deleteAccountError}</p> : null}
                 </section>
 
                 <section
@@ -1061,98 +1384,82 @@ export default function GlobalSettings({
             </div>
           </section>
 
-          {isPasswordModalOpen ? (
-            <>
-              <button
-                type="button"
-                className="global-settings__password-overlay"
-                aria-label="Close password dialog"
-                onClick={() => {
-                  setIsPasswordModalOpen(false)
-                }}
-              />
+        </>
+      ) : null}
 
-              <section
-                className="global-settings__password-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Change password"
-              >
-                <h3 className="global-settings__password-modal-title">
-                  <LockKeyhole size={18} strokeWidth={2} aria-hidden={true} />
-                  <span>Change Password</span>
+      {isActionFeedbackRendered && activeActionFeedback ? (
+        <>
+          <div
+            className={`project-settings-modal__overlay ${isActionFeedbackClosing ? "project-settings-modal__overlay--closing" : "project-settings-modal__overlay--opening"}`.trim()}
+            onMouseDown={closeActionFeedback}
+            aria-hidden="true"
+          />
+          <div className="project-settings-modal__frame">
+            <button
+              type="button"
+              className={`project-settings-modal__floating-close ${isActionFeedbackClosing ? "project-settings-modal__floating-close--closing" : "project-settings-modal__floating-close--opening"}`.trim()}
+              onClick={closeActionFeedback}
+              aria-label="Close action result"
+            >
+              <X size={16} strokeWidth={2} aria-hidden={true} />
+              <span className="project-settings-modal__floating-close-label">Close Settings</span>
+            </button>
+
+            <div
+              className={`project-settings-modal__modal ${isActionFeedbackClosing ? "project-settings-modal__modal--closing" : "project-settings-modal__modal--opening"} ${activeActionFeedback.kind === "delete" ? "project-delete-modal__modal" : ""}`.trim()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="global-settings-action-feedback-title"
+            >
+              <div className="project-settings-modal__header">
+                <h3 id="global-settings-action-feedback-title" className="project-settings-modal__title">
+                  {activeActionFeedback.kind === "delete" ? <Trash2 size={19} strokeWidth={1.9} aria-hidden={true} /> : <LockKeyhole size={19} strokeWidth={1.9} aria-hidden={true} />}
+                  <span>{activeActionFeedback.title}</span>
                 </h3>
+              </div>
 
-                <label className="global-settings__field" htmlFor="settings-account-current-password-modal">
-                  <span>Current password</span>
+              <p className={activeActionFeedback.isError ? "project-settings-modal__error" : "project-delete-modal__copy"}>{activeActionFeedback.message}</p>
+
+              {activeActionFeedback.kind === "delete" ? (
+                <label className="global-settings__delete-code-field" htmlFor="settings-delete-account-code">
+                  <span>6-digit code</span>
                   <input
-                    id="settings-account-current-password-modal"
-                    type="password"
-                    value={currentPasswordDraft}
+                    id="settings-delete-account-code"
+                    className="global-settings__delete-code-input"
+                    type="text"
+                    inputMode="numeric"
+                    value={activeActionFeedback.code ?? ""}
                     onChange={(event) => {
-                      setCurrentPasswordDraft(event.target.value)
+                      const nextCode = event.target.value.replace(/\D/g, "").slice(0, 6)
+                      updateDeleteFeedback((current) => ({
+                        ...current,
+                        code: nextCode,
+                      }))
                     }}
-                    autoComplete="current-password"
-                    disabled={isUpdatingPassword}
+                    autoComplete="one-time-code"
+                    placeholder="123456"
+                    disabled={Boolean(activeActionFeedback.isSubmitting)}
                   />
                 </label>
+              ) : null}
 
-                <label className="global-settings__field" htmlFor="settings-account-new-password-modal">
-                  <span>New password</span>
-                  <input
-                    id="settings-account-new-password-modal"
-                    type="password"
-                    value={newPasswordDraft}
-                    onChange={(event) => {
-                      setNewPasswordDraft(event.target.value)
-                    }}
-                    autoComplete="new-password"
-                    disabled={isUpdatingPassword}
-                  />
-                </label>
-
-                <label className="global-settings__field" htmlFor="settings-account-confirm-password-modal">
-                  <span>Confirm new password</span>
-                  <input
-                    id="settings-account-confirm-password-modal"
-                    type="password"
-                    value={confirmPasswordDraft}
-                    onChange={(event) => {
-                      setConfirmPasswordDraft(event.target.value)
-                    }}
-                    autoComplete="new-password"
-                    disabled={isUpdatingPassword}
-                  />
-                </label>
-
-                {passwordError ? <p className="global-settings__account-error">{passwordError}</p> : null}
-
-                <div className="global-settings__password-modal-actions">
+              {activeActionFeedback.kind === "delete" ? (
+                <div className="project-settings-modal__actions">
                   <button
                     type="button"
-                    className="global-settings__account-action global-settings__account-action--minimal"
+                    className="project-settings-modal__btn project-settings-modal__btn--danger"
                     onClick={() => {
-                      setIsPasswordModalOpen(false)
+                      void confirmDeleteAccountWithCode()
                     }}
-                    disabled={isUpdatingPassword}
+                    disabled={Boolean(activeActionFeedback.isSubmitting)}
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="global-settings__account-action global-settings__account-action--minimal"
-                    onClick={() => {
-                      void updatePassword()
-                    }}
-                    disabled={isUpdatingPassword}
-                  >
-                    <LockKeyhole size={14} strokeWidth={2} aria-hidden={true} />
-                    {isUpdatingPassword ? "Updating..." : "Update password"}
+                    <Trash2 size={14} strokeWidth={2} aria-hidden={true} />
+                    {activeActionFeedback.isSubmitting ? "Deleting..." : "Delete Account"}
                   </button>
                 </div>
-              </section>
-            </>
-          ) : null}
+              ) : null}
+            </div>
+          </div>
         </>
       ) : null}
     </>
