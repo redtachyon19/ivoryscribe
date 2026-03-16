@@ -64,7 +64,9 @@ type PreferencesRecord = {
   updatedAt: string
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:4000"
+const configuredApiBase = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "")
+const API_BASE = configuredApiBase ?? "http://localhost:4000"
+const DEV_FALLBACK_API_BASE = "http://localhost:4000"
 
 function isLikelyNetworkFailure(message: string) {
   const normalized = message.toLowerCase()
@@ -90,19 +92,35 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   }
 
   let response: Response
-
-  try {
-    response = await fetch(`${API_BASE}${path}`, {
+  const shouldTryDevFallback = import.meta.env.DEV && API_BASE !== DEV_FALLBACK_API_BASE
+  const tryFetch = (baseUrl: string) =>
+    fetch(`${baseUrl}${path}`, {
       ...options,
       headers,
     })
+
+  try {
+    response = await tryFetch(API_BASE)
   } catch (error) {
     const originalMessage = error instanceof Error ? error.message : "Request failed"
-    if (isLikelyNetworkFailure(originalMessage)) {
-      throw new Error(`[NETWORK] Unable to reach backend at ${API_BASE}. Check that the API server is running.`)
-    }
+    if (isLikelyNetworkFailure(originalMessage) && shouldTryDevFallback) {
+      try {
+        response = await tryFetch(DEV_FALLBACK_API_BASE)
+      } catch (fallbackError) {
+        const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : "Request failed"
+        if (isLikelyNetworkFailure(fallbackMessage)) {
+          throw new Error(
+            `[NETWORK] Unable to reach backend at ${API_BASE} or fallback ${DEV_FALLBACK_API_BASE}. Check that the API server is running.`,
+          )
+        }
 
-    throw new Error(`[NETWORK] ${originalMessage}`)
+        throw new Error(`[NETWORK] ${fallbackMessage}`)
+      }
+    } else if (isLikelyNetworkFailure(originalMessage)) {
+      throw new Error(`[NETWORK] Unable to reach backend at ${API_BASE}. Check that the API server is running.`)
+    } else {
+      throw new Error(`[NETWORK] ${originalMessage}`)
+    }
   }
 
   const payload = (await response.json().catch(() => ({}))) as { message?: string; details?: string }

@@ -7,13 +7,15 @@ type ProjectPreferencesFieldsProps = {
   fieldClassName: string
   projectName: string
   projectKind: ProjectKind
+  markdownEditorEnabled: boolean
   projectColor: string
   projectWallpaperEmojis: string
   onProjectNameChange: (name: string) => void
   onProjectKindChange: (kind: ProjectKind) => void
+  onMarkdownEditorEnabledChange: (enabled: boolean) => void
   onProjectColorChange: (color: string) => void
   onProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
-  onExportAsPdf: () => void
+  onExportProject: () => void
 }
 
 function splitGraphemes(value: string) {
@@ -66,13 +68,15 @@ export default function ProjectPreferencesFields({
   fieldClassName,
   projectName,
   projectKind,
+  markdownEditorEnabled,
   projectColor,
   projectWallpaperEmojis,
   onProjectNameChange,
   onProjectKindChange,
+  onMarkdownEditorEnabledChange,
   onProjectColorChange,
   onProjectWallpaperEmojisChange,
-  onExportAsPdf,
+  onExportProject,
 }: ProjectPreferencesFieldsProps) {
   const [projectColorHexDraft, setProjectColorHexDraft] = useState(projectColor.toUpperCase())
 
@@ -122,6 +126,42 @@ export default function ProjectPreferencesFields({
             <span>Blog</span>
           </button>
         </div>
+      </label>
+
+      <label
+        className={`${fieldClassName} project-preferences-fields__field project-preferences-fields__field--toggle`.trim()}
+        htmlFor="project-preferences-markdown-toggle"
+      >
+        <span className="project-preferences-fields__label">Markdown Editor</span>
+        <span className="project-preferences-fields__toggle-wrap">
+          <input
+            id="project-preferences-markdown-toggle"
+            className="project-preferences-fields__toggle-input"
+            type="checkbox"
+            checked={markdownEditorEnabled}
+            onChange={(event) => {
+              const shouldEnable = event.target.checked
+
+              if (markdownEditorEnabled && !shouldEnable) {
+                window.alert("Markdown Editor mode is permanent for this project and cannot be turned off.")
+                return
+              }
+
+              if (!markdownEditorEnabled && shouldEnable) {
+                const confirmed = window.confirm(
+                  "Turn on Markdown Editor mode for this project? This cannot be undone.",
+                )
+
+                if (!confirmed) {
+                  return
+                }
+              }
+
+              onMarkdownEditorEnabledChange(shouldEnable)
+            }}
+          />
+          <span className="project-preferences-fields__toggle-track" aria-hidden="true" />
+        </span>
       </label>
 
       <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
@@ -184,10 +224,10 @@ export default function ProjectPreferencesFields({
         <button
           type="button"
           className="project-preferences-fields__export-btn"
-          onClick={onExportAsPdf}
+          onClick={onExportProject}
         >
           <Download size={17} strokeWidth={2} aria-hidden="true" />
-          <span>Export as PDF</span>
+          <span>{markdownEditorEnabled ? "Download as .md" : "Export as PDF"}</span>
         </button>
       </div>
     </div>

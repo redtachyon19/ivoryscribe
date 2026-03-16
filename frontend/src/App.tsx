@@ -13,7 +13,8 @@ import {
   requestEditorFontFamilyChange,
   requestEditorFontSizeSet,
 } from "./core/editorEvents"
-import { projectWorkspaceMenu } from "./core/menu"
+import { getAppMenu, projectWorkspaceMenu } from "./core/menu"
+import { downloadProjectAsMarkdown } from "./core/markdown"
 import { exportProjectAsPdf } from "./core/pdfExport"
 import { DEFAULT_DOCUMENT_CONTENT, createProject, type Project, type ProjectKind } from "./core/projects"
 import {
@@ -990,7 +991,15 @@ export default function App() {
       style={appStyleVariables}
     >
       <main className="app-main">
-        {isMenuBarEnabled ? <WebMenu items={view === "projects" ? projectWorkspaceMenu : undefined} /> : null}
+        {isMenuBarEnabled ? (
+          <WebMenu
+            items={
+              view === "projects"
+                ? projectWorkspaceMenu
+                : getAppMenu({ markdownEditorEnabled: Boolean(activeProject?.markdownEditorEnabled) })
+            }
+          />
+        ) : null}
         <button
           type="button"
           className={`app-brand ${isMenuBarEnabled && (view === "editor" || view === "projects") ? "app-brand--with-menu" : ""}`.trim()}
@@ -1023,6 +1032,7 @@ export default function App() {
             <EditorWorkspace
               project={activeProject}
               activeContent={activeContent}
+              editorFontSize={fontSize}
               menuBarEnabled={isMenuBarEnabled}
               flagsEnabled={isFlagsEnabled}
               isEditorTyping={isEditorTyping}
@@ -1072,6 +1082,7 @@ export default function App() {
           accountEmail={session.user.email ?? ""}
           activeProjectName={activeProject?.name ?? ""}
           activeProjectKind={activeProject?.kind ?? "Book"}
+          activeProjectMarkdownEditorEnabled={Boolean(activeProject?.markdownEditorEnabled)}
           activeProjectColor={activeProject?.color ?? "#7ea8ff"}
           activeProjectWallpaperEmojis={activeProject?.wallpaperEmojis ?? ""}
           onActiveProjectNameChange={(nextName) => {
@@ -1086,6 +1097,21 @@ export default function App() {
               kind: nextKind,
             }))
           }}
+          onActiveProjectMarkdownEditorEnabledChange={(enabled) => {
+            updateActiveProject((currentProject) => {
+              if (currentProject.markdownEditorEnabled) {
+                return {
+                  ...currentProject,
+                  markdownEditorEnabled: true,
+                }
+              }
+
+              return {
+                ...currentProject,
+                markdownEditorEnabled: enabled,
+              }
+            })
+          }}
           onActiveProjectColorChange={(nextColor) => {
             updateActiveProject((currentProject) => ({
               ...currentProject,
@@ -1098,8 +1124,13 @@ export default function App() {
               wallpaperEmojis: nextWallpaperEmojis,
             }))
           }}
-          onExportProjectAsPdf={() => {
+          onExportProject={() => {
             if (!activeProject) {
+              return
+            }
+
+            if (activeProject.markdownEditorEnabled) {
+              downloadProjectAsMarkdown(activeProject)
               return
             }
 

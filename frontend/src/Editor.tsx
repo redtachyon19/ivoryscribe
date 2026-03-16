@@ -44,6 +44,7 @@ const FLAG_HIGHLIGHT_COLOR = "rgba(239, 68, 68, 0.3)"
 type EditorProps = {
   documentId: string | null
   documentTitle: string
+  hideDocumentTitle?: boolean
   content: string
   flagsEnabled: boolean
   onDocumentTitleChange: (nextTitle: string) => void
@@ -54,6 +55,7 @@ type EditorProps = {
 export default function Editor({
   documentId,
   documentTitle,
+  hideDocumentTitle = false,
   content,
   flagsEnabled,
   onDocumentTitleChange,
@@ -764,37 +766,39 @@ export default function Editor({
         setHoverLineAnchor(null)
       }}
     >
-      <input
-        className="editor-document-title"
-        value={titleDraft}
-        onChange={(event) => {
-          setTitleDraft(event.target.value)
-          markUiTypingActivity()
-        }}
-        onBlur={() => {
-          onDocumentTitleChange(titleDraft)
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault()
-            onDocumentTitleChange(titleDraft)
-            event.currentTarget.blur()
-            return
-          }
-
-          if (event.key === "Escape") {
-            event.preventDefault()
-            setTitleDraft(documentTitle)
-            event.currentTarget.blur()
-            return
-          }
-
-          if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key.length === 1 || event.key === "Backspace" || event.key === "Delete")) {
+      {!hideDocumentTitle ? (
+        <input
+          className="editor-document-title"
+          value={titleDraft}
+          onChange={(event) => {
+            setTitleDraft(event.target.value)
             markUiTypingActivity()
-          }
-        }}
-        aria-label="Document title"
-      />
+          }}
+          onBlur={() => {
+            onDocumentTitleChange(titleDraft)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              onDocumentTitleChange(titleDraft)
+              event.currentTarget.blur()
+              return
+            }
+
+            if (event.key === "Escape") {
+              event.preventDefault()
+              setTitleDraft(documentTitle)
+              event.currentTarget.blur()
+              return
+            }
+
+            if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key.length === 1 || event.key === "Backspace" || event.key === "Delete")) {
+              markUiTypingActivity()
+            }
+          }}
+          aria-label="Document title"
+        />
+      ) : null}
       <EditorContent editor={editor} />
       {flagsEnabled ? (
         <div

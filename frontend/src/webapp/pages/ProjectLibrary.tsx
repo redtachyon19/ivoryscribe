@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react"
 import { BookCopy, BookText, Folder, GripVertical, NotebookText, Plus, ScrollText, Settings2, Trash2, X } from "lucide-react"
 import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
+import { downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
 import { collectTabIds, getProjectEntryTerms, type Project, type ProjectKind } from "../../core/projects"
 import ProjectPreferencesFields from "../components/ProjectPreferencesFields"
@@ -182,6 +183,7 @@ export default function ProjectLibrary({
   const [projectSettingsName, setProjectSettingsName] = useState("")
   const [projectSettingsColor, setProjectSettingsColor] = useState("#7ea8ff")
   const [projectSettingsKind, setProjectSettingsKind] = useState<ProjectKind>("Book")
+  const [projectSettingsMarkdownEditorEnabled, setProjectSettingsMarkdownEditorEnabled] = useState(false)
   const [projectSettingsWallpaperEmojis, setProjectSettingsWallpaperEmojis] = useState("")
   const [projectSettingsError, setProjectSettingsError] = useState("")
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null)
@@ -468,6 +470,7 @@ export default function ProjectLibrary({
     setProjectSettingsName(project.name)
     setProjectSettingsColor(project.color)
     setProjectSettingsKind(project.kind)
+    setProjectSettingsMarkdownEditorEnabled(Boolean(project.markdownEditorEnabled))
     setProjectSettingsWallpaperEmojis(project.wallpaperEmojis ?? "")
     setProjectSettingsError("")
   }
@@ -504,6 +507,7 @@ export default function ProjectLibrary({
           project.name === trimmedName &&
           project.color === projectSettingsColor &&
           project.kind === projectSettingsKind &&
+          Boolean(project.markdownEditorEnabled) === projectSettingsMarkdownEditorEnabled &&
           (project.wallpaperEmojis ?? "") === normalizedWallpaper
         ) {
           return project
@@ -515,13 +519,22 @@ export default function ProjectLibrary({
           name: trimmedName,
           color: projectSettingsColor,
           kind: projectSettingsKind,
+          markdownEditorEnabled: projectSettingsMarkdownEditorEnabled,
           wallpaperEmojis: normalizedWallpaper,
         }
       })
 
       return hasChanges ? nextProjects : current
     })
-  }, [projectSettingsColor, projectSettingsKind, projectSettingsName, projectSettingsWallpaperEmojis, setProjects, settingsProject])
+  }, [
+    projectSettingsColor,
+    projectSettingsKind,
+    projectSettingsMarkdownEditorEnabled,
+    projectSettingsName,
+    projectSettingsWallpaperEmojis,
+    setProjects,
+    settingsProject,
+  ])
 
   const duplicateProjectFromSettings = () => {
     if (!settingsProject) {
@@ -1515,6 +1528,7 @@ export default function ProjectLibrary({
               fieldClassName="project-settings-modal__field"
               projectName={projectSettingsName}
               projectKind={projectSettingsKind}
+              markdownEditorEnabled={projectSettingsMarkdownEditorEnabled}
               projectColor={projectSettingsColor}
               projectWallpaperEmojis={projectSettingsWallpaperEmojis}
               onProjectNameChange={(nextName) => {
@@ -1524,10 +1538,16 @@ export default function ProjectLibrary({
                 }
               }}
               onProjectKindChange={setProjectSettingsKind}
+              onMarkdownEditorEnabledChange={setProjectSettingsMarkdownEditorEnabled}
               onProjectColorChange={setProjectSettingsColor}
               onProjectWallpaperEmojisChange={setProjectSettingsWallpaperEmojis}
-              onExportAsPdf={() => {
+              onExportProject={() => {
                 if (!settingsProject) {
+                  return
+                }
+
+                if (projectSettingsMarkdownEditorEnabled) {
+                  downloadProjectAsMarkdown(settingsProject)
                   return
                 }
 

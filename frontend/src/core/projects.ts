@@ -12,6 +12,7 @@ export type Project = {
   name: string
   createdAt: string
   kind: ProjectKind
+  markdownEditorEnabled?: boolean
   color: string
   wallpaperEmojis: string
   folderId: string | null
@@ -124,6 +125,7 @@ export function createProject(name: string, kind: ProjectKind): Project {
     name,
     createdAt: new Date().toISOString(),
     kind,
+    markdownEditorEnabled: false,
     color,
     wallpaperEmojis: "",
     folderId: null,

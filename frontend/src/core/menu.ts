@@ -1,5 +1,6 @@
 import {
   requestEditorCommand,
+  requestMarkdownEditorCommand,
   requestCreateBlogProject,
   requestCreateBookProject,
   requestCreateProjectFolder,
@@ -211,6 +212,61 @@ const helpMenuItem: MenuItem = {
   ],
 }
 
+const markdownMenuItem: MenuItem = {
+  label: "Markdown",
+  submenu: [
+    {
+      label: "Heading 1",
+      shortcut: "⌘⌥1",
+      action: () => {
+        requestMarkdownEditorCommand("heading-1")
+      },
+    },
+    {
+      label: "Heading 2",
+      shortcut: "⌘⌥2",
+      action: () => {
+        requestMarkdownEditorCommand("heading-2")
+      },
+    },
+    {
+      label: "Bold",
+      shortcut: "⌘B",
+      action: () => {
+        requestMarkdownEditorCommand("bold")
+      },
+    },
+    {
+      label: "Italics",
+      shortcut: "⌘I",
+      action: () => {
+        requestMarkdownEditorCommand("italic")
+      },
+    },
+    {
+      label: "Inline Code",
+      shortcut: "⌘E",
+      action: () => {
+        requestMarkdownEditorCommand("inline-code")
+      },
+    },
+    {
+      label: "Code Block",
+      shortcut: "⌘⌥C",
+      action: () => {
+        requestMarkdownEditorCommand("code-block")
+      },
+    },
+    {
+      label: "Link",
+      shortcut: "⌘K",
+      action: () => {
+        requestMarkdownEditorCommand("link")
+      },
+    },
+  ],
+}
+
 export const projectWorkspaceMenu: MenuItem[] = [
   {
     label: "File",
@@ -262,38 +318,50 @@ export const projectWorkspaceMenu: MenuItem[] = [
   helpMenuItem,
 ]
 
-export const appMenu: MenuItem[] = [
-  {
-    label: "File",
-    submenu: [
-      {
-        label: "New Document",
-        action: () => {
-          console.log("New Document")
+export function getAppMenu(options?: { markdownEditorEnabled?: boolean }): MenuItem[] {
+  const markdownEditorEnabled = Boolean(options?.markdownEditorEnabled)
+
+  const menu: MenuItem[] = [
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "New Document",
+          action: () => {
+            console.log("New Document")
+          },
         },
-      },
-      {
-        label: "Save",
-        action: () => {
-          console.log("Save")
+        {
+          label: "Save",
+          action: () => {
+            console.log("Save")
+          },
         },
-      },
-      {
-        label: "Export as PDF",
-        action: () => {
-          requestExportAllTabsPdf()
+        {
+          label: "Export as PDF",
+          action: () => {
+            requestExportAllTabsPdf()
+          },
         },
-      },
-    ],
-  },
-  editMenuItem,
-  viewMenuItem,
-  {
-    label: "Settings",
-    action: () => {
-      console.log("Settings")
+      ],
     },
-  },
-  windowMenuItem,
-  helpMenuItem,
-]
+    editMenuItem,
+    viewMenuItem,
+    {
+      label: "Settings",
+      action: () => {
+        console.log("Settings")
+      },
+    },
+    windowMenuItem,
+    helpMenuItem,
+  ]
+
+  if (markdownEditorEnabled) {
+    menu.splice(3, 0, markdownMenuItem)
+  }
+
+  return menu
+}
+
+export const appMenu: MenuItem[] = getAppMenu()

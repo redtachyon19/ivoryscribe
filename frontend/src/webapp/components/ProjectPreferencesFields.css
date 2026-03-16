@@ -11,6 +11,12 @@
   min-width: 0;
 }
 
+.project-preferences-fields__field--toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .project-preferences-fields__label {
   color: var(--menu-button, #e6e6e6);
   font-size: 17px;
@@ -93,6 +99,60 @@
 .project-preferences-fields__input--emoji {
   font-family: "Noto Emoji", "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
   letter-spacing: 0.05em;
+}
+
+.project-preferences-fields__toggle-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 48px;
+  height: 30px;
+}
+
+.project-preferences-fields__toggle-input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.project-preferences-fields__toggle-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 86%, transparent);
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 78%, #000);
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.project-preferences-fields__toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: transform 180ms ease, background-color 160ms ease;
+}
+
+.project-preferences-fields__toggle-input:focus-visible + .project-preferences-fields__toggle-track {
+  outline: 2px solid color-mix(in srgb, var(--menu-button, #ededed) 75%, transparent);
+  outline-offset: 2px;
+}
+
+.project-preferences-fields__toggle-input:checked + .project-preferences-fields__toggle-track {
+  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 56%, #0f0f0f);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 22%, transparent);
+}
+
+.project-preferences-fields__toggle-input:checked + .project-preferences-fields__toggle-track::after {
+  transform: translateX(18px);
+  background: var(--menu-button, #ededed);
 }
 
 .project-preferences-kind-toggle {
