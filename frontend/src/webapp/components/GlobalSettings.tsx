@@ -47,13 +47,15 @@ type GlobalSettingsProps = {
   accountEmail: string
   activeProjectName: string
   activeProjectKind: ProjectKind
+  activeProjectMarkdownEditorEnabled: boolean
   activeProjectColor: string
   activeProjectWallpaperEmojis: string
   onActiveProjectNameChange: (name: string) => void
   onActiveProjectKindChange: (kind: ProjectKind) => void
+  onActiveProjectMarkdownEditorEnabledChange: (enabled: boolean) => void
   onActiveProjectColorChange: (color: string) => void
   onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
-  onExportProjectAsPdf: () => void
+  onExportProject: () => void
   onSaveAccountProfile: (input: { firstName: string; lastName: string }) => Promise<void> | void
   onRequestAccountEmailChange: (email: string) => Promise<{ message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }> | { message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }
   onVerifyCurrentAccountEmailChange: (code: string) => Promise<{ message: string; change: { currentEmail: string; newEmail: string; step: "verify-new-email" } }> | { message: string; change: { currentEmail: string; newEmail: string; step: "verify-new-email" } }
@@ -97,13 +99,15 @@ export default function GlobalSettings({
   accountEmail,
   activeProjectName,
   activeProjectKind,
+  activeProjectMarkdownEditorEnabled,
   activeProjectColor,
   activeProjectWallpaperEmojis,
   onActiveProjectNameChange,
   onActiveProjectKindChange,
+  onActiveProjectMarkdownEditorEnabledChange,
   onActiveProjectColorChange,
   onActiveProjectWallpaperEmojisChange,
-  onExportProjectAsPdf,
+  onExportProject,
   onSaveAccountProfile,
   onRequestAccountEmailChange,
   onVerifyCurrentAccountEmailChange,
@@ -1370,13 +1374,15 @@ export default function GlobalSettings({
                       fieldClassName="global-settings__field"
                       projectName={activeProjectName}
                       projectKind={activeProjectKind}
+                      markdownEditorEnabled={activeProjectMarkdownEditorEnabled}
                       projectColor={activeProjectColor}
                       projectWallpaperEmojis={activeProjectWallpaperEmojis}
                       onProjectNameChange={onActiveProjectNameChange}
                       onProjectKindChange={onActiveProjectKindChange}
+                      onMarkdownEditorEnabledChange={onActiveProjectMarkdownEditorEnabledChange}
                       onProjectColorChange={onActiveProjectColorChange}
                       onProjectWallpaperEmojisChange={onActiveProjectWallpaperEmojisChange}
-                      onExportAsPdf={onExportProjectAsPdf}
+                      onExportProject={onExportProject}
                     />
                   </section>
                 ) : null}

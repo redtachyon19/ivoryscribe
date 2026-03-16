@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react"
 import { BookText, Library, NotebookText } from "lucide-react"
 import Editor from "../../Editor"
+import MarkdownEditor from "./MarkdownEditor"
 import DocumentTabs from "../components/DocumentTabs"
 import TuskAiTab from "../components/TuskAiTab"
 import { EXPORT_ALL_TABS_PDF_EVENT } from "../../core/editorEvents"
@@ -67,6 +68,7 @@ function getNextEntryName(tabs: Project["tabs"], singular: string): string {
 type EditorWorkspaceProps = {
   project: Project
   activeContent: string
+  editorFontSize: number
   menuBarEnabled: boolean
   flagsEnabled: boolean
   isEditorTyping: boolean
@@ -78,6 +80,7 @@ type EditorWorkspaceProps = {
 export default function EditorWorkspace({
   project,
   activeContent,
+  editorFontSize,
   menuBarEnabled,
   flagsEnabled,
   isEditorTyping,
@@ -87,6 +90,7 @@ export default function EditorWorkspace({
 }: EditorWorkspaceProps) {
   const entryTerms = getProjectEntryTerms(project.kind)
   const ProjectIcon = project.kind === "Book" ? BookText : NotebookText
+  const markdownEditorEnabled = Boolean(project.markdownEditorEnabled)
 
   const activeDocumentTitle = useMemo(() => {
     if (!project.activeId) {
@@ -147,45 +151,69 @@ export default function EditorWorkspace({
         }}
       />
       <TuskAiTab hideToggle={isEditorTyping} />
-      <Editor
-        documentId={project.activeId}
-        documentTitle={activeDocumentTitle}
-        content={activeContent}
-        flagsEnabled={flagsEnabled}
-        onTypingStateChange={onEditorTypingStateChange}
-        onDocumentTitleChange={(nextTitle) => {
-          onProjectChange((currentProject) => {
-            if (!currentProject.activeId) {
-              return currentProject
-            }
+      {markdownEditorEnabled ? (
+        <MarkdownEditor
+          documentId={project.activeId}
+          content={activeContent}
+          editorFontSize={editorFontSize}
+          onTypingStateChange={onEditorTypingStateChange}
+          onContentChange={(nextContent) => {
+            onProjectChange((currentProject) => {
+              if (!currentProject.activeId) {
+                return currentProject
+              }
 
-            const trimmed = nextTitle.trim()
-            const fallbackTitle = getNextEntryName(currentProject.tabs, getProjectEntryTerms(currentProject.kind).singular)
-            const resolvedTitle = trimmed || fallbackTitle
+              return {
+                ...currentProject,
+                contentById: {
+                  ...currentProject.contentById,
+                  [currentProject.activeId]: nextContent,
+                },
+              }
+            })
+          }}
+        />
+      ) : (
+        <Editor
+          documentId={project.activeId}
+          documentTitle={activeDocumentTitle}
+          content={activeContent}
+          flagsEnabled={flagsEnabled}
+          onTypingStateChange={onEditorTypingStateChange}
+          onDocumentTitleChange={(nextTitle) => {
+            onProjectChange((currentProject) => {
+              if (!currentProject.activeId) {
+                return currentProject
+              }
 
-            return {
-              ...currentProject,
-              tabs: renameTabTitle(currentProject.tabs, currentProject.activeId, resolvedTitle),
-            }
-          })
-        }}
-        onContentChange={(nextContent) => {
-          // Persist content under the active tab so switching tabs restores previous text.
-          onProjectChange((currentProject) => {
-            if (!currentProject.activeId) {
-              return currentProject
-            }
+              const trimmed = nextTitle.trim()
+              const fallbackTitle = getNextEntryName(currentProject.tabs, getProjectEntryTerms(currentProject.kind).singular)
+              const resolvedTitle = trimmed || fallbackTitle
 
-            return {
-              ...currentProject,
-              contentById: {
-                ...currentProject.contentById,
-                [currentProject.activeId]: nextContent,
-              },
-            }
-          })
-        }}
-      />
+              return {
+                ...currentProject,
+                tabs: renameTabTitle(currentProject.tabs, currentProject.activeId, resolvedTitle),
+              }
+            })
+          }}
+          onContentChange={(nextContent) => {
+            // Persist content under the active tab so switching tabs restores previous text.
+            onProjectChange((currentProject) => {
+              if (!currentProject.activeId) {
+                return currentProject
+              }
+
+              return {
+                ...currentProject,
+                contentById: {
+                  ...currentProject.contentById,
+                  [currentProject.activeId]: nextContent,
+                },
+              }
+            })
+          }}
+        />
+      )}
     </>
   )
 }

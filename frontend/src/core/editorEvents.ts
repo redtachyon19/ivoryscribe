@@ -2,6 +2,7 @@ export const EDITOR_FONT_SIZE_CHANGE_EVENT = "editor:font-size-change"
 export const EDITOR_FONT_SIZE_SET_EVENT = "editor:font-size-set"
 export const EDITOR_FONT_FAMILY_CHANGE_EVENT = "editor:font-family-change"
 export const EDITOR_COMMAND_EVENT = "editor:command"
+export const MARKDOWN_EDITOR_COMMAND_EVENT = "markdown-editor:command"
 export const APP_COLOR_PALETTE_CHANGE_EVENT = "app:color-palette-change"
 export const EXPORT_ALL_TABS_PDF_EVENT = "app:export-all-tabs-pdf"
 export const PROJECTS_CREATE_BOOK_EVENT = "projects:create-book"
@@ -19,6 +20,15 @@ export type EditorCommand =
   | "underline"
   | "select-all"
   | "delete"
+
+export type MarkdownEditorCommand =
+  | "heading-1"
+  | "heading-2"
+  | "bold"
+  | "italic"
+  | "inline-code"
+  | "code-block"
+  | "link"
 
 type FontSizeChangeDetail = {
   delta: number
@@ -38,6 +48,10 @@ type ColorPaletteChangeDetail = {
 
 type EditorCommandDetail = {
   command: EditorCommand
+}
+
+type MarkdownEditorCommandDetail = {
+  command: MarkdownEditorCommand
 }
 
 export function requestEditorFontSizeChange(delta: number) {
@@ -74,6 +88,14 @@ export function requestAppColorPaletteChange(palette: string) {
 
 export function requestEditorCommand(command: EditorCommand) {
   const event = new CustomEvent<EditorCommandDetail>(EDITOR_COMMAND_EVENT, {
+    detail: { command },
+  })
+
+  window.dispatchEvent(event)
+}
+
+export function requestMarkdownEditorCommand(command: MarkdownEditorCommand) {
+  const event = new CustomEvent<MarkdownEditorCommandDetail>(MARKDOWN_EDITOR_COMMAND_EVENT, {
     detail: { command },
   })
 
