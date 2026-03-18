@@ -319,7 +319,8 @@ export default function App() {
         : (projectList[0]?.id ?? null)
     setActiveProjectId(resolvedActiveProjectId)
 
-    setView(uiSettings?.view === "editor" || uiSettings?.view === "projects" ? uiSettings.view : "projects")
+    // Always land in project library on login/refresh, regardless of previously saved view.
+    setView("projects")
     setIsMenuBarEnabled(Boolean(uiSettings?.menuBarEnabled))
     setIsFlagsEnabled(Boolean(uiSettings?.flagsEnabled))
 
@@ -523,6 +524,7 @@ export default function App() {
 
   const handleAuthenticated = async (nextSession: UserSession) => {
     setAuthLoadError("")
+    setIsSettingsOpen(false)
     setSession(nextSession)
     setSessionInStorage(nextSession)
 
@@ -535,6 +537,7 @@ export default function App() {
   }
 
   const logout = () => {
+    setIsSettingsOpen(false)
     setSession(null)
     setSessionInStorage(null)
     setAuthLoadError("")

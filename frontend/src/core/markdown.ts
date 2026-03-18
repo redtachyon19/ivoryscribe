@@ -1,4 +1,5 @@
 import { collectTabSequence, type Project } from "./projects"
+import JSZip from "jszip"
 
 function escapeHtml(value: string) {
   return value
@@ -200,6 +201,27 @@ function slugifyFileName(value: string) {
   return slug || "project"
 }
 
+function sanitizeZipEntryName(value: string) {
+  const trimmed = value.trim()
+  const sanitized = trimmed.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim()
+  return sanitized || "project"
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = fileName
+
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(objectUrl)
+  }, 0)
+}
+
 function getTabMarkdownContent(value: string) {
   return normalizeMarkdownContentForEditing(value)
 }
@@ -226,20 +248,30 @@ export function buildProjectMarkdown(project: Project) {
   return sections.join("\n")
 }
 
-export function downloadProjectAsMarkdown(project: Project) {
+export async function downloadProjectAsMarkdown(project: Project) {
+  if (project.kind === "Blog") {
+    const sequence = collectTabSequence(project.tabs)
+    const folderName = sanitizeZipEntryName(project.name)
+    const zip = new JSZip()
+
+    if (!sequence.length) {
+      zip.file(`${folderName}/README.md`, `# ${project.name}\n\n_No documents available._\n`)
+    } else {
+      sequence.forEach((tab, index) => {
+        const content = getTabMarkdownContent(project.contentById[tab.id] ?? "")
+        const fileBase = slugifyFileName(tab.title)
+        const fileName = `${String(index + 1).padStart(2, "0")}-${fileBase}.md`
+        const markdown = `# ${tab.title}\n\n${content || "_Empty document._"}\n`
+        zip.file(`${folderName}/${fileName}`, markdown)
+      })
+    }
+
+    const zipBlob = await zip.generateAsync({ type: "blob" })
+    downloadBlob(zipBlob, `${slugifyFileName(project.name)}.zip`)
+    return
+  }
+
   const markdown = buildProjectMarkdown(project)
   const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" })
-  const objectUrl = URL.createObjectURL(blob)
-
-  const link = document.createElement("a")
-  link.href = objectUrl
-  link.download = `${slugifyFileName(project.name)}.md`
-
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-
-  window.setTimeout(() => {
-    URL.revokeObjectURL(objectUrl)
-  }, 0)
+  downloadBlob(blob, `${slugifyFileName(project.name)}.md`)
 }

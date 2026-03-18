@@ -5,6 +5,7 @@ import MarkdownEditor from "./MarkdownEditor"
 import DocumentTabs from "../components/DocumentTabs"
 import TuskAiTab from "../components/TuskAiTab"
 import { EXPORT_ALL_TABS_PDF_EVENT } from "../../core/editorEvents"
+import { downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
 import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../core/projects"
 import "./EditorWorkspace.css"
@@ -103,6 +104,11 @@ export default function EditorWorkspace({
   useEffect(() => {
     // Menu action emits a global event; this page handles it for the current project.
     const onExportRequest = () => {
+      if (project.markdownEditorEnabled) {
+        void downloadProjectAsMarkdown(project)
+        return
+      }
+
       exportProjectAsPdf(project)
     }
 
@@ -177,6 +183,7 @@ export default function EditorWorkspace({
         <Editor
           documentId={project.activeId}
           documentTitle={activeDocumentTitle}
+          editorFontSize={editorFontSize}
           content={activeContent}
           flagsEnabled={flagsEnabled}
           onTypingStateChange={onEditorTypingStateChange}

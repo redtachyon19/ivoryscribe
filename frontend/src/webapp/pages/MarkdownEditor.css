@@ -33,6 +33,9 @@
   top: 8px;
   left: 10px;
   z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
   padding: 0;
   margin: 0;
@@ -44,6 +47,10 @@
   text-transform: uppercase;
   color: color-mix(in srgb, var(--editor-text, #f5f5f5) 38%, transparent);
   opacity: 0.64;
+}
+
+.markdown-editor__pane-label svg {
+  flex: 0 0 auto;
 }
 
 .markdown-editor__pane-label:hover,
@@ -62,7 +69,8 @@
   box-sizing: border-box;
   min-height: min(72vh, 920px);
   border: 0;
-  resize: vertical;
+  resize: none;
+  overflow: hidden;
   background: transparent;
   color: var(--editor-text, #f5f5f5);
   padding: 34px 10px 18px;
@@ -70,6 +78,11 @@
   font-size: var(--markdown-source-font-size, 18px);
   line-height: 1.65;
   outline: none;
+}
+
+.markdown-editor__textarea::placeholder {
+  color: var(--editor-placeholder, rgba(215, 215, 215, 0.45));
+  opacity: 1;
 }
 
 .markdown-editor__divider {
@@ -128,7 +141,7 @@
 
 .markdown-editor__preview {
   min-height: min(72vh, 920px);
-  overflow: auto;
+  overflow: visible;
   box-sizing: border-box;
   padding: 34px 10px 18px;
   color: var(--editor-text, #f5f5f5);

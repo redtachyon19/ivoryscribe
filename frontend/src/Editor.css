@@ -57,6 +57,17 @@
   margin-top: 0.55em;
 }
 
+.ProseMirror a,
+.ProseMirror a:visited {
+  color: var(--app-accent, #9ab8ff);
+  text-decoration-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 80%, transparent);
+}
+
+.ProseMirror a:hover,
+.ProseMirror a:focus-visible {
+  text-decoration-color: var(--app-accent, #9ab8ff);
+}
+
 .typing-caret {
   position: absolute;
   top: 0;

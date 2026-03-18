@@ -45,6 +45,7 @@ type EditorProps = {
   documentId: string | null
   documentTitle: string
   hideDocumentTitle?: boolean
+  editorFontSize: number
   content: string
   flagsEnabled: boolean
   onDocumentTitleChange: (nextTitle: string) => void
@@ -56,6 +57,7 @@ export default function Editor({
   documentId,
   documentTitle,
   hideDocumentTitle = false,
+  editorFontSize,
   content,
   flagsEnabled,
   onDocumentTitleChange,
@@ -72,7 +74,9 @@ export default function Editor({
   const [flaggedAnchorsByDocument, setFlaggedAnchorsByDocument] = useState<Record<string, number[]>>({})
   const [highlightRangesByDocument, setHighlightRangesByDocument] = useState<Record<string, Record<number, HighlightRange>>>({})
   const [flaggedLineTops, setFlaggedLineTops] = useState<Record<number, number>>({})
-  const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE)
+  const [fontSize, setFontSize] = useState(() =>
+    Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, editorFontSize || DEFAULT_FONT_SIZE)),
+  )
   const [fontFamily, setFontFamily] = useState(DEFAULT_FONT_FAMILY)
   const [titleDraft, setTitleDraft] = useState(documentTitle)
   const activeDocumentKey = documentId ?? "__default_document__"
@@ -269,7 +273,12 @@ export default function Editor({
 
     // Avoid re-triggering onUpdate during controlled content sync.
     editor.commands.setContent(nextContent, { emitUpdate: false })
+    syncEmptyState(editor)
   }, [editor, content, documentId])
+
+  useEffect(() => {
+    setFontSize(Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, editorFontSize || DEFAULT_FONT_SIZE)))
+  }, [editorFontSize])
 
   useEffect(() => {
     // Global menu controls dispatch these events from outside this component.
