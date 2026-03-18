@@ -180,6 +180,7 @@ export default function GlobalSettings({
   const [actionFeedbackSnapshot, setActionFeedbackSnapshot] = useState<ActionFeedback | null>(null)
   const [isActionFeedbackRendered, setIsActionFeedbackRendered] = useState(false)
   const [isActionFeedbackClosing, setIsActionFeedbackClosing] = useState(false)
+  const [isMarkdownPromptVisible, setIsMarkdownPromptVisible] = useState(false)
   const accountAutoSaveRequestRef = useRef(0)
   const CUSTOM_FONT_OPTION_VALUE = "__custom_local_font__"
   const MIN_FONT_SIZE = 20
@@ -247,6 +248,12 @@ export default function GlobalSettings({
   useEffect(() => {
     setCustomFontDraft(customFontName)
   }, [customFontName])
+
+  useEffect(() => {
+    if (!isRendered) {
+      setIsMarkdownPromptVisible(false)
+    }
+  }, [isRendered])
 
   useEffect(() => {
     setCustomBackgroundHexDraft(customPaletteBackground.toUpperCase())
@@ -798,7 +805,7 @@ export default function GlobalSettings({
             onClick={onClose}
           />
           <section
-            className={`global-settings__modal ${modalStateClassName}`}
+            className={`global-settings__modal ${modalStateClassName} ${isMarkdownPromptVisible ? "global-settings__modal--background-hidden" : ""}`.trim()}
             role="dialog"
             aria-modal="true"
             aria-label="Global settings"
@@ -1383,6 +1390,8 @@ export default function GlobalSettings({
                       onProjectColorChange={onActiveProjectColorChange}
                       onProjectWallpaperEmojisChange={onActiveProjectWallpaperEmojisChange}
                       onExportProject={onExportProject}
+                      onMarkdownPromptVisibilityChange={setIsMarkdownPromptVisible}
+                      onMarkdownPromptDismissed={onClose}
                     />
                   </section>
                 ) : null}

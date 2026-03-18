@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf"
+import JSZip from "jszip"
 import { DEFAULT_DOCUMENT_CONTENT, collectTabSequence, type Project } from "./projects"
 
 const PARAGRAPH_TAGS = new Set(["p", "li", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "pre"])
@@ -198,7 +199,127 @@ function truncateTextToWidth(pdf: jsPDF, value: string, maxWidth: number): strin
   return `${chars.slice(0, low).join("")}${ellipsis}`
 }
 
-export function exportProjectAsPdf(project: Project) {
+function slugifyFileName(value: string) {
+  const trimmed = value.trim().toLowerCase()
+  const slug = trimmed
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+
+  return slug || "project"
+}
+
+function sanitizeZipEntryName(value: string) {
+  const trimmed = value.trim()
+  const sanitized = trimmed.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim()
+  return sanitized || "project"
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = fileName
+
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(objectUrl)
+  }, 0)
+}
+
+function buildSingleDocumentPdf(projectName: string, tabTitle: string, html: string) {
+  const pdf = new jsPDF({ unit: "pt", format: "letter" })
+  const marginX = 72
+  const marginY = 72
+  const headerY = marginY
+  const headerRuleY = headerY + 10
+  const contentTop = headerRuleY + 24
+  const lineHeight = 16
+  const paragraphBreakHeight = 24
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const contentWidth = pageWidth - marginX * 2
+  const contentBottom = pageHeight - marginY
+
+  const bodyFontFamily = "times"
+  const bodyFontStyle = "normal"
+  const bodyFontSize = 12
+
+  pdf.setFont(bodyFontFamily, bodyFontStyle)
+  pdf.setFontSize(bodyFontSize)
+
+  const plainText = htmlToPlainText(html)
+  const safeText = plainText || "(Empty document)"
+  const lines = wrapTextPreservingBreaks(pdf, safeText, contentWidth)
+
+  let page = 1
+  let y = contentTop
+
+  for (const line of lines) {
+    const currentLineHeight = line.trim() ? lineHeight : paragraphBreakHeight
+
+    if (y + currentLineHeight > contentBottom) {
+      pdf.addPage()
+      page += 1
+      y = contentTop
+    }
+
+    if (line.trim()) {
+      pdf.setFont(bodyFontFamily, bodyFontStyle)
+      pdf.setFontSize(bodyFontSize)
+      pdf.text(line, marginX, y)
+    }
+
+    y += currentLineHeight
+  }
+
+  const totalPages = pdf.getNumberOfPages()
+  for (let currentPage = 1; currentPage <= totalPages; currentPage += 1) {
+    pdf.setPage(currentPage)
+    pdf.setFont("times", "bold")
+    pdf.setFontSize(12)
+    pdf.text(`${projectName} · ${tabTitle}`, marginX, headerY)
+
+    pdf.setFont("times", "italic")
+    pdf.setFontSize(12)
+    pdf.text(`Page ${currentPage} of ${totalPages}`, pageWidth - marginX, headerY, { align: "right" })
+    pdf.setDrawColor(170)
+    pdf.line(marginX, headerRuleY, pageWidth - marginX, headerRuleY)
+  }
+
+  return pdf
+}
+
+async function exportBlogAsPdfBundle(project: Project) {
+  const sequence = collectTabSequence(project.tabs)
+  const folderName = sanitizeZipEntryName(project.name)
+  const zip = new JSZip()
+
+  if (!sequence.length) {
+    zip.file(`${folderName}/README.txt`, "No documents to export.")
+  } else {
+    sequence.forEach((tab, index) => {
+      const html = project.contentById[tab.id] ?? DEFAULT_DOCUMENT_CONTENT
+      const pdf = buildSingleDocumentPdf(project.name, tab.title, html)
+      const fileName = `${String(index + 1).padStart(2, "0")}-${slugifyFileName(tab.title)}.pdf`
+      zip.file(`${folderName}/${fileName}`, pdf.output("arraybuffer"))
+    })
+  }
+
+  const zipBlob = await zip.generateAsync({ type: "blob" })
+  downloadBlob(zipBlob, `${slugifyFileName(project.name)}.zip`)
+}
+
+export async function exportProjectAsPdf(project: Project) {
+  if (project.kind === "Blog") {
+    await exportBlogAsPdfBundle(project)
+    return
+  }
+
   // Export documents in the same depth-first order shown in the tab tree.
   const sequence = collectTabSequence(project.tabs)
   const tocSequence = collectTabSequenceWithDepth(project.tabs)

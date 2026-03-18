@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { BookText, Download, NotebookText } from "lucide-react"
+import { createPortal } from "react-dom"
+import { BookText, Check, Download, FileLock2, NotebookText, X } from "lucide-react"
 import type { ProjectKind } from "../../core/projects"
 import "./ProjectPreferencesFields.css"
 
@@ -16,6 +17,8 @@ type ProjectPreferencesFieldsProps = {
   onProjectColorChange: (color: string) => void
   onProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onExportProject: () => void
+  onMarkdownPromptVisibilityChange?: (visible: boolean) => void
+  onMarkdownPromptDismissed?: () => void
 }
 
 function splitGraphemes(value: string) {
@@ -64,6 +67,15 @@ function isCompleteHexColor(value: string) {
   return /^#[0-9A-F]{6}$/.test(value)
 }
 
+function normalizeProjectColor(value: string | null | undefined) {
+  const normalized = normalizeHexInput(value ?? "")
+  if (!isCompleteHexColor(normalized)) {
+    return "#7EA8FF"
+  }
+
+  return normalized
+}
+
 export default function ProjectPreferencesFields({
   fieldClassName,
   projectName,
@@ -77,15 +89,142 @@ export default function ProjectPreferencesFields({
   onProjectColorChange,
   onProjectWallpaperEmojisChange,
   onExportProject,
+  onMarkdownPromptVisibilityChange,
+  onMarkdownPromptDismissed,
 }: ProjectPreferencesFieldsProps) {
-  const [projectColorHexDraft, setProjectColorHexDraft] = useState(projectColor.toUpperCase())
+  type MarkdownPromptKind = "enable-confirm" | "disable-blocked"
+  const resolvedProjectColor = normalizeProjectColor(projectColor)
+  const [projectColorHexDraft, setProjectColorHexDraft] = useState(resolvedProjectColor)
+  const [markdownPrompt, setMarkdownPrompt] = useState<MarkdownPromptKind | null>(null)
+  const [markdownPromptSnapshot, setMarkdownPromptSnapshot] = useState<MarkdownPromptKind | null>(null)
+  const [isMarkdownPromptRendered, setIsMarkdownPromptRendered] = useState(false)
+  const [isMarkdownPromptClosing, setIsMarkdownPromptClosing] = useState(false)
+
+  const activeMarkdownPrompt = markdownPrompt ?? markdownPromptSnapshot
+
+  const openMarkdownPrompt = (kind: MarkdownPromptKind) => {
+    setMarkdownPrompt(kind)
+    setMarkdownPromptSnapshot(kind)
+  }
+
+  const closeMarkdownPrompt = () => {
+    setMarkdownPrompt(null)
+  }
 
   useEffect(() => {
-    setProjectColorHexDraft(projectColor.toUpperCase())
-  }, [projectColor])
+    setProjectColorHexDraft(resolvedProjectColor)
+  }, [resolvedProjectColor])
+
+  useEffect(() => {
+    if (markdownPrompt) {
+      setIsMarkdownPromptRendered(true)
+      setIsMarkdownPromptClosing(false)
+      onMarkdownPromptVisibilityChange?.(true)
+      return
+    }
+
+    if (!isMarkdownPromptRendered) {
+      return
+    }
+
+    setIsMarkdownPromptClosing(true)
+    const timeout = window.setTimeout(() => {
+      if (onMarkdownPromptDismissed) {
+        onMarkdownPromptDismissed()
+        return
+      }
+
+      setIsMarkdownPromptRendered(false)
+      setIsMarkdownPromptClosing(false)
+      setMarkdownPromptSnapshot(null)
+      onMarkdownPromptVisibilityChange?.(false)
+    }, 140)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [isMarkdownPromptRendered, markdownPrompt, onMarkdownPromptDismissed, onMarkdownPromptVisibilityChange])
+
+  const markdownPromptDialog =
+    isMarkdownPromptRendered && activeMarkdownPrompt
+      ? createPortal(
+          <>
+            <button
+              type="button"
+              className={`project-preferences-fields__prompt-overlay ${isMarkdownPromptClosing ? "project-preferences-fields__prompt-overlay--closing" : "project-preferences-fields__prompt-overlay--opening"}`.trim()}
+              onClick={closeMarkdownPrompt}
+              aria-label="Close markdown editor prompt"
+            />
+            <div className="project-preferences-fields__prompt-frame">
+              <button
+                type="button"
+                className={`project-preferences-fields__prompt-close ${isMarkdownPromptClosing ? "project-preferences-fields__prompt-close--closing" : "project-preferences-fields__prompt-close--opening"}`.trim()}
+                onClick={closeMarkdownPrompt}
+                aria-label="Close markdown prompt"
+              >
+                <X size={16} strokeWidth={2} aria-hidden="true" />
+                <span className="project-preferences-fields__prompt-close-label">Close Prompt</span>
+              </button>
+
+              <div
+                className={`project-preferences-fields__prompt-modal ${isMarkdownPromptClosing ? "project-preferences-fields__prompt-modal--closing" : "project-preferences-fields__prompt-modal--opening"}`.trim()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="project-preferences-markdown-prompt-title"
+              >
+                <h4 id="project-preferences-markdown-prompt-title" className="project-preferences-fields__prompt-title">
+                  {activeMarkdownPrompt === "enable-confirm" ? "Enable Markdown Editor" : "Markdown Editor Locked"}
+                </h4>
+                <p
+                  className={`project-preferences-fields__prompt-copy ${activeMarkdownPrompt === "disable-blocked" ? "project-preferences-fields__prompt-copy--warning" : ""}`.trim()}
+                >
+                  {activeMarkdownPrompt === "enable-confirm"
+                    ? "Turn on Markdown Editor mode for this project? This cannot be undone."
+                    : "Markdown Editor mode is permanent for this project and cannot be turned off."}
+                </p>
+
+                <div className="project-preferences-fields__prompt-actions">
+                  {activeMarkdownPrompt === "enable-confirm" ? (
+                    <>
+                      <button
+                        type="button"
+                        className="project-preferences-fields__prompt-btn"
+                        onClick={closeMarkdownPrompt}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="project-preferences-fields__prompt-btn project-preferences-fields__prompt-btn--danger"
+                        onClick={() => {
+                          onMarkdownEditorEnabledChange(true)
+                          closeMarkdownPrompt()
+                        }}
+                      >
+                        <FileLock2 size={14} strokeWidth={2} aria-hidden="true" />
+                        <span>Enable</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="project-preferences-fields__prompt-btn"
+                      onClick={closeMarkdownPrompt}
+                    >
+                      <Check size={14} strokeWidth={2} aria-hidden="true" />
+                      <span>Got it</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>,
+          document.body,
+        )
+      : null
 
   return (
-    <div className="project-preferences-fields">
+    <div className={`project-preferences-fields ${isMarkdownPromptRendered ? "project-preferences-fields--prompt-open" : ""}`.trim()}>
       <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
         <span className="project-preferences-fields__label">Name</span>
         <input
@@ -100,7 +239,12 @@ export default function ProjectPreferencesFields({
 
       <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
         <span className="project-preferences-fields__label">Type</span>
-        <div className="project-preferences-kind-toggle" role="radiogroup" aria-label="Project type">
+        <div
+          className={`project-preferences-kind-toggle ${projectKind === "Blog" ? "project-preferences-kind-toggle--blog" : "project-preferences-kind-toggle--book"}`.trim()}
+          role="radiogroup"
+          aria-label="Project type"
+        >
+          <span className="project-preferences-kind-toggle__pill" aria-hidden="true" />
           <button
             type="button"
             className={`project-preferences-kind-toggle__option ${projectKind === "Book" ? "project-preferences-kind-toggle__option--active" : ""}`.trim()}
@@ -129,11 +273,11 @@ export default function ProjectPreferencesFields({
       </label>
 
       <label
-        className={`${fieldClassName} project-preferences-fields__field project-preferences-fields__field--toggle`.trim()}
+        className={`${fieldClassName} project-preferences-fields__field project-preferences-fields__field--toggle project-preferences-fields__markdown-row`.trim()}
         htmlFor="project-preferences-markdown-toggle"
       >
-        <span className="project-preferences-fields__label">Markdown Editor</span>
-        <span className="project-preferences-fields__toggle-wrap">
+        <span className="project-preferences-fields__label project-preferences-fields__markdown-label">Markdown Editor</span>
+        <span className="project-preferences-fields__toggle-wrap project-preferences-fields__markdown-toggle-wrap">
           <input
             id="project-preferences-markdown-toggle"
             className="project-preferences-fields__toggle-input"
@@ -143,18 +287,13 @@ export default function ProjectPreferencesFields({
               const shouldEnable = event.target.checked
 
               if (markdownEditorEnabled && !shouldEnable) {
-                window.alert("Markdown Editor mode is permanent for this project and cannot be turned off.")
+                openMarkdownPrompt("disable-blocked")
                 return
               }
 
               if (!markdownEditorEnabled && shouldEnable) {
-                const confirmed = window.confirm(
-                  "Turn on Markdown Editor mode for this project? This cannot be undone.",
-                )
-
-                if (!confirmed) {
-                  return
-                }
+                openMarkdownPrompt("enable-confirm")
+                return
               }
 
               onMarkdownEditorEnabledChange(shouldEnable)
@@ -170,7 +309,7 @@ export default function ProjectPreferencesFields({
           <input
             className="project-preferences-fields__input project-preferences-fields__input--color"
             type="color"
-            value={projectColor}
+            value={resolvedProjectColor}
             onChange={(event) => {
               const nextValue = event.target.value.toUpperCase()
               onProjectColorChange(nextValue)
@@ -193,7 +332,7 @@ export default function ProjectPreferencesFields({
             }}
             onBlur={() => {
               if (!isCompleteHexColor(projectColorHexDraft)) {
-                setProjectColorHexDraft(projectColor.toUpperCase())
+                setProjectColorHexDraft(resolvedProjectColor)
               }
             }}
             placeholder="#000000"
@@ -230,6 +369,8 @@ export default function ProjectPreferencesFields({
           <span>{markdownEditorEnabled ? "Download as .md" : "Export as PDF"}</span>
         </button>
       </div>
+
+      {markdownPromptDialog}
     </div>
   )
 }

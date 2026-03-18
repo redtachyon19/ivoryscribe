@@ -338,7 +338,7 @@ export function getAppMenu(options?: { markdownEditorEnabled?: boolean }): MenuI
           },
         },
         {
-          label: "Export as PDF",
+          label: markdownEditorEnabled ? "Download as .md" : "Export as PDF",
           action: () => {
             requestExportAllTabsPdf()
           },

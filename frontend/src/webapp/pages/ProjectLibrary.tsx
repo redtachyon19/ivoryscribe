@@ -96,6 +96,15 @@ function normalizeProjectEmojiWallpaper(value: string) {
   return extractEmojiTokens(value, 3).join(" ")
 }
 
+function normalizeProjectColor(value: string | null | undefined) {
+  const normalized = (value ?? "").trim().toUpperCase()
+  if (/^#[0-9A-F]{6}$/.test(normalized)) {
+    return normalized
+  }
+
+  return "#7EA8FF"
+}
+
 function buildDuplicateProjectName(baseName: string, existingNames: string[]) {
   const taken = new Set(existingNames.map((name) => name.trim().toLowerCase()))
   let suffix = 1
@@ -468,7 +477,7 @@ export default function ProjectLibrary({
   const openProjectSettings = (project: Project) => {
     setOpenProjectSettingsId(project.id)
     setProjectSettingsName(project.name)
-    setProjectSettingsColor(project.color)
+    setProjectSettingsColor(normalizeProjectColor(project.color))
     setProjectSettingsKind(project.kind)
     setProjectSettingsMarkdownEditorEnabled(Boolean(project.markdownEditorEnabled))
     setProjectSettingsWallpaperEmojis(project.wallpaperEmojis ?? "")
@@ -497,6 +506,7 @@ export default function ProjectLibrary({
 
     setProjects((current) => {
       let hasChanges = false
+      const normalizedColor = normalizeProjectColor(projectSettingsColor)
 
       const nextProjects = current.map((project) => {
         if (project.id !== settingsProject.id) {
@@ -505,7 +515,7 @@ export default function ProjectLibrary({
 
         if (
           project.name === trimmedName &&
-          project.color === projectSettingsColor &&
+          project.color === normalizedColor &&
           project.kind === projectSettingsKind &&
           Boolean(project.markdownEditorEnabled) === projectSettingsMarkdownEditorEnabled &&
           (project.wallpaperEmojis ?? "") === normalizedWallpaper
@@ -517,7 +527,7 @@ export default function ProjectLibrary({
         return {
           ...project,
           name: trimmedName,
-          color: projectSettingsColor,
+          color: normalizedColor,
           kind: projectSettingsKind,
           markdownEditorEnabled: projectSettingsMarkdownEditorEnabled,
           wallpaperEmojis: normalizedWallpaper,
@@ -1553,6 +1563,7 @@ export default function ProjectLibrary({
 
                 exportProjectAsPdf(settingsProject)
               }}
+              onMarkdownPromptDismissed={closeProjectSettings}
             />
 
             {projectSettingsError ? <p className="project-settings-modal__error">{projectSettingsError}</p> : null}

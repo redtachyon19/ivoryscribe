@@ -34,6 +34,16 @@ Backend runs on `http://localhost:4000` by default.
 
 Detailed backend API docs: `backend/README.md`.
 
-You can also run both from the repo root with:
-- `npm run dev`
-- `npm run server:dev`
+From the repo root, install once and run both apps together:
+
+```bash
+npm install
+npm run dev
+```
+
+`npm run dev` now starts both frontend (`5173`) and backend (`4000`) together.
+
+Optional root scripts:
+- `npm run dev:frontend` (frontend only)
+- `npm run dev:backend` (backend only)
+- `npm run server:dev` (backend only, legacy alias)

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import { Eye, SquarePen } from "lucide-react"
 import { MARKDOWN_EDITOR_COMMAND_EVENT, type MarkdownEditorCommand } from "../../core/editorEvents"
 import { normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../core/markdown"
 import "./MarkdownEditor.css"
@@ -26,6 +27,18 @@ export default function MarkdownEditor({
   const paneTransitionTimeoutRef = useRef<number | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const layoutRef = useRef<HTMLDivElement | null>(null)
+
+  const syncTextareaHeight = () => {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      return
+    }
+
+    // Match preview behavior by allowing the page to scroll instead of the textarea itself.
+    textarea.style.height = "auto"
+    const minHeight = Number.parseFloat(window.getComputedStyle(textarea).minHeight) || 0
+    textarea.style.height = `${Math.max(textarea.scrollHeight, minHeight)}px`
+  }
 
   const applyNextContent = (
     nextValue: string,
@@ -222,6 +235,10 @@ export default function MarkdownEditor({
     setMarkdownDraft(normalizeMarkdownContentForEditing(content))
   }, [content, documentId])
 
+  useLayoutEffect(() => {
+    syncTextareaHeight()
+  }, [markdownDraft, splitRatio, paneViewMode, editorFontSize])
+
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
@@ -417,7 +434,8 @@ export default function MarkdownEditor({
             togglePaneView("editor")
           }}
         >
-          Editor
+          <SquarePen size={14} strokeWidth={2} aria-hidden="true" />
+          <span>Editor</span>
         </button>
         <textarea
           ref={textareaRef}
@@ -425,6 +443,7 @@ export default function MarkdownEditor({
           value={markdownDraft}
           onKeyDown={handleMarkdownShortcut}
           onChange={(event) => {
+            syncTextareaHeight()
             const nextValue = event.target.value
             setMarkdownDraft(nextValue)
             onContentChange(nextValue)
@@ -457,7 +476,8 @@ export default function MarkdownEditor({
             togglePaneView("preview")
           }}
         >
-          Preview
+          <Eye size={14} strokeWidth={2} aria-hidden="true" />
+          <span>Preview</span>
         </button>
         <div
           className="markdown-editor__preview"

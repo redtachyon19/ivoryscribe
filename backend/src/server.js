@@ -15,9 +15,32 @@ const {
   DB_SYNC_MODE = "safe",
 } = process.env;
 
+const configuredOrigins = String(CLIENT_ORIGIN)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set(configuredOrigins.length > 0 ? configuredOrigins : ["http://localhost:5173"]);
+
+function isAllowedOrigin(origin) {
+  if (allowedOrigins.has(origin)) {
+    return true;
+  }
+
+  // Allow local Vite dev servers that auto-increment ports (5173, 5174, ...).
+  return /^https?:\/\/localhost:\d+$/.test(origin) || /^https?:\/\/127\.0\.0\.1:\d+$/.test(origin);
+}
+
 app.use(
   cors({
-    origin: CLIENT_ORIGIN,
+    origin(origin, callback) {
+      if (!origin || isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
   }),
 );
 app.use(express.json({ limit: "2mb" }));

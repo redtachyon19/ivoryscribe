@@ -925,6 +925,11 @@
   min-width: 0;
 }
 
+.project-settings-modal__field .project-preferences-fields__color-value-input {
+  font-size: 18px;
+  padding: 8px 10px;
+}
+
 .project-settings-modal__error {
   margin: 0;
   color: #f3b3b3;
