@@ -306,6 +306,126 @@
   transform: translateY(1px);
 }
 
+.project-preferences-fields__history {
+  gap: 12px;
+}
+
+.project-preferences-fields__history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.project-preferences-fields__history-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-preferences-fields__history-count {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  font-size: 15px;
+}
+
+.project-preferences-fields__history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.project-preferences-fields__history-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
+}
+
+.project-preferences-fields__history-meta {
+  min-width: 0;
+}
+
+.project-preferences-fields__history-version-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.project-preferences-fields__history-version {
+  color: var(--menu-button, #ededed);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.project-preferences-fields__history-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.project-preferences-fields__history-badge--manual {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 24%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, var(--app-accent, #9ab8ff));
+}
+
+.project-preferences-fields__history-badge--autosave {
+  background: color-mix(in srgb, #7ac79a 18%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, #7ac79a);
+}
+
+.project-preferences-fields__history-time,
+.project-preferences-fields__history-diff,
+.project-preferences-fields__history-empty {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 64%, transparent);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.project-preferences-fields__history-restore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 54%, transparent);
+  color: var(--menu-button, #ededed);
+  font-family: "Times", "Times New Roman", serif;
+  font-size: 17px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 140ms ease;
+}
+
+.project-preferences-fields__history-restore:hover,
+.project-preferences-fields__history-restore:focus-visible {
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 82%, transparent);
+  outline: none;
+}
+
+.project-preferences-fields__history-restore:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 640px) {
+  .project-preferences-fields__history-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 .project-preferences-fields .project-preferences-fields__markdown-row {
   display: flex !important;
   flex-direction: row !important;

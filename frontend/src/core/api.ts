@@ -45,7 +45,7 @@ export class ApiError extends Error {
   }
 }
 
-type DocumentRecord = {
+export type DocumentRecord = {
   id: string
   title: string
   content: string

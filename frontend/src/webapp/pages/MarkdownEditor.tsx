@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Eye, SquarePen } from "lucide-react"
 import { MARKDOWN_EDITOR_COMMAND_EVENT, type MarkdownEditorCommand } from "../../core/editorEvents"
-import { normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../core/markdown"
+import { countWords, normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../core/markdown"
 import "./MarkdownEditor.css"
 
 type MarkdownEditorProps = {
@@ -9,6 +9,7 @@ type MarkdownEditorProps = {
   content: string
   editorFontSize: number
   onContentChange: (nextContent: string) => void
+  onWordCountChange?: (payload: { documentWordCount: number; selectedWordCount: number | null }) => void
   onTypingStateChange?: (isTyping: boolean) => void
 }
 
@@ -17,6 +18,7 @@ export default function MarkdownEditor({
   content,
   editorFontSize,
   onContentChange,
+  onWordCountChange,
   onTypingStateChange,
 }: MarkdownEditorProps) {
   const [markdownDraft, setMarkdownDraft] = useState(() => normalizeMarkdownContentForEditing(content))
@@ -27,6 +29,19 @@ export default function MarkdownEditor({
   const paneTransitionTimeoutRef = useRef<number | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const layoutRef = useRef<HTMLDivElement | null>(null)
+
+  const emitWordCounts = (value: string, selection?: { start: number; end: number }) => {
+    const documentWordCount = countWords(value)
+    const selectedWordCount =
+      selection && selection.start !== selection.end
+        ? countWords(value.slice(selection.start, selection.end))
+        : null
+
+    onWordCountChange?.({
+      documentWordCount,
+      selectedWordCount,
+    })
+  }
 
   const syncTextareaHeight = () => {
     const textarea = textareaRef.current
@@ -47,6 +62,7 @@ export default function MarkdownEditor({
     setMarkdownDraft(nextValue)
     onContentChange(nextValue)
     markTypingActivity()
+    emitWordCounts(nextValue, nextSelection)
 
     if (!nextSelection) {
       return
@@ -232,7 +248,9 @@ export default function MarkdownEditor({
   }
 
   useEffect(() => {
-    setMarkdownDraft(normalizeMarkdownContentForEditing(content))
+    const normalized = normalizeMarkdownContentForEditing(content)
+    setMarkdownDraft(normalized)
+    emitWordCounts(normalized)
   }, [content, documentId])
 
   useLayoutEffect(() => {
@@ -448,6 +466,16 @@ export default function MarkdownEditor({
             setMarkdownDraft(nextValue)
             onContentChange(nextValue)
             markTypingActivity()
+            emitWordCounts(nextValue, {
+              start: event.target.selectionStart,
+              end: event.target.selectionEnd,
+            })
+          }}
+          onSelect={(event) => {
+            emitWordCounts(event.currentTarget.value, {
+              start: event.currentTarget.selectionStart,
+              end: event.currentTarget.selectionEnd,
+            })
           }}
           placeholder="# Start writing in Markdown"
           spellCheck={false}

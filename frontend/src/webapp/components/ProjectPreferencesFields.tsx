@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import { BookText, Check, Download, FileLock2, NotebookText, X } from "lucide-react"
+import { BookText, Check, Download, FileLock2, History, NotebookText, RotateCcw, X } from "lucide-react"
 import type { ProjectKind } from "../../core/projects"
 import "./ProjectPreferencesFields.css"
+
+type ProjectVersionListItem = {
+  id: string
+  label: string
+  saveKind: "manual" | "autosave"
+  createdAt: string
+  changedCharacters: number
+}
 
 type ProjectPreferencesFieldsProps = {
   fieldClassName: string
@@ -11,11 +19,14 @@ type ProjectPreferencesFieldsProps = {
   markdownEditorEnabled: boolean
   projectColor: string
   projectWallpaperEmojis: string
+  projectVersions?: ProjectVersionListItem[]
+  showVersionHistory?: boolean
   onProjectNameChange: (name: string) => void
   onProjectKindChange: (kind: ProjectKind) => void
   onMarkdownEditorEnabledChange: (enabled: boolean) => void
   onProjectColorChange: (color: string) => void
   onProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
+  onRestoreProjectVersion?: (versionId: string) => void
   onExportProject: () => void
   onMarkdownPromptVisibilityChange?: (visible: boolean) => void
   onMarkdownPromptDismissed?: () => void
@@ -76,6 +87,21 @@ function normalizeProjectColor(value: string | null | undefined) {
   return normalized
 }
 
+function formatVersionTimestamp(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return "Unknown save time"
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed)
+}
+
 export default function ProjectPreferencesFields({
   fieldClassName,
   projectName,
@@ -83,11 +109,14 @@ export default function ProjectPreferencesFields({
   markdownEditorEnabled,
   projectColor,
   projectWallpaperEmojis,
+  projectVersions = [],
+  showVersionHistory = true,
   onProjectNameChange,
   onProjectKindChange,
   onMarkdownEditorEnabledChange,
   onProjectColorChange,
   onProjectWallpaperEmojisChange,
+  onRestoreProjectVersion,
   onExportProject,
   onMarkdownPromptVisibilityChange,
   onMarkdownPromptDismissed,
@@ -369,6 +398,62 @@ export default function ProjectPreferencesFields({
           <span>{markdownEditorEnabled ? "Download as .md" : "Export as PDF"}</span>
         </button>
       </div>
+
+      {showVersionHistory ? (
+        <div className={`${fieldClassName} project-preferences-fields__field project-preferences-fields__history`.trim()}>
+          <div className="project-preferences-fields__history-header">
+            <span className="project-preferences-fields__label project-preferences-fields__history-title">
+              <History size={17} strokeWidth={2} aria-hidden="true" />
+              <span>Version History</span>
+            </span>
+            <span className="project-preferences-fields__history-count">
+              {projectVersions.length === 1 ? "1 saved version" : `${projectVersions.length} saved versions`}
+            </span>
+          </div>
+
+          {projectVersions.length ? (
+            <div className="project-preferences-fields__history-list" role="list" aria-label="Saved project versions">
+              {projectVersions.map((version) => (
+                <article key={version.id} className="project-preferences-fields__history-card" role="listitem">
+                  <div className="project-preferences-fields__history-meta">
+                    <div className="project-preferences-fields__history-version-line">
+                      <strong className="project-preferences-fields__history-version">Version {version.label}</strong>
+                      <span
+                        className={`project-preferences-fields__history-badge ${version.saveKind === "manual" ? "project-preferences-fields__history-badge--manual" : "project-preferences-fields__history-badge--autosave"}`.trim()}
+                      >
+                        {version.saveKind === "manual" ? "Manual" : "Autosave"}
+                      </span>
+                    </div>
+                    <p className="project-preferences-fields__history-time">{formatVersionTimestamp(version.createdAt)}</p>
+                    <p className="project-preferences-fields__history-diff">
+                      {version.changedCharacters > 0
+                        ? `${version.changedCharacters.toLocaleString()} changed characters`
+                        : "No character delta recorded"}
+                    </p>
+                  </div>
+
+                  {onRestoreProjectVersion ? (
+                    <button
+                      type="button"
+                      className="project-preferences-fields__history-restore"
+                      onClick={() => {
+                        onRestoreProjectVersion(version.id)
+                      }}
+                    >
+                      <RotateCcw size={14} strokeWidth={2} aria-hidden="true" />
+                      <span>Restore</span>
+                    </button>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="project-preferences-fields__history-empty">
+              Use File &gt; Save Version to create Version 1. Autosaves begin after the first manual version.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {markdownPromptDialog}
     </div>

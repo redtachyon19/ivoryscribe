@@ -6,6 +6,8 @@ import WebMenu from "./webapp/components/WebMenu"
 import { FONT_OPTIONS, PALETTE_OPTIONS, type Palette } from "./core/appearance"
 import {
   APP_COLOR_PALETTE_CHANGE_EVENT,
+  APP_SAVE_PROJECT_EVENT,
+  APP_SAVE_PROJECT_VERSION_EVENT,
   EDITOR_FONT_FAMILY_CHANGE_EVENT,
   EDITOR_FONT_SIZE_CHANGE_EVENT,
   EDITOR_FONT_SIZE_SET_EVENT,
@@ -18,6 +20,7 @@ import { downloadProjectAsMarkdown } from "./core/markdown"
 import { exportProjectAsPdf } from "./core/pdfExport"
 import { DEFAULT_DOCUMENT_CONTENT, createProject, type Project, type ProjectKind } from "./core/projects"
 import {
+  type DocumentRecord,
   confirmAccountEmailChange,
   confirmAccountDeletionCode,
   createDocument,
@@ -32,6 +35,20 @@ import {
   updateDocument,
   updatePreferences,
 } from "./core/api"
+import {
+  AUTOSAVE_VERSION_INTERVAL_MS,
+  PROJECT_RECORD_TYPE,
+  buildProjectDocumentPayload,
+  buildProjectVersionPayload,
+  getNextManualVersionDefinition,
+  parseProjectVersion,
+  planAutosaveVersion,
+  restoreProjectFromVersion,
+  serializeProjectSnapshot,
+  sortProjectVersionsDesc,
+  type ProjectVersion,
+  type ProjectVersionDefinition,
+} from "./core/versioning"
 import Home from "./landing/pages/Home"
 import AuthPage from "./webapp/pages/AuthPage"
 import EditorWorkspace from "./webapp/pages/EditorWorkspace"
@@ -44,7 +61,6 @@ const VIEW_FADE_DURATION_MS = 240
 const DEFAULT_CUSTOM_BACKGROUND = "#0f0f0f"
 const DEFAULT_CUSTOM_ACCENT = "#9ab8ff"
 const SESSION_STORAGE_KEY = "ivoryscribe.session"
-const PROJECT_RECORD_TYPE = "ivory-project"
 
 type UserSession = {
   token: string
@@ -69,6 +85,7 @@ type PreferencesPayload = {
     customFontName?: string
     isCustomFontSelected?: boolean
     isGlobalTextEnabled?: boolean
+    isWordCountEnabled?: boolean
   }
   uiSettings?: {
     folders?: ProjectFolder[]
@@ -230,6 +247,7 @@ export default function App() {
   const [isAuthBootstrapping, setIsAuthBootstrapping] = useState(true)
   const [authLoadError, setAuthLoadError] = useState("")
   const [projectDocumentMap, setProjectDocumentMap] = useState<Record<string, string>>({})
+  const [projectVersionsByProjectId, setProjectVersionsByProjectId] = useState<Record<string, ProjectVersion[]>>({})
   const [isWorkspaceHydrated, setIsWorkspaceHydrated] = useState(false)
   // The app has two high-level screens: project library and editor workspace.
   const [view, setView] = useState<"projects" | "editor">("projects")
@@ -247,6 +265,7 @@ export default function App() {
   const [customFontName, setCustomFontName] = useState("")
   const [isCustomFontSelected, setIsCustomFontSelected] = useState(false)
   const [isGlobalTextEnabled, setIsGlobalTextEnabled] = useState(false)
+  const [isWordCountEnabled, setIsWordCountEnabled] = useState(false)
   const [fontSize, setFontSize] = useState(32)
   const [palette, setPalette] = useState<Palette>(() => getInitialPalette())
   const [customPaletteBackground, setCustomPaletteBackground] = useState(DEFAULT_CUSTOM_BACKGROUND)
@@ -257,6 +276,12 @@ export default function App() {
   )
   const saveTimeoutRef = useRef<number | null>(null)
   const isSyncingRef = useRef(false)
+  const sessionRef = useRef<UserSession | null>(session)
+  const viewRef = useRef<"projects" | "editor">("projects")
+  const activeProjectRef = useRef<Project | null>(null)
+  const projectDocumentMapRef = useRef<Record<string, string>>({})
+  const projectVersionsRef = useRef<Record<string, ProjectVersion[]>>({})
+  const isVersionSaveInFlightRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -288,9 +313,17 @@ export default function App() {
 
     const nextProjects: Project[] = []
     const nextDocumentMap: Record<string, string> = {}
+    const nextVersionsByProjectId: Record<string, ProjectVersion[]> = {}
 
     for (const documentRecord of documents) {
       if (documentRecord.metadata?.recordType !== PROJECT_RECORD_TYPE) {
+        const versionRecord = parseProjectVersion(documentRecord)
+        if (!versionRecord) {
+          continue
+        }
+
+        const existingVersions = nextVersionsByProjectId[versionRecord.projectId] ?? []
+        nextVersionsByProjectId[versionRecord.projectId] = sortProjectVersionsDesc([...existingVersions, versionRecord])
         continue
       }
 
@@ -310,6 +343,7 @@ export default function App() {
 
     setProjects(projectList)
     setProjectDocumentMap(nextDocumentMap)
+    setProjectVersionsByProjectId(nextVersionsByProjectId)
     setFolders(Array.isArray(uiSettings?.folders) ? uiSettings.folders : [])
 
     const requestedActiveProjectId = uiSettings?.activeProjectId
@@ -338,6 +372,7 @@ export default function App() {
     setCustomFontName(editorSettings?.customFontName ?? "")
     setIsCustomFontSelected(Boolean(editorSettings?.isCustomFontSelected))
     setIsGlobalTextEnabled(Boolean(editorSettings?.isGlobalTextEnabled))
+    setIsWordCountEnabled(Boolean(editorSettings?.isWordCountEnabled))
 
     setBookCounter(typeof uiSettings?.bookCounter === "number" ? uiSettings.bookCounter : extractCounterFromNames(projectList, "Book"))
     setBlogCounter(typeof uiSettings?.blogCounter === "number" ? uiSettings.blogCounter : extractCounterFromNames(projectList, "Blog"))
@@ -367,6 +402,7 @@ export default function App() {
           const fallbackProject = createProject("Book 1", "Book")
           setProjects([fallbackProject])
           setProjectDocumentMap({})
+          setProjectVersionsByProjectId({})
           setFolders([])
           setActiveProjectId(fallbackProject.id)
           setView("projects")
@@ -382,6 +418,22 @@ export default function App() {
 
     void bootstrapSession()
   }, [session])
+
+  useEffect(() => {
+    sessionRef.current = session
+  }, [session])
+
+  useEffect(() => {
+    viewRef.current = view
+  }, [view])
+
+  useEffect(() => {
+    projectDocumentMapRef.current = projectDocumentMap
+  }, [projectDocumentMap])
+
+  useEffect(() => {
+    projectVersionsRef.current = projectVersionsByProjectId
+  }, [projectVersionsByProjectId])
 
   useEffect(() => {
     return () => {
@@ -480,6 +532,7 @@ export default function App() {
               customFontName,
               isCustomFontSelected,
               isGlobalTextEnabled,
+              isWordCountEnabled,
             },
             uiSettings: {
               folders,
@@ -512,6 +565,7 @@ export default function App() {
     isCustomFontSelected,
     isFlagsEnabled,
     isGlobalTextEnabled,
+    isWordCountEnabled,
     isMenuBarEnabled,
     isWorkspaceHydrated,
     palette,
@@ -543,10 +597,96 @@ export default function App() {
     setAuthLoadError("")
     setIsWorkspaceHydrated(false)
     setProjects([])
+    setProjectVersionsByProjectId({})
     setFolders([])
     setProjectDocumentMap({})
     setActiveProjectId(null)
     setView("projects")
+  }
+
+  const upsertProjectVersion = (projectId: string, version: ProjectVersion) => {
+    setProjectVersionsByProjectId((current) => {
+      const existingVersions = current[projectId] ?? []
+      const nextVersions = sortProjectVersionsDesc([
+        version,
+        ...existingVersions.filter((existingVersion) => existingVersion.id !== version.id),
+      ])
+
+      return {
+        ...current,
+        [projectId]: nextVersions,
+      }
+    })
+  }
+
+  const persistProjectDocument = async (token: string, project: Project) => {
+    const payload = buildProjectDocumentPayload(project)
+    const existingDocumentId = projectDocumentMapRef.current[project.id]
+
+    if (existingDocumentId) {
+      await updateDocument(token, existingDocumentId, payload)
+      return existingDocumentId
+    }
+
+    const remoteDocuments = await getDocuments(token)
+    const existingRemoteDocument = remoteDocuments.find(
+      (documentRecord) =>
+        documentRecord.metadata?.recordType === PROJECT_RECORD_TYPE && documentRecord.metadata?.projectId === project.id,
+    )
+
+    if (existingRemoteDocument) {
+      await updateDocument(token, existingRemoteDocument.id, payload)
+      setProjectDocumentMap((current) => ({
+        ...current,
+        [project.id]: existingRemoteDocument.id,
+      }))
+      return existingRemoteDocument.id
+    }
+
+    const createdDocument = await createDocument(token, payload)
+    setProjectDocumentMap((current) => ({
+      ...current,
+      [project.id]: createdDocument.id,
+    }))
+    return createdDocument.id
+  }
+
+  const createProjectVersionSnapshot = async (
+    project: Project,
+    definition: ProjectVersionDefinition,
+    options?: { alertOnFailure?: boolean },
+  ) => {
+    const currentSession = sessionRef.current
+    if (!currentSession) {
+      return null
+    }
+
+    if (isVersionSaveInFlightRef.current) {
+      return null
+    }
+
+    isVersionSaveInFlightRef.current = true
+
+    try {
+      await persistProjectDocument(currentSession.token, project)
+      const createdDocument = await createDocument(currentSession.token, buildProjectVersionPayload(project, definition))
+      const parsedVersion = parseProjectVersion(createdDocument as DocumentRecord)
+
+      if (parsedVersion) {
+        upsertProjectVersion(project.id, parsedVersion)
+      }
+
+      return parsedVersion
+    } catch (error) {
+      if (options?.alertOnFailure !== false && typeof window !== "undefined") {
+        const message = error instanceof Error ? error.message : "Failed to save version"
+        window.alert(message)
+      }
+
+      return null
+    } finally {
+      isVersionSaveInFlightRef.current = false
+    }
   }
 
   const updateSessionUser = (nextUser: {
@@ -646,6 +786,78 @@ export default function App() {
 
     return activeProject.contentById[activeProject.activeId] ?? DEFAULT_DOCUMENT_CONTENT
   }, [activeProject])
+
+  useEffect(() => {
+    activeProjectRef.current = activeProject
+  }, [activeProject])
+
+  useEffect(() => {
+    const handleSaveProject = () => {
+      const currentSession = sessionRef.current
+      const currentProject = activeProjectRef.current
+      if (!currentSession || !currentProject) {
+        return
+      }
+
+      void persistProjectDocument(currentSession.token, currentProject)
+    }
+
+    const handleSaveProjectVersion = () => {
+      const currentProject = activeProjectRef.current
+      if (!currentProject) {
+        return
+      }
+
+      const versionDefinition = getNextManualVersionDefinition(
+        projectVersionsRef.current[currentProject.id] ?? [],
+        serializeProjectSnapshot(currentProject),
+      )
+
+      void createProjectVersionSnapshot(currentProject, versionDefinition).then((savedVersion) => {
+        if (savedVersion && typeof window !== "undefined") {
+          window.alert(`Saved version ${savedVersion.label}.`)
+        }
+      })
+    }
+
+    window.addEventListener(APP_SAVE_PROJECT_EVENT, handleSaveProject)
+    window.addEventListener(APP_SAVE_PROJECT_VERSION_EVENT, handleSaveProjectVersion)
+
+    return () => {
+      window.removeEventListener(APP_SAVE_PROJECT_EVENT, handleSaveProject)
+      window.removeEventListener(APP_SAVE_PROJECT_VERSION_EVENT, handleSaveProjectVersion)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isWorkspaceHydrated) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      const currentSession = sessionRef.current
+      const currentProject = activeProjectRef.current
+
+      if (!currentSession || !currentProject || viewRef.current !== "editor" || isVersionSaveInFlightRef.current) {
+        return
+      }
+
+      const versionDefinition = planAutosaveVersion(
+        projectVersionsRef.current[currentProject.id] ?? [],
+        serializeProjectSnapshot(currentProject),
+      )
+
+      if (!versionDefinition) {
+        return
+      }
+
+      void createProjectVersionSnapshot(currentProject, versionDefinition, { alertOnFailure: false })
+    }, AUTOSAVE_VERSION_INTERVAL_MS)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [isWorkspaceHydrated])
 
   useEffect(() => {
     // Keep an active project selected whenever projects are present.
@@ -1027,6 +1239,7 @@ export default function App() {
               activeProjectId={activeProjectId}
               onCreateProject={createNewProject}
               onOpenProject={openProject}
+              
               setProjects={setProjects}
               setFolders={setFolders}
               setActiveProjectId={setActiveProjectId}
@@ -1038,6 +1251,7 @@ export default function App() {
               editorFontSize={fontSize}
               menuBarEnabled={isMenuBarEnabled}
               flagsEnabled={isFlagsEnabled}
+              showWordCount={isWordCountEnabled}
               isEditorTyping={isEditorTyping}
               onReturnToDashboard={returnToProjectLibrary}
               onProjectChange={updateActiveProject}
@@ -1054,6 +1268,7 @@ export default function App() {
           hideTrigger={isEditorTyping}
           selectedFont={selectedFont}
           globalTextEnabled={isGlobalTextEnabled}
+          showWordCount={isWordCountEnabled}
           fontSize={fontSize}
           palette={palette}
           paletteOptions={PALETTE_OPTIONS}
@@ -1072,6 +1287,7 @@ export default function App() {
           onCustomFontNameChange={applyCustomFontName}
           onCustomFontSelectedChange={setIsCustomFontSelected}
           onGlobalTextEnabledChange={setIsGlobalTextEnabled}
+          onShowWordCountChange={setIsWordCountEnabled}
           onFontSizeChange={applyFontSize}
           onPaletteChange={(nextPalette) => {
             requestAppColorPaletteChange(nextPalette)
@@ -1088,6 +1304,7 @@ export default function App() {
           activeProjectMarkdownEditorEnabled={Boolean(activeProject?.markdownEditorEnabled)}
           activeProjectColor={activeProject?.color ?? "#7ea8ff"}
           activeProjectWallpaperEmojis={activeProject?.wallpaperEmojis ?? ""}
+          activeProjectVersions={activeProject ? projectVersionsByProjectId[activeProject.id] ?? [] : []}
           onActiveProjectNameChange={(nextName) => {
             updateActiveProject((currentProject) => ({
               ...currentProject,
@@ -1126,6 +1343,20 @@ export default function App() {
               ...currentProject,
               wallpaperEmojis: nextWallpaperEmojis,
             }))
+          }}
+          onRestoreProjectVersion={(versionId) => {
+            if (!activeProject) {
+              return
+            }
+
+            const selectedVersion = (projectVersionsByProjectId[activeProject.id] ?? []).find(
+              (version) => version.id === versionId,
+            )
+            if (!selectedVersion) {
+              return
+            }
+
+            updateActiveProject((currentProject) => restoreProjectFromVersion(currentProject, selectedVersion.snapshot))
           }}
           onExportProject={() => {
             if (!activeProject) {

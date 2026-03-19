@@ -5,6 +5,8 @@ export const EDITOR_COMMAND_EVENT = "editor:command"
 export const MARKDOWN_EDITOR_COMMAND_EVENT = "markdown-editor:command"
 export const APP_COLOR_PALETTE_CHANGE_EVENT = "app:color-palette-change"
 export const EXPORT_ALL_TABS_PDF_EVENT = "app:export-all-tabs-pdf"
+export const APP_SAVE_PROJECT_EVENT = "app:save-project"
+export const APP_SAVE_PROJECT_VERSION_EVENT = "app:save-project-version"
 export const PROJECTS_CREATE_BOOK_EVENT = "projects:create-book"
 export const PROJECTS_CREATE_BLOG_EVENT = "projects:create-blog"
 export const PROJECTS_CREATE_FOLDER_EVENT = "projects:create-folder"
@@ -104,6 +106,14 @@ export function requestMarkdownEditorCommand(command: MarkdownEditorCommand) {
 
 export function requestExportAllTabsPdf() {
   window.dispatchEvent(new Event(EXPORT_ALL_TABS_PDF_EVENT))
+}
+
+export function requestAppSaveProject() {
+  window.dispatchEvent(new Event(APP_SAVE_PROJECT_EVENT))
+}
+
+export function requestAppSaveProjectVersion() {
+  window.dispatchEvent(new Event(APP_SAVE_PROJECT_VERSION_EVENT))
 }
 
 export function requestCreateBookProject() {

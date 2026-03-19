@@ -1,4 +1,6 @@
 import {
+  requestAppSaveProject,
+  requestAppSaveProjectVersion,
   requestEditorCommand,
   requestMarkdownEditorCommand,
   requestCreateBlogProject,
@@ -333,8 +335,16 @@ export function getAppMenu(options?: { markdownEditorEnabled?: boolean }): MenuI
         },
         {
           label: "Save",
+          shortcut: "⌘S",
           action: () => {
-            console.log("Save")
+            requestAppSaveProject()
+          },
+        },
+        {
+          label: "Save Version",
+          shortcut: "⇧⌘S",
+          action: () => {
+            requestAppSaveProjectVersion()
           },
         },
         {
