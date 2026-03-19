@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import { BookText, Check, Download, FileLock2, History, NotebookText, RotateCcw, X } from "lucide-react"
+import { BookText, Check, Copy, Eye, Download, FileLock2, History, NotebookText, RotateCcw, SquareArrowOutUpRight, X } from "lucide-react"
 import type { ProjectKind } from "../../core/projects"
 import "./ProjectPreferencesFields.css"
 
@@ -10,6 +10,13 @@ type ProjectVersionListItem = {
   saveKind: "manual" | "autosave"
   createdAt: string
   changedCharacters: number
+  preview?: {
+    projectName: string
+    projectKind: ProjectKind
+    entryCount: number
+    activeDocumentTitle: string
+    activeDocumentPreview: string
+  }
 }
 
 type ProjectPreferencesFieldsProps = {
@@ -27,6 +34,8 @@ type ProjectPreferencesFieldsProps = {
   onProjectColorChange: (color: string) => void
   onProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onRestoreProjectVersion?: (versionId: string) => void
+  onDuplicateProjectVersion?: (versionId: string) => void
+  onOpenProjectVersionInNewTab?: (versionId: string) => void
   onExportProject: () => void
   onMarkdownPromptVisibilityChange?: (visible: boolean) => void
   onMarkdownPromptDismissed?: () => void
@@ -117,6 +126,8 @@ export default function ProjectPreferencesFields({
   onProjectColorChange,
   onProjectWallpaperEmojisChange,
   onRestoreProjectVersion,
+  onDuplicateProjectVersion,
+  onOpenProjectVersionInNewTab,
   onExportProject,
   onMarkdownPromptVisibilityChange,
   onMarkdownPromptDismissed,
@@ -128,8 +139,10 @@ export default function ProjectPreferencesFields({
   const [markdownPromptSnapshot, setMarkdownPromptSnapshot] = useState<MarkdownPromptKind | null>(null)
   const [isMarkdownPromptRendered, setIsMarkdownPromptRendered] = useState(false)
   const [isMarkdownPromptClosing, setIsMarkdownPromptClosing] = useState(false)
+  const [previewVersionId, setPreviewVersionId] = useState<string | null>(null)
 
   const activeMarkdownPrompt = markdownPrompt ?? markdownPromptSnapshot
+  const activePreviewVersion = previewVersionId ? projectVersions.find((version) => version.id === previewVersionId) ?? null : null
 
   const openMarkdownPrompt = (kind: MarkdownPromptKind) => {
     setMarkdownPrompt(kind)
@@ -245,6 +258,63 @@ export default function ProjectPreferencesFields({
                     </button>
                   )}
                 </div>
+              </div>
+            </div>
+          </>,
+          document.body,
+        )
+      : null
+
+  const versionPreviewDialog =
+    activePreviewVersion?.preview && typeof document !== "undefined"
+      ? createPortal(
+          <>
+            <button
+              type="button"
+              className="project-preferences-fields__preview-overlay"
+              onClick={() => {
+                setPreviewVersionId(null)
+              }}
+              aria-label="Close version preview"
+            />
+            <div
+              className="project-preferences-fields__preview-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="project-preferences-version-preview-title"
+            >
+              <div className="project-preferences-fields__preview-header">
+                <h4 id="project-preferences-version-preview-title" className="project-preferences-fields__preview-title">
+                  <Eye size={16} strokeWidth={2} aria-hidden="true" />
+                  <span>Version {activePreviewVersion.label} Snapshot</span>
+                </h4>
+                <button
+                  type="button"
+                  className="project-preferences-fields__preview-close"
+                  onClick={() => {
+                    setPreviewVersionId(null)
+                  }}
+                  aria-label="Close snapshot preview"
+                >
+                  <X size={14} strokeWidth={2} aria-hidden="true" />
+                </button>
+              </div>
+
+              <p className="project-preferences-fields__preview-meta">
+                {activePreviewVersion.preview.projectName} · {activePreviewVersion.preview.projectKind} · {activePreviewVersion.preview.entryCount} entries
+              </p>
+              <p className="project-preferences-fields__preview-meta">
+                Saved {formatVersionTimestamp(activePreviewVersion.createdAt)} ({activePreviewVersion.saveKind === "manual" ? "manual" : "autosave"})
+              </p>
+
+              <div className="project-preferences-fields__preview-section">
+                <h5 className="project-preferences-fields__preview-section-title">Active Entry</h5>
+                <p className="project-preferences-fields__preview-active-title">
+                  {activePreviewVersion.preview.activeDocumentTitle}
+                </p>
+                <p className="project-preferences-fields__preview-copy">
+                  {activePreviewVersion.preview.activeDocumentPreview || "No preview available for this entry."}
+                </p>
               </div>
             </div>
           </>,
@@ -432,30 +502,72 @@ export default function ProjectPreferencesFields({
                     </p>
                   </div>
 
-                  {onRestoreProjectVersion ? (
-                    <button
-                      type="button"
-                      className="project-preferences-fields__history-restore"
-                      onClick={() => {
-                        onRestoreProjectVersion(version.id)
-                      }}
-                    >
-                      <RotateCcw size={14} strokeWidth={2} aria-hidden="true" />
-                      <span>Restore</span>
-                    </button>
-                  ) : null}
+                  <div className="project-preferences-fields__history-actions">
+                    {version.preview ? (
+                      <button
+                        type="button"
+                        className="project-preferences-fields__history-action-btn"
+                        onClick={() => {
+                          setPreviewVersionId(version.id)
+                        }}
+                      >
+                        <Eye size={14} strokeWidth={2} aria-hidden="true" />
+                        <span>View</span>
+                      </button>
+                    ) : null}
+
+                    {onOpenProjectVersionInNewTab ? (
+                      <button
+                        type="button"
+                        className="project-preferences-fields__history-action-btn"
+                        onClick={() => {
+                          onOpenProjectVersionInNewTab(version.id)
+                        }}
+                      >
+                        <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden="true" />
+                        <span>Open Tab</span>
+                      </button>
+                    ) : null}
+
+                    {onDuplicateProjectVersion ? (
+                      <button
+                        type="button"
+                        className="project-preferences-fields__history-action-btn"
+                        onClick={() => {
+                          onDuplicateProjectVersion(version.id)
+                        }}
+                      >
+                        <Copy size={14} strokeWidth={2} aria-hidden="true" />
+                        <span>Duplicate</span>
+                      </button>
+                    ) : null}
+
+                    {onRestoreProjectVersion ? (
+                      <button
+                        type="button"
+                        className="project-preferences-fields__history-action-btn"
+                        onClick={() => {
+                          onRestoreProjectVersion(version.id)
+                        }}
+                      >
+                        <RotateCcw size={14} strokeWidth={2} aria-hidden="true" />
+                        <span>Restore</span>
+                      </button>
+                    ) : null}
+                  </div>
                 </article>
               ))}
             </div>
           ) : (
             <p className="project-preferences-fields__history-empty">
-              Use File &gt; Save Version to create Version 1. Autosaves begin after the first manual version.
+              New projects automatically start with Manual Version 0. Use File &gt; Save Version for Versions 1, 2, 3 and beyond.
             </p>
           )}
         </div>
       ) : null}
 
       {markdownPromptDialog}
+      {versionPreviewDialog}
     </div>
   )
 }
