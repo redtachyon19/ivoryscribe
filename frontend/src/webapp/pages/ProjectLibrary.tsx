@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type DragEvent, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react"
-import { BookCopy, BookText, Folder, GripVertical, NotebookText, Plus, ScrollText, Settings2, Trash2, X } from "lucide-react"
+import { BookCopy, BookText, Folder, GripVertical, NotebookText, Plus, ScrollText, Settings2, SquareArrowOutUpRight, Trash2, X } from "lucide-react"
 import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
 import { downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
@@ -163,6 +163,7 @@ type ProjectLibraryProps = {
   activeProjectId: string | null
   onCreateProject: (kind: ProjectKind, folderId?: string) => void
   onOpenProject: (projectId: string) => void
+  onOpenProjectInNewTab: (projectId: string) => void
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
@@ -174,6 +175,7 @@ export default function ProjectLibrary({
   activeProjectId,
   onCreateProject,
   onOpenProject,
+  onOpenProjectInNewTab,
   setProjects,
   setFolders,
   setActiveProjectId,
@@ -1117,6 +1119,18 @@ export default function ProjectLibrary({
         <div className="project-card__content">
           <div className="project-card__top-row">
             <div className="project-card__actions">
+              <button
+                type="button"
+                className="project-card__icon-btn"
+                aria-label={`Open ${project.name} in new tab`}
+                onClick={() => {
+                  onOpenProjectInNewTab(project.id)
+                }}
+              >
+                <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />
+                <span className="project-card__icon-btn-label">Open in New Tab</span>
+              </button>
+
               <button
                 type="button"
                 className="project-card__icon-btn"

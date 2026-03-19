@@ -58,6 +58,13 @@ type GlobalSettingsProps = {
     saveKind: "manual" | "autosave"
     createdAt: string
     changedCharacters: number
+    preview?: {
+      projectName: string
+      projectKind: ProjectKind
+      entryCount: number
+      activeDocumentTitle: string
+      activeDocumentPreview: string
+    }
   }>
   onActiveProjectNameChange: (name: string) => void
   onActiveProjectKindChange: (kind: ProjectKind) => void
@@ -65,6 +72,8 @@ type GlobalSettingsProps = {
   onActiveProjectColorChange: (color: string) => void
   onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onRestoreProjectVersion?: (versionId: string) => void
+  onDuplicateProjectVersion?: (versionId: string) => void
+  onOpenProjectVersionInNewTab?: (versionId: string) => void
   onExportProject: () => void
   onSaveAccountProfile: (input: { firstName: string; lastName: string }) => Promise<void> | void
   onRequestAccountEmailChange: (email: string) => Promise<{ message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }> | { message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }
@@ -121,6 +130,8 @@ export default function GlobalSettings({
   onActiveProjectColorChange,
   onActiveProjectWallpaperEmojisChange,
   onRestoreProjectVersion,
+  onDuplicateProjectVersion,
+  onOpenProjectVersionInNewTab,
   onExportProject,
   onSaveAccountProfile,
   onRequestAccountEmailChange,
@@ -1420,6 +1431,8 @@ export default function GlobalSettings({
                       onProjectColorChange={onActiveProjectColorChange}
                       onProjectWallpaperEmojisChange={onActiveProjectWallpaperEmojisChange}
                       onRestoreProjectVersion={onRestoreProjectVersion}
+                      onDuplicateProjectVersion={onDuplicateProjectVersion}
+                      onOpenProjectVersionInNewTab={onOpenProjectVersionInNewTab}
                       onExportProject={onExportProject}
                       onMarkdownPromptVisibilityChange={setIsMarkdownPromptVisible}
                       onMarkdownPromptDismissed={onClose}

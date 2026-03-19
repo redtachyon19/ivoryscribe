@@ -175,14 +175,32 @@ export function parseProjectVersion(documentRecord: DocumentLike): ProjectVersio
 }
 
 export function getNextManualVersionDefinition(versions: ProjectVersion[], currentSerializedSnapshot: string): ProjectVersionDefinition {
-  const nextBaseManualVersion =
-    versions.reduce((highest, version) => Math.max(highest, version.baseManualVersion), 0) + 1
+  const manualVersions = versions.filter((version) => version.saveKind === "manual")
+  const nextBaseManualVersion = manualVersions.reduce((highest, version) => Math.max(highest, version.baseManualVersion), 0) + 1
   const latestVersion = sortProjectVersionsDesc(versions)[0]
 
   return {
     label: String(nextBaseManualVersion),
     saveKind: "manual",
     baseManualVersion: nextBaseManualVersion,
+    minor: 0,
+    patch: 0,
+    changedCharacters: latestVersion
+      ? calculateCharacterDifference(latestVersion.serializedSnapshot, currentSerializedSnapshot)
+      : currentSerializedSnapshot.length,
+  }
+}
+
+export function getInitialManualVersionDefinition(
+  versions: ProjectVersion[],
+  currentSerializedSnapshot: string,
+): ProjectVersionDefinition {
+  const latestVersion = sortProjectVersionsDesc(versions)[0]
+
+  return {
+    label: "0",
+    saveKind: "manual",
+    baseManualVersion: 0,
     minor: 0,
     patch: 0,
     changedCharacters: latestVersion

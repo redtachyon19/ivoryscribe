@@ -18,7 +18,7 @@ import {
 import { getAppMenu, projectWorkspaceMenu } from "./core/menu"
 import { downloadProjectAsMarkdown } from "./core/markdown"
 import { exportProjectAsPdf } from "./core/pdfExport"
-import { DEFAULT_DOCUMENT_CONTENT, createProject, type Project, type ProjectKind } from "./core/projects"
+import { DEFAULT_DOCUMENT_CONTENT, createId, createProject, normalizeProjectAfterTabs, type Project, type ProjectKind } from "./core/projects"
 import {
   type DocumentRecord,
   confirmAccountEmailChange,
@@ -40,6 +40,7 @@ import {
   PROJECT_RECORD_TYPE,
   buildProjectDocumentPayload,
   buildProjectVersionPayload,
+  getInitialManualVersionDefinition,
   getNextManualVersionDefinition,
   parseProjectVersion,
   planAutosaveVersion,
@@ -71,6 +72,13 @@ type UserSession = {
     email: string
     isEmailVerified: boolean
   }
+}
+
+type VersionActionMessage = {
+  type: "ivory:version-action"
+  action: "restore" | "duplicate"
+  projectId: string
+  versionId: string
 }
 
 type PreferencesPayload = {
@@ -180,6 +188,76 @@ function parseProjectFromDocument(documentRecord: { title: string; content: stri
   } catch {
     return null
   }
+}
+
+function collectTabTitles(tabs: Project["tabs"]): string[] {
+  return tabs.flatMap((tab) => [tab.title, ...collectTabTitles(tab.children)])
+}
+
+function findTabTitleById(tabs: Project["tabs"], targetId: string): string | null {
+  for (const tab of tabs) {
+    if (tab.id === targetId) {
+      return tab.title
+    }
+
+    const nested = findTabTitleById(tab.children, targetId)
+    if (nested) {
+      return nested
+    }
+  }
+
+  return null
+}
+
+function buildDuplicateProjectName(baseName: string, existingNames: string[]) {
+  const normalizedExistingNames = new Set(existingNames.map((name) => name.trim().toLowerCase()))
+  let suffix = 1
+
+  while (true) {
+    const candidate = suffix === 1 ? `${baseName} Copy` : `${baseName} Copy ${suffix}`
+    if (!normalizedExistingNames.has(candidate.trim().toLowerCase())) {
+      return candidate
+    }
+
+    suffix += 1
+  }
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
+}
+
+function formatVersionTimestamp(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return "Unknown save time"
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed)
+}
+
+function stripHtmlPreview(value: string) {
+  if (!value) {
+    return ""
+  }
+
+  if (typeof window === "undefined") {
+    return value.slice(0, 280)
+  }
+
+  const text = new DOMParser().parseFromString(value, "text/html").body.textContent ?? ""
+  return text.replace(/\s+/g, " ").trim().slice(0, 280)
 }
 
 function hexToRgb(value: string) {
@@ -619,6 +697,69 @@ export default function App() {
     })
   }
 
+  const restoreVersionIntoProject = (projectId: string, versionId: string) => {
+    const selectedVersion = (projectVersionsRef.current[projectId] ?? []).find((version) => version.id === versionId)
+    if (!selectedVersion) {
+      return false
+    }
+
+    let restored = false
+    setProjects((current) =>
+      current.map((project) => {
+        if (project.id !== projectId) {
+          return project
+        }
+
+        restored = true
+        return restoreProjectFromVersion(project, selectedVersion.snapshot)
+      }),
+    )
+
+    if (!restored) {
+      return false
+    }
+
+    setActiveProjectId(projectId)
+    setView("editor")
+    return true
+  }
+
+  const duplicateVersionIntoLibrary = (projectId: string, versionId: string) => {
+    const selectedVersion = (projectVersionsRef.current[projectId] ?? []).find((version) => version.id === versionId)
+    if (!selectedVersion) {
+      return false
+    }
+
+    const duplicatedSnapshot = JSON.parse(JSON.stringify(selectedVersion.snapshot)) as Project
+    let duplicatedProjectId: string | null = null
+
+    setProjects((current) => {
+      const duplicateName = buildDuplicateProjectName(
+        duplicatedSnapshot.name,
+        current.map((project) => project.name),
+      )
+      const duplicatedProjectBase: Project = {
+        ...duplicatedSnapshot,
+        id: createId(),
+        createdAt: new Date().toISOString(),
+        name: duplicateName,
+        folderId: null,
+        rootPosition: "top",
+      }
+      const duplicatedProject = normalizeProjectAfterTabs(duplicatedProjectBase, duplicatedProjectBase.tabs)
+      duplicatedProjectId = duplicatedProject.id
+      return [duplicatedProject, ...current]
+    })
+
+    if (!duplicatedProjectId) {
+      return false
+    }
+
+    setActiveProjectId(duplicatedProjectId)
+    setView("projects")
+    return true
+  }
+
   const persistProjectDocument = async (token: string, project: Project) => {
     const payload = buildProjectDocumentPayload(project)
     const existingDocumentId = projectDocumentMapRef.current[project.id]
@@ -787,6 +928,51 @@ export default function App() {
     return activeProject.contentById[activeProject.activeId] ?? DEFAULT_DOCUMENT_CONTENT
   }, [activeProject])
 
+  const activeProjectVersionsForSettings = useMemo(() => {
+    if (!activeProject) {
+      return [] as Array<{
+        id: string
+        label: string
+        saveKind: "manual" | "autosave"
+        createdAt: string
+        changedCharacters: number
+        preview: {
+          projectName: string
+          projectKind: ProjectKind
+          entryCount: number
+          activeDocumentTitle: string
+          activeDocumentPreview: string
+        }
+      }>
+    }
+
+    return (projectVersionsByProjectId[activeProject.id] ?? []).map((version) => {
+      const tabTitles = collectTabTitles(version.snapshot.tabs)
+      const activeDocumentTitle =
+        (version.snapshot.activeId ? findTabTitleById(version.snapshot.tabs, version.snapshot.activeId) : null) ??
+        tabTitles[0] ??
+        "Untitled Entry"
+      const activeDocumentPreview =
+        (version.snapshot.activeId ? stripHtmlPreview(version.snapshot.contentById[version.snapshot.activeId] ?? "") : "") ||
+        stripHtmlPreview(version.snapshot.contentById[Object.keys(version.snapshot.contentById)[0] ?? ""] ?? "")
+
+      return {
+        id: version.id,
+        label: version.label,
+        saveKind: version.saveKind,
+        createdAt: version.createdAt,
+        changedCharacters: version.changedCharacters,
+        preview: {
+          projectName: version.snapshot.name,
+          projectKind: version.snapshot.kind,
+          entryCount: tabTitles.length,
+          activeDocumentTitle,
+          activeDocumentPreview,
+        },
+      }
+    })
+  }, [activeProject, projectVersionsByProjectId])
+
   useEffect(() => {
     activeProjectRef.current = activeProject
   }, [activeProject])
@@ -802,22 +988,33 @@ export default function App() {
       void persistProjectDocument(currentSession.token, currentProject)
     }
 
-    const handleSaveProjectVersion = () => {
+    const handleSaveProjectVersion = async () => {
       const currentProject = activeProjectRef.current
       if (!currentProject) {
         return
       }
 
+      const currentSerializedSnapshot = serializeProjectSnapshot(currentProject)
+      let versionsForProject = projectVersionsRef.current[currentProject.id] ?? []
+      const hasManualVersion = versionsForProject.some((version) => version.saveKind === "manual")
+
+      if (!hasManualVersion) {
+        const initialDefinition = getInitialManualVersionDefinition(versionsForProject, currentSerializedSnapshot)
+        const initialVersion = await createProjectVersionSnapshot(currentProject, initialDefinition, { alertOnFailure: false })
+        if (initialVersion) {
+          versionsForProject = sortProjectVersionsDesc([initialVersion, ...versionsForProject])
+        }
+      }
+
       const versionDefinition = getNextManualVersionDefinition(
-        projectVersionsRef.current[currentProject.id] ?? [],
-        serializeProjectSnapshot(currentProject),
+        versionsForProject,
+        currentSerializedSnapshot,
       )
 
-      void createProjectVersionSnapshot(currentProject, versionDefinition).then((savedVersion) => {
-        if (savedVersion && typeof window !== "undefined") {
-          window.alert(`Saved version ${savedVersion.label}.`)
-        }
-      })
+      const savedVersion = await createProjectVersionSnapshot(currentProject, versionDefinition)
+      if (savedVersion && typeof window !== "undefined") {
+        window.alert(`Saved version ${savedVersion.label}.`)
+      }
     }
 
     window.addEventListener(APP_SAVE_PROJECT_EVENT, handleSaveProject)
@@ -858,6 +1055,63 @@ export default function App() {
       window.clearInterval(intervalId)
     }
   }, [isWorkspaceHydrated])
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    const onVersionActionMessage = (event: MessageEvent<unknown>) => {
+      if (event.origin !== window.location.origin || !event.data || typeof event.data !== "object") {
+        return
+      }
+
+      const message = event.data as Partial<VersionActionMessage>
+      if (
+        message.type !== "ivory:version-action" ||
+        (message.action !== "restore" && message.action !== "duplicate") ||
+        typeof message.projectId !== "string" ||
+        typeof message.versionId !== "string"
+      ) {
+        return
+      }
+
+      if (message.action === "restore") {
+        void restoreVersionIntoProject(message.projectId, message.versionId)
+        return
+      }
+
+      void duplicateVersionIntoLibrary(message.projectId, message.versionId)
+    }
+
+    window.addEventListener("message", onVersionActionMessage)
+    return () => {
+      window.removeEventListener("message", onVersionActionMessage)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!session || !isWorkspaceHydrated || isVersionSaveInFlightRef.current) {
+      return
+    }
+
+    const projectMissingManualBaseline = projects.find((project) => {
+      const versions = projectVersionsByProjectId[project.id] ?? []
+      return !versions.some((version) => version.saveKind === "manual")
+    })
+
+    if (!projectMissingManualBaseline) {
+      return
+    }
+
+    const versions = projectVersionsByProjectId[projectMissingManualBaseline.id] ?? []
+    const baselineDefinition = getInitialManualVersionDefinition(
+      versions,
+      serializeProjectSnapshot(projectMissingManualBaseline),
+    )
+
+    void createProjectVersionSnapshot(projectMissingManualBaseline, baselineDefinition, { alertOnFailure: false })
+  }, [isWorkspaceHydrated, projectVersionsByProjectId, projects, session])
 
   useEffect(() => {
     // Keep an active project selected whenever projects are present.
@@ -995,6 +1249,11 @@ export default function App() {
     } else {
       setBlogCounter((current) => current + 1)
     }
+
+    if (sessionRef.current && isWorkspaceHydrated) {
+      const baselineDefinition = getInitialManualVersionDefinition([], serializeProjectSnapshot(nextProject))
+      void createProjectVersionSnapshot(nextProject, baselineDefinition, { alertOnFailure: false })
+    }
   }
 
   const openProject = (projectId: string) => {
@@ -1110,6 +1369,15 @@ export default function App() {
     return new URL(currentLocation, window.location.origin).pathname
   }, [currentLocation])
 
+  const requestedProjectId = useMemo(() => {
+    if (typeof window === "undefined" || currentPathname !== "/app") {
+      return ""
+    }
+
+    const url = new URL(currentLocation, window.location.origin)
+    return url.searchParams.get("projectId")?.trim() ?? ""
+  }, [currentLocation, currentPathname])
+
   const passwordResetToken = useMemo(() => {
     if (typeof window === "undefined" || currentPathname !== "/reset-password") {
       return ""
@@ -1118,6 +1386,19 @@ export default function App() {
     const url = new URL(currentLocation, window.location.origin)
     return url.searchParams.get("token")?.trim() ?? ""
   }, [currentLocation, currentPathname])
+
+  useEffect(() => {
+    if (!isWorkspaceHydrated || currentPathname !== "/app" || !requestedProjectId) {
+      return
+    }
+
+    if (!projects.some((project) => project.id === requestedProjectId)) {
+      return
+    }
+
+    setActiveProjectId(requestedProjectId)
+    setView("editor")
+  }, [currentPathname, isWorkspaceHydrated, projects, requestedProjectId])
 
   if (currentPathname === "/reset-password") {
     return (
@@ -1239,7 +1520,15 @@ export default function App() {
               activeProjectId={activeProjectId}
               onCreateProject={createNewProject}
               onOpenProject={openProject}
-              
+              onOpenProjectInNewTab={(projectId) => {
+                if (typeof window === "undefined") {
+                  return
+                }
+
+                const url = new URL("/app", window.location.origin)
+                url.searchParams.set("projectId", projectId)
+                window.open(url.toString(), "_blank")
+              }}
               setProjects={setProjects}
               setFolders={setFolders}
               setActiveProjectId={setActiveProjectId}
@@ -1304,7 +1593,7 @@ export default function App() {
           activeProjectMarkdownEditorEnabled={Boolean(activeProject?.markdownEditorEnabled)}
           activeProjectColor={activeProject?.color ?? "#7ea8ff"}
           activeProjectWallpaperEmojis={activeProject?.wallpaperEmojis ?? ""}
-          activeProjectVersions={activeProject ? projectVersionsByProjectId[activeProject.id] ?? [] : []}
+          activeProjectVersions={activeProjectVersionsForSettings}
           onActiveProjectNameChange={(nextName) => {
             updateActiveProject((currentProject) => ({
               ...currentProject,
@@ -1349,6 +1638,20 @@ export default function App() {
               return
             }
 
+            void restoreVersionIntoProject(activeProject.id, versionId)
+          }}
+          onDuplicateProjectVersion={(versionId) => {
+            if (!activeProject) {
+              return
+            }
+
+            void duplicateVersionIntoLibrary(activeProject.id, versionId)
+          }}
+          onOpenProjectVersionInNewTab={(versionId) => {
+            if (!activeProject || typeof window === "undefined") {
+              return
+            }
+
             const selectedVersion = (projectVersionsByProjectId[activeProject.id] ?? []).find(
               (version) => version.id === versionId,
             )
@@ -1356,7 +1659,104 @@ export default function App() {
               return
             }
 
-            updateActiveProject((currentProject) => restoreProjectFromVersion(currentProject, selectedVersion.snapshot))
+            const activeDocumentTitle =
+              (selectedVersion.snapshot.activeId
+                ? findTabTitleById(selectedVersion.snapshot.tabs, selectedVersion.snapshot.activeId)
+                : null) ?? "Untitled Entry"
+            const activeDocumentPreview = selectedVersion.snapshot.activeId
+              ? stripHtmlPreview(selectedVersion.snapshot.contentById[selectedVersion.snapshot.activeId] ?? "")
+              : ""
+
+            const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(selectedVersion.snapshot.name)} - Version ${escapeHtml(selectedVersion.label)}</title>
+    <style>
+      body { margin: 0; padding: 24px; font-family: "Times New Roman", Times, serif; background: #101113; color: #ececec; }
+      .wrap { max-width: 860px; margin: 0 auto; }
+      h1 { margin: 0 0 8px; font-weight: 400; font-size: 36px; }
+      .meta { margin: 0; color: #b6bcc8; font-size: 15px; }
+      .card { margin-top: 20px; border: 1px solid #313642; border-radius: 12px; padding: 14px; background: #171a21; }
+      h2 { margin: 0 0 10px; font-weight: 400; font-size: 24px; }
+      p { margin: 0; color: #dde3ee; line-height: 1.45; white-space: pre-wrap; }
+      .actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+      .btn { border: 1px solid #3e4555; border-radius: 8px; background: #1f2531; color: #e9edf5; padding: 8px 12px; font-size: 15px; cursor: pointer; }
+      .btn:hover { background: #273043; }
+      .status { margin-top: 10px; color: #9bb6ff; font-size: 14px; min-height: 1.2em; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>${escapeHtml(selectedVersion.snapshot.name)} - Version ${escapeHtml(selectedVersion.label)}</h1>
+      <p class="meta">${escapeHtml(formatVersionTimestamp(selectedVersion.createdAt))} - ${escapeHtml(selectedVersion.saveKind === "manual" ? "Manual" : "Autosave")}</p>
+      <div class="actions">
+        <button id="restoreBtn" class="btn" type="button">Restore Version</button>
+        <button id="duplicateBtn" class="btn" type="button">Add Copy to Library</button>
+      </div>
+      <p id="actionStatus" class="status"></p>
+      <div class="card">
+        <h2>${escapeHtml(activeDocumentTitle)}</h2>
+        <p>${escapeHtml(activeDocumentPreview || "No preview content available for this entry.")}</p>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var projectId = ${JSON.stringify(activeProject.id)};
+        var versionId = ${JSON.stringify(selectedVersion.id)};
+        var status = document.getElementById("actionStatus");
+
+        function sendAction(action) {
+          if (!window.opener) {
+            if (status) {
+              status.textContent = "This tab is detached from the app window. Open from version history to enable actions.";
+            }
+            return;
+          }
+
+          window.opener.postMessage(
+            {
+              type: "ivory:version-action",
+              action: action,
+              projectId: projectId,
+              versionId: versionId,
+            },
+            window.location.origin,
+          );
+
+          if (status) {
+            status.textContent = action === "restore"
+              ? "Restore request sent to app window."
+              : "Duplicate request sent to app window.";
+          }
+        }
+
+        var restoreBtn = document.getElementById("restoreBtn");
+        var duplicateBtn = document.getElementById("duplicateBtn");
+
+        if (restoreBtn) {
+          restoreBtn.addEventListener("click", function () {
+            sendAction("restore");
+          });
+        }
+
+        if (duplicateBtn) {
+          duplicateBtn.addEventListener("click", function () {
+            sendAction("duplicate");
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>`
+
+            const blob = new Blob([html], { type: "text/html" })
+            const blobUrl = URL.createObjectURL(blob)
+            window.open(blobUrl, "_blank")
+            window.setTimeout(() => {
+              URL.revokeObjectURL(blobUrl)
+            }, 15_000)
           }}
           onExportProject={() => {
             if (!activeProject) {
