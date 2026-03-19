@@ -10,6 +10,7 @@ import {
   EDITOR_FONT_SIZE_SET_EVENT,
   type EditorCommand,
 } from "./core/editorEvents"
+import { countWords } from "./core/markdown"
 import "./Editor.css"
 
 type FontSizeChangeDetail = {
@@ -50,6 +51,7 @@ type EditorProps = {
   flagsEnabled: boolean
   onDocumentTitleChange: (nextTitle: string) => void
   onContentChange: (nextContent: string) => void
+  onWordCountChange?: (payload: { documentWordCount: number; selectedWordCount: number | null }) => void
   onTypingStateChange?: (isTyping: boolean) => void
 }
 
@@ -62,6 +64,7 @@ export default function Editor({
   flagsEnabled,
   onDocumentTitleChange,
   onContentChange,
+  onWordCountChange,
   onTypingStateChange,
 }: EditorProps) {
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
@@ -84,6 +87,18 @@ export default function Editor({
     () => new Set(flaggedAnchorsByDocument[activeDocumentKey] ?? []),
     [flaggedAnchorsByDocument, activeDocumentKey],
   )
+
+  const emitWordCounts = (currentEditor: NonNullable<typeof editor>) => {
+    const documentWordCount = countWords(currentEditor.getText())
+    const { from, to } = currentEditor.state.selection
+    const selectedWordCount =
+      from === to ? null : countWords(currentEditor.state.doc.textBetween(from, to, " "))
+
+    onWordCountChange?.({
+      documentWordCount,
+      selectedWordCount,
+    })
+  }
 
   const highlightSelectionIfPresent = () => {
     if (!editor) {
@@ -249,6 +264,7 @@ export default function Editor({
     onUpdate: ({ editor: currentEditor }) => {
       syncEmptyState(currentEditor)
       onContentChange(currentEditor.getHTML())
+      emitWordCounts(currentEditor)
     },
   })
 
@@ -258,6 +274,7 @@ export default function Editor({
     }
 
     syncEmptyState(editor)
+    emitWordCounts(editor)
   }, [editor])
 
   useEffect(() => {
@@ -274,7 +291,23 @@ export default function Editor({
     // Avoid re-triggering onUpdate during controlled content sync.
     editor.commands.setContent(nextContent, { emitUpdate: false })
     syncEmptyState(editor)
+    emitWordCounts(editor)
   }, [editor, content, documentId])
+
+  useEffect(() => {
+    if (!editor) {
+      return
+    }
+
+    const onSelectionUpdate = () => {
+      emitWordCounts(editor)
+    }
+
+    editor.on("selectionUpdate", onSelectionUpdate)
+    return () => {
+      editor.off("selectionUpdate", onSelectionUpdate)
+    }
+  }, [editor, onWordCountChange])
 
   useEffect(() => {
     setFontSize(Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, editorFontSize || DEFAULT_FONT_SIZE)))

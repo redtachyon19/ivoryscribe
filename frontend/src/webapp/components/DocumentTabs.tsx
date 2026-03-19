@@ -504,12 +504,27 @@ type DocumentTabsProps = {
   tabs: DocumentTab[]
   projectKind: ProjectKind
   activeId: string | null
+  showWordCount?: boolean
+  activeDocumentWordCount?: number
+  totalDocumentWordCount?: number
+  activeToTotalWordCountLabel?: string
   hideToggle?: boolean
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
   onSelect: (id: string) => void
 }
 
-export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle = false, onTabsChange, onSelect }: DocumentTabsProps) {
+export default function DocumentTabs({
+  tabs,
+  projectKind,
+  activeId,
+  showWordCount = false,
+  activeDocumentWordCount = 0,
+  totalDocumentWordCount = 0,
+  activeToTotalWordCountLabel,
+  hideToggle = false,
+  onTabsChange,
+  onSelect,
+}: DocumentTabsProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget>(null)
@@ -529,6 +544,7 @@ export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle =
   const panelTitle = projectKind === "Book" ? "Table of Contents" : "Blog Posts"
   const toggleLabel = isOpen ? `Hide ${plural.toLowerCase()}` : `Show ${plural.toLowerCase()}`
   const addLabel = `Create ${singular}`
+  const resolvedWordCountLabel = activeToTotalWordCountLabel ?? `${activeDocumentWordCount}/${totalDocumentWordCount} words`
   const pendingDeleteNode = pendingDeleteId ? findNode(tabs, pendingDeleteId) : null
   const pendingDeleteDescendantTitles = pendingDeleteNode ? collectDescendantTitles(pendingDeleteNode) : []
 
@@ -715,7 +731,10 @@ export default function DocumentTabs({ tabs, projectKind, activeId, hideToggle =
 
       <aside className={`doc-tabs__panel ${isOpen ? "doc-tabs__panel--open" : ""}`.trim()}>
         <header className="doc-tabs__header">
-          <h2>{panelTitle}</h2>
+          <div className="doc-tabs__header-copy">
+            <h2>{panelTitle}</h2>
+            {showWordCount ? <p className="doc-tabs__word-count">{resolvedWordCountLabel}</p> : null}
+          </div>
           <button type="button" className="doc-tabs__add-btn" onClick={addRootDocument} aria-label={addLabel}>
             <Plus size={14} strokeWidth={2} aria-hidden={true} />
             <span className="doc-tabs__add-btn-label">{addLabel}</span>

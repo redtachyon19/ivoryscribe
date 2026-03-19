@@ -1,11 +1,11 @@
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { BookText, Library, NotebookText } from "lucide-react"
 import Editor from "../../Editor"
 import MarkdownEditor from "./MarkdownEditor"
 import DocumentTabs from "../components/DocumentTabs"
 import TuskAiTab from "../components/TuskAiTab"
 import { EXPORT_ALL_TABS_PDF_EVENT } from "../../core/editorEvents"
-import { downloadProjectAsMarkdown } from "../../core/markdown"
+import { countWordsFromContent, downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
 import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../core/projects"
 import "./EditorWorkspace.css"
@@ -66,12 +66,33 @@ function getNextEntryName(tabs: Project["tabs"], singular: string): string {
   return `${singular} ${candidate}`
 }
 
+function totalWordsAcrossTabs(tabs: Project["tabs"], contentById: Project["contentById"]): number {
+  return tabs.reduce((total, tab) => {
+    const currentWords = countWordsFromContent(contentById[tab.id] ?? "")
+    return total + currentWords + totalWordsAcrossTabs(tab.children, contentById)
+  }, 0)
+}
+
+function formatWordCount(value: number) {
+  if (value < 1_000) {
+    return `${value}`
+  }
+
+  if (value < 10_000) {
+    const compact = Math.round(value / 100) / 10
+    return Number.isInteger(compact) ? `${compact.toFixed(0)}k` : `${compact.toFixed(1)}k`
+  }
+
+  return `${Math.round(value / 1_000)}k`
+}
+
 type EditorWorkspaceProps = {
   project: Project
   activeContent: string
   editorFontSize: number
   menuBarEnabled: boolean
   flagsEnabled: boolean
+  showWordCount: boolean
   isEditorTyping: boolean
   onReturnToDashboard: () => void
   onProjectChange: (updater: (project: Project) => Project) => void
@@ -84,6 +105,7 @@ export default function EditorWorkspace({
   editorFontSize,
   menuBarEnabled,
   flagsEnabled,
+  showWordCount,
   isEditorTyping,
   onReturnToDashboard,
   onProjectChange,
@@ -92,6 +114,7 @@ export default function EditorWorkspace({
   const entryTerms = getProjectEntryTerms(project.kind)
   const ProjectIcon = project.kind === "Book" ? BookText : NotebookText
   const markdownEditorEnabled = Boolean(project.markdownEditorEnabled)
+  const [selectedWordCount, setSelectedWordCount] = useState<number | null>(null)
 
   const activeDocumentTitle = useMemo(() => {
     if (!project.activeId) {
@@ -100,6 +123,20 @@ export default function EditorWorkspace({
 
     return findTabTitleById(project.tabs, project.activeId) ?? entryTerms.untitled
   }, [project.tabs, project.activeId, entryTerms.untitled])
+
+  const activeDocumentWordCount = useMemo(() => countWordsFromContent(activeContent), [activeContent])
+  const totalDocumentWordCount = useMemo(
+    () => totalWordsAcrossTabs(project.tabs, project.contentById),
+    [project.tabs, project.contentById],
+  )
+
+  const currentCountLabel = selectedWordCount === null
+    ? `${activeDocumentWordCount.toLocaleString()} ${activeDocumentWordCount === 1 ? "word" : "words"}`
+    : `${selectedWordCount.toLocaleString()} ${selectedWordCount === 1 ? "word" : "words"} selected`
+
+  useEffect(() => {
+    setSelectedWordCount(null)
+  }, [project.activeId])
 
   useEffect(() => {
     // Menu action emits a global event; this page handles it for the current project.
@@ -144,6 +181,10 @@ export default function EditorWorkspace({
         tabs={project.tabs}
         projectKind={project.kind}
         activeId={project.activeId}
+        showWordCount={showWordCount}
+        activeDocumentWordCount={activeDocumentWordCount}
+        totalDocumentWordCount={totalDocumentWordCount}
+        activeToTotalWordCountLabel={`${formatWordCount(activeDocumentWordCount)}/${formatWordCount(totalDocumentWordCount)} words`}
         hideToggle={isEditorTyping}
         onTabsChange={(updater) => {
           // Tab operations can add/reorder/nest docs, so normalize project invariants afterward.
@@ -162,6 +203,9 @@ export default function EditorWorkspace({
           documentId={project.activeId}
           content={activeContent}
           editorFontSize={editorFontSize}
+          onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {
+            setSelectedWordCount(nextSelectionCount)
+          }}
           onTypingStateChange={onEditorTypingStateChange}
           onContentChange={(nextContent) => {
             onProjectChange((currentProject) => {
@@ -186,6 +230,9 @@ export default function EditorWorkspace({
           editorFontSize={editorFontSize}
           content={activeContent}
           flagsEnabled={flagsEnabled}
+          onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {
+            setSelectedWordCount(nextSelectionCount)
+          }}
           onTypingStateChange={onEditorTypingStateChange}
           onDocumentTitleChange={(nextTitle) => {
             onProjectChange((currentProject) => {
@@ -221,6 +268,11 @@ export default function EditorWorkspace({
           }}
         />
       )}
+      {showWordCount ? (
+        <div className="editor-workspace__word-count" aria-live="polite" aria-atomic="true">
+          {currentCountLabel}
+        </div>
+      ) : null}
     </>
   )
 }

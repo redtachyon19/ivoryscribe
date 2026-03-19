@@ -1541,6 +1541,7 @@ export default function ProjectLibrary({
               markdownEditorEnabled={projectSettingsMarkdownEditorEnabled}
               projectColor={projectSettingsColor}
               projectWallpaperEmojis={projectSettingsWallpaperEmojis}
+              showVersionHistory={false}
               onProjectNameChange={(nextName) => {
                 setProjectSettingsName(nextName)
                 if (projectSettingsError) {

@@ -24,6 +24,7 @@ type GlobalSettingsProps = {
   customFontName: string
   customFontSelected: boolean
   globalTextEnabled: boolean
+  showWordCount: boolean
   fontSize: number
   palette: string
   paletteOptions: PaletteOption[]
@@ -36,6 +37,7 @@ type GlobalSettingsProps = {
   onCustomFontNameChange: (fontName: string) => void
   onCustomFontSelectedChange: (selected: boolean) => void
   onGlobalTextEnabledChange: (enabled: boolean) => void
+  onShowWordCountChange: (enabled: boolean) => void
   onFontSizeChange: (fontSize: number) => void
   onPaletteChange: (palette: string) => void
   customPaletteBackground: string
@@ -50,11 +52,19 @@ type GlobalSettingsProps = {
   activeProjectMarkdownEditorEnabled: boolean
   activeProjectColor: string
   activeProjectWallpaperEmojis: string
+  activeProjectVersions?: Array<{
+    id: string
+    label: string
+    saveKind: "manual" | "autosave"
+    createdAt: string
+    changedCharacters: number
+  }>
   onActiveProjectNameChange: (name: string) => void
   onActiveProjectKindChange: (kind: ProjectKind) => void
   onActiveProjectMarkdownEditorEnabledChange: (enabled: boolean) => void
   onActiveProjectColorChange: (color: string) => void
   onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
+  onRestoreProjectVersion?: (versionId: string) => void
   onExportProject: () => void
   onSaveAccountProfile: (input: { firstName: string; lastName: string }) => Promise<void> | void
   onRequestAccountEmailChange: (email: string) => Promise<{ message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }> | { message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }
@@ -76,6 +86,7 @@ export default function GlobalSettings({
   customFontName,
   customFontSelected,
   globalTextEnabled,
+  showWordCount,
   fontSize,
   palette,
   paletteOptions,
@@ -88,6 +99,7 @@ export default function GlobalSettings({
   onCustomFontNameChange,
   onCustomFontSelectedChange,
   onGlobalTextEnabledChange,
+  onShowWordCountChange,
   onFontSizeChange,
   onPaletteChange,
   customPaletteBackground,
@@ -102,11 +114,13 @@ export default function GlobalSettings({
   activeProjectMarkdownEditorEnabled,
   activeProjectColor,
   activeProjectWallpaperEmojis,
+  activeProjectVersions = [],
   onActiveProjectNameChange,
   onActiveProjectKindChange,
   onActiveProjectMarkdownEditorEnabledChange,
   onActiveProjectColorChange,
   onActiveProjectWallpaperEmojisChange,
+  onRestoreProjectVersion,
   onExportProject,
   onSaveAccountProfile,
   onRequestAccountEmailChange,
@@ -1362,6 +1376,21 @@ export default function GlobalSettings({
                       <span className="global-settings__switch-track" />
                     </span>
                   </label>
+
+                  <label className="global-settings__field global-settings__field--toggle" htmlFor="settings-word-count-toggle">
+                    <span>Show Word Count</span>
+                    <span className="global-settings__switch" aria-hidden="true">
+                      <input
+                        id="settings-word-count-toggle"
+                        type="checkbox"
+                        checked={showWordCount}
+                        onChange={(event) => {
+                          onShowWordCountChange(event.target.checked)
+                        }}
+                      />
+                      <span className="global-settings__switch-track" />
+                    </span>
+                  </label>
                 </section>
 
                 {showProjectPreferences ? (
@@ -1384,11 +1413,13 @@ export default function GlobalSettings({
                       markdownEditorEnabled={activeProjectMarkdownEditorEnabled}
                       projectColor={activeProjectColor}
                       projectWallpaperEmojis={activeProjectWallpaperEmojis}
+                      projectVersions={activeProjectVersions}
                       onProjectNameChange={onActiveProjectNameChange}
                       onProjectKindChange={onActiveProjectKindChange}
                       onMarkdownEditorEnabledChange={onActiveProjectMarkdownEditorEnabledChange}
                       onProjectColorChange={onActiveProjectColorChange}
                       onProjectWallpaperEmojisChange={onActiveProjectWallpaperEmojisChange}
+                      onRestoreProjectVersion={onRestoreProjectVersion}
                       onExportProject={onExportProject}
                       onMarkdownPromptVisibilityChange={setIsMarkdownPromptVisible}
                       onMarkdownPromptDismissed={onClose}

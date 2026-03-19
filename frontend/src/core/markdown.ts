@@ -67,6 +67,8 @@ function normalizeLineEndings(value: string) {
   return value.replace(/\r\n?/g, "\n")
 }
 
+const WORD_MATCHER = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu
+
 function plainTextFromHtml(value: string) {
   if (typeof DOMParser === "undefined") {
     return value
@@ -82,6 +84,17 @@ function plainTextFromHtml(value: string) {
 
 function looksLikeHtml(value: string) {
   return /<\/?[a-z][\s\S]*>/i.test(value)
+}
+
+export function countWords(value: string) {
+  const matches = value.match(WORD_MATCHER)
+  return matches ? matches.length : 0
+}
+
+export function countWordsFromContent(value: string) {
+  const normalized = normalizeLineEndings(value)
+  const text = looksLikeHtml(normalized) ? plainTextFromHtml(normalized) : normalized
+  return countWords(text)
 }
 
 export function normalizeMarkdownContentForEditing(value: string) {

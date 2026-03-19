@@ -85,6 +85,12 @@
   margin: 0 4px 10px;
 }
 
+.doc-tabs__header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .doc-tabs__header h2 {
   font-family: "EB Garamond", serif;
   margin: 0;
@@ -92,6 +98,14 @@
   font-weight: 400;
   letter-spacing: 0.02em;
   color: var(--menu-button, #e8e8e8);
+}
+
+.doc-tabs__word-count {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
+  font-family: "Times", "Times New Roman", serif;
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 .doc-tabs__add-btn {
