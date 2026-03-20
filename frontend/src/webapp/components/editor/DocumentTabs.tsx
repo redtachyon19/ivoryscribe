@@ -1,17 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react"
-import { CornerDownRight, Pencil, Plus, TableOfContents, Trash2, X } from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react"
+import { ChevronDown, CornerDownRight, Pencil, Trash2 } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../../core/projects"
+import { useListDrag, getDropMode, type DropMode, type DropTarget } from "./hooks/useListDrag"
 import Button from "../ui/Button"
-import GhostButton from "../ui/GhostButton"
 import Modal from "../ui/Modal"
 import "./DocumentTabs.css"
-
-type DropMode = "before" | "after" | "inside"
-
-type DropTarget = {
-  targetId: string
-  mode: DropMode
-} | null
 
 // Local ID helper for tabs created from the sidebar panel.
 function createId() {
@@ -196,23 +189,6 @@ function deleteTab(nodes: DocumentTab[], targetId: string): DocumentTab[] {
   return removeNode(nodes, targetId).nextNodes
 }
 
-// Converts pointer position into drop mode (top/bottom edges vs center-inside).
-function getDropMode(event: DragEvent<HTMLElement>): DropMode {
-  const rect = event.currentTarget.getBoundingClientRect()
-  const topThreshold = rect.top + rect.height * 0.33
-  const bottomThreshold = rect.top + rect.height * 0.67
-
-  if (event.clientY <= topThreshold) {
-    return "before"
-  }
-
-  if (event.clientY >= bottomThreshold) {
-    return "after"
-  }
-
-  return "inside"
-}
-
 function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
@@ -242,6 +218,21 @@ function collectDescendantTitles(node: DocumentTab): string[] {
   return node.children.flatMap((child) => [child.title, ...collectDescendantTitles(child)])
 }
 
+function findAncestorIds(nodes: DocumentTab[], targetId: string, ancestors: string[] = []): string[] | null {
+  for (const node of nodes) {
+    if (node.id === targetId) {
+      return ancestors
+    }
+
+    const nested = findAncestorIds(node.children, targetId, [...ancestors, node.id])
+    if (nested) {
+      return nested
+    }
+  }
+
+  return null
+}
+
 type TabNodeProps = {
   tab: DocumentTab
   depth: number
@@ -261,6 +252,8 @@ type TabNodeProps = {
   onCommitRename: () => void
   onCancelRename: () => void
   onRowRef: (id: string, element: HTMLDivElement | null) => void
+  expandedById: Record<string, boolean>
+  onToggleExpand: (id: string) => void
 }
 
 function TabNode({
@@ -282,6 +275,8 @@ function TabNode({
   onCommitRename,
   onCancelRename,
   onRowRef,
+  expandedById,
+  onToggleExpand,
 }: TabNodeProps) {
   const marqueeViewportRef = useRef<HTMLSpanElement | null>(null)
   const marqueeTextRef = useRef<HTMLSpanElement | null>(null)
@@ -292,6 +287,8 @@ function TabNode({
   const isDropBefore = dropTarget?.targetId === tab.id && dropTarget.mode === "before"
   const isDropAfter = dropTarget?.targetId === tab.id && dropTarget.mode === "after"
   const isDropInside = dropTarget?.targetId === tab.id && dropTarget.mode === "inside"
+  const hasChildren = tab.children.length > 0
+  const isExpanded = expandedById[tab.id] !== false
 
   useEffect(() => {
     const viewport = marqueeViewportRef.current
@@ -392,7 +389,7 @@ function TabNode({
               type="button"
               draggable
               className={`doc-tabs__label ${isDragging ? "doc-tabs__row--dragging" : ""}`.trim()}
-              style={{ paddingLeft: `${12 + depth * 18}px` }}
+              style={{ paddingLeft: `${8 + depth * 16}px` }}
               onClick={() => {
                 onSelect(tab.id)
               }}
@@ -410,10 +407,10 @@ function TabNode({
               {depth > 0 ? (
                 <span
                   className="doc-tabs__indent-icon"
-                  style={{ left: `${12 + (depth - 1) * 18}px` }}
+                  style={{ left: `${8 + (depth - 1) * 16}px` }}
                   aria-hidden="true"
                 >
-                  <CornerDownRight size={13} strokeWidth={1.9} />
+                  <CornerDownRight size={14} strokeWidth={1.9} />
                 </span>
               ) : null}
 
@@ -449,7 +446,7 @@ function TabNode({
                 onStartRename(tab.id, tab.title)
               }}
             >
-              <Pencil size={12} strokeWidth={2} aria-hidden="true" />
+              <Pencil size={13} strokeWidth={2} aria-hidden="true" />
             </button>
 
             <button
@@ -461,8 +458,26 @@ function TabNode({
                 onRequestDelete(tab.id)
               }}
             >
-              <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
+              <Trash2 size={13} strokeWidth={2} aria-hidden="true" />
             </button>
+
+            {hasChildren ? (
+              <button
+                type="button"
+                className={`doc-tabs__collapse-btn ${isExpanded ? "doc-tabs__collapse-btn--open" : ""}`.trim()}
+                aria-label={isExpanded ? `Collapse ${tab.title}` : `Expand ${tab.title}`}
+                aria-expanded={isExpanded}
+                onMouseDown={(event) => {
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onToggleExpand(tab.id)
+                }}
+              >
+                <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
+              </button>
+            ) : null}
           </>
         )}
       </div>
@@ -472,7 +487,7 @@ function TabNode({
         style={{ marginLeft: `${12 + depth * 18}px` }}
       />
 
-      {tab.children.length ? (
+      {hasChildren && isExpanded ? (
         <ul className="doc-tabs__list doc-tabs__list--nested">
           {tab.children.map((child) => (
             <TabNode
@@ -495,6 +510,8 @@ function TabNode({
               onCommitRename={onCommitRename}
               onCancelRename={onCancelRename}
               onRowRef={onRowRef}
+              expandedById={expandedById}
+              onToggleExpand={onToggleExpand}
             />
           ))}
         </ul>
@@ -504,36 +521,30 @@ function TabNode({
 }
 
 type DocumentTabsProps = {
+  projectName: string
   tabs: DocumentTab[]
   projectKind: ProjectKind
   activeId: string | null
-  showWordCount?: boolean
-  activeDocumentWordCount?: number
-  totalDocumentWordCount?: number
-  activeToTotalWordCountLabel?: string
-  hideToggle?: boolean
+  isVisible?: boolean
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
   onSelect: (id: string) => void
 }
 
 export default function DocumentTabs({
+  projectName,
   tabs,
   projectKind,
   activeId,
-  showWordCount = false,
-  activeDocumentWordCount = 0,
-  totalDocumentWordCount = 0,
-  activeToTotalWordCountLabel,
-  hideToggle = false,
+  isVisible = true,
   onTabsChange,
   onSelect,
 }: DocumentTabsProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dropTarget, setDropTarget] = useState<DropTarget>(null)
+  const drag = useListDrag()
+  const { draggingId, dropTarget, setDraggingId, setDropTarget } = drag
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [expandedById, setExpandedById] = useState<Record<string, boolean>>({})
   const rootListRef = useRef<HTMLUListElement | null>(null)
   const rowRefs = useRef<Record<string, HTMLDivElement>>({})
   const [activeIndicatorStyle, setActiveIndicatorStyle] = useState<{ top: number; height: number; visible: boolean }>({
@@ -544,12 +555,44 @@ export default function DocumentTabs({
   const { singular, plural } = getProjectEntryTerms(projectKind)
   const deleteEntryNoun = projectKind === "Book" ? "chapter" : "post"
   const subEntryLabel = projectKind === "Book" ? "sub chapters" : "sub posts"
-  const panelTitle = projectKind === "Book" ? "Table of Contents" : "Blog Posts"
-  const toggleLabel = isOpen ? `Hide ${plural.toLowerCase()}` : `Show ${plural.toLowerCase()}`
-  const addLabel = `Create ${singular}`
-  const resolvedWordCountLabel = activeToTotalWordCountLabel ?? `${activeDocumentWordCount}/${totalDocumentWordCount} words`
+  const tabIds = useMemo(() => collectTabIds(tabs), [tabs])
   const pendingDeleteNode = pendingDeleteId ? findNode(tabs, pendingDeleteId) : null
   const pendingDeleteDescendantTitles = pendingDeleteNode ? collectDescendantTitles(pendingDeleteNode) : []
+
+  useEffect(() => {
+    setExpandedById((current) => {
+      const next: Record<string, boolean> = {}
+      for (const id of tabIds) {
+        next[id] = current[id] ?? true
+      }
+      return next
+    })
+  }, [tabIds])
+
+  useEffect(() => {
+    if (!activeId) {
+      return
+    }
+
+    const ancestorIds = findAncestorIds(tabs, activeId)
+    if (!ancestorIds || ancestorIds.length === 0) {
+      return
+    }
+
+    setExpandedById((current) => {
+      let changed = false
+      const next = { ...current }
+
+      for (const id of ancestorIds) {
+        if (next[id] !== true) {
+          next[id] = true
+          changed = true
+        }
+      }
+
+      return changed ? next : current
+    })
+  }, [activeId, tabs])
 
   const registerRowRef = (id: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -561,7 +604,7 @@ export default function DocumentTabs({
   }
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isVisible) {
       setActiveIndicatorStyle((current) => (current.visible ? { top: 0, height: 0, visible: false } : current))
       return
     }
@@ -603,20 +646,7 @@ export default function DocumentTabs({
       window.removeEventListener("resize", syncActiveIndicator)
       resizeObserver?.disconnect()
     }
-  }, [activeId, isOpen, tabs])
-
-  const addRootDocument = () => {
-    const label = getNextEntryName(tabs, singular)
-
-    const newTab: DocumentTab = {
-      id: createId(),
-      title: label,
-      children: [],
-    }
-
-    onTabsChange((current) => [...current, newTab])
-    onSelect(newTab.id)
-  }
+  }, [activeId, isVisible, tabs])
 
   const startRename = (id: string, currentTitle: string) => {
     setEditingId(id)
@@ -710,106 +740,74 @@ export default function DocumentTabs({
   }
 
   return (
-    <div className="doc-tabs" aria-hidden={!isOpen}>
-      <GhostButton
-        className={`doc-tabs__toggle ${isOpen ? "doc-tabs__toggle--open doc-tabs__toggle--shifted" : ""} ${hideToggle ? "doc-tabs__toggle--hidden" : ""}`.trim()}
-        aria-label={toggleLabel}
-        label={toggleLabel}
-        labelSide="right"
-        onClick={() => {
-          setIsOpen((open) => !open)
-        }}
-      >
-        {isOpen ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <TableOfContents size={14} strokeWidth={2} aria-hidden={true} />}
-      </GhostButton>
+    <div className="doc-tabs">
+      <header className="doc-tabs__header">
+        <p className="doc-tabs__project-name">{projectName}</p>
+      </header>
 
-      <button
-        type="button"
-        className={`doc-tabs__overlay ${isOpen ? "doc-tabs__overlay--open" : ""}`.trim()}
-        onClick={() => {
-          setIsOpen(false)
-        }}
-        aria-label={`Close ${plural.toLowerCase()} tabs`}
-      />
+      <div className="doc-tabs__list-shell">
+        <div
+          className="doc-tabs__active-indicator"
+          style={{
+            top: `${activeIndicatorStyle.top}px`,
+            height: `${activeIndicatorStyle.height}px`,
+            opacity: activeIndicatorStyle.visible ? 1 : 0,
+          }}
+          aria-hidden="true"
+        />
 
-      <aside className={`doc-tabs__panel ${isOpen ? "doc-tabs__panel--open" : ""}`.trim()}>
-        <header className="doc-tabs__header">
-          <div className="doc-tabs__header-copy">
-            <h2>{panelTitle}</h2>
-            {showWordCount ? <p className="doc-tabs__word-count">{resolvedWordCountLabel}</p> : null}
-          </div>
-          <button type="button" className="doc-tabs__add-btn" onClick={addRootDocument} aria-label={addLabel}>
-            <Plus size={14} strokeWidth={2} aria-hidden={true} />
-            <span className="doc-tabs__add-btn-label">{addLabel}</span>
-          </button>
-        </header>
+        <ul ref={rootListRef} className="doc-tabs__list" onDragOver={handleRootListDragOver} onDrop={handleRootListDrop}>
+          {tabs.map((tab) => (
+            <TabNode
+              key={tab.id}
+              tab={tab}
+              depth={0}
+              activeId={activeId}
+              draggingId={draggingId}
+              dropTarget={dropTarget}
+              editingId={editingId}
+              editingTitle={editingTitle}
+              onSelect={onSelect}
+              onDragStart={(event, id) => {
+                drag.handleDragStart(event, id, editingId)
+              }}
+              onDragEnd={() => {
+                drag.handleDragEnd()
+              }}
+              onDropTargetChange={(target) => {
+                setDropTarget(target)
+              }}
+              onDropCommit={(targetId, mode) => {
+                if (!draggingId) {
+                  return
+                }
 
-        <div className="doc-tabs__list-shell">
-          <div
-            className="doc-tabs__active-indicator"
-            style={{
-              top: `${activeIndicatorStyle.top}px`,
-              height: `${activeIndicatorStyle.height}px`,
-              opacity: activeIndicatorStyle.visible ? 1 : 0,
-            }}
-            aria-hidden="true"
-          />
-
-          <ul ref={rootListRef} className="doc-tabs__list" onDragOver={handleRootListDragOver} onDrop={handleRootListDrop}>
-            {tabs.map((tab) => (
-              <TabNode
-                key={tab.id}
-                tab={tab}
-                depth={0}
-                activeId={activeId}
-                draggingId={draggingId}
-                dropTarget={dropTarget}
-                editingId={editingId}
-                editingTitle={editingTitle}
-                onSelect={onSelect}
-                onDragStart={(event, id) => {
-                  if (editingId) {
-                    event.preventDefault()
-                    return
-                  }
-
-                  // Required by HTML5 DnD so drag operations are treated as move actions.
-                  event.dataTransfer.effectAllowed = "move"
-                  event.dataTransfer.setData("text/plain", id)
-                  setDraggingId(id)
-                }}
-                onDragEnd={() => {
-                  setDraggingId(null)
-                  setDropTarget(null)
-                }}
-                onDropTargetChange={(target) => {
-                  setDropTarget(target)
-                }}
-                onDropCommit={(targetId, mode) => {
-                  if (!draggingId) {
-                    return
-                  }
-
-                  onTabsChange((current) => moveNode(current, draggingId, targetId, mode))
-                  setDraggingId(null)
-                  setDropTarget(null)
-                }}
-                onStartRename={startRename}
-                onRequestDelete={(id) => {
-                  if (editingId === id) {
-                    cancelRename()
-                  }
-                  setPendingDeleteId(id)
-                }}
-                onEditingTitleChange={setEditingTitle}
-                onCommitRename={commitRename}
-                onCancelRename={cancelRename}
-                onRowRef={registerRowRef}
-              />
-            ))}
-          </ul>
-        </div>
-      </aside>
+                onTabsChange((current) => moveNode(current, draggingId, targetId, mode))
+                setDraggingId(null)
+                setDropTarget(null)
+              }}
+              onStartRename={startRename}
+              onRequestDelete={(id) => {
+                if (editingId === id) {
+                  cancelRename()
+                }
+                setPendingDeleteId(id)
+              }}
+              onEditingTitleChange={setEditingTitle}
+              onCommitRename={commitRename}
+              onCancelRename={cancelRename}
+              onRowRef={registerRowRef}
+              expandedById={expandedById}
+              onToggleExpand={(id) => {
+                setExpandedById((current) => ({
+                  ...current,
+                  [id]: current[id] === false,
+                }))
+              }}
+            />
+          ))}
+        </ul>
+      </div>
 
       <Modal
         isOpen={Boolean(pendingDeleteId)}

@@ -7,6 +7,67 @@
   overflow-x: hidden;
 }
 
+.auth-gateway-page--home {
+  background:
+    radial-gradient(
+      24% 20% at 58% 14%,
+      color-mix(in srgb, var(--app-accent-gold, #c99733) 20%, transparent) 0%,
+      transparent 72%
+    ),
+    radial-gradient(
+      40% 30% at 22% 26%,
+      color-mix(in srgb, var(--app-accent-complementary, #c7ccd4) 42%, transparent) 0%,
+      transparent 72%
+    ),
+    radial-gradient(
+      34% 26% at 74% 30%,
+      color-mix(in srgb, var(--app-accent-primary, var(--app-accent, #9ab8ff)) 34%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      46% 36% at 50% 8%,
+      color-mix(in srgb, var(--app-accent-secondary, #8f74f0) 28%, transparent) 0%,
+      transparent 74%
+    ),
+    radial-gradient(
+      60% 46% at 12% 2%,
+      color-mix(in srgb, var(--app-accent-primary, var(--app-accent, #9ab8ff)) 82%, transparent) 0%,
+      color-mix(in srgb, var(--app-accent-primary, var(--app-accent, #9ab8ff)) 54%, transparent) 34%,
+      transparent 72%
+    ),
+    radial-gradient(
+      54% 42% at 86% 0%,
+      color-mix(in srgb, var(--app-accent-secondary, #8f74f0) 84%, transparent) 0%,
+      color-mix(in srgb, var(--app-accent-secondary, #8f74f0) 52%, transparent) 38%,
+      transparent 70%
+    ),
+    radial-gradient(
+      44% 34% at 66% 22%,
+      color-mix(in srgb, var(--app-accent-complementary, #c7ccd4) 78%, transparent) 0%,
+      color-mix(in srgb, var(--app-accent-complementary, #c7ccd4) 42%, transparent) 42%,
+      transparent 74%
+    ),
+    radial-gradient(
+      52% 40% at 36% 16%,
+      color-mix(in srgb, var(--app-accent-secondary, #8f74f0) 40%, var(--app-accent-primary, var(--app-accent, #9ab8ff)) 60%) 0%,
+      color-mix(in srgb, var(--app-accent-secondary, #8f74f0) 24%, transparent) 40%,
+      transparent 76%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent 34%,
+      color-mix(in srgb, #000000 82%, transparent) 46%,
+      #000000 56%,
+      #000000 100%
+    ),
+    #000000;
+}
+
+.auth-gateway-page--home .auth-gateway--landing {
+  background: transparent;
+}
+
 .auth-gateway {
   min-height: 100vh;
   box-sizing: border-box;
@@ -175,8 +236,8 @@
 }
 
 .auth-gateway__hero-icon {
-  width: clamp(88px, 10vw, 112px);
-  height: clamp(88px, 10vw, 112px);
+  width: clamp(76px, 8.6vw, 98px);
+  height: clamp(76px, 8.6vw, 98px);
   border-radius: 26px;
   display: grid;
   place-items: center;
@@ -438,21 +499,56 @@
 
 .auth-gateway__canvas-body {
   display: grid;
-  grid-template-columns: 240px 1fr 220px;
+  grid-template-columns: 240px 8px 1fr 8px 250px;
   min-height: 578px;
   transition: grid-template-columns 180ms ease;
 }
 
 .auth-gateway__canvas-body--collapsed-left {
-  grid-template-columns: 0 1fr 220px;
+  grid-template-columns: 0 0 1fr 8px 250px;
 }
 
 .auth-gateway__canvas-body--collapsed-right {
-  grid-template-columns: 240px 1fr 0;
+  grid-template-columns: 240px 8px 1fr 0 0;
 }
 
 .auth-gateway__canvas-body--collapsed-left.auth-gateway__canvas-body--collapsed-right {
-  grid-template-columns: 0 1fr 0;
+  grid-template-columns: 0 0 1fr 0 0;
+}
+
+.auth-gateway__canvas-resizer {
+  width: 8px;
+  cursor: col-resize;
+  position: relative;
+  background: transparent;
+}
+
+.auth-gateway__canvas-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--menu-border, #2b2b2b) 66%, transparent);
+}
+
+.auth-gateway__canvas-resizer--right::before {
+  left: auto;
+  right: 0;
+}
+
+.auth-gateway__canvas-resizer:hover::before {
+  background: color-mix(in srgb, var(--menu-button, #ededed) 44%, transparent);
+}
+
+.auth-gateway__canvas-resizer--hidden {
+  width: 0;
+  cursor: default;
+}
+
+.auth-gateway__canvas-resizer--hidden::before {
+  display: none;
 }
 
 .auth-gateway__canvas-rail {
@@ -460,7 +556,7 @@
   padding: 22px 16px;
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 2px;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #171717) 92%, transparent);
   overflow: hidden;
   transition: opacity 160ms ease, padding 160ms ease;
@@ -474,19 +570,111 @@
 
 .auth-gateway__canvas-right-rail {
   border-left: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
-  padding: 22px 16px;
-  display: grid;
-  align-content: start;
-  gap: 14px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #171717) 92%, transparent);
   overflow: hidden;
   transition: opacity 160ms ease, padding 160ms ease;
 }
 
-.auth-gateway__canvas-right-rail span {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 68%, transparent);
+.auth-gateway__chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.auth-gateway__chat-header > span {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
   font-family: var(--app-ui-font);
   font-size: 14px;
+  font-weight: 600;
+}
+
+.auth-gateway__chat-model-trigger {
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 6px;
+  padding: 4px 7px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1c1c1c) 90%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 82%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-gateway__chat-thread {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.auth-gateway__chat-bubble {
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.auth-gateway__chat-bubble--assistant {
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #232323) 88%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+}
+
+.auth-gateway__chat-bubble--user {
+  margin-left: 20px;
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, var(--menu-dropdown-bg, #232323));
+  color: color-mix(in srgb, var(--menu-button, #ededed) 92%, transparent);
+}
+
+.auth-gateway__chat-composer {
+  border-top: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  padding-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.auth-gateway__chat-input {
+  min-height: 52px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 8px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1c1c1c) 92%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.auth-gateway__chat-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.auth-gateway__chat-control-button {
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1c1c1c) 92%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 82%, transparent);
+  padding: 6px 8px;
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-gateway__chat-control-button--send {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 26%, var(--menu-dropdown-bg, #1c1c1c));
+  color: var(--menu-button, #ededed);
 }
 
 .auth-gateway__canvas-body--collapsed-right .auth-gateway__canvas-right-rail {
@@ -499,6 +687,93 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 68%, transparent);
   font-family: var(--app-ui-font);
   font-size: 14px;
+}
+
+.auth-gateway__canvas-rail-back {
+  width: 100%;
+  padding: 6px 6px;
+  margin-bottom: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.auth-gateway__canvas-rail-back:hover,
+.auth-gateway__canvas-rail-back:focus-visible {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
+  color: var(--menu-button, #ededed);
+  outline: none;
+}
+
+.auth-gateway__canvas-rail-project {
+  margin: 0 0 8px;
+  padding: 4px 6px;
+  color: var(--menu-button, #ededed);
+  font-family: var(--app-display-font);
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.auth-gateway__canvas-rail-item {
+  padding: 7px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.auth-gateway__canvas-rail-parent {
+  width: 100%;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 68%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.auth-gateway__canvas-rail-chevron {
+  transition: transform 150ms ease;
+}
+
+.auth-gateway__canvas-rail-chevron--open {
+  transform: rotate(180deg);
+}
+
+.auth-gateway__canvas-rail-subitem {
+  padding: 7px 6px 7px 16px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-gateway__canvas-rail-subitem svg {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+}
+
+.auth-gateway__canvas-rail-item:hover,
+.auth-gateway__canvas-rail-item:focus-visible,
+.auth-gateway__canvas-rail-parent:hover,
+.auth-gateway__canvas-rail-parent:focus-visible,
+.auth-gateway__canvas-rail-subitem:hover,
+.auth-gateway__canvas-rail-subitem:focus-visible {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
+  color: var(--menu-button, #ededed);
+  outline: none;
 }
 
 .auth-gateway__canvas-editor {
@@ -1070,6 +1345,10 @@
   }
 
   .auth-gateway__canvas-right-rail {
+    display: none;
+  }
+
+  .auth-gateway__canvas-resizer {
     display: none;
   }
 

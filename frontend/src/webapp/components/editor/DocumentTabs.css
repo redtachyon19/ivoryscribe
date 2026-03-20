@@ -1,141 +1,31 @@
 .doc-tabs {
-  pointer-events: none;
-  --doc-tabs-panel-width: min(380px, 84vw);
-}
-
-.doc-tabs__toggle {
-  position: fixed;
-  left: 14px;
-  bottom: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 34px;
-  border: 0;
-  background: transparent;
-  color: var(--menu-button, #f2f2f2);
-  border-radius: 999px;
-  font-family: var(--app-ui-font);
-  font-size: 16px;
-  line-height: 1.1;
-  padding: 8px;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  box-shadow: none;
-  outline: none;
-  overflow: visible;
-  pointer-events: auto;
-  z-index: 140;
-  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 320ms ease-out, background-color 140ms ease;
-}
-
-.doc-tabs__toggle--shifted {
-  transform: translateX(calc(var(--doc-tabs-panel-width) + 12px));
-}
-
-.doc-tabs__toggle--hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.doc-tabs__overlay {
-  position: fixed;
-  inset: 0;
-  border: 0;
-  background: color-mix(in srgb, var(--app-bg, #0f0f0f) 42%, transparent);
-  backdrop-filter: blur(2px);
-  z-index: 100;
-  opacity: 0;
-  transition: opacity 180ms ease;
-  pointer-events: none;
-}
-
-.doc-tabs__overlay--open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.doc-tabs__panel {
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 120;
-  width: var(--doc-tabs-panel-width);
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 96%, transparent);
-  border-right: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
-  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--menu-button, #ededed) 8%, transparent);
-  transform: translateX(-100%);
-  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  pointer-events: auto;
-  overflow-y: auto;
-  padding: 54px 12px 16px;
-}
-
-.doc-tabs__panel--open {
-  transform: translateX(0);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 
 .doc-tabs__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin: 0 4px 10px;
+  justify-content: flex-start;
+  margin: 10px 0 4px;
 }
 
-.doc-tabs__header-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.doc-tabs__header h2 {
-  font-family: var(--app-display-font);
+.doc-tabs__project-name {
   margin: 0;
-  font-size: 21px;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  color: var(--menu-button, #e8e8e8);
-}
-
-.doc-tabs__word-count {
-  margin: 0;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
+  padding: 4px 6px;
+  color: var(--menu-button, #ededed);
   font-family: var(--app-ui-font);
-  font-size: 14px;
+  font-size: 20px;
   line-height: 1.2;
-}
-
-.doc-tabs__add-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border: 0;
-  background: transparent;
-  color: var(--menu-button, #f0f0f0);
-  border-radius: 999px;
-  padding: 8px;
-  font-family: var(--app-ui-font);
-  font-size: 15px;
-  line-height: 1.1;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  box-shadow: none;
-  outline: none;
-  overflow: visible;
 }
 
 .doc-tabs__list {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 3px;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -143,23 +33,24 @@
 
 .doc-tabs__list-shell {
   position: relative;
-  padding-right: 14px;
-  padding-bottom: 72px;
+  padding-right: 0;
+  padding-bottom: 352px;
 }
 
 .doc-tabs__active-indicator {
   position: absolute;
   left: 0;
-  right: 14px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
+  right: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
+  border: 0;
   pointer-events: none;
   transition: top 240ms cubic-bezier(0.2, 0.85, 0.2, 1), height 240ms cubic-bezier(0.2, 0.85, 0.2, 1), opacity 160ms ease;
+  display: none;
 }
 
 .doc-tabs__list--nested {
-  margin-left: 14px;
+  margin-left: 10px;
 }
 
 .doc-tabs__item {
@@ -178,13 +69,13 @@
   display: flex;
   align-items: center;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 6px;
   color: var(--menu-button, #ededed);
   transition: background-color 0ms linear, border-color 0ms linear;
 }
 
 .doc-tabs__row:hover {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
 }
 
 .doc-tabs__drop-line {
@@ -201,7 +92,7 @@
 }
 
 .doc-tabs__row--active {
-  background: transparent;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
   box-shadow: none;
   color: color-mix(in srgb, var(--menu-button, #ededed) 98%, #ffffff 2%);
 }
@@ -210,19 +101,52 @@
   opacity: 0.55;
 }
 
+.doc-tabs__collapse-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  margin-left: 2px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.doc-tabs__collapse-btn:hover,
+.doc-tabs__collapse-btn:focus-visible {
+  color: var(--menu-button, #ededed);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 68%, transparent);
+  outline: none;
+}
+
+.doc-tabs__collapse-btn svg {
+  transition: transform 150ms ease;
+}
+
+.doc-tabs__collapse-btn--open svg {
+  transform: rotate(180deg);
+}
+
 .doc-tabs__label {
   position: relative;
-  font-family: var(--app-display-font);
+  font-family: var(--app-ui-font);
   flex: 1;
   border: 0;
   background: transparent;
   color: inherit;
   text-align: left;
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: 9px 10px;
+  border-radius: 6px;
   cursor: grab;
-  font-size: 17px;
-  line-height: 1.2;
+  font-size: 15px;
+  line-height: 1.25;
   overflow: hidden;
   white-space: nowrap;
   opacity: 0.75;
@@ -284,22 +208,26 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   border: 0;
   background: transparent;
   color: #bebebe;
-  width: 28px;
+  width: 0;
   height: 28px;
+  overflow: hidden;
   padding: 0;
-  margin-right: 4px;
+  margin-right: 0;
   border-radius: 6px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms ease, background-color 140ms ease;
+  transition: none;
 }
 
 .doc-tabs__row:hover .doc-tabs__edit-btn,
 .doc-tabs__row:hover .doc-tabs__delete-btn,
 .doc-tabs__edit-btn:focus-visible {
+  width: 28px;
+  margin-right: 4px;
   opacity: 1;
   pointer-events: auto;
 }
@@ -308,20 +236,24 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   border: 0;
   background: transparent;
   color: #d38d8d;
-  width: 28px;
+  width: 0;
   height: 28px;
+  overflow: hidden;
   padding: 0;
-  margin-right: 4px;
+  margin-right: 0;
   border-radius: 6px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms ease, background-color 140ms ease, color 140ms ease;
+  transition: none;
 }
 
 .doc-tabs__delete-btn:focus-visible {
+  width: 28px;
+  margin-right: 4px;
   opacity: 1;
   pointer-events: auto;
 }
@@ -337,74 +269,17 @@
 }
 
 .doc-tabs__rename-input {
-  font-family: var(--app-display-font);
+  font-family: var(--app-ui-font);
   width: 100%;
   border: 0;
   background: transparent;
   color: var(--menu-button, #ededed);
-  font-size: 17px;
-  line-height: 1.2;
-  padding: 10px 12px;
-  border-radius: 10px;
+  font-size: 15px;
+  line-height: 1.25;
+  padding: 9px 10px;
+  border-radius: 6px;
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--menu-button, #ededed) 55%, transparent);
   outline: none;
-}
-
-.doc-tabs__add-btn:hover,
-.doc-tabs__toggle:hover {
-  background: var(--menu-button-hover-bg, #2a2a2a);
-}
-
-.doc-tabs__add-btn:focus-visible {
-  background: var(--menu-button-hover-bg, #2a2a2a);
-  outline: none;
-  box-shadow: none;
-}
-
-.doc-tabs__add-btn-label {
-  position: absolute;
-  right: calc(100% + 8px);
-  top: 50%;
-  transform: translate3d(6px, -50%, 0);
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 140ms ease, transform 180ms ease;
-}
-
-.doc-tabs__add-btn:hover .doc-tabs__add-btn-label,
-.doc-tabs__add-btn:focus-visible .doc-tabs__add-btn-label {
-  opacity: 0.64;
-  transform: translate3d(0, -50%, 0);
-}
-
-.doc-tabs__toggle:focus-visible {
-  background: var(--menu-button-hover-bg, #2a2a2a);
-  outline: none;
-  box-shadow: none;
-}
-
-.doc-tabs__toggle.doc-tabs__toggle--open:hover svg,
-.doc-tabs__toggle.doc-tabs__toggle--open:focus-visible svg {
-  animation: doc-tabs-toggle-x-spin-once 360ms cubic-bezier(0.22, 1, 0.36, 1) 1;
-  transform-origin: 50% 50%;
-}
-
-.doc-tabs__toggle-label {
-  position: absolute;
-  left: calc(100% + 8px);
-  top: 50%;
-  transform: translate3d(-6px, -50%, 0);
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 140ms ease, transform 180ms ease;
-}
-
-.doc-tabs__toggle:hover .doc-tabs__toggle-label,
-.doc-tabs__toggle:focus-visible .doc-tabs__toggle-label {
-  opacity: 0.64;
-  transform: translate3d(0, -50%, 0);
 }
 
 .doc-tabs__delete-modal {
@@ -583,16 +458,6 @@
   outline: none;
 }
 
-@keyframes doc-tabs-toggle-x-spin-once {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @keyframes doc-tabs-label-marquee {
   from {
     transform: translateX(0);
@@ -638,11 +503,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .doc-tabs__toggle.doc-tabs__toggle--open:hover svg,
-  .doc-tabs__toggle.doc-tabs__toggle--open:focus-visible svg {
-    animation: none;
-  }
-
   .doc-tabs__label:hover .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track,
   .doc-tabs__label:focus-visible .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track {
     animation: none;

@@ -18,6 +18,10 @@
   --menu-dropdown-bg: #f4ecd5;
   --menu-dropdown-border: #d2c49f;
   --app-accent: #9ab8ff;
+  --app-accent-primary: var(--app-accent);
+  --app-accent-secondary: #8f74f0;
+  --app-accent-complementary: #c7ccd4;
+  --app-accent-gold: #b88b3f;
   --editor-text: #15110b;
   --editor-title: #1a130b;
   --editor-placeholder: rgba(62, 50, 30, 0.42);
@@ -56,7 +60,11 @@
   --menu-button-hover-bg: #262626;
   --menu-dropdown-bg: #1d1d1d;
   --menu-dropdown-border: #313131;
-  --app-accent: #f4f0ea;
+  --app-accent: #d9c2a1;
+  --app-accent-primary: var(--app-accent);
+  --app-accent-secondary: #000000;
+  --app-accent-complementary: #cf7f3a;
+  --app-accent-gold: #c99733;
   --editor-text: #f0f0f0;
   --editor-title: #f0f0f0;
   --editor-placeholder: rgba(220, 220, 220, 0.45);
@@ -74,6 +82,10 @@
   --menu-dropdown-bg: #040404;
   --menu-dropdown-border: #1f1f1f;
   --app-accent: #ff306a;
+  --app-accent-primary: var(--app-accent);
+  --app-accent-secondary: #8f74f0;
+  --app-accent-complementary: #c7ccd4;
+  --app-accent-gold: #d2a248;
   --editor-text: #f5f5f5;
   --editor-title: #ffffff;
   --editor-placeholder: rgba(230, 230, 230, 0.5);
@@ -91,6 +103,10 @@
   --menu-dropdown-bg: #3b2722;
   --menu-dropdown-border: #5b3a30;
   --app-accent: #ffb38a;
+  --app-accent-primary: var(--app-accent);
+  --app-accent-secondary: #d67ca0;
+  --app-accent-complementary: #c8a46f;
+  --app-accent-gold: #c8a46f;
   --editor-text: #ffece1;
   --editor-title: #ffefe7;
   --editor-placeholder: rgba(255, 221, 201, 0.5);
@@ -108,6 +124,10 @@
   --menu-dropdown-bg: #223627;
   --menu-dropdown-border: #3c5b44;
   --app-accent: #b58b63;
+  --app-accent-primary: var(--app-accent);
+  --app-accent-secondary: #6f9a6a;
+  --app-accent-complementary: #d9ccb0;
+  --app-accent-gold: #b89562;
   --editor-text: #ebf8e5;
   --editor-title: #f1faed;
   --editor-placeholder: rgba(210, 236, 198, 0.5);
@@ -125,6 +145,10 @@
   --menu-dropdown-bg: #173042;
   --menu-dropdown-border: #31556a;
   --app-accent: #ffffff;
+  --app-accent-primary: var(--app-accent);
+  --app-accent-secondary: #6db6df;
+  --app-accent-complementary: #c5d8e3;
+  --app-accent-gold: #b39d72;
   --editor-text: #e7f8ff;
   --editor-title: #eefbff;
   --editor-placeholder: rgba(198, 228, 243, 0.52);
@@ -142,6 +166,10 @@
   --menu-dropdown-bg: #151515;
   --menu-dropdown-border: #2a2a2a;
   --app-accent: #9ab8ff;
+  --app-accent-primary: var(--app-accent);
+  --app-accent-secondary: #8f74f0;
+  --app-accent-complementary: #c7ccd4;
+  --app-accent-gold: #b88b3f;
   --editor-text: #ffffff;
   --editor-title: #f5f2ec;
   --editor-placeholder: rgba(215, 215, 215, 0.45);
