@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ApiError, login, register, resendEmailVerification, verifyEmail } from "../../core/api"
-import GlobalCaretOverlay from "../components/GlobalCaretOverlay"
+import GlobalCaretOverlay from "../components/layout/GlobalCaretOverlay"
 import "./AuthPage.css"
 
 const SIGNUP_ROW_MOTION_MS = 700
@@ -10,7 +10,7 @@ const HEADING_SWAP_ANCHOR_MS = 200
 
 type AuthMode = "login" | "signup"
 
-type AuthPageProps = {
+export type AuthPageProps = {
   onAuthenticated: (auth: {
     token: string
     user: {

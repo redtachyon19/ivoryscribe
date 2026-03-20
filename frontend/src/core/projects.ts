@@ -135,3 +135,85 @@ export function createProject(name: string, kind: ProjectKind): Project {
     contentById: createContentById(tabs),
   }
 }
+
+export function extractCounterFromNames(projects: Project[], kind: ProjectKind) {
+  const prefix = kind === "Book" ? "Book" : "Blog"
+  const matcher = new RegExp(`^${prefix}\\s+(\\d+)$`, "i")
+  const max = projects.reduce((currentMax, project) => {
+    if (project.kind !== kind) {
+      return currentMax
+    }
+
+    const match = project.name.match(matcher)
+    if (!match) {
+      return currentMax
+    }
+
+    const value = Number.parseInt(match[1], 10)
+    return Number.isNaN(value) ? currentMax : Math.max(currentMax, value)
+  }, 0)
+
+  return max + 1
+}
+
+export function isProjectSnapshot(value: unknown): value is Project {
+  if (!value || typeof value !== "object") {
+    return false
+  }
+
+  const candidate = value as Partial<Project>
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.kind === "string" &&
+    Array.isArray(candidate.tabs) &&
+    typeof candidate.contentById === "object" &&
+    candidate.contentById !== null
+  )
+}
+
+export function parseProjectFromDocument(documentRecord: { title: string; content: string; metadata: Record<string, unknown> }) {
+  try {
+    const parsedContent = JSON.parse(documentRecord.content)
+    if (!isProjectSnapshot(parsedContent)) {
+      return null
+    }
+
+    return parsedContent
+  } catch {
+    return null
+  }
+}
+
+export function collectTabTitles(tabs: Project["tabs"]): string[] {
+  return tabs.flatMap((tab) => [tab.title, ...collectTabTitles(tab.children)])
+}
+
+export function findTabTitleById(tabs: Project["tabs"], targetId: string): string | null {
+  for (const tab of tabs) {
+    if (tab.id === targetId) {
+      return tab.title
+    }
+
+    const nested = findTabTitleById(tab.children, targetId)
+    if (nested) {
+      return nested
+    }
+  }
+
+  return null
+}
+
+export function buildDuplicateProjectName(baseName: string, existingNames: string[]) {
+  const normalizedExistingNames = new Set(existingNames.map((name) => name.trim().toLowerCase()))
+  let suffix = 1
+
+  while (true) {
+    const candidate = suffix === 1 ? `${baseName} Copy` : `${baseName} Copy ${suffix}`
+    if (!normalizedExistingNames.has(candidate.trim().toLowerCase())) {
+      return candidate
+    }
+
+    suffix += 1
+  }
+}

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { BookText, Library, NotebookText } from "lucide-react"
-import Editor from "../../Editor"
-import MarkdownEditor from "./MarkdownEditor"
-import DocumentTabs from "../components/DocumentTabs"
-import TuskAiTab from "../components/TuskAiTab"
+import Editor from "../components/editor/Editor.tsx"
+import MarkdownEditor from "../components/editor/MarkdownEditor"
+import DocumentTabs from "../components/editor/DocumentTabs"
+import TuskAiTab from "../components/editor/TuskAiTab"
 import { EXPORT_ALL_TABS_PDF_EVENT } from "../../core/editorEvents"
 import { countWordsFromContent, downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
@@ -86,8 +86,11 @@ function formatWordCount(value: number) {
   return `${Math.round(value / 1_000)}k`
 }
 
-type EditorWorkspaceProps = {
+export type EditorWorkspaceProps = {
+  sessionToken: string
   project: Project
+  tuskAiActivated: boolean
+  isStartingTuskCheckout: boolean
   activeContent: string
   editorFontSize: number
   menuBarEnabled: boolean
@@ -95,12 +98,16 @@ type EditorWorkspaceProps = {
   showWordCount: boolean
   isEditorTyping: boolean
   onReturnToDashboard: () => void
+  onStartTuskCheckout: () => void
   onProjectChange: (updater: (project: Project) => Project) => void
   onEditorTypingStateChange: (isTyping: boolean) => void
 }
 
 export default function EditorWorkspace({
+  sessionToken,
   project,
+  tuskAiActivated,
+  isStartingTuskCheckout,
   activeContent,
   editorFontSize,
   menuBarEnabled,
@@ -108,6 +115,7 @@ export default function EditorWorkspace({
   showWordCount,
   isEditorTyping,
   onReturnToDashboard,
+  onStartTuskCheckout,
   onProjectChange,
   onEditorTypingStateChange,
 }: EditorWorkspaceProps) {
@@ -197,7 +205,29 @@ export default function EditorWorkspace({
           }))
         }}
       />
-      <TuskAiTab hideToggle={isEditorTyping} />
+      <TuskAiTab
+        hideToggle={isEditorTyping}
+        sessionToken={sessionToken}
+        hasAccess={tuskAiActivated}
+        isUnlocking={isStartingTuskCheckout}
+        onUnlock={onStartTuskCheckout}
+        project={project}
+        onApplyEdit={(tabId, nextContent) => {
+          onProjectChange((currentProject) => {
+            if (!(tabId in currentProject.contentById)) {
+              return currentProject
+            }
+
+            return {
+              ...currentProject,
+              contentById: {
+                ...currentProject.contentById,
+                [tabId]: nextContent,
+              },
+            }
+          })
+        }}
+      />
       {markdownEditorEnabled ? (
         <MarkdownEditor
           documentId={project.activeId}

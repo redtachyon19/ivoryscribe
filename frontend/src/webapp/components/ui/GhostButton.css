@@ -1,0 +1,95 @@
+/* ── Ghost Icon Button ── */
+
+.ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--menu-button, #f2f2f2);
+  width: 36px;
+  height: 34px;
+  padding: 8px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+  outline: none;
+  overflow: visible;
+  font-family: var(--app-ui-font);
+  font-size: 16px;
+  line-height: 1.1;
+  transition: opacity 320ms ease-out, background-color 140ms ease;
+}
+
+.ghost-btn:hover {
+  background: var(--menu-button-hover-bg, #2a2a2a);
+}
+
+.ghost-btn:focus-visible {
+  background: var(--menu-button-hover-bg, #2a2a2a);
+  outline: none;
+  box-shadow: none;
+}
+
+/* ── Spin icon on hover (settings gear) ── */
+
+.ghost-btn--spin-icon:hover svg,
+.ghost-btn--spin-icon:focus-visible svg {
+  animation: ghost-btn-spin-once 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
+  transform-origin: 50% 50%;
+}
+
+@keyframes ghost-btn-spin-once {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(120deg);
+  }
+}
+
+/* ── Small variant (project card) ── */
+
+.ghost-btn--small {
+  width: 30px;
+  height: 30px;
+}
+
+.ghost-btn--small:hover {
+  background: color-mix(in srgb, var(--project-accent) 24%, transparent);
+}
+
+.ghost-btn--small:focus-visible {
+  background: color-mix(in srgb, var(--project-accent) 24%, transparent);
+}
+
+/* ── Label (tooltip that slides in on hover) ── */
+
+.ghost-btn__label {
+  position: absolute;
+  top: 50%;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 180ms ease;
+}
+
+/* Default: label to the left of the button */
+.ghost-btn__label--left {
+  right: calc(100% + 8px);
+  transform: translate3d(6px, -50%, 0);
+}
+
+/* Label to the right of the button */
+.ghost-btn__label--right {
+  left: calc(100% + 8px);
+  transform: translate3d(-6px, -50%, 0);
+}
+
+.ghost-btn:hover .ghost-btn__label,
+.ghost-btn:focus-visible .ghost-btn__label {
+  opacity: 0.64;
+  transform: translate3d(0, -50%, 0);
+}

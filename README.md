@@ -32,6 +32,20 @@ npm run dev
 
 Backend runs on `http://localhost:4000` by default.
 
+### Stripe Billing for Tusk AI
+
+To enable paid unlocks for Tusk AI, configure these in `backend/.env`:
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_TUSK_PRICE_ID`
+
+Then run Stripe webhook forwarding locally:
+
+```bash
+stripe listen --forward-to localhost:4000/api/billing/webhook
+```
+
 Detailed backend API docs: `backend/README.md`.
 
 From the repo root, install once and run both apps together:

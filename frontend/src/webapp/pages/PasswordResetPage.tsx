@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { getPasswordResetInfo, resetPasswordFromToken } from "../../core/api"
-import GlobalCaretOverlay from "../components/GlobalCaretOverlay"
+import GlobalCaretOverlay from "../components/layout/GlobalCaretOverlay"
 import "./AuthPage.css"
 
-type PasswordResetPageProps = {
+export type PasswordResetPageProps = {
   token: string
   onBackToApp: () => void
 }
