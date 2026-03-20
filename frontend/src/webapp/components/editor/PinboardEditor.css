@@ -1,0 +1,292 @@
+/* ================================================================== */
+/*  PinboardEditor — interactive whiteboard canvas                     */
+/* ================================================================== */
+
+.pinboard-editor {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.pinboard-editor__file-input {
+  display: none;
+}
+
+/* ---- Toolbar ---- */
+
+.pinboard-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  background: var(--editor-surface, #1a1a1a);
+  border-bottom: 1px solid var(--editor-border, rgba(255, 255, 255, 0.08));
+  z-index: 10;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.pinboard-toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--editor-text, #ccc);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.pinboard-toolbar__btn:hover {
+  background: var(--editor-hover, rgba(255, 255, 255, 0.06));
+}
+
+.pinboard-toolbar__btn--active {
+  background: var(--app-accent, #7ea8ff);
+  color: #fff;
+  border-color: var(--app-accent, #7ea8ff);
+}
+
+.pinboard-toolbar__separator {
+  width: 1px;
+  height: 20px;
+  background: var(--editor-border, rgba(255, 255, 255, 0.08));
+  margin: 0 6px;
+}
+
+.pinboard-toolbar__zoom {
+  font-size: 12px;
+  color: var(--editor-text-muted, #888);
+  min-width: 40px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Canvas ---- */
+
+.pinboard-canvas {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+
+  /* dot grid background */
+  background-image: radial-gradient(circle, var(--editor-border, rgba(255, 255, 255, 0.12)) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: center center;
+}
+
+.pinboard-canvas--crosshair {
+  cursor: crosshair;
+}
+
+.pinboard-canvas--grabbing {
+  cursor: grabbing;
+}
+
+.pinboard-canvas--draw {
+  cursor: crosshair;
+}
+
+.pinboard-canvas__layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  /* transform is set inline */
+}
+
+.pinboard-canvas__svg {
+  position: absolute;
+  top: -50000px;
+  left: -50000px;
+  width: 100000px;
+  height: 100000px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.pinboard-canvas__svg .pinboard-line {
+  pointer-events: stroke;
+  cursor: pointer;
+  stroke-width: 2;
+}
+
+.pinboard-canvas__svg .pinboard-line:hover {
+  stroke-width: 4;
+  filter: brightness(1.25);
+}
+
+.pinboard-canvas__drawing-active {
+  pointer-events: none;
+}
+
+/* ---- Nodes (shared) ---- */
+
+.pinboard-node {
+  position: absolute;
+  border-radius: 8px;
+  background: var(--editor-surface, #1e1e1e);
+  border: 1.5px solid var(--editor-border, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  user-select: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  cursor: move;
+}
+
+.pinboard-node:hover {
+  border-color: var(--editor-border-hover, rgba(255, 255, 255, 0.18));
+}
+
+.pinboard-node--selected {
+  border-color: var(--app-accent, #7ea8ff);
+  box-shadow: 0 0 0 2px rgba(126, 168, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Resize handle */
+.pinboard-node__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 40%, var(--app-accent, #7ea8ff) 40%);
+  border-radius: 0 0 6px 0;
+  opacity: 0.6;
+}
+
+.pinboard-node__resize:hover {
+  opacity: 1;
+}
+
+/* ---- Text node ---- */
+
+.pinboard-node--text {
+  min-height: 40px;
+}
+
+.pinboard-node__textarea {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  background: transparent;
+  border: none;
+  color: var(--editor-text, #ddd);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.pinboard-node__text-display {
+  width: 100%;
+  height: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--editor-text, #ddd);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: auto;
+}
+
+.pinboard-node__text-display:empty::before,
+.pinboard-node__text-display:only-child:not(:empty) {
+  /* placeholder handled inline */
+}
+
+/* ---- Image node ---- */
+
+.pinboard-node--image {
+  padding: 0;
+  background: #111;
+}
+
+.pinboard-node__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 6px;
+}
+
+/* ---- Link node ---- */
+
+.pinboard-node--link {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pinboard-node__link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.pinboard-node__link-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.pinboard-node__link-label {
+  font-size: 13px;
+  color: var(--app-accent, #7ea8ff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- File node ---- */
+
+.pinboard-node--file {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 8px;
+}
+
+.pinboard-node__file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.pinboard-node__file-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.pinboard-node__file-name {
+  font-size: 13px;
+  color: var(--editor-text, #ccc);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Drawing node ---- */
+
+.pinboard-node__drawing-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}

@@ -13,7 +13,7 @@ import { requestAppColorPaletteChange } from "./editorEvents"
 import { getAppMenu, projectWorkspaceMenu } from "./menu"
 import { downloadProjectAsMarkdown } from "./markdown"
 import { exportProjectAsPdf } from "./pdfExport"
-import { DEFAULT_DOCUMENT_CONTENT, type Project, type ProjectKind } from "./projects"
+import { createProject, DEFAULT_DOCUMENT_CONTENT, type Project, type ProjectKind } from "./projects"
 import { buildVersionHistoryPageHtml, buildVersionPreviewHtml, getInitialManualVersionDefinition, mapVersionsForSettings, resolveThemeForPalette, serializeProjectSnapshot, type VersionSettingsEntry } from "./versioning"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
@@ -22,6 +22,7 @@ import { useProjectVersioning } from "./useProjectVersioning"
 import { useWorkspaceHydration } from "./useWorkspaceHydration"
 import { useViewTransition } from "./useViewTransition"
 import { useTuskBilling } from "./useTuskBilling"
+import { createLocalId } from "./projectLibraryUtils"
 import type { ProjectFolder } from "../webapp/pages/ProjectLibrary"
 
 export function useAppOrchestration() {
@@ -118,6 +119,13 @@ export function useAppOrchestration() {
     () => (activeProject?.activeId ? activeProject.contentById[activeProject.activeId] : null) ?? DEFAULT_DOCUMENT_CONTENT,
     [activeProject],
   )
+  const activeFolderName = useMemo(() => {
+    if (!activeProject?.folderId) {
+      return null
+    }
+
+    return folders.find((folder) => folder.id === activeProject.folderId)?.name ?? null
+  }, [activeProject?.folderId, folders])
   const activeProjectVersionsForSettings = useMemo(
     () => (activeProject ? mapVersionsForSettings(versioning.projectVersionsByProjectId[activeProject.id] ?? []) : []),
     [activeProject, versioning.projectVersionsByProjectId],
@@ -259,10 +267,35 @@ export function useAppOrchestration() {
     flagsEnabled: isFlagsEnabled,
     showWordCount: style.isWordCountEnabled,
     isEditorTyping,
+    activeFolderName,
+    projects,
+    folders,
+    setProjects,
+    setFolders,
+    onOpenProject: (projectId: string) => { setActiveProjectId(projectId) },
+    onCreateProject: () => {
+      const nextName = `Book ${bookCounter}`
+      const nextProject = createProject(nextName, "Book")
+      setProjects((cur) => [{ ...nextProject, folderId: null, rootPosition: "top" }, ...cur])
+      setActiveProjectId(nextProject.id)
+      setBookCounter((c) => c + 1)
+      if (sessionRef.current && isWorkspaceHydrated) {
+        void versioning.createProjectVersionSnapshot(nextProject, getInitialManualVersionDefinition([], serializeProjectSnapshot(nextProject)), { alertOnFailure: false })
+      }
+    },
+    onCreateFolder: () => {
+      const nextIndex = folders.length + 1
+      setFolders((current) => [{ id: createLocalId(), name: `Folder ${nextIndex}`, description: "Add a folder description here. You don't have the memory of an elephant." }, ...current])
+    },
+    onOpenProjectSettings: (projectId: string) => {
+      setActiveProjectId(projectId)
+      setIsSettingsOpen(true)
+    },
     onReturnToDashboard: returnToProjectLibrary,
     onStartTuskCheckout: () => { void billing.handleStartTuskCheckout() },
     onProjectChange: updateActiveProject,
     onEditorTypingStateChange: setIsEditorTyping,
+    onToggleSettings: () => setIsSettingsOpen((c) => !c),
   } : null
 
   const settingsProps = session ? {
@@ -270,7 +303,7 @@ export function useAppOrchestration() {
     showProjectPreferences: view === "editor",
     menuBarEnabled: isMenuBarEnabled,
     flagsEnabled: isFlagsEnabled,
-    hideTrigger: isEditorTyping,
+    hideTrigger: view === "editor" || isEditorTyping,
     displayFont: style.displayFont,
     bodyFont: style.bodyFont,
     uiFont: style.uiFont,

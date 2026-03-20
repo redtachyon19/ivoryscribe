@@ -1,0 +1,270 @@
+.project-browser {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.project-browser__header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 10px 0 4px;
+}
+
+.project-browser__title {
+  margin: 0;
+  padding: 4px 6px;
+  color: var(--menu-button, #ededed);
+  font-family: var(--app-ui-font);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.project-browser__list-shell {
+  position: relative;
+  padding-bottom: 352px;
+}
+
+.project-browser__list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.project-browser__list--nested {
+  margin-left: 10px;
+}
+
+.project-browser__item {
+  position: relative;
+}
+
+.project-browser__item--drop-inside > .project-browser__row {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 65%, transparent);
+}
+
+.project-browser__drop-line {
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 96%, white 4%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 52%, #0f0f0f), 0 0 10px color-mix(in srgb, var(--app-accent, #9ab8ff) 45%, transparent);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.project-browser__drop-line--visible {
+  opacity: 1;
+}
+
+.project-browser__label--dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+.project-browser__row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--menu-button, #ededed);
+  transition: background-color 0ms linear;
+}
+
+.project-browser__row:hover {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
+}
+
+.project-browser__row--active {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
+}
+
+.project-browser__label {
+  font-family: var(--app-ui-font);
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 6px;
+  cursor: grab;
+  font-size: 15px;
+  line-height: 1.25;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0.75;
+  transition: opacity 320ms ease-in-out;
+}
+
+.project-browser__row:hover .project-browser__label,
+.project-browser__row--active .project-browser__label {
+  opacity: 1;
+}
+
+.project-browser__label:hover {
+  background: transparent;
+}
+
+.project-browser__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.project-browser__label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Settings button (for projects) */
+.project-browser__settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #bebebe;
+  width: 0;
+  height: 28px;
+  overflow: hidden;
+  padding: 0;
+  margin-right: 0;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
+.project-browser__row:hover .project-browser__settings-btn {
+  width: 28px;
+  margin-right: 4px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.project-browser__settings-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+/* Edit button (for folders) */
+.project-browser__edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #bebebe;
+  width: 0;
+  height: 28px;
+  overflow: hidden;
+  padding: 0;
+  margin-right: 0;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
+/* Delete button (for folders) */
+.project-browser__delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #d38d8d;
+  width: 0;
+  height: 28px;
+  overflow: hidden;
+  padding: 0;
+  margin-right: 0;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
+.project-browser__row:hover .project-browser__edit-btn,
+.project-browser__row:hover .project-browser__delete-btn,
+.project-browser__edit-btn:focus-visible,
+.project-browser__delete-btn:focus-visible {
+  width: 28px;
+  margin-right: 4px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.project-browser__edit-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.project-browser__delete-btn:hover {
+  background: rgba(255, 123, 123, 0.18);
+  color: #ff9f9f;
+}
+
+/* Collapse button */
+.project-browser__collapse-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  margin-left: 2px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.project-browser__collapse-btn:hover,
+.project-browser__collapse-btn:focus-visible {
+  color: var(--menu-button, #ededed);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 68%, transparent);
+  outline: none;
+}
+
+.project-browser__collapse-btn svg {
+  transition: transform 150ms ease;
+}
+
+.project-browser__collapse-btn--open svg {
+  transform: rotate(180deg);
+}
+
+/* Rename input */
+.project-browser__rename-input {
+  font-family: var(--app-ui-font);
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--menu-button, #ededed);
+  font-size: 15px;
+  line-height: 1.25;
+  padding: 9px 10px;
+  border-radius: 6px;
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--menu-button, #ededed) 55%, transparent);
+  outline: none;
+}
