@@ -44,7 +44,7 @@
   font-size: 20px;
   padding: 9px 10px;
   outline: none;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-body-font);
 }
 
 .project-preferences-fields__input:focus {
@@ -99,7 +99,7 @@
   background: var(--menu-bg, #1d1d1d);
   color: var(--menu-button, #ededed);
   padding: 8px 10px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-body-font);
   font-size: 18px;
   letter-spacing: 0.03em;
 }
@@ -251,7 +251,7 @@
   border-radius: 8px;
   background: transparent;
   color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 20px;
   padding: 9px 10px;
   cursor: pointer;
@@ -282,7 +282,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
   color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 19px;
   text-align: left;
   padding: 10px 12px;
@@ -327,6 +327,11 @@
 .project-preferences-fields__history-count {
   color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
   font-size: 15px;
+}
+
+.project-preferences-fields__history-open-btn {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .project-preferences-fields__history-list {
@@ -409,7 +414,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 54%, transparent);
   color: var(--menu-button, #ededed);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 17px;
   padding: 9px 12px;
   cursor: pointer;
@@ -603,7 +608,7 @@
   background: transparent;
   color: var(--menu-button, #ededed);
   font-size: 16px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   line-height: 1;
   cursor: pointer;
   appearance: none;
@@ -664,7 +669,7 @@
   gap: 10px;
   opacity: 0;
   overflow-y: auto;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
 }
 
 .project-preferences-fields__prompt-modal--opening {
@@ -678,7 +683,7 @@
 .project-preferences-fields__prompt-title {
   margin: 0;
   color: var(--menu-button, #efefef);
-  font-family: "EB Garamond", serif;
+  font-family: var(--app-display-font);
   font-size: 28px;
   font-weight: 400;
   line-height: 1.1;
@@ -712,7 +717,7 @@
   background: transparent;
   color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
   font-size: 16px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   line-height: 1.2;
   padding: 10px 12px;
   cursor: pointer;

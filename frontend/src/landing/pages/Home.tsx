@@ -1,7 +1,7 @@
 import { Download, Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
 import "./Home.css"
 
-type HomeProps = {
+export type HomeProps = {
   isLoggedIn?: boolean
   onLaunchDashboard?: () => void
   onOpenAuth?: () => void

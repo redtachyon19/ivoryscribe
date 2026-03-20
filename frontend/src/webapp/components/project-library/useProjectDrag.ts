@@ -1,0 +1,324 @@
+import { useRef, useState, type Dispatch, type DragEvent, type SetStateAction } from "react"
+import type { Project } from "../../../core/projects"
+import type { ProjectFolder } from "../../pages/ProjectLibrary"
+
+type DropTarget =
+  | { type: "folder"; folderId: string }
+  | { type: "project"; projectId: string; position: "before" | "after" }
+  | { type: "root"; position: "top" | "bottom" }
+
+type FolderDropTarget = {
+  folderId: string
+  position: "before" | "after"
+}
+
+type UseProjectDragOptions = {
+  projects: Project[]
+  folders: ProjectFolder[]
+  setProjects: Dispatch<SetStateAction<Project[]>>
+  setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
+}
+
+export default function useProjectDrag({ projects, folders, setProjects, setFolders }: UseProjectDragOptions) {
+  const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
+  const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null)
+  const [folderDropTarget, setFolderDropTarget] = useState<FolderDropTarget | null>(null)
+  const dragPreviewElementRef = useRef<HTMLElement | null>(null)
+
+  const getResolvedFolderId = (folderId: string | null) => {
+    if (!folderId) return null
+    return folders.some((folder) => folder.id === folderId) ? folderId : null
+  }
+
+  const clearDragPreview = () => {
+    if (dragPreviewElementRef.current) {
+      dragPreviewElementRef.current.remove()
+      dragPreviewElementRef.current = null
+    }
+  }
+
+  const getPointerRatio = (value: number, min: number, size: number) => {
+    if (size <= 0) return 0.5
+    const ratio = (value - min) / size
+    if (ratio < 0) return 0
+    if (ratio > 1) return 1
+    return ratio
+  }
+
+  const getProjectReorderPosition = (event: DragEvent<HTMLElement>, projectId: string): "before" | "after" => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const xRatio = getPointerRatio(event.clientX, bounds.left, bounds.width)
+    if (xRatio <= 0.45) return "before"
+    if (xRatio >= 0.55) return "after"
+    if (dropTarget?.type === "project" && dropTarget.projectId === projectId) return dropTarget.position
+    return xRatio < 0.5 ? "before" : "after"
+  }
+
+  const getFolderReorderPosition = (event: DragEvent<HTMLElement>, folderId: string): "before" | "after" => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const yRatio = getPointerRatio(event.clientY, bounds.top, bounds.height)
+    if (yRatio <= 0.42) return "before"
+    if (yRatio >= 0.58) return "after"
+    if (folderDropTarget?.folderId === folderId) return folderDropTarget.position
+    return yRatio < 0.5 ? "before" : "after"
+  }
+
+  // --- Move logic ---
+
+  const moveProjectToFolder = (projectId: string, folderId: string | null, rootPosition: "top" | "bottom" = "bottom") => {
+    setProjects((current) => {
+      const fromIndex = current.findIndex((project) => project.id === projectId)
+      if (fromIndex === -1) return current
+      const nextProjects = [...current]
+      const [draggedProject] = nextProjects.splice(fromIndex, 1)
+      const movedProject = { ...draggedProject, folderId, rootPosition: folderId === null ? rootPosition : draggedProject.rootPosition }
+      if (folderId === null && rootPosition === "top") nextProjects.unshift(movedProject)
+      else nextProjects.push(movedProject)
+      return nextProjects
+    })
+  }
+
+  const moveProjectRelative = (projectId: string, targetProjectId: string, position: "before" | "after") => {
+    setProjects((current) => {
+      const fromIndex = current.findIndex((project) => project.id === projectId)
+      const targetIndex = current.findIndex((project) => project.id === targetProjectId)
+      if (fromIndex === -1 || targetIndex === -1 || fromIndex === targetIndex) return current
+      const nextProjects = [...current]
+      const [draggedProject] = nextProjects.splice(fromIndex, 1)
+      const adjustedTargetIndex = nextProjects.findIndex((project) => project.id === targetProjectId)
+      if (adjustedTargetIndex === -1) return current
+      const targetFolderId = getResolvedFolderId(nextProjects[adjustedTargetIndex].folderId)
+      const movedProject = { ...draggedProject, folderId: targetFolderId, rootPosition: targetFolderId === null ? nextProjects[adjustedTargetIndex].rootPosition : draggedProject.rootPosition }
+      const insertIndex = position === "before" ? adjustedTargetIndex : adjustedTargetIndex + 1
+      nextProjects.splice(insertIndex, 0, movedProject)
+      return nextProjects
+    })
+  }
+
+  const moveFolderRelative = (folderId: string, targetFolderId: string, position: "before" | "after") => {
+    setFolders((current) => {
+      const fromIndex = current.findIndex((folder) => folder.id === folderId)
+      const targetIndex = current.findIndex((folder) => folder.id === targetFolderId)
+      if (fromIndex === -1 || targetIndex === -1 || fromIndex === targetIndex) return current
+      const nextFolders = [...current]
+      const [draggedFolder] = nextFolders.splice(fromIndex, 1)
+      const adjustedTargetIndex = nextFolders.findIndex((folder) => folder.id === targetFolderId)
+      if (adjustedTargetIndex === -1) return current
+      const insertIndex = position === "before" ? adjustedTargetIndex : adjustedTargetIndex + 1
+      nextFolders.splice(insertIndex, 0, draggedFolder)
+      return nextFolders
+    })
+  }
+
+  // --- Drag start / end handlers ---
+
+  const handleProjectDragStart = (projectId: string, event: DragEvent<HTMLButtonElement>) => {
+    setDraggingFolderId(null)
+    setFolderDropTarget(null)
+    setDraggingProjectId(projectId)
+    setDropTarget(null)
+    clearDragPreview()
+
+    const sourceCard = event.currentTarget.closest(".project-card")
+    if (!sourceCard || !(sourceCard instanceof HTMLElement)) return
+
+    const dragPreview = sourceCard.cloneNode(true)
+    if (!(dragPreview instanceof HTMLElement)) return
+
+    const bounds = sourceCard.getBoundingClientRect()
+    dragPreview.classList.add("project-card--drag-preview")
+    dragPreview.style.width = `${Math.round(bounds.width)}px`
+    dragPreview.style.height = `${Math.round(bounds.height)}px`
+    dragPreview.style.minHeight = `${Math.round(bounds.height)}px`
+    dragPreview.style.maxHeight = `${Math.round(bounds.height)}px`
+    dragPreview.style.boxSizing = "border-box"
+    dragPreview.style.position = "fixed"
+    dragPreview.style.top = "-1000px"
+    dragPreview.style.left = "-1000px"
+    dragPreview.style.pointerEvents = "none"
+    document.body.appendChild(dragPreview)
+    dragPreviewElementRef.current = dragPreview
+
+    const offsetX = event.clientX - bounds.left
+    const offsetY = event.clientY - bounds.top
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/plain", projectId)
+    event.dataTransfer.setDragImage(dragPreview, offsetX, offsetY)
+  }
+
+  const handleProjectDragEnd = () => {
+    setDraggingProjectId(null)
+    setDropTarget(null)
+    clearDragPreview()
+  }
+
+  const handleFolderDragStart = (folderId: string, event: DragEvent<HTMLButtonElement>) => {
+    setDraggingProjectId(null)
+    setDropTarget(null)
+    setDraggingFolderId(folderId)
+    setFolderDropTarget(null)
+    clearDragPreview()
+
+    const sourceFolder = event.currentTarget.closest(".project-folder--inline")
+    if (sourceFolder && sourceFolder instanceof HTMLElement) {
+      const dragPreview = sourceFolder.cloneNode(true)
+      if (dragPreview instanceof HTMLElement) {
+        const bounds = sourceFolder.getBoundingClientRect()
+        dragPreview.classList.add("project-folder--drag-preview")
+        dragPreview.style.width = `${Math.round(bounds.width)}px`
+        dragPreview.style.position = "fixed"
+        dragPreview.style.top = "-1000px"
+        dragPreview.style.left = "-1000px"
+        dragPreview.style.pointerEvents = "none"
+        document.body.appendChild(dragPreview)
+        dragPreviewElementRef.current = dragPreview
+
+        const offsetX = event.clientX - bounds.left
+        const offsetY = event.clientY - bounds.top
+        event.dataTransfer.setDragImage(dragPreview, offsetX, offsetY)
+      }
+    }
+
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/plain", folderId)
+  }
+
+  const handleFolderDragEnd = () => {
+    setDraggingFolderId(null)
+    setFolderDropTarget(null)
+    clearDragPreview()
+  }
+
+  // --- Drop handling ---
+
+  const handleProjectDrop = (targetOverride?: DropTarget) => {
+    if (!draggingProjectId) return
+    const activeDropTarget = targetOverride ?? dropTarget
+    if (!activeDropTarget) return
+    if (activeDropTarget.type === "folder") moveProjectToFolder(draggingProjectId, activeDropTarget.folderId)
+    if (activeDropTarget.type === "project") moveProjectRelative(draggingProjectId, activeDropTarget.projectId, activeDropTarget.position)
+    if (activeDropTarget.type === "root") moveProjectToFolder(draggingProjectId, null, activeDropTarget.position)
+    handleProjectDragEnd()
+  }
+
+  // --- Class name helpers ---
+
+  const getProjectDropClassName = (projectId: string) => {
+    if (dropTarget?.type !== "project" || dropTarget.projectId !== projectId) return ""
+    return dropTarget.position === "before" ? "project-card--drop-before" : "project-card--drop-after"
+  }
+
+  const getFolderDropClassName = (folderId: string) => {
+    if (dropTarget?.type === "folder" && dropTarget.folderId === folderId) return "project-folder--drop-target"
+    return ""
+  }
+
+  const getFolderReorderClassName = (folderId: string) => {
+    if (!folderDropTarget || folderDropTarget.folderId !== folderId) return ""
+    return folderDropTarget.position === "before" ? "project-folder--drop-before" : "project-folder--drop-after"
+  }
+
+  const getRootDropClassName = (position: "top" | "bottom") => {
+    if (dropTarget?.type === "root" && dropTarget.position === position) return "project-hub__root-drop--active"
+    return ""
+  }
+
+  // --- Event helpers for child components ---
+
+  const updateProjectDropTarget = (project: Project) => (event: DragEvent<HTMLElement>) => {
+    if (!draggingProjectId || draggingProjectId === project.id) return
+    event.preventDefault()
+    event.stopPropagation()
+    const position = getProjectReorderPosition(event, project.id)
+    if (dropTarget?.type !== "project" || dropTarget.projectId !== project.id || dropTarget.position !== position) {
+      setDropTarget({ type: "project", projectId: project.id, position })
+    }
+  }
+
+  const handleCardDrop = (project: Project) => (event: DragEvent<HTMLElement>) => {
+    if (!draggingProjectId || draggingProjectId === project.id) return
+    event.preventDefault()
+    event.stopPropagation()
+    handleProjectDrop()
+  }
+
+  const handleFolderItemDragOver = (folder: ProjectFolder) => (event: DragEvent<HTMLElement>) => {
+    if (draggingFolderId) {
+      if (draggingFolderId === folder.id) return
+      event.preventDefault()
+      event.stopPropagation()
+      const position = getFolderReorderPosition(event, folder.id)
+      if (!folderDropTarget || folderDropTarget.folderId !== folder.id || folderDropTarget.position !== position) {
+        setFolderDropTarget({ folderId: folder.id, position })
+      }
+      return
+    }
+    if (!draggingProjectId) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (dropTarget?.type !== "folder" || dropTarget.folderId !== folder.id) {
+      setDropTarget({ type: "folder", folderId: folder.id })
+    }
+  }
+
+  const handleFolderItemDrop = (folder: ProjectFolder) => (event: DragEvent<HTMLElement>) => {
+    if (draggingFolderId) {
+      if (draggingFolderId === folder.id || !folderDropTarget || folderDropTarget.folderId !== folder.id) return
+      event.preventDefault()
+      event.stopPropagation()
+      moveFolderRelative(draggingFolderId, folder.id, folderDropTarget.position)
+      handleFolderDragEnd()
+      return
+    }
+    if (!draggingProjectId) return
+    event.preventDefault()
+    event.stopPropagation()
+    handleProjectDrop({ type: "folder", folderId: folder.id })
+  }
+
+  // --- Derived data ---
+
+  const getProjectsForFolder = (folderId: string) => {
+    return projects.filter((project) => getResolvedFolderId(project.folderId) === folderId)
+  }
+
+  const rootProjects = projects.filter((project) => getResolvedFolderId(project.folderId) === null)
+  const topRootProjects = rootProjects.filter((project) => project.rootPosition === "top")
+  const bottomRootProjects = rootProjects.filter((project) => project.rootPosition === "bottom")
+
+  const handleRootDragOver = (position: "top" | "bottom") => (event: DragEvent<HTMLElement>) => {
+    if (!draggingProjectId) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (dropTarget?.type !== "root" || dropTarget.position !== position) setDropTarget({ type: "root", position })
+  }
+
+  const handleRootDrop = (position: "top" | "bottom") => (event: DragEvent<HTMLElement>) => {
+    if (!draggingProjectId) return
+    event.preventDefault()
+    event.stopPropagation()
+    handleProjectDrop({ type: "root", position })
+  }
+
+  return {
+    draggingProjectId,
+    topRootProjects,
+    bottomRootProjects,
+    getProjectsForFolder,
+    getProjectDropClassName,
+    getFolderDropClassName,
+    getFolderReorderClassName,
+    getRootDropClassName,
+    handleProjectDragStart,
+    handleProjectDragEnd,
+    handleFolderDragStart,
+    handleFolderDragEnd,
+    updateProjectDropTarget,
+    handleCardDrop,
+    handleFolderItemDragOver,
+    handleFolderItemDrop,
+    handleRootDragOver,
+    handleRootDrop,
+  }
+}

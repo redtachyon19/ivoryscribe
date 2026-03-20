@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Eye, SquarePen } from "lucide-react"
-import { MARKDOWN_EDITOR_COMMAND_EVENT, type MarkdownEditorCommand } from "../../core/editorEvents"
-import { countWords, normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../core/markdown"
+import { MARKDOWN_EDITOR_COMMAND_EVENT, type MarkdownEditorCommand } from "../../../core/editorEvents"
+import { countWords, normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../../core/markdown"
 import "./MarkdownEditor.css"
 
 type MarkdownEditorProps = {

@@ -55,6 +55,54 @@ export type DocumentRecord = {
   updatedAt: string
 }
 
+export type TuskAiProvider = "gpt" | "claude" | "grok"
+
+export type TuskAiProjectContext = {
+  name: string
+  kind: "Book" | "Blog"
+  activeId: string | null
+  tabs: Array<{
+    id: string
+    title: string
+    children: Array<unknown>
+  }>
+  contentById: Record<string, string>
+}
+
+export type TuskAiEdit = {
+  id: string
+  tabId: string
+  tabTitle: string
+  summary: string
+  before: string
+  after: string
+}
+
+export type TuskAiChatResponse = {
+  provider: TuskAiProvider
+  model: string | null
+  usedFallback: boolean
+  providerNote: string | null
+  contextMatches: Array<{
+    tabId: string
+    tabTitle: string
+    relevanceScore: number
+  }>
+  edits: TuskAiEdit[]
+}
+
+export type BillingStatusResponse = {
+  tuskAiActivated: boolean
+  tuskAiActivatedAt: string | null
+  purchase: {
+    id: string
+    amountTotal: number | null
+    currency: string | null
+    paidAt: string | null
+    stripeCheckoutSessionId: string
+  } | null
+}
+
 type PreferencesRecord = {
   id: string
   theme: Record<string, unknown>
@@ -380,4 +428,55 @@ export async function updatePreferences(
   )
 
   return payload.preferences
+}
+
+export async function requestTuskAiEdits(
+  token: string,
+  input: {
+    provider: TuskAiProvider
+    message: string
+    project: TuskAiProjectContext
+  },
+) {
+  return request<TuskAiChatResponse>(
+    "/api/ai/chat",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+}
+
+export async function getBillingStatus(token: string) {
+  return request<BillingStatusResponse>("/api/billing/status", {}, token)
+}
+
+export async function createTuskAiCheckoutSession(token: string) {
+  return request<{
+    checkoutUrl: string | null
+    checkoutSessionId: string
+  }>(
+    "/api/billing/checkout-session",
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+    token,
+  )
+}
+
+export async function confirmTuskAiCheckoutSession(token: string, sessionId: string) {
+  return request<{
+    tuskAiActivated: boolean
+    tuskAiActivatedAt: string | null
+    paymentStatus: string | null
+  }>(
+    "/api/billing/confirm-session",
+    {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
+    },
+    token,
+  )
 }

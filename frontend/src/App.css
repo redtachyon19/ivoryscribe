@@ -6,6 +6,9 @@
 .app {
   --palette-transition-duration: 380ms;
   --palette-transition-easing: ease;
+  --app-display-font: var(--app-display-font);
+  --app-body-font: var(--app-ui-font);
+  --app-ui-font: "Lato", sans-serif;
   --app-bg: #f8f3e3;
   --brand-color: #1d180f;
   --menu-bg: #efe6cb;
@@ -23,6 +26,7 @@
 
   min-height: 100vh;
   background-color: var(--app-bg);
+  font-family: var(--app-ui-font);
   display: flex;
   flex-direction: column;
   transition: background-color var(--palette-transition-duration) var(--palette-transition-easing);
@@ -41,22 +45,6 @@
   .app :where(*, *::before, *::after, button, input, select, textarea) {
     transition-duration: 0ms !important;
   }
-}
-
-.app--custom-font,
-.app--custom-font *,
-.app--custom-font *::before,
-.app--custom-font *::after {
-  font-family: inherit !important;
-}
-
-.app--custom-font {
-  font-family: var(--app-font-family) !important;
-}
-
-.app--custom-font .app-brand__name,
-.app--custom-font .app-brand__tagline {
-  font-family: "EB Garamond", serif !important;
 }
 
 .app--palette-elephant {
@@ -227,7 +215,7 @@
 
 .app-loading p {
   margin: 0;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-body-font);
   font-size: 18px;
   color: var(--menu-button, #ededed);
 }

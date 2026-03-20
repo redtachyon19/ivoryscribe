@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react"
 import { CornerDownRight, Pencil, Plus, TableOfContents, Trash2, X } from "lucide-react"
-import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../core/projects"
+import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../../core/projects"
+import Button from "../ui/Button"
+import GhostButton from "../ui/GhostButton"
+import Modal from "../ui/Modal"
 import "./DocumentTabs.css"
 
 type DropMode = "before" | "after" | "inside"
@@ -708,17 +711,17 @@ export default function DocumentTabs({
 
   return (
     <div className="doc-tabs" aria-hidden={!isOpen}>
-      <button
-        type="button"
+      <GhostButton
         className={`doc-tabs__toggle ${isOpen ? "doc-tabs__toggle--open doc-tabs__toggle--shifted" : ""} ${hideToggle ? "doc-tabs__toggle--hidden" : ""}`.trim()}
         aria-label={toggleLabel}
+        label={toggleLabel}
+        labelSide="right"
         onClick={() => {
           setIsOpen((open) => !open)
         }}
       >
         {isOpen ? <X size={14} strokeWidth={2} aria-hidden={true} /> : <TableOfContents size={14} strokeWidth={2} aria-hidden={true} />}
-        <span className="doc-tabs__toggle-label">{toggleLabel}</span>
-      </button>
+      </GhostButton>
 
       <button
         type="button"
@@ -808,41 +811,31 @@ export default function DocumentTabs({
         </div>
       </aside>
 
-      {pendingDeleteId ? (
-        <div className="doc-tabs__delete-modal" role="dialog" aria-modal="true" aria-label={`Delete ${singular}`}>
-          <div className="doc-tabs__delete-frame">
-            <button
-              type="button"
-              className="doc-tabs__delete-floating-close"
-              onClick={closeDeleteModal}
-              aria-label={`Cancel delete ${singular}`}
-            >
-              <X size={16} strokeWidth={2} aria-hidden="true" />
-              <span className="doc-tabs__delete-floating-close-label">Cancel</span>
-            </button>
-            <div className="doc-tabs__delete-card">
-              <h3>Delete {singular}</h3>
-              <p>Are you sure you are ready to stomp this {deleteEntryNoun} for good?</p>
-              {pendingDeleteDescendantTitles.length > 0 ? (
-                <>
-                  <p className="doc-tabs__delete-subtree-note">This will also delete all {subEntryLabel}.</p>
-                  <ul className="doc-tabs__delete-subtree-list" aria-label={`Sub ${plural.toLowerCase()} that will be deleted`}>
-                    {pendingDeleteDescendantTitles.map((title, index) => (
-                      <li key={`${title}-${index}`}>{title}</li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-              <div className="doc-tabs__delete-actions">
-                <button type="button" className="doc-tabs__delete-confirm" onClick={confirmDelete}>
-                  <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Modal
+        isOpen={Boolean(pendingDeleteId)}
+        onClose={closeDeleteModal}
+        title={`Delete ${singular}`}
+        titleIcon={<Trash2 size={19} strokeWidth={1.9} aria-hidden="true" />}
+        closeLabel="Cancel"
+        footer={(
+          <Button variant="footer-danger" onClick={confirmDelete}>
+            <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+            Delete
+          </Button>
+        )}
+      >
+        <p>Are you sure you are ready to stomp this {deleteEntryNoun} for good?</p>
+        {pendingDeleteDescendantTitles.length > 0 ? (
+          <>
+            <p className="doc-tabs__delete-subtree-note">This will also delete all {subEntryLabel}.</p>
+            <ul className="doc-tabs__delete-subtree-list" aria-label={`Sub ${plural.toLowerCase()} that will be deleted`}>
+              {pendingDeleteDescendantTitles.map((title, index) => (
+                <li key={`${title}-${index}`}>{title}</li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </Modal>
     </div>
   )
 }

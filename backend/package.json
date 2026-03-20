@@ -17,6 +17,7 @@
     "pg-hstore": "^2.3.4",
     "resend": "^6.9.3",
     "sequelize": "^6.37.7",
-    "sqlite3": "^6.0.1"
+    "sqlite3": "^6.0.1",
+    "stripe": "^20.4.1"
   }
 }

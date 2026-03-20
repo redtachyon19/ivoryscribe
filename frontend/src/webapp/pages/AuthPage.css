@@ -98,7 +98,7 @@
 
 .web-auth-card h2 {
   margin: 0 0 18px;
-  font-family: "EB Garamond", serif;
+  font-family: var(--app-display-font);
   color: var(--brand-color, #f3f3f3);
   font-size: 28px;
   font-weight: 400;
@@ -135,7 +135,7 @@
 
 .web-auth-card__field span {
   color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
 }
 
@@ -144,7 +144,7 @@
   border-radius: 8px;
   background: var(--menu-bg, #151515);
   color: var(--menu-button, #efefef);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-body-font);
   font-size: 20px;
   line-height: 1.2;
   padding: 10px 12px;
@@ -194,21 +194,21 @@
 .web-auth-card__hint {
   margin: -6px 0 14px;
   color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
   line-height: 1.25;
 }
 
 .web-auth-card__error {
   margin: 4px 0 12px;
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
   color: #f3aaaa;
 }
 
 .web-auth-card__message {
   margin: 4px 0 12px;
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
   color: color-mix(in srgb, var(--app-accent, #9ab8ff) 70%, #ffffff);
 }
@@ -219,7 +219,7 @@
   gap: 8px;
   align-items: center;
   color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: 15px;
 }
 
@@ -230,7 +230,7 @@
   color: color-mix(in srgb, var(--app-accent, #9ab8ff) 82%, #ffffff);
   cursor: pointer;
   padding: 0;
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
 }
 
@@ -256,7 +256,7 @@
 .web-auth-card__mode-switch-block p {
   margin: 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
 }
 
@@ -270,7 +270,7 @@
 
 .web-auth-card__crash h3 {
   margin: 0 0 6px;
-  font-family: "EB Garamond", serif;
+  font-family: var(--app-display-font);
   font-size: 24px;
   color: #ffd2c9;
 }
@@ -292,7 +292,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #1d1d1d) 84%, transparent);
   color: var(--menu-button, #ededed);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
   line-height: 1;
   padding: 10px 14px;

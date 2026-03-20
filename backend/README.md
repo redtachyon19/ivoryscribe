@@ -148,3 +148,35 @@ Body example:
   }
 }
 ```
+
+## 7. Billing Endpoints (Stripe)
+
+Use Stripe Checkout for one-time digital purchase unlock of Tusk AI.
+
+Required env vars in `backend/.env`:
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_TUSK_PRICE_ID` (one-time Price ID for Tusk AI unlock)
+
+Endpoints:
+
+- `GET /api/billing/status` (authenticated)
+  - returns `tuskAiActivated` and latest purchase metadata
+- `POST /api/billing/checkout-session` (authenticated)
+  - creates Stripe Checkout Session and returns `checkoutUrl`
+- `POST /api/billing/webhook` (Stripe webhook)
+  - verifies signature and activates Tusk AI on `checkout.session.completed`
+
+### Apple Pay Notes
+
+Stripe Checkout shows Apple Pay automatically when:
+
+- user is on a supported Apple Pay browser/device (usually Safari), and
+- your production domain is verified in Stripe.
+
+For local development, use Stripe CLI webhook forwarding:
+
+```bash
+stripe listen --forward-to localhost:4000/api/billing/webhook
+```

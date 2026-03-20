@@ -17,7 +17,7 @@
   box-shadow: none;
   outline: none;
   color: var(--menu-button, #f3f3f3);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 15px;
   padding: 8px;
   cursor: pointer;
@@ -103,7 +103,7 @@
   flex-direction: column;
   gap: 16px;
   overflow-x: hidden;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 18px;
   opacity: 0;
 }
@@ -113,6 +113,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.global-settings__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.global-settings__restore-btn {
+  font-size: 15px;
+  padding: 8px 10px;
 }
 
 .global-settings__layout {
@@ -161,7 +172,7 @@
   align-items: center;
   gap: 10px;
   text-align: left;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 17px;
   line-height: 1.2;
   cursor: pointer;
@@ -202,7 +213,7 @@
 
 .global-settings__section h3 {
   margin: 0;
-  font-family: "EB Garamond", serif;
+  font-family: var(--app-display-font);
   font-weight: 500;
   color: var(--menu-button, #efefef);
   font-size: 26px;
@@ -228,7 +239,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 60%, transparent);
   color: var(--menu-button, #ededed);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 16px;
   line-height: 1.2;
   padding: 9px 14px;
@@ -391,7 +402,7 @@
   align-items: center;
   gap: 8px;
   color: var(--menu-button, #efefef);
-  font-family: "EB Garamond", serif;
+  font-family: var(--app-display-font);
   font-size: 26px;
   font-weight: 400;
   line-height: 1.1;
@@ -447,7 +458,7 @@
   background: transparent;
   color: var(--menu-button, #ededed);
   font-size: 16px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   line-height: 1;
   cursor: pointer;
   appearance: none;
@@ -508,7 +519,7 @@
   gap: 10px;
   opacity: 0;
   overflow-y: auto;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 16px;
 }
 
@@ -532,7 +543,7 @@
   align-items: center;
   gap: 10px;
   color: var(--menu-button, #efefef);
-  font-family: "EB Garamond", serif;
+  font-family: var(--app-display-font);
   font-size: 28px;
   font-weight: 400;
   line-height: 1.1;
@@ -564,7 +575,7 @@
   border-radius: 10px;
   background: transparent;
   color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 16px;
   line-height: 1.2;
   padding: 10px 12px;
@@ -587,7 +598,7 @@
 
 .global-settings__delete-code-field span {
   color: var(--menu-button, #e6e6e6);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 18px;
 }
 
@@ -599,7 +610,7 @@
   background: var(--menu-bg, #1d1d1d);
   color: var(--menu-button, #ededed);
   padding: 8px 10px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-body-font);
   font-size: 18px;
   letter-spacing: 0.08em;
 }
@@ -619,7 +630,7 @@
 
 .global-settings__modal h2 {
   margin: 0;
-  font-family: "EB Garamond", serif;
+  font-family: var(--app-display-font);
   font-weight: 400;
   color: var(--menu-button, #efefef);
   font-size: 32px;
@@ -641,7 +652,7 @@
 
 .global-settings__field span {
   color: var(--menu-button, #e6e6e6);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 18px;
 }
 
@@ -822,7 +833,7 @@
   background: var(--menu-bg, #1d1d1d);
   color: var(--menu-button, #ededed);
   padding: 8px 10px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-body-font);
   font-size: 18px;
 }
 
@@ -841,7 +852,7 @@
   background: var(--menu-bg, #1d1d1d);
   color: var(--menu-button, #ededed);
   padding: 8px 10px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 18px;
   text-align: left;
   cursor: pointer;
@@ -896,7 +907,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--menu-button, #e9e9e9);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 15px;
   text-align: left;
   padding: 7px 8px;
@@ -938,7 +949,7 @@
   background: var(--menu-bg, #1d1d1d);
   color: var(--menu-button, #ededed);
   padding: 8px 10px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-body-font);
   font-size: 18px;
 }
 
@@ -950,7 +961,7 @@
   background: var(--menu-bg, #1d1d1d);
   color: var(--menu-button, #ededed);
   padding: 8px 10px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-body-font);
   font-size: 18px;
 }
 
@@ -1057,7 +1068,7 @@
   border-radius: 999px;
   background: transparent;
   color: var(--menu-button, #f3f3f3);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 15px;
   padding: 8px;
   cursor: pointer;
@@ -1186,7 +1197,7 @@
   background: var(--menu-bg, #1d1d1d);
   color: var(--menu-button, #ededed);
   padding: 6px 8px;
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 16px;
   letter-spacing: 0.03em;
 }

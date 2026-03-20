@@ -82,6 +82,19 @@ export default function createUserModel(sequelize) {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      stripeCustomerId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      tuskAiActivated: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+      tuskAiActivatedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
     },
     {
       tableName: "users",

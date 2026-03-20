@@ -75,7 +75,7 @@
 
 .auth-gateway h1 {
   margin: 0;
-  font-family: "EB Garamond", serif;
+  font-family: var(--app-display-font);
   font-weight: 400;
   font-size: clamp(38px, 6.2vw, 58px);
   line-height: 1.05;
@@ -88,7 +88,7 @@
   max-width: 52ch;
   color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
   font-size: 20pt;
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   line-height: 1.25;
 }
 
@@ -108,7 +108,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
   color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 19px;
   padding: 10px 12px;
   cursor: pointer;
@@ -132,7 +132,7 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #1d1d1d) 84%, transparent);
   color: var(--menu-button, #ededed);
-  font-family: "Times", "Times New Roman", serif;
+  font-family: var(--app-ui-font);
   font-size: 16px;
   line-height: 1;
   padding: 10px 14px;
@@ -202,7 +202,7 @@
 .auth-gateway__footer-brand-name {
   margin: 0;
   color: var(--brand-color, #f3f3f3);
-  font-family: "EB Garamond", serif;
+  font-family: var(--app-display-font);
   font-size: 28px;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -213,7 +213,7 @@
 .auth-gateway__footer-brand-tagline {
   margin: 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: 12px;
   line-height: 1.2;
   text-transform: lowercase;
@@ -222,7 +222,7 @@
 .auth-gateway__footer-address {
   margin: 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: 15px;
   line-height: 1.25;
 }
@@ -262,7 +262,7 @@
 .auth-gateway__footer-group h2 {
   margin: 0;
   color: color-mix(in srgb, var(--brand-color, #f3f3f3) 85%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: var(--footer-title-size);
   font-weight: 400;
   line-height: 1.2;
@@ -272,7 +272,7 @@
 .auth-gateway__footer-group p {
   margin: 8px 0 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 80%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: 15px;
   line-height: 1.2;
   text-transform: lowercase;
@@ -286,7 +286,7 @@
 .auth-gateway__footer-copy {
   margin: 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: var(--footer-title-size);
   line-height: 1.2;
   text-transform: lowercase;
@@ -303,7 +303,7 @@
 .auth-gateway__footer-legal p {
   margin: 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
-  font-family: "Times New Roman", Times, serif;
+  font-family: var(--app-ui-font);
   font-size: var(--footer-title-size);
   line-height: 1.2;
   text-transform: lowercase;
