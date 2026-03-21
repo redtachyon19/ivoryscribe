@@ -17,7 +17,7 @@ export function useViewTransition(view: "projects" | "editor", setView: (v: "pro
     return () => { window.cancelAnimationFrame(id) }
   }, [viewFadePhase])
 
-  const returnToProjectLibrary = () => { if (viewFadePhase === "idle") setViewFadePhase("fading-out") }
+  const returnToLibrary = () => { if (viewFadePhase === "idle") setViewFadePhase("fading-out") }
 
-  return { viewFadePhase, returnToProjectLibrary }
+  return { viewFadePhase, returnToLibrary }
 }

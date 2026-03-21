@@ -34,7 +34,7 @@ import {
   sortProjectVersionsDesc,
   type ProjectVersion,
 } from "./versioning"
-import type { ProjectFolder } from "../webapp/pages/ProjectLibrary"
+import type { ProjectFolder } from "../webapp/pages/Library"
 
 type PreferencesPayload = {
   theme?: {
@@ -228,7 +228,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
         : (projectList[0]?.id ?? null)
     setActiveProjectId(resolvedActiveProjectId)
 
-    // Always land in project library on login/refresh, regardless of previously saved view.
+    // Always land in library on login/refresh, regardless of previously saved view.
     setView("projects")
     setIsMenuBarEnabled(Boolean(uiSettings?.menuBarEnabled))
     setIsFlagsEnabled(Boolean(uiSettings?.flagsEnabled))

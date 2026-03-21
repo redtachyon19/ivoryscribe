@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react"
-import { BookText, ChevronDown, Folder, NotebookText, Pencil, Settings2, Trash2 } from "lucide-react"
+import { Archive, BookText, ChevronDown, Clock3, Folder, LibraryBig, NotebookText, Pencil, Settings2, Trash2 } from "lucide-react"
 import type { Project } from "../../../core/projects"
-import type { ProjectFolder } from "../../pages/ProjectLibrary"
-import { useListDrag } from "./hooks/useListDrag"
+import type { ProjectFolder } from "../../pages/Library"
+import { useListDrag } from "../editor/hooks/useListDrag"
 import Modal from "../ui/Modal"
 import Button from "../ui/Button"
 import "./ProjectBrowserPanel.css"
@@ -11,6 +11,8 @@ type ProjectBrowserPanelProps = {
   projects: Project[]
   folders: ProjectFolder[]
   activeProjectId: string | null
+  isLibraryView: boolean
+  onNavigateLibrary: () => void
   onOpenProject: (projectId: string) => void
   onOpenProjectSettings: (projectId: string) => void
   setFolders: React.Dispatch<React.SetStateAction<ProjectFolder[]>>
@@ -21,6 +23,8 @@ export default function ProjectBrowserPanel({
   projects,
   folders,
   activeProjectId,
+  isLibraryView,
+  onNavigateLibrary,
   onOpenProject,
   onOpenProjectSettings,
   setFolders,
@@ -31,6 +35,7 @@ export default function ProjectBrowserPanel({
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingFolderName, setEditingFolderName] = useState("")
   const [pendingDeleteFolderId, setPendingDeleteFolderId] = useState<string | null>(null)
+  const [browserSection, setBrowserSection] = useState<"library" | "recent" | "archive" | "deleted">("library")
 
   const topRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "top")
   const bottomRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "bottom")
@@ -324,6 +329,56 @@ export default function ProjectBrowserPanel({
 
   return (
     <div className="project-browser">
+      <div className="project-browser__section-switcher" aria-label="Project browser sections">
+        <div className="project-browser__section-divider" aria-hidden="true" />
+        <div className="project-browser__section-buttons" role="tablist" aria-label="Project sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={browserSection === "library" && isLibraryView}
+            className={`project-browser__section-btn ${browserSection === "library" && isLibraryView ? "project-browser__section-btn--active" : ""}`.trim()}
+            onClick={() => {
+              setBrowserSection("library")
+              onNavigateLibrary()
+            }}
+          >
+            <LibraryBig size={14} strokeWidth={1.9} aria-hidden="true" />
+            <span>Library</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={browserSection === "recent"}
+            className={`project-browser__section-btn ${browserSection === "recent" ? "project-browser__section-btn--active" : ""}`.trim()}
+            onClick={() => setBrowserSection("recent")}
+          >
+            <Clock3 size={14} strokeWidth={1.9} aria-hidden="true" />
+            <span>Recent</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={browserSection === "archive"}
+            className={`project-browser__section-btn ${browserSection === "archive" ? "project-browser__section-btn--active" : ""}`.trim()}
+            onClick={() => setBrowserSection("archive")}
+          >
+            <Archive size={14} strokeWidth={1.9} aria-hidden="true" />
+            <span>Archive</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={browserSection === "deleted"}
+            className={`project-browser__section-btn ${browserSection === "deleted" ? "project-browser__section-btn--active" : ""}`.trim()}
+            onClick={() => setBrowserSection("deleted")}
+          >
+            <Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
+            <span>Recently Deleted</span>
+          </button>
+        </div>
+        <div className="project-browser__section-divider" aria-hidden="true" />
+      </div>
+
       <header className="project-browser__header">
         <p className="project-browser__title">Projects</p>
       </header>

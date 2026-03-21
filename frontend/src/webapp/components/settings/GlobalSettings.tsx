@@ -1,11 +1,10 @@
-import { Palette, ScrollText, Settings, UserRound, X } from "lucide-react"
+import { Palette, ScrollText, UserRound } from "lucide-react"
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties } from "react"
 import type { ProjectKind } from "../../../core/projects"
 import AccountSettings from "./AccountSettings"
 import AppearanceSettings from "./AppearanceSettings"
 import ProjectSettings from "./ProjectSettings"
 import Button from "../ui/Button"
-import GhostButton from "../ui/GhostButton"
 import "./GlobalSettings.css"
 
 type PaletteOption = {
@@ -23,7 +22,6 @@ export type GlobalSettingsProps = {
   showProjectPreferences?: boolean
   menuBarEnabled: boolean
   flagsEnabled: boolean
-  hideTrigger?: boolean
   displayFont: string
   bodyFont: string
   uiFont: string
@@ -32,7 +30,6 @@ export type GlobalSettingsProps = {
   palette: string
   paletteOptions: PaletteOption[]
   fontOptions: FontOption[]
-  onToggleOpen: () => void
   onClose: () => void
   onRestoreDefaults: () => void
   onMenuBarEnabledChange: (enabled: boolean) => void
@@ -91,7 +88,6 @@ export default function GlobalSettings({
   showProjectPreferences = true,
   menuBarEnabled,
   flagsEnabled,
-  hideTrigger = false,
   displayFont,
   bodyFont,
   uiFont,
@@ -100,7 +96,6 @@ export default function GlobalSettings({
   palette,
   paletteOptions,
   fontOptions,
-  onToggleOpen,
   onClose,
   onRestoreDefaults,
   onMenuBarEnabledChange,
@@ -166,9 +161,6 @@ export default function GlobalSettings({
   const [isRendered, setIsRendered] = useState(isOpen)
   const [isClosing, setIsClosing] = useState(false)
   const [isMarkdownPromptVisible, setIsMarkdownPromptVisible] = useState(false)
-
-  const triggerIsLayeredAboveOverlay = isOpen || isRendered
-  const triggerLabel = isOpen ? "Close Settings" : "Open Settings"
 
   const sectionNavItems: { id: SectionId; label: string; icon: ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }> }[] = [
     { id: "account", label: "Account Settings", icon: UserRound },
@@ -376,16 +368,6 @@ export default function GlobalSettings({
 
   return (
     <>
-      <GhostButton
-        spinIcon
-        className={`global-settings__trigger ${triggerIsLayeredAboveOverlay ? "global-settings__trigger--open" : ""} ${menuBarEnabled ? "global-settings__trigger--with-menu" : ""} ${hideTrigger ? "global-settings__trigger--hidden" : ""}`.trim()}
-        aria-label={triggerLabel}
-        label={triggerLabel}
-        onClick={onToggleOpen}
-      >
-        {isOpen ? <X size={16} strokeWidth={2} aria-hidden={true} /> : <Settings size={16} strokeWidth={2} aria-hidden={true} />}
-      </GhostButton>
-
       {isRendered ? (
         <>
           <button

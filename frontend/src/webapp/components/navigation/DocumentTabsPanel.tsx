@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react"
 import { ChevronDown, CornerDownRight, Pencil, Trash2 } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../../core/projects"
-import { useListDrag, getDropMode, type DropMode, type DropTarget } from "./hooks/useListDrag"
+import { useListDrag, getDropMode, type DropMode, type DropTarget } from "../editor/hooks/useListDrag"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"
-import "./DocumentTabs.css"
-
-// Local ID helper for tabs created from the sidebar panel.
-function createId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID()
-  }
-
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
+import "./DocumentTabsPanel.css"
 
 // Guards against dropping a node inside its own subtree.
 function containsId(node: DocumentTab, targetId: string): boolean {
@@ -187,31 +178,6 @@ function renameTab(nodes: DocumentTab[], targetId: string, nextTitle: string): D
 
 function deleteTab(nodes: DocumentTab[], targetId: string): DocumentTab[] {
   return removeNode(nodes, targetId).nextNodes
-}
-
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
-function collectEntryNumbers(tabs: DocumentTab[], singular: string): number[] {
-  const matcher = new RegExp(`^${escapeRegex(singular)}\\s+(\\d+)$`, "i")
-
-  return tabs.flatMap((tab) => {
-    const match = tab.title.match(matcher)
-    const current = match ? [Number.parseInt(match[1], 10)] : []
-    return [...current, ...collectEntryNumbers(tab.children, singular)]
-  })
-}
-
-function getNextEntryName(tabs: DocumentTab[], singular: string): string {
-  const used = new Set(collectEntryNumbers(tabs, singular))
-  let candidate = 1
-
-  while (used.has(candidate)) {
-    candidate += 1
-  }
-
-  return `${singular} ${candidate}`
 }
 
 function collectDescendantTitles(node: DocumentTab): string[] {
@@ -530,7 +496,7 @@ type DocumentTabsProps = {
   onSelect: (id: string) => void
 }
 
-export default function DocumentTabs({
+export default function DocumentTabsPanel({
   projectName,
   tabs,
   projectKind,

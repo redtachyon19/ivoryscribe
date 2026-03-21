@@ -21,6 +21,55 @@
   line-height: 1.2;
 }
 
+.project-browser__section-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 4px 10px;
+}
+
+.project-browser__section-divider {
+  height: 1px;
+  background: color-mix(in srgb, var(--menu-button, #ededed) 16%, transparent);
+}
+
+.project-browser__section-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.project-browser__section-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.project-browser__section-btn:hover,
+.project-browser__section-btn:focus-visible {
+  color: var(--menu-button, #ededed);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
+  outline: none;
+}
+
+.project-browser__section-btn--active {
+  color: var(--menu-button, #ededed);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 82%, transparent);
+}
+
 .project-browser__list-shell {
   position: relative;
   padding-bottom: 352px;
