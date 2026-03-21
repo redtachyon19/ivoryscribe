@@ -1,6 +1,6 @@
 import { useState, type DragEvent } from "react"
 import { BookText, GripVertical, NotebookText, Plus, X } from "lucide-react"
-import type { ProjectFolder as ProjectFolderType } from "../../pages/ProjectLibrary"
+import type { ProjectFolder as ProjectFolderType } from "../../pages/Library"
 import type { ProjectKind } from "../../../core/projects"
 
 export type ProjectFolderProps = {

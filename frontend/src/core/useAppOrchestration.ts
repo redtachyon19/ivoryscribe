@@ -20,10 +20,10 @@ import { useRouting } from "./useRouting"
 import { useAppStyle } from "./useAppStyle"
 import { useProjectVersioning } from "./useProjectVersioning"
 import { useWorkspaceHydration } from "./useWorkspaceHydration"
-import { useViewTransition } from "./useViewTransition"
+
 import { useTuskBilling } from "./useTuskBilling"
-import { createLocalId } from "./projectLibraryUtils"
-import type { ProjectFolder } from "../webapp/pages/ProjectLibrary"
+import { createLocalId } from "./libraryUtils"
+import type { ProjectFolder } from "../webapp/pages/Library"
 
 export function useAppOrchestration() {
   // ── local state ──────────────────────────────────────────────
@@ -50,7 +50,6 @@ export function useAppOrchestration() {
   // ── composed hooks ───────────────────────────────────────────
   const { currentPathname, requestedProjectId, checkoutResult, passwordResetToken, navigateTo, navigateReplace } = useRouting()
   const style = useAppStyle()
-  const { viewFadePhase, returnToProjectLibrary } = useViewTransition(view, setView)
 
   const {
     session, isAuthBootstrapping, authLoadError, sessionRef,
@@ -186,8 +185,6 @@ export function useAppOrchestration() {
     setProjects((cur) => cur.map((p) => (p.id !== id ? p : updater(p))))
   }
 
-  const openProject = (projectId: string) => { setActiveProjectId(projectId); setView("editor") }
-
   // ── prop bundles ─────────────────────────────────────────────
   const passwordResetProps = {
     token: passwordResetToken,
@@ -220,45 +217,9 @@ export function useAppOrchestration() {
     onNavigateHome: () => navigateTo("/"),
   }
 
-  const projectLibraryProps = {
-    projects,
-    folders,
-    activeProjectId,
-    bookCounter,
-    blogCounter,
-    setBookCounter,
-    setBlogCounter,
-    onOpenProject: openProject,
-    onOpenProjectInNewTab: (projectId: string) => {
-      const url = new URL("/app", window.location.origin)
-      url.searchParams.set("projectId", projectId)
-      window.open(url.toString(), "_blank")
-    },
-    onProjectCreated: (project: Project) => {
-      if (sessionRef.current && isWorkspaceHydrated) {
-        void versioning.createProjectVersionSnapshot(project, getInitialManualVersionDefinition([], serializeProjectSnapshot(project)), { alertOnFailure: false })
-      }
-    },
-    activeProjectVersionsByProjectId: projectVersionsForLibraryByProjectId,
-    onShowVersionHistory: (projectId: string) => {
-      const versions = versioning.projectVersionsByProjectId[projectId] ?? []
-      const project = projects.find((p) => p.id === projectId)
-      const projectName = project?.name ?? "Project"
-      const theme = resolveThemeForPalette(style.palette, { customPaletteBackground: style.customPaletteBackground, customPaletteAccent: style.customPaletteAccent })
-
-      const html = buildVersionHistoryPageHtml({ versions, projectName, projectId, bodyFont: style.bodyFont, uiFont: style.uiFont, displayFont: style.displayFont, ...theme })
-      const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
-      window.open(blobUrl, "_blank")
-      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)
-    },
-    setProjects,
-    setFolders,
-    setActiveProjectId,
-  }
-
   const editorProps = session ? {
     sessionToken: session.token,
-    project: activeProject!,
+    project: activeProject,
     tuskAiActivated: billing.tuskAiBilling.tuskAiActivated,
     isStartingTuskCheckout: billing.isStartingTuskCheckout,
     activeContent,
@@ -272,7 +233,7 @@ export function useAppOrchestration() {
     folders,
     setProjects,
     setFolders,
-    onOpenProject: (projectId: string) => { setActiveProjectId(projectId) },
+    onOpenProject: (projectId: string) => { setActiveProjectId(projectId); setView("editor") },
     onCreateProject: () => {
       const nextName = `Book ${bookCounter}`
       const nextProject = createProject(nextName, "Book")
@@ -291,11 +252,40 @@ export function useAppOrchestration() {
       setActiveProjectId(projectId)
       setIsSettingsOpen(true)
     },
-    onReturnToDashboard: returnToProjectLibrary,
+    onReturnToDashboard: () => setView("projects"),
     onStartTuskCheckout: () => { void billing.handleStartTuskCheckout() },
     onProjectChange: updateActiveProject,
     onEditorTypingStateChange: setIsEditorTyping,
     onToggleSettings: () => setIsSettingsOpen((c) => !c),
+    // Library integration props
+    view,
+    activeProjectId,
+    setActiveProjectId,
+    bookCounter,
+    blogCounter,
+    setBookCounter,
+    setBlogCounter,
+    onProjectCreated: (project: Project) => {
+      if (sessionRef.current && isWorkspaceHydrated) {
+        void versioning.createProjectVersionSnapshot(project, getInitialManualVersionDefinition([], serializeProjectSnapshot(project)), { alertOnFailure: false })
+      }
+    },
+    onOpenProjectInNewTab: (projectId: string) => {
+      const url = new URL("/app", window.location.origin)
+      url.searchParams.set("projectId", projectId)
+      window.open(url.toString(), "_blank")
+    },
+    activeProjectVersionsByProjectId: projectVersionsForLibraryByProjectId,
+    onShowVersionHistory: (projectId: string) => {
+      const versions = versioning.projectVersionsByProjectId[projectId] ?? []
+      const proj = projects.find((p) => p.id === projectId)
+      const projectName = proj?.name ?? "Project"
+      const theme = resolveThemeForPalette(style.palette, { customPaletteBackground: style.customPaletteBackground, customPaletteAccent: style.customPaletteAccent })
+      const html = buildVersionHistoryPageHtml({ versions, projectName, projectId, bodyFont: style.bodyFont, uiFont: style.uiFont, displayFont: style.displayFont, ...theme })
+      const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
+      window.open(blobUrl, "_blank")
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)
+    },
   } : null
 
   const settingsProps = session ? {
@@ -303,7 +293,6 @@ export function useAppOrchestration() {
     showProjectPreferences: view === "editor",
     menuBarEnabled: isMenuBarEnabled,
     flagsEnabled: isFlagsEnabled,
-    hideTrigger: view === "editor" || isEditorTyping,
     displayFont: style.displayFont,
     bodyFont: style.bodyFont,
     uiFont: style.uiFont,
@@ -312,7 +301,6 @@ export function useAppOrchestration() {
     palette: style.palette,
     paletteOptions: PALETTE_OPTIONS,
     fontOptions: [...FONT_OPTIONS],
-    onToggleOpen: () => setIsSettingsOpen((c) => !c),
     onClose: () => setIsSettingsOpen(false),
     onRestoreDefaults: () => {
       setIsMenuBarEnabled(false)
@@ -387,7 +375,6 @@ export function useAppOrchestration() {
     style: { palette: style.palette, appStyleVariables: style.appStyleVariables },
     // view
     view,
-    viewFadePhase,
     activeProject,
     // prop bundles
     passwordResetProps,
@@ -395,7 +382,6 @@ export function useAppOrchestration() {
     authProps,
     menuBarProps,
     brandProps,
-    projectLibraryProps,
     editorProps,
     settingsProps,
   }

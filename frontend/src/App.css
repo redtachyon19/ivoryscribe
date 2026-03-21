@@ -183,16 +183,6 @@
   overflow-y: auto;
 }
 
-.app-view {
-  opacity: 1;
-  transition: opacity 240ms ease-out;
-}
-
-.app-view--fade-out,
-.app-view--fade-in {
-  opacity: 0;
-}
-
 .app-brand {
   position: absolute;
   top: 18px;

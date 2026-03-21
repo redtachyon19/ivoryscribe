@@ -1,0 +1,1381 @@
+/* ── Project Hub Shell ── */
+
+.project-hub {
+  position: relative;
+  z-index: 16;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 45px);
+  overflow: hidden;
+  background: var(--app-bg);
+}
+
+/* ── Top Bar ── */
+
+.project-hub__topbar {
+  height: 42px;
+  flex-shrink: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 66%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #181818) 88%, transparent);
+}
+
+.project-hub__panel-toggle {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1b1b1b) 90%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.project-hub__panel-toggle:hover,
+.project-hub__panel-toggle:focus-visible {
+  color: var(--menu-button, #ededed);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
+  outline: none;
+}
+
+/* ── Body Grid ── */
+
+.project-hub__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px 8px 1fr 8px 240px;
+  transition: grid-template-columns 180ms ease;
+}
+
+.project-hub__body--collapsed-left .project-hub__sidebar {
+  opacity: 0;
+  padding-left: 0;
+  padding-right: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.project-hub__body--collapsed-right .project-hub__right-panel {
+  opacity: 0;
+  padding-left: 0;
+  padding-right: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ── Sidebar ── */
+
+.project-hub__sidebar {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #141414) 90%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: opacity 160ms ease, padding 160ms ease;
+}
+
+.project-hub__sidebar-nav {
+  display: grid;
+  gap: 4px;
+}
+
+.project-hub__sidebar-item {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 76%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.project-hub__sidebar-item--active {
+  border-color: color-mix(in srgb, var(--menu-border, #2b2b2b) 68%, transparent);
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #202020) 88%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 92%, transparent);
+}
+
+.project-hub__sidebar-item:hover,
+.project-hub__sidebar-item:focus-visible {
+  border-color: color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #282828) 72%, transparent);
+  color: var(--menu-button, #ededed);
+  outline: none;
+}
+
+/* ── Sidebar Project Browser ── */
+
+.project-hub__sidebar-browser {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
+  padding-top: 8px;
+  overflow-y: auto;
+}
+
+.project-hub__sidebar-browser-title {
+  margin: 0;
+  padding: 4px 6px;
+  color: var(--menu-button, #ededed);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 64%, transparent);
+}
+
+.project-hub__sidebar-browser-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+
+.project-hub__sidebar-browser-list--nested {
+  margin: 0 0 0 10px;
+}
+
+.project-hub__sidebar-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  color: var(--menu-button, #ededed);
+  transition: background-color 0ms linear;
+}
+
+.project-hub__sidebar-row:hover {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
+}
+
+.project-hub__sidebar-row--active {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
+}
+
+.project-hub__sidebar-label {
+  font-family: var(--app-ui-font);
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.25;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0.75;
+  transition: opacity 320ms ease-in-out;
+}
+
+.project-hub__sidebar-row:hover .project-hub__sidebar-label,
+.project-hub__sidebar-row--active .project-hub__sidebar-label {
+  opacity: 1;
+}
+
+.project-hub__sidebar-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-hub__sidebar-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #bebebe;
+  width: 0;
+  height: 26px;
+  overflow: hidden;
+  padding: 0;
+  margin-right: 0;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition: none;
+}
+
+.project-hub__sidebar-row:hover .project-hub__sidebar-settings-btn {
+  width: 26px;
+  margin-right: 4px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.project-hub__sidebar-settings-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.project-hub__sidebar-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
+  margin-right: 4px;
+  cursor: pointer;
+  transition: transform 160ms ease, color 120ms ease;
+}
+
+.project-hub__sidebar-collapse-btn--open {
+  transform: rotate(0deg);
+}
+
+.project-hub__sidebar-collapse-btn:not(.project-hub__sidebar-collapse-btn--open) {
+  transform: rotate(-90deg);
+}
+
+.project-hub__sidebar-collapse-btn:hover {
+  color: var(--menu-button, #ededed);
+}
+
+/* ── Storage ── */
+
+.project-hub__storage {
+  margin-top: auto;
+  border-top: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
+  padding-top: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 8px;
+  flex-shrink: 0;
+}
+
+.project-hub__storage-label {
+  grid-column: 1;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  min-width: 0;
+}
+
+.project-hub__storage-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--menu-border, #2b2b2b) 52%, transparent);
+  overflow: hidden;
+}
+
+.project-hub__storage-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 72%, transparent);
+  transition: width 300ms ease;
+}
+
+.project-hub__storage p {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* ── Resizer ── */
+
+.project-hub__resizer {
+  width: 8px;
+  cursor: col-resize;
+  position: relative;
+  background: transparent;
+}
+
+.project-hub__resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--menu-border, #2b2b2b) 66%, transparent);
+}
+
+.project-hub__resizer:hover::before {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 78%, transparent);
+}
+
+.project-hub__resizer--right::before {
+  left: auto;
+  right: 0;
+}
+
+.project-hub__resizer--hidden {
+  width: 0;
+  cursor: default;
+}
+
+.project-hub__resizer--hidden::before {
+  display: none;
+}
+
+/* ── Main Content ── */
+
+.project-hub__main {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.project-hub__main--blurred {
+  filter: blur(5px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.project-hub__main-scroll {
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px 24px 48px;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.project-hub__header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.project-hub__header h3 {
+  margin: 0;
+  color: var(--brand-color, #f3f3f3);
+  font-family: var(--app-display-font);
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 500;
+  line-height: 1.12;
+}
+
+.project-hub__header span {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Create Row ── */
+
+.project-hub__create-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(170px, 210px));
+  justify-content: start;
+  gap: 14px;
+}
+
+.project-hub__create-card {
+  min-height: 150px;
+  border: 1px dashed color-mix(in srgb, var(--menu-button, #ededed) 42%, transparent);
+  border-radius: 14px;
+  padding: 24px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #181818) 62%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 18px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 140ms ease;
+}
+
+.project-hub__create-card:hover,
+.project-hub__create-card:focus-visible {
+  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 62%, transparent);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #262626) 70%, transparent);
+  color: var(--menu-button, #ededed);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+/* ── Recently Opened ── */
+
+.project-hub__recent-section {
+  display: grid;
+  gap: 8px;
+}
+
+.project-hub__section-label {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 92%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.project-hub__recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+}
+
+.project-hub__recent-item {
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 60%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1a1a1a) 82%, transparent);
+  padding: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.project-hub__recent-item:hover {
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #262626) 70%, transparent);
+}
+
+.project-hub__recent-item svg {
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  flex: 0 0 auto;
+}
+
+.project-hub__recent-item strong {
+  display: block;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.project-hub__recent-item span {
+  display: block;
+  margin-top: 1px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+/* ── Toolbar ── */
+
+.project-hub__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.project-hub__toolbar p {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 92%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.project-hub__toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.project-hub__chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-hub__chips span {
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+}
+
+.project-hub__view-toggle {
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1b1b1b) 90%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.project-hub__view-toggle:hover,
+.project-hub__view-toggle:focus-visible {
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 34%, transparent);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 80%, transparent);
+  color: var(--menu-button, #ededed);
+  outline: none;
+}
+
+/* ── Folders Grid ── */
+
+.project-hub__folders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.project-hub__folder-card {
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #202020) 84%, transparent);
+  padding: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: default;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.project-hub__folder-card:hover {
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 22%, transparent);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #262626) 70%, transparent);
+}
+
+.project-hub__folder-card svg {
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
+  flex: 0 0 auto;
+}
+
+.project-hub__folder-card strong {
+  display: block;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.project-hub__folder-card span {
+  display: block;
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+/* ── List View ── */
+
+.project-hub__list-view {
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 86%, transparent);
+  overflow: hidden;
+}
+
+.project-hub__list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 56%, transparent);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.project-hub__list-row:last-child {
+  border-bottom: 0;
+}
+
+.project-hub__list-row:hover {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 60%, transparent);
+}
+
+.project-hub__list-row--selected {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 50%, transparent);
+}
+
+.project-hub__list-row-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-hub__list-row-main svg {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  flex: 0 0 auto;
+}
+
+.project-hub__list-row-main strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+}
+
+.project-hub__list-row > span {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 66%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ── Grid View ── */
+
+.project-hub__grid-view {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+/* ── Right Panel ── */
+
+.project-hub__right-panel {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #141414) 90%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  padding: 14px 12px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  transition: opacity 160ms ease, padding 160ms ease;
+}
+
+.project-hub__right-panel--hidden {
+  opacity: 0;
+  padding-left: 0;
+  padding-right: 0;
+  overflow: hidden;
+}
+
+.project-hub__right-panel-title {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.project-hub__right-panel-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1c1c1c) 86%, transparent);
+}
+
+.project-hub__right-panel-card svg {
+  margin-top: 1px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 68%, transparent);
+  flex: 0 0 auto;
+}
+
+.project-hub__right-panel-card strong {
+  display: block;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.project-hub__right-panel-card span {
+  display: block;
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 56%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+}
+
+.project-hub__right-panel-section {
+  display: grid;
+  gap: 6px;
+}
+
+.project-hub__right-panel-label {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.project-hub__right-panel-dl {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.project-hub__right-panel-dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.project-hub__right-panel-dl dt {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+}
+
+.project-hub__right-panel-dl dd {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  text-align: right;
+}
+
+.project-hub__right-panel-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.project-hub__right-panel-tags span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 60%, transparent);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+}
+
+.project-hub__right-panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.project-hub__right-panel-actions button {
+  width: 100%;
+  justify-content: center;
+}
+
+.project-hub__right-panel-empty {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 56%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  text-align: center;
+  padding-top: 20px;
+}
+
+.project-hub__root-drop {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 24px;
+  background: transparent;
+}
+
+.project-hub__root-drop::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.project-hub__root-drop--active {
+  background: transparent;
+}
+
+.project-hub__root-drop--active::before {
+  background: var(--app-accent, #9ab8ff);
+}
+
+.project-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.project-folder--inline {
+  position: relative;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  margin-top: 20px;
+  padding: 6px 2px;
+  box-shadow: none;
+  grid-column: 1 / -1;
+}
+
+.project-folder--drop-target {
+  background: transparent;
+}
+
+.project-folder--drop-target::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--app-accent, #9ab8ff);
+  pointer-events: none;
+  transition: background 120ms ease;
+}
+
+.project-folder--drop-before::after,
+.project-folder--drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--app-accent, #9ab8ff);
+  pointer-events: none;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.project-folder--drop-before::after {
+  top: 0;
+  transform: scaleX(1);
+}
+
+.project-folder--drop-after::after {
+  bottom: 0;
+  transform: scaleX(1);
+}
+
+.project-folder--drag-preview {
+  opacity: 0.95;
+  transform: scale(0.995);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34);
+}
+
+.project-folder__title {
+  margin: 0;
+  font-family: var(--app-display-font);
+  font-weight: 400;
+  color: #f4f4f4;
+  font-size: 30px;
+  line-height: 1;
+  cursor: text;
+}
+
+.project-folder__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.project-folder__title-left {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.project-folder__drag-handle {
+  position: absolute;
+  left: -28px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #7b7b7b;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.project-folder__drag-handle:active {
+  cursor: grabbing;
+}
+
+.project-folder__create-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.project-folder__plus-btn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 320ms ease-out;
+}
+
+.project-folder:hover .project-folder__plus-btn,
+.project-folder__create-menu-wrap:focus-within .project-folder__plus-btn,
+.project-folder__plus-btn[aria-expanded="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.project-folder:hover .project-folder__drag-handle,
+.project-folder:focus-within .project-folder__drag-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.project-folder__description {
+  margin: 8px 0 0;
+  color: #b8b8b8;
+  font-size: 15px;
+  font-family: var(--app-ui-font);
+  line-height: 1.2;
+  cursor: text;
+}
+
+.project-folder__title-input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #585858;
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+  margin: 0;
+  padding: 0 0 4px;
+  font-family: var(--app-display-font);
+  font-weight: 400;
+  color: #f4f4f4;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.project-folder__title-input::selection {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+.project-folder__description-input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #585858;
+  border-radius: 0;
+  background: transparent;
+  outline: none;
+  margin: 8px 0 0;
+  padding: 0 0 4px;
+  color: #b8b8b8;
+  font-size: 15px;
+  line-height: 1.2;
+  font-family: var(--app-ui-font);
+}
+
+.project-folder__description-input::selection {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+.project-card {
+  --project-accent: #7ea8ff;
+  --project-accent-soft: rgba(126, 168, 255, 0.14);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #171717) 86%, transparent);
+  cursor: pointer;
+  list-style: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, opacity 120ms ease, transform 120ms ease;
+}
+
+.project-card:hover {
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+
+.project-card:active {
+  transform: translateY(1px);
+}
+
+/* ── Thumbnail ── */
+
+.project-card__thumb {
+  height: 110px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--project-accent-soft), var(--menu-dropdown-bg, #1e1e1e) 88%);
+  border-bottom: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 46%, transparent);
+  color: var(--project-accent);
+}
+
+/* ── Info section ── */
+
+.project-card__info {
+  padding: 10px 12px;
+}
+
+.project-card__info strong {
+  display: block;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-card__info span {
+  display: block;
+  margin-top: 3px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 56%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Action buttons overlay ── */
+
+.project-card__actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.project-card:hover .project-card__actions,
+.project-card:focus-within .project-card__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.project-card__icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #171717) 82%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--menu-button, #ebebeb);
+  font-size: 13px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-family: var(--app-ui-font);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+  outline: none;
+  overflow: visible;
+}
+
+.project-card__icon-btn:hover {
+  background: color-mix(in srgb, var(--project-accent) 28%, color-mix(in srgb, var(--menu-dropdown-bg, #171717) 82%, transparent));
+}
+
+.project-card__icon-btn:focus-visible {
+  background: color-mix(in srgb, var(--project-accent) 28%, color-mix(in srgb, var(--menu-dropdown-bg, #171717) 82%, transparent));
+  outline: none;
+  box-shadow: none;
+}
+
+.project-card__icon-btn-label {
+  position: absolute;
+  right: calc(100% + 6px);
+  top: 50%;
+  transform: translate3d(6px, -50%, 0);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  font-size: 11px;
+  transition: opacity 140ms ease, transform 180ms ease;
+}
+
+.project-card__icon-btn:hover .project-card__icon-btn-label,
+.project-card__icon-btn:focus-visible .project-card__icon-btn-label {
+  opacity: 0.64;
+  transform: translate3d(0, -50%, 0);
+}
+
+.project-card__icon-btn--danger {
+  color: #f3c3c3;
+}
+
+/* ── Drag states ── */
+
+.project-card--dragging {
+  opacity: 0.45;
+}
+
+.project-card--drop-before {
+  overflow: visible;
+}
+
+.project-card--drop-after {
+  overflow: visible;
+}
+
+.project-card--drop-before::before,
+.project-card--drop-after::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--app-accent, #9ab8ff);
+  z-index: 3;
+  transition: opacity 120ms ease;
+}
+
+.project-card--drop-before::before {
+  left: -8px;
+}
+
+.project-card--drop-after::after {
+  right: -8px;
+}
+
+/* ── Rename ── */
+
+.project-card__rename-wrap {
+  position: relative;
+}
+
+.project-card__rename-input {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  display: block;
+  resize: none;
+  font-family: var(--app-ui-font);
+  font-weight: 600;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  font-size: 13px;
+  line-height: 1.3;
+  min-height: 1.3em;
+  max-height: calc(1.3em * 2);
+  margin: 0;
+  padding: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  overflow-y: hidden;
+  outline: none;
+  caret-color: var(--app-accent, #9ab8ff);
+}
+
+.project-card__rename-input:hover {
+  overflow-y: auto;
+}
+
+.project-card__rename-input::selection {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+.project-hub__empty {
+  margin: 4px 0 0;
+  color: #a8a8a8;
+  font-size: 13px;
+  font-family: var(--app-ui-font);
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* ── Project-specific modal content styles ── */
+
+.project-settings-modal__field {
+  min-width: 0;
+}
+
+.project-settings-modal__field .project-preferences-fields__color-value-input {
+  font-size: 18px;
+  padding: 8px 10px;
+}
+
+.project-delete-modal__panel {
+  gap: 10px;
+}
+
+.project-delete-modal__copy {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.project-delete-modal__spacer {
+  height: 8px;
+}
+
+.project-delete-modal__typing-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
+  min-height: 50px;
+  cursor: text;
+  transition: border-color 160ms ease;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.project-delete-modal__typing-box:focus-within {
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
+}
+
+.project-delete-modal__typing-text {
+  margin: 0;
+  padding: 0 12px;
+  font-family: var(--app-body-font);
+  font-size: 20px;
+  letter-spacing: 0;
+  line-height: 1.35;
+  white-space: pre;
+  word-break: normal;
+  width: max-content;
+}
+
+.project-delete-modal__typing-char--pending {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 36%, transparent);
+}
+
+.project-delete-modal__typing-char--correct {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 94%, transparent);
+}
+
+.project-delete-modal__typing-char--wrong {
+  color: #f39a9a;
+  background: rgba(255, 108, 108, 0.14);
+}
+
+.project-delete-modal__typing-input {
+  position: absolute;
+  top: calc((100% - (1em * 1.35)) / 2);
+  left: 12px;
+  right: 12px;
+  height: calc(1em * 1.35);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: color-mix(in srgb, var(--menu-button, #ededed) 94%, transparent);
+  font-family: var(--app-body-font);
+  font-size: 20px;
+  letter-spacing: 0;
+  line-height: 1.35;
+  white-space: pre;
+  padding: 0;
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+}
+
+@keyframes project-hub-plus-spin-once {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-hub__body {
+    transition: none;
+  }
+
+  .project-hub__create-card {
+    transition: none;
+  }
+}

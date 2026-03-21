@@ -14,7 +14,7 @@ import { FlagRail } from "./FlagRail"
 import { useFlagRail } from "./hooks/useFlagRail"
 import { useTypingCaret } from "./hooks/useTypingCaret"
 import { useTypingState } from "./hooks/useTypingState"
-import "./Editor.css"
+import "./TextEditor.css"
 
 type FontSizeChangeDetail = {
   delta: number
@@ -52,7 +52,7 @@ type EditorProps = {
   onTypingStateChange?: (isTyping: boolean) => void
 }
 
-export default function Editor({
+export default function TextEditor({
   documentId,
   documentTitle,
   hideDocumentTitle = false,

@@ -1,6 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react"
 import type { Project, ProjectKind } from "../../../core/projects"
-import { createLocalId, buildDuplicateProjectName, normalizeProjectColor, normalizeProjectEmojiWallpaper } from "../../../core/projectLibraryUtils"
+import { createLocalId, buildDuplicateProjectName, normalizeProjectColor, normalizeProjectEmojiWallpaper } from "../../../core/libraryUtils"
 
 type UseProjectSettingsOptions = {
   projects: Project[]
