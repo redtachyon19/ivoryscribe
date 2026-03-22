@@ -4,12 +4,15 @@ import MarkdownEditor from "../components/editor/MarkdownEditor"
 import PinboardEditor from "../components/editor/PinboardEditor"
 import AppShell from "../components/layout/AppShell"
 import Modal from "../components/ui/Modal"
-import { EXPORT_ALL_TABS_PDF_EVENT } from "../../core/editorEvents"
+import { EXPORT_ALL_TABS_PDF_EVENT, NAVIGATE_ARCHIVE_EVENT, NAVIGATE_DELETED_EVENT, NAVIGATE_LIBRARY_EVENT, NAVIGATE_RECENT_EVENT } from "../../core/editorEvents"
 import { countWordsFromContent, downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
 import { collectTabIds, getProjectEntryTerms, type Project } from "../../core/projects"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import Library, { type ProjectFolder } from "./Library"
+import RecentView from "./Recent"
+import ArchiveView from "./Archive"
+import DeletedView from "./Deleted"
 import "./Library.css"
 import "./Editor.css"
 
@@ -202,7 +205,26 @@ export default function Editor({
   const [isWordStatsOpen, setIsWordStatsOpen] = useState(false)
   const [isDetailedWordStatsOpen, setIsDetailedWordStatsOpen] = useState(false)
   const [includedTabsById, setIncludedTabsById] = useState<Record<string, boolean>>({})
+  const [dashboardSection, setDashboardSection] = useState<"library" | "recent" | "archive" | "deleted">("library")
 
+  useEffect(() => {
+    const handleNavigateLibrary = () => setDashboardSection("library")
+    const handleNavigateRecent = () => setDashboardSection("recent")
+    const handleNavigateArchive = () => setDashboardSection("archive")
+    const handleNavigateDeleted = () => setDashboardSection("deleted")
+
+    window.addEventListener(NAVIGATE_LIBRARY_EVENT, handleNavigateLibrary)
+    window.addEventListener(NAVIGATE_RECENT_EVENT, handleNavigateRecent)
+    window.addEventListener(NAVIGATE_ARCHIVE_EVENT, handleNavigateArchive)
+    window.addEventListener(NAVIGATE_DELETED_EVENT, handleNavigateDeleted)
+
+    return () => {
+      window.removeEventListener(NAVIGATE_LIBRARY_EVENT, handleNavigateLibrary)
+      window.removeEventListener(NAVIGATE_RECENT_EVENT, handleNavigateRecent)
+      window.removeEventListener(NAVIGATE_ARCHIVE_EVENT, handleNavigateArchive)
+      window.removeEventListener(NAVIGATE_DELETED_EVENT, handleNavigateDeleted)
+    }
+  }, [])
   const activeDocumentTitle = useMemo(() => {
     if (!project || !project.activeId) {
       return entryTerms.untitled
@@ -321,23 +343,46 @@ export default function Editor({
       onStartTuskCheckout={onStartTuskCheckout}
     >
       {view === "projects" ? (
-            <Library
-              projects={projects}
-              folders={folders}
-              activeProjectId={activeProjectId}
-              bookCounter={bookCounter}
-              blogCounter={blogCounter}
-              setBookCounter={setBookCounter}
-              setBlogCounter={setBlogCounter}
-              onOpenProject={onOpenProject}
-              onOpenProjectInNewTab={onOpenProjectInNewTab}
-              onProjectCreated={onProjectCreated}
-              activeProjectVersionsByProjectId={activeProjectVersionsByProjectId}
-              onShowVersionHistory={onShowVersionHistory}
-              setProjects={setProjects}
-              setFolders={setFolders}
-              setActiveProjectId={setActiveProjectId}
-            />
+            dashboardSection === "recent" ? (
+              <RecentView
+                projects={projects}
+                setProjects={setProjects}
+                onOpenProject={onOpenProject}
+                onOpenProjectInNewTab={onOpenProjectInNewTab}
+              />
+            ) : dashboardSection === "archive" ? (
+              <ArchiveView
+                projects={projects}
+                setProjects={setProjects}
+                onOpenProject={onOpenProject}
+                onOpenProjectInNewTab={onOpenProjectInNewTab}
+              />
+            ) : dashboardSection === "deleted" ? (
+              <DeletedView
+                projects={projects}
+                setProjects={setProjects}
+                onOpenProject={onOpenProject}
+                onOpenProjectInNewTab={onOpenProjectInNewTab}
+              />
+            ) : (
+              <Library
+                projects={projects}
+                folders={folders}
+                activeProjectId={activeProjectId}
+                bookCounter={bookCounter}
+                blogCounter={blogCounter}
+                setBookCounter={setBookCounter}
+                setBlogCounter={setBlogCounter}
+                onOpenProject={onOpenProject}
+                onOpenProjectInNewTab={onOpenProjectInNewTab}
+                onProjectCreated={onProjectCreated}
+                activeProjectVersionsByProjectId={activeProjectVersionsByProjectId}
+                onShowVersionHistory={onShowVersionHistory}
+                setProjects={setProjects}
+                setFolders={setFolders}
+                setActiveProjectId={setActiveProjectId}
+              />
+            )
           ) : project ? (
             /* ── Editor Content ── */
             <>

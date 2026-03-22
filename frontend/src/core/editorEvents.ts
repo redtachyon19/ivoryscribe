@@ -10,6 +10,10 @@ export const APP_SAVE_PROJECT_VERSION_EVENT = "app:save-project-version"
 export const PROJECTS_CREATE_BOOK_EVENT = "projects:create-book"
 export const PROJECTS_CREATE_BLOG_EVENT = "projects:create-blog"
 export const PROJECTS_CREATE_FOLDER_EVENT = "projects:create-folder"
+export const NAVIGATE_RECENT_EVENT = "navigate:recent"
+export const NAVIGATE_LIBRARY_EVENT = "navigate:library"
+export const NAVIGATE_ARCHIVE_EVENT = "navigate:archive"
+export const NAVIGATE_DELETED_EVENT = "navigate:deleted"
 
 export type EditorCommand =
   | "undo"
@@ -126,4 +130,20 @@ export function requestCreateBlogProject() {
 
 export function requestCreateProjectFolder() {
   window.dispatchEvent(new Event(PROJECTS_CREATE_FOLDER_EVENT))
+}
+
+export function requestNavigateRecent() {
+  window.dispatchEvent(new Event(NAVIGATE_RECENT_EVENT))
+}
+
+export function requestNavigateLibrary() {
+  window.dispatchEvent(new Event(NAVIGATE_LIBRARY_EVENT))
+}
+
+export function requestNavigateArchive() {
+  window.dispatchEvent(new Event(NAVIGATE_ARCHIVE_EVENT))
+}
+
+export function requestNavigateDeleted() {
+  window.dispatchEvent(new Event(NAVIGATE_DELETED_EVENT))
 }

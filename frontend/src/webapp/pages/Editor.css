@@ -385,10 +385,9 @@
 }
 
 .editor-workspace__settings-btn {
-  position: sticky;
-  top: 10px;
-  float: right;
-  margin-right: 14px;
+  position: absolute;
+  top: calc(var(--editor-topbar-height) + 10px);
+  right: 14px;
   z-index: 5;
   width: 28px;
   height: 28px;

@@ -21,6 +21,8 @@ export type Project = {
   tabs: DocumentTab[]
   activeId: string | null
   contentById: Record<string, string>
+  archivedAt?: string | null
+  deletedAt?: string | null
 }
 
 export function getProjectEntryTerms(kind: ProjectKind) {
