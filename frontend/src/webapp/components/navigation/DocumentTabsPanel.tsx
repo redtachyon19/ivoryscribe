@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react"
 import { ChevronDown, CornerDownRight, Pencil, Trash2 } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../../core/projects"
 import { useListDrag, getDropMode, type DropMode, type DropTarget } from "../editor/hooks/useListDrag"
+import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"
 import "./DocumentTabsPanel.css"
@@ -214,6 +215,7 @@ type TabNodeProps = {
   onDropCommit: (targetId: string, mode: DropMode) => void
   onStartRename: (id: string, currentTitle: string) => void
   onRequestDelete: (id: string) => void
+  onContextMenu: (id: string, x: number, y: number) => void
   onEditingTitleChange: (value: string) => void
   onCommitRename: () => void
   onCancelRename: () => void
@@ -237,6 +239,7 @@ function TabNode({
   onDropCommit,
   onStartRename,
   onRequestDelete,
+  onContextMenu: onCtxMenu,
   onEditingTitleChange,
   onCommitRename,
   onCancelRename,
@@ -367,7 +370,7 @@ function TabNode({
               }}
               onContextMenu={(event) => {
                 event.preventDefault()
-                onStartRename(tab.id, tab.title)
+                onCtxMenu(tab.id, event.clientX, event.clientY)
               }}
             >
               {depth > 0 ? (
@@ -401,30 +404,6 @@ function TabNode({
                   ) : null}
                 </span>
               </span>
-            </button>
-
-            <button
-              type="button"
-              className="doc-tabs__edit-btn"
-              aria-label={`Rename ${tab.title}`}
-              onClick={(event) => {
-                event.stopPropagation()
-                onStartRename(tab.id, tab.title)
-              }}
-            >
-              <Pencil size={13} strokeWidth={2} aria-hidden="true" />
-            </button>
-
-            <button
-              type="button"
-              className="doc-tabs__delete-btn"
-              aria-label={`Delete ${tab.title}`}
-              onClick={(event) => {
-                event.stopPropagation()
-                onRequestDelete(tab.id)
-              }}
-            >
-              <Trash2 size={13} strokeWidth={2} aria-hidden="true" />
             </button>
 
             {hasChildren ? (
@@ -472,6 +451,7 @@ function TabNode({
               onDropCommit={onDropCommit}
               onStartRename={onStartRename}
               onRequestDelete={onRequestDelete}
+              onContextMenu={onCtxMenu}
               onEditingTitleChange={onEditingTitleChange}
               onCommitRename={onCommitRename}
               onCancelRename={onCancelRename}
@@ -511,6 +491,8 @@ export default function DocumentTabsPanel({
   const [editingTitle, setEditingTitle] = useState("")
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [expandedById, setExpandedById] = useState<Record<string, boolean>>({})
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null)
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
   const rootListRef = useRef<HTMLUListElement | null>(null)
   const rowRefs = useRef<Record<string, HTMLDivElement>>({})
   const [activeIndicatorStyle, setActiveIndicatorStyle] = useState<{ top: number; height: number; visible: boolean }>({
@@ -759,6 +741,7 @@ export default function DocumentTabsPanel({
                 }
                 setPendingDeleteId(id)
               }}
+              onContextMenu={(id, x, y) => setContextMenu({ x, y, tabId: id })}
               onEditingTitleChange={setEditingTitle}
               onCommitRename={commitRename}
               onCancelRename={cancelRename}
@@ -800,6 +783,35 @@ export default function DocumentTabsPanel({
           </>
         ) : null}
       </Modal>
+
+      {contextMenu ? (
+        <ProjectContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={closeContextMenu}
+          actions={(() => {
+            const tab = findNode(tabs, contextMenu.tabId)
+            if (!tab) return []
+            const actions: ContextMenuAction[] = [
+              {
+                label: "Rename",
+                icon: <Pencil size={15} strokeWidth={1.9} aria-hidden="true" />,
+                action: () => startRename(contextMenu.tabId, tab.title),
+              },
+              {
+                label: "Delete",
+                icon: <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />,
+                action: () => {
+                  if (editingId === contextMenu.tabId) cancelRename()
+                  setPendingDeleteId(contextMenu.tabId)
+                },
+                danger: true,
+              },
+            ]
+            return actions
+          })()}
+        />
+      ) : null}
     </div>
   )
 }

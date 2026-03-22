@@ -1,22 +1,21 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react"
-import { Archive, BookCopy, BookOpenText, BookPlus, FileText, Folder, FolderPlus, Library as LibraryIcon, NotebookPen, ScrollText, Trash2 } from "lucide-react"
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react"
+import { Archive, BookCopy, BookOpenText, BookPlus, FileText, Folder, FolderPlus, LibraryBig as LibraryIcon, NotebookPen, ScrollText, Trash2 } from "lucide-react"
 import Button from "../components/ui/Button"
 import Modal from "../components/ui/Modal"
 import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
 import { downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
 import { createProject, type Project, type ProjectKind } from "../../core/projects"
-import { createLocalId } from "../../core/libraryUtils"
+import { createLocalId, duplicateProject } from "../../core/libraryUtils"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import ProjectSettings from "../components/settings/ProjectSettings"
 import ProjectCard from "../components/library/ProjectCard"
 import { FolderDetailView } from "../components/library/ProjectFolder"
 import ProjectFolderGrid from "../components/library/ProjectFolder"
-import TypingConfirmation from "../components/library/TypingConfirmation"
 import useProjectDrag from "../components/library/useProjectDrag"
 import useProjectSettings from "../components/library/useProjectSettings"
-import useProjectDelete from "../components/library/useProjectDelete"
 import { useViewMode, ViewToggle, formatRelativeDate } from "../components/library/useViewMode"
+import ProjectContextMenu, { buildProjectActions, buildFolderActions, type ProjectContextMenuState } from "../components/library/ProjectContextMenu"
 import "./Library.css"
 
 export type ProjectFolder = {
@@ -61,9 +60,22 @@ export default function Library({
   setActiveProjectId,
 }: LibraryProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
+  const [editingFolderName, setEditingFolderName] = useState("")
   const { viewMode, toggle: toggleView } = useViewMode()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [openFolderId, setOpenFolderId] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+
+  const handleProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
+    setContextMenu({ x, y, projectId })
+  }, [])
+
+  const handleFolderContextMenu = useCallback((folderId: string, x: number, y: number) => {
+    setContextMenu({ x, y, projectId: folderId, isFolder: true })
+  }, [])
 
   const activeProjects = projects.filter((p) => !p.archivedAt && !p.deletedAt)
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null
@@ -71,8 +83,38 @@ export default function Library({
 
   const drag = useProjectDrag({ projects: activeProjects, folders, setProjects, setFolders })
   const settings = useProjectSettings({ projects, setProjects })
-  const deletion = useProjectDelete({ projects, setProjects, setActiveProjectId })
   const settingsProjectId = settings.settingsProject?.id ?? null
+
+  const startFolderRename = (folderId: string) => {
+    const folder = folders.find((f) => f.id === folderId)
+    if (!folder) return
+    setEditingFolderId(folderId)
+    setEditingFolderName(folder.name)
+  }
+
+  const commitFolderRename = () => {
+    if (!editingFolderId) return
+    const trimmed = editingFolderName.trim()
+    if (trimmed) {
+      setFolders((cur) => cur.map((f) => f.id === editingFolderId ? { ...f, name: trimmed } : f))
+    }
+    setEditingFolderId(null)
+    setEditingFolderName("")
+  }
+
+  const cancelFolderRename = () => {
+    setEditingFolderId(null)
+    setEditingFolderName("")
+  }
+
+  const moveToTrash = (projectId: string) => {
+    setProjects((cur) => cur.map((p) => p.id === projectId ? { ...p, deletedAt: new Date().toISOString() } : p))
+    setActiveProjectId((currentId) => {
+      if (currentId !== projectId) return currentId
+      const available = projects.filter((p) => p.id !== projectId && !p.deletedAt && !p.archivedAt)
+      return available[0]?.id ?? null
+    })
+  }
 
   const createNewProject = (kind: ProjectKind, folderId?: string) => {
     const nextName = kind === "Book" ? `Book ${bookCounter}` : `Blog ${blogCounter}`
@@ -118,11 +160,7 @@ export default function Library({
       project={project}
       isDragging={drag.draggingProjectId === project.id}
       dropClassName={drag.getProjectDropClassName(project.id)}
-      openProjectSettingsId={settings.openProjectSettingsId}
       onOpenProject={onOpenProject}
-      onOpenProjectInNewTab={onOpenProjectInNewTab}
-      onOpenProjectSettings={settings.open}
-      onCloseProjectSettings={settings.close}
       onDragStart={drag.handleProjectDragStart}
       onDragEnd={drag.handleProjectDragEnd}
       onDragEnter={drag.updateProjectDropTarget(project)}
@@ -131,12 +169,13 @@ export default function Library({
       setEditingProjectId={setEditingProjectId}
       editingProjectId={editingProjectId}
       setProjects={setProjects}
+      onContextMenu={handleProjectContextMenu}
     />
   )
 
   return (
     <>
-      <div className={`project-hub__main ${deletion.isOpen || settings.isOpen ? "project-hub__main--blurred" : ""}`.trim()}>
+      <div className={`project-hub__main ${settings.isOpen ? "project-hub__main--blurred" : ""}`.trim()}>
         <div className="project-hub__main-scroll">
           {openFolder ? (
             <FolderDetailView
@@ -188,11 +227,11 @@ export default function Library({
                     <article
                       key={folder.id}
                       className={`project-hub__list-row project-hub__list-row--folder ${drag.getFolderDropClassName(folder.id)} ${drag.getFolderReorderClassName(folder.id)}`.trim()}
-                      onClick={() => setOpenFolderId(folder.id)}
+                      onClick={() => { if (editingFolderId !== folder.id) setOpenFolderId(folder.id) }}
                       role="button"
                       tabIndex={0}
                       draggable
-                      onKeyDown={(e) => { if (e.key === "Enter") setOpenFolderId(folder.id) }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && editingFolderId !== folder.id) setOpenFolderId(folder.id) }}
                       onDragStart={(e) => drag.handleFolderDragStart(folder.id, e)}
                       onDragEnd={drag.handleFolderDragEnd}
                       onDragOver={drag.handleFolderItemDragOver(folder)}
@@ -200,7 +239,22 @@ export default function Library({
                     >
                       <div className="project-hub__list-row-main">
                         <Folder size={17} aria-hidden={true} />
-                        <strong>{folder.name}</strong>
+                        {editingFolderId === folder.id ? (
+                          <input
+                            className="project-hub__folder-rename-input"
+                            value={editingFolderName}
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setEditingFolderName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") { e.preventDefault(); commitFolderRename() }
+                              if (e.key === "Escape") { e.preventDefault(); cancelFolderRename() }
+                            }}
+                            onBlur={commitFolderRename}
+                          />
+                        ) : (
+                          <strong>{folder.name}</strong>
+                        )}
                       </div>
                       <span>Folder</span>
                       <span>{activeProjects.filter((p) => p.folderId === folder.id).length} projects</span>
@@ -219,6 +273,12 @@ export default function Library({
                 onFolderDrop={drag.handleFolderItemDrop}
                 getFolderDropClassName={drag.getFolderDropClassName}
                 getFolderReorderClassName={drag.getFolderReorderClassName}
+                onFolderContextMenu={handleFolderContextMenu}
+                editingFolderId={editingFolderId}
+                editingFolderName={editingFolderName}
+                onEditingFolderNameChange={setEditingFolderName}
+                onCommitFolderRename={commitFolderRename}
+                onCancelFolderRename={cancelFolderRename}
               />
             )}
 
@@ -311,11 +371,11 @@ export default function Library({
               onClick={() => {
                 if (!settings.settingsProject) return
                 settings.close()
-                deletion.openConfirmation(settings.settingsProject.id)
+                moveToTrash(settings.settingsProject.id)
               }}
             >
               <Trash2 size={14} strokeWidth={2} aria-hidden={true} />
-              Delete
+              Trash
             </Button>
           </>
         }
@@ -353,42 +413,40 @@ export default function Library({
         {settings.error ? <p className="ui-modal__error">{settings.error}</p> : null}
       </Modal>
 
-      <Modal
-        isOpen={deletion.isOpen}
-        onClose={deletion.closeConfirmation}
-        title="Delete Project"
-        titleIcon={<Trash2 size={19} strokeWidth={1.9} aria-hidden="true" />}
-        closeLabel="Cancel"
-        panelClassName="project-delete-modal__panel"
-        actions={
-          <Button variant="footer-danger" onClick={deletion.confirm}>
-            <Trash2 size={14} strokeWidth={2} aria-hidden={true} />
-            Delete
-          </Button>
-        }
-      >
-        <p className="project-delete-modal__copy">
-          This project is about to go extinct? Are you sure you want to delete "{deletion.projectName}"? (This
-          action is not reversable.)
-        </p>
-        <p className="project-delete-modal__copy">Type the exact phrase below to confirm deletion.</p>
-
-        <div className="project-delete-modal__spacer" aria-hidden="true" />
-
-        <TypingConfirmation
-          requiredCharacters={deletion.requiredCharacters}
-          enteredCharacters={deletion.enteredCharacters}
-          confirmationText={deletion.confirmationText}
-          inputRef={deletion.confirmationInputRef}
-          onTextChange={(value) => {
-            deletion.setConfirmationText(value)
-            if (deletion.error) deletion.setError("")
-          }}
-          onConfirm={deletion.confirm}
+      {contextMenu ? (
+        <ProjectContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={closeContextMenu}
+          actions={
+            contextMenu.isFolder
+              ? buildFolderActions({
+                  folderId: contextMenu.projectId,
+                  onRename: (id) => startFolderRename(id),
+                  onArchive: (id) => {
+                    setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+                    setFolders((cur) => cur.filter((f) => f.id !== id))
+                  },
+                  onTrash: (id) => {
+                    setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, folderId: null } : p))
+                    setFolders((cur) => cur.filter((f) => f.id !== id))
+                  },
+                })
+              : buildProjectActions({
+                  projectId: contextMenu.projectId,
+                  onOpenInNewTab: onOpenProjectInNewTab,
+                  onRename: (id) => setEditingProjectId(id),
+                  onOpenSettings: (id) => {
+                    const project = projects.find((p) => p.id === id)
+                    if (project) settings.open(project)
+                  },
+                  onDuplicate: (id) => setProjects((cur) => duplicateProject(cur, id)),
+                  onArchive: (id) => setProjects((cur) => cur.map((p) => p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p)),
+                  onTrash: (id) => moveToTrash(id),
+                })
+          }
         />
-
-        {deletion.error ? <p className="ui-modal__error">{deletion.error}</p> : null}
-      </Modal>
+      ) : null}
     </>
   )
 }

@@ -59,7 +59,6 @@ export type NavigationPanelProps = {
   onCreateProject: () => void
   onCreateFolder: () => void
   onOpenProject: (projectId: string) => void
-  onOpenProjectSettings: (projectId: string) => void
   onReturnToDashboard: () => void
   onProjectChange: (updater: (project: Project) => Project) => void
   onToggleWordStats: () => void
@@ -84,7 +83,6 @@ export default function NavigationPanel({
   onCreateProject,
   onCreateFolder,
   onOpenProject,
-  onOpenProjectSettings,
   onReturnToDashboard,
   onProjectChange,
   onToggleWordStats,
@@ -207,10 +205,6 @@ export default function NavigationPanel({
               isLibraryView={view === "projects"}
               onNavigateLibrary={onReturnToDashboard}
               onOpenProject={onOpenProject}
-              onOpenProjectSettings={(projectId) => {
-                onOpenProjectSettings(projectId)
-                onSetSidebarSlide(2)
-              }}
               setFolders={setFolders}
               setProjects={setProjects}
             />

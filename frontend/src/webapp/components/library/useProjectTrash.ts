@@ -2,42 +2,42 @@ import { useRef, useState, type Dispatch, type SetStateAction } from "react"
 import type { Project } from "../../../core/projects"
 import { splitGraphemes } from "../../../core/libraryUtils"
 
-type UseProjectDeleteOptions = {
+type UseProjectTrashOptions = {
   projects: Project[]
   setProjects: Dispatch<SetStateAction<Project[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
 }
 
-export default function useProjectDelete({ projects, setProjects, setActiveProjectId }: UseProjectDeleteOptions) {
-  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null)
-  const [deleteModalProjectName, setDeleteModalProjectName] = useState("")
+export default function useProjectTrash({ projects, setProjects, setActiveProjectId }: UseProjectTrashOptions) {
+  const [pendingTrashProjectId, setPendingTrashProjectId] = useState<string | null>(null)
+  const [trashModalProjectName, setTrashModalProjectName] = useState("")
   const [confirmationText, setConfirmationText] = useState("")
   const [error, setError] = useState("")
   const confirmationInputRef = useRef<HTMLInputElement | null>(null)
 
-  const pendingProject = pendingDeleteProjectId ? projects.find((project) => project.id === pendingDeleteProjectId) ?? null : null
+  const pendingProject = pendingTrashProjectId ? projects.find((project) => project.id === pendingTrashProjectId) ?? null : null
   const isOpen = Boolean(pendingProject)
-  const projectName = pendingProject?.name ?? deleteModalProjectName
+  const projectName = pendingProject?.name ?? trashModalProjectName
 
-  const requiredPhrase = projectName ? `I wish to delete ${projectName}` : ""
+  const requiredPhrase = projectName ? `I wish to trash ${projectName}` : ""
   const requiredCharacters = splitGraphemes(requiredPhrase)
   const enteredCharacters = splitGraphemes(confirmationText)
 
   const openConfirmation = (projectId: string) => {
     const project = projects.find((entry) => entry.id === projectId)
-    setPendingDeleteProjectId(projectId)
-    setDeleteModalProjectName(project?.name ?? "")
+    setPendingTrashProjectId(projectId)
+    setTrashModalProjectName(project?.name ?? "")
     setConfirmationText("")
     setError("")
   }
 
   const closeConfirmation = () => {
-    setPendingDeleteProjectId(null)
+    setPendingTrashProjectId(null)
     setConfirmationText("")
     setError("")
   }
 
-  const deleteProject = (projectId: string) => {
+  const trashProject = (projectId: string) => {
     setProjects((current) => {
       const nextProjects = current.map((project) =>
         project.id === projectId ? { ...project, deletedAt: new Date().toISOString() } : project,
@@ -57,7 +57,7 @@ export default function useProjectDelete({ projects, setProjects, setActiveProje
       setError("The confirmation text must match exactly.")
       return
     }
-    deleteProject(pendingProject.id)
+    trashProject(pendingProject.id)
     closeConfirmation()
   }
 

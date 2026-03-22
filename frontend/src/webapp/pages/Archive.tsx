@@ -1,9 +1,10 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
-import { Archive, ArchiveRestore, Trash2 } from "lucide-react"
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { Archive, ArchiveRestore, Pencil, SquareArrowOutUpRight, Trash2 } from "lucide-react"
 import type { Project } from "../../core/projects"
 import ProjectCard from "../components/library/ProjectCard"
 import { handleSectionDragStart } from "../components/library/useSectionDrop"
 import { useViewMode, useSortMode, applySortMode, ViewToggle, ProjectListView } from "../components/library/useViewMode"
+import ProjectContextMenu, { type ProjectContextMenuState } from "../components/library/ProjectContextMenu"
 
 type ArchiveViewProps = {
   projects: Project[]
@@ -16,6 +17,11 @@ export default function ArchiveView({ projects, setProjects, onOpenProject, onOp
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const { viewMode, toggle: toggleView } = useViewMode()
   const { sortMode, cycleSortMode } = useSortMode("context-desc")
+  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+  const handleProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
+    setContextMenu({ x, y, projectId })
+  }, [])
 
   const archived = useMemo(
     () => applySortMode(
@@ -30,7 +36,7 @@ export default function ArchiveView({ projects, setProjects, onOpenProject, onOp
     setProjects((cur) => cur.map((p) => p.id === projectId ? { ...p, archivedAt: null } : p))
   }
 
-  const deleteProject = (projectId: string) => {
+  const trashProject = (projectId: string) => {
     setProjects((cur) => cur.map((p) => p.id === projectId ? { ...p, archivedAt: null, deletedAt: new Date().toISOString() } : p))
   }
 
@@ -63,16 +69,12 @@ export default function ArchiveView({ projects, setProjects, onOpenProject, onOp
           ) : (
           <ul className="project-hub__grid-view">
             {archived.map((project) => (
-              <li key={project.id} className="project-hub__card-with-actions">
+              <li key={project.id}>
                 <ProjectCard
                   project={project}
                   isDragging={false}
                   dropClassName=""
-                  openProjectSettingsId={null}
                   onOpenProject={onOpenProject}
-                  onOpenProjectInNewTab={onOpenProjectInNewTab}
-                  onOpenProjectSettings={noop}
-                  onCloseProjectSettings={noop}
                   onDragStart={handleSectionDragStart}
                   onDragEnd={noop}
                   onDragEnter={noopDragEl}
@@ -81,17 +83,8 @@ export default function ArchiveView({ projects, setProjects, onOpenProject, onOp
                   setEditingProjectId={setEditingProjectId}
                   editingProjectId={editingProjectId}
                   setProjects={setProjects}
+                  onContextMenu={handleProjectContextMenu}
                 />
-                <div className="project-hub__card-actions">
-                  <button type="button" onClick={() => restoreProject(project.id)} aria-label={`Restore ${project.name}`}>
-                    <ArchiveRestore size={13} aria-hidden={true} />
-                    Restore
-                  </button>
-                  <button type="button" onClick={() => deleteProject(project.id)} aria-label={`Delete ${project.name}`}>
-                    <Trash2 size={13} aria-hidden={true} />
-                    Delete
-                  </button>
-                </div>
               </li>
             ))}
           </ul>
@@ -100,6 +93,20 @@ export default function ArchiveView({ projects, setProjects, onOpenProject, onOp
           <p className="project-hub__empty">No archived projects.</p>
         )}
       </div>
+
+      {contextMenu ? (
+        <ProjectContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={closeContextMenu}
+          actions={[
+            { label: "Open in New Tab", icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenProjectInNewTab(contextMenu.projectId) },
+            { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => setEditingProjectId(contextMenu.projectId) },
+            { label: "Restore", icon: <ArchiveRestore size={14} strokeWidth={2} aria-hidden={true} />, action: () => restoreProject(contextMenu.projectId) },
+            { label: "Trash", icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => trashProject(contextMenu.projectId), danger: true },
+          ]}
+        />
+      ) : null}
     </div>
   )
 }
