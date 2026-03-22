@@ -21,26 +21,55 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 6px 12px;
+  padding: 4px 6px;
   background: var(--editor-surface, #1a1a1a);
-  border-bottom: 1px solid var(--editor-border, rgba(255, 255, 255, 0.08));
-  z-index: 10;
+  border: 1px solid var(--editor-border, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 20;
   user-select: none;
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.pinboard-toolbar--dragging {
+  opacity: 0.85;
+  cursor: grabbing;
+}
+
+.pinboard-toolbar__grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 24px;
+  cursor: grab;
+  color: var(--editor-text-muted, #666);
+  font-size: 13px;
+  line-height: 1;
   flex-shrink: 0;
+  border-radius: 4px;
+}
+
+.pinboard-toolbar__grip:hover {
+  background: var(--editor-hover, rgba(255, 255, 255, 0.06));
+  color: var(--editor-text, #ccc);
 }
 
 .pinboard-toolbar__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   color: var(--editor-text, #ccc);
   cursor: pointer;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1;
   transition: background 0.12s, border-color 0.12s;
 }
@@ -57,15 +86,15 @@
 
 .pinboard-toolbar__separator {
   width: 1px;
-  height: 20px;
+  height: 16px;
   background: var(--editor-border, rgba(255, 255, 255, 0.08));
-  margin: 0 6px;
+  margin: 0 4px;
 }
 
 .pinboard-toolbar__zoom {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--editor-text-muted, #888);
-  min-width: 40px;
+  min-width: 34px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -289,4 +318,34 @@
   width: 100%;
   height: 100%;
   display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.pinboard-node--drawing {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  overflow: visible;
+  pointer-events: none;
+  transition: none;
+}
+
+.pinboard-node--drawing:hover {
+  border-color: transparent;
+}
+
+.pinboard-node--drawing.pinboard-node--selected {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.pinboard-node__drawing-stroke {
+  pointer-events: stroke;
+  cursor: move;
+}
+
+.pinboard-node--drawing.pinboard-node--selected .pinboard-node__drawing-stroke {
+  stroke-width: 3;
 }

@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react"
 import { Archive, BookText, ChevronDown, Clock3, Folder, LibraryBig, NotebookText, Pencil, Settings2, Trash2 } from "lucide-react"
+import { requestNavigateArchive, requestNavigateDeleted, requestNavigateLibrary, requestNavigateRecent } from "../../../core/editorEvents"
 import type { Project } from "../../../core/projects"
 import type { ProjectFolder } from "../../pages/Library"
 import { useListDrag } from "../editor/hooks/useListDrag"
+import useSectionDrop from "../library/useSectionDrop"
 import Modal from "../ui/Modal"
 import Button from "../ui/Button"
 import "./ProjectBrowserPanel.css"
@@ -31,11 +33,13 @@ export default function ProjectBrowserPanel({
   setProjects,
 }: ProjectBrowserPanelProps) {
   const drag = useListDrag({ flatOnly: true })
+  const sectionDrop = useSectionDrop({ folders, setProjects, setFolders })
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingFolderName, setEditingFolderName] = useState("")
   const [pendingDeleteFolderId, setPendingDeleteFolderId] = useState<string | null>(null)
   const [browserSection, setBrowserSection] = useState<"library" | "recent" | "archive" | "deleted">("library")
+  const [externalFolderDropId, setExternalFolderDropId] = useState<string | null>(null)
 
   const topRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "top")
   const bottomRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "bottom")
@@ -55,6 +59,12 @@ export default function ProjectBrowserPanel({
   }, [projects, folders, expandedFolders, topRootProjects, bottomRootProjects])
 
   const rootListHandlers = drag.createRootListHandlers(visibleItemIds, "project-browser__item")
+
+  const moveProjectToFolder = (projectId: string, folderId: string) => {
+    setProjects((cur) =>
+      cur.map((p) => (p.id === projectId ? { ...p, folderId, rootPosition: "top" as const, archivedAt: null, deletedAt: null } : p)),
+    )
+  }
 
   const commitProjectDrop = (targetId: string, mode: "before" | "after") => {
     if (!drag.draggingId) return
@@ -161,8 +171,12 @@ export default function ProjectBrowserPanel({
 
         <div
           className={`project-browser__row ${isActive ? "project-browser__row--active" : ""}`.trim()}
-          onDragOver={(event) => drag.handleRowDragOver(event, project.id)}
+          onDragOver={(event) => {
+            if (!drag.draggingId) return
+            drag.handleRowDragOver(event, project.id)
+          }}
           onDrop={(event) => {
+            if (!drag.draggingId) return
             const result = drag.handleRowDrop(event, project.id)
             if (result) commitProjectDrop(result.targetId, result.mode as "before" | "after")
           }}
@@ -210,7 +224,7 @@ export default function ProjectBrowserPanel({
     const hasProjects = folderProjects.length > 0
     const isDropBefore = drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "before"
     const isDropAfter = drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "after"
-    const isDropInside = drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "inside"
+    const isDropInside = (drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "inside") || externalFolderDropId === folder.id
 
     return (
       <li key={folder.id} className={`project-browser__item ${isDropInside ? "project-browser__item--drop-inside" : ""}`.trim()}>
@@ -223,15 +237,27 @@ export default function ProjectBrowserPanel({
           onDragOver={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            // Dropping on a folder always means "move inside"
-            drag.setDropTarget({ targetId: folder.id, mode: "inside" })
+            if (drag.draggingId) {
+              drag.setDropTarget({ targetId: folder.id, mode: "inside" })
+            } else {
+              setExternalFolderDropId(folder.id)
+            }
+          }}
+          onDragLeave={(event) => {
+            const related = event.relatedTarget as HTMLElement | null
+            if (related && event.currentTarget.contains(related)) return
+            if (externalFolderDropId === folder.id) setExternalFolderDropId(null)
           }}
           onDrop={(event) => {
             event.preventDefault()
             event.stopPropagation()
             if (drag.draggingId) {
               commitProjectDrop(folder.id, "after")
+            } else {
+              const projectId = event.dataTransfer.getData("text/plain")
+              if (projectId) moveProjectToFolder(projectId, folder.id)
             }
+            setExternalFolderDropId(null)
           }}
         >
           {isEditing ? (
@@ -258,8 +284,13 @@ export default function ProjectBrowserPanel({
             <>
               <button
                 type="button"
+                draggable
                 className="project-browser__label"
                 onClick={() => toggleFolder(folder.id)}
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move"
+                  event.dataTransfer.setData("text/plain", folder.id)
+                }}
                 onContextMenu={(event) => {
                   event.preventDefault()
                   startFolderRename(folder.id, folder.name)
@@ -336,11 +367,15 @@ export default function ProjectBrowserPanel({
             type="button"
             role="tab"
             aria-selected={browserSection === "library" && isLibraryView}
-            className={`project-browser__section-btn ${browserSection === "library" && isLibraryView ? "project-browser__section-btn--active" : ""}`.trim()}
+            className={`project-browser__section-btn ${browserSection === "library" && isLibraryView ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("library")}`.trim()}
             onClick={() => {
               setBrowserSection("library")
               onNavigateLibrary()
+              requestNavigateLibrary()
             }}
+            onDragOver={sectionDrop.handleSectionDragOver("library")}
+            onDragLeave={sectionDrop.handleSectionDragLeave}
+            onDrop={sectionDrop.handleSectionDrop("library")}
           >
             <LibraryBig size={14} strokeWidth={1.9} aria-hidden="true" />
             <span>Library</span>
@@ -350,7 +385,11 @@ export default function ProjectBrowserPanel({
             role="tab"
             aria-selected={browserSection === "recent"}
             className={`project-browser__section-btn ${browserSection === "recent" ? "project-browser__section-btn--active" : ""}`.trim()}
-            onClick={() => setBrowserSection("recent")}
+            onClick={() => {
+              setBrowserSection("recent")
+              onNavigateLibrary()
+              requestNavigateRecent()
+            }}
           >
             <Clock3 size={14} strokeWidth={1.9} aria-hidden="true" />
             <span>Recent</span>
@@ -359,8 +398,15 @@ export default function ProjectBrowserPanel({
             type="button"
             role="tab"
             aria-selected={browserSection === "archive"}
-            className={`project-browser__section-btn ${browserSection === "archive" ? "project-browser__section-btn--active" : ""}`.trim()}
-            onClick={() => setBrowserSection("archive")}
+            className={`project-browser__section-btn ${browserSection === "archive" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("archive")}`.trim()}
+            onClick={() => {
+              setBrowserSection("archive")
+              onNavigateLibrary()
+              requestNavigateArchive()
+            }}
+            onDragOver={sectionDrop.handleSectionDragOver("archive")}
+            onDragLeave={sectionDrop.handleSectionDragLeave}
+            onDrop={sectionDrop.handleSectionDrop("archive")}
           >
             <Archive size={14} strokeWidth={1.9} aria-hidden="true" />
             <span>Archive</span>
@@ -369,8 +415,15 @@ export default function ProjectBrowserPanel({
             type="button"
             role="tab"
             aria-selected={browserSection === "deleted"}
-            className={`project-browser__section-btn ${browserSection === "deleted" ? "project-browser__section-btn--active" : ""}`.trim()}
-            onClick={() => setBrowserSection("deleted")}
+            className={`project-browser__section-btn ${browserSection === "deleted" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("deleted")}`.trim()}
+            onClick={() => {
+              setBrowserSection("deleted")
+              onNavigateLibrary()
+              requestNavigateDeleted()
+            }}
+            onDragOver={sectionDrop.handleSectionDragOver("deleted")}
+            onDragLeave={sectionDrop.handleSectionDragLeave}
+            onDrop={sectionDrop.handleSectionDrop("deleted")}
           >
             <Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
             <span>Recently Deleted</span>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Brush, ImageUp, Link as LinkIcon, TextInitial } from "lucide-react"
 import "./PinboardEditor.css"
 
 /* ------------------------------------------------------------------ */
@@ -84,13 +85,17 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
   /* ---- board state ---- */
   const board = useMemo(() => parseBoardData(content), [content])
   const { nodes, lines, viewport } = board
+  const viewportRef = useRef(viewport)
+  viewportRef.current = viewport
+  const contentRef = useRef(content)
+  contentRef.current = content
 
   const commitBoard = useCallback(
     (updater: (prev: PinboardData) => PinboardData) => {
-      const next = updater(parseBoardData(content))
+      const next = updater(parseBoardData(contentRef.current))
       onContentChange(serializeBoardData(next))
     },
-    [content, onContentChange],
+    [onContentChange],
   )
 
   /* ---- interaction state ---- */
@@ -107,7 +112,15 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
 
   // Drawing-mode state
   const [drawingPoints, setDrawingPoints] = useState<Array<{ x: number; y: number }>>([])
+  const drawingPointsRef = useRef<Array<{ x: number; y: number }>>([])
   const [isDrawing, setIsDrawing] = useState(false)
+  const isDrawingRef = useRef(false)
+
+  // Toolbar drag state
+  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(null)
+  const [isDraggingToolbar, setIsDraggingToolbar] = useState(false)
+  const toolbarDragStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 })
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
 
   /* Reset selection when switching documents */
   useEffect(() => {
@@ -116,17 +129,51 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     setActiveTool("select")
   }, [documentId])
 
+  /* ---- toolbar dragging ---- */
+  const handleToolbarDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const rect = toolbarRef.current?.getBoundingClientRect()
+    const parentRect = toolbarRef.current?.parentElement?.getBoundingClientRect()
+    if (!rect || !parentRect) return
+    setIsDraggingToolbar(true)
+    toolbarDragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      ox: rect.left - parentRect.left,
+      oy: rect.top - parentRect.top,
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isDraggingToolbar) return
+    const onMove = (e: MouseEvent) => {
+      const s = toolbarDragStart.current
+      setToolbarPos({
+        x: s.ox + (e.clientX - s.x),
+        y: s.oy + (e.clientY - s.y),
+      })
+    }
+    const onUp = () => setIsDraggingToolbar(false)
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+    }
+  }, [isDraggingToolbar])
+
   /* ---- coordinate helpers ---- */
   const clientToCanvas = useCallback(
     (clientX: number, clientY: number) => {
       const rect = canvasRef.current?.getBoundingClientRect()
       if (!rect) return { x: 0, y: 0 }
+      const vp = viewportRef.current
       return {
-        x: (clientX - rect.left) / viewport.zoom - viewport.x,
-        y: (clientY - rect.top) / viewport.zoom - viewport.y,
+        x: (clientX - rect.left) / vp.zoom - vp.x,
+        y: (clientY - rect.top) / vp.zoom - vp.y,
       }
     },
-    [viewport],
+    [],
   )
 
   /* ---- zoom ---- */
@@ -172,7 +219,10 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
 
       if (activeTool === "draw") {
         setIsDrawing(true)
-        setDrawingPoints([pos])
+        isDrawingRef.current = true
+        const pts = [pos]
+        setDrawingPoints(pts)
+        drawingPointsRef.current = pts
         return
       }
 
@@ -221,12 +271,15 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
         return
       }
 
-      if (isDrawing) {
+      if (isDrawingRef.current) {
         const rect = canvasRef.current?.getBoundingClientRect()
         if (!rect) return
-        const x = (e.clientX - rect.left) / viewport.zoom - viewport.x
-        const y = (e.clientY - rect.top) / viewport.zoom - viewport.y
-        setDrawingPoints((prev) => [...prev, { x, y }])
+        const vp = viewportRef.current
+        const x = (e.clientX - rect.left) / vp.zoom - vp.x
+        const y = (e.clientY - rect.top) / vp.zoom - vp.y
+        const next = [...drawingPointsRef.current, { x, y }]
+        drawingPointsRef.current = next
+        setDrawingPoints(next)
       }
     }
 
@@ -235,25 +288,28 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
       setDraggingNodeId(null)
       setResizingNodeId(null)
 
-      if (isDrawing && drawingPoints.length > 1) {
-        // Convert drawing into a series of line segments stored as a special text node
-        const minX = Math.min(...drawingPoints.map((p) => p.x))
-        const minY = Math.min(...drawingPoints.map((p) => p.y))
-        const maxX = Math.max(...drawingPoints.map((p) => p.x))
-        const maxY = Math.max(...drawingPoints.map((p) => p.y))
+      if (isDrawingRef.current && drawingPointsRef.current.length > 1) {
+        const pts = drawingPointsRef.current
+        const minX = Math.min(...pts.map((p) => p.x))
+        const minY = Math.min(...pts.map((p) => p.y))
+        const maxX = Math.max(...pts.map((p) => p.x))
+        const maxY = Math.max(...pts.map((p) => p.y))
         const drawNode: TextNode = {
           id: createNodeId(),
           type: "text",
           x: minX,
           y: minY,
-          width: Math.max(80, maxX - minX),
-          height: Math.max(40, maxY - minY),
-          content: `[drawing:${JSON.stringify(drawingPoints.map((p) => ({ x: p.x - minX, y: p.y - minY })))}]`,
+          // Keep the draw node tight to the path bounds so there is no large arbitrary hit area.
+          width: Math.max(4, maxX - minX),
+          height: Math.max(4, maxY - minY),
+          content: `[drawing:${JSON.stringify(pts.map((p) => ({ x: p.x - minX, y: p.y - minY })))}]`,
         }
         commitBoard((prev) => ({ ...prev, nodes: [...prev.nodes, drawNode] }))
       }
 
+      isDrawingRef.current = false
       setIsDrawing(false)
+      drawingPointsRef.current = []
       setDrawingPoints([])
     }
 
@@ -263,12 +319,15 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
       window.removeEventListener("mousemove", onMouseMove)
       window.removeEventListener("mouseup", onMouseUp)
     }
-  }, [isPanning, panStart, draggingNodeId, dragOffset, resizingNodeId, resizeStart, clientToCanvas, commitBoard, isDrawing, drawingPoints, viewport])
+  }, [isPanning, panStart, draggingNodeId, dragOffset, resizingNodeId, resizeStart, clientToCanvas, commitBoard])
 
   /* ---- node mouse-down ---- */
   const handleNodeMouseDown = useCallback(
     (e: React.MouseEvent, nodeId: string) => {
       e.stopPropagation()
+
+      const node = nodes.find((n) => n.id === nodeId)
+      if (!node) return
 
       if (activeTool === "line") {
         if (!lineStart) {
@@ -286,11 +345,8 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
 
       setSelectedNodeId(nodeId)
       const pos = clientToCanvas(e.clientX, e.clientY)
-      const node = nodes.find((n) => n.id === nodeId)
-      if (node) {
-        setDragOffset({ dx: pos.x - node.x, dy: pos.y - node.y })
-        setDraggingNodeId(nodeId)
-      }
+      setDragOffset({ dx: pos.x - node.x, dy: pos.y - node.y })
+      setDraggingNodeId(nodeId)
     },
     [activeTool, lineStart, clientToCanvas, nodes, commitBoard],
   )
@@ -447,7 +503,7 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     return (
       <div
         key={node.id}
-        className={`pinboard-node pinboard-node--${node.type} ${isSelected ? "pinboard-node--selected" : ""}`}
+        className={`pinboard-node pinboard-node--${node.type} ${isDrawingNode ? "pinboard-node--drawing" : ""} ${isSelected ? "pinboard-node--selected" : ""}`}
         style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
         onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
         onDoubleClick={(e) => {
@@ -459,9 +515,10 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
         {isDrawingNode && drawPts ? (
           <svg className="pinboard-node__drawing-svg" viewBox={`0 0 ${node.width} ${node.height}`} preserveAspectRatio="none">
             <polyline
+              className="pinboard-node__drawing-stroke"
               points={drawPts.map((p) => `${p.x},${p.y}`).join(" ")}
               fill="none"
-              stroke="var(--app-accent, #7ea8ff)"
+              stroke={isSelected ? "var(--app-accent, #7ea8ff)" : "#fff"}
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -502,7 +559,7 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
           </div>
         ) : null}
 
-        {isSelected ? <div className="pinboard-node__resize" onMouseDown={(e) => handleResizeMouseDown(e, node.id)} /> : null}
+        {isSelected && !isDrawingNode ? <div className="pinboard-node__resize" onMouseDown={(e) => handleResizeMouseDown(e, node.id)} /> : null}
       </div>
     )
   }
@@ -543,8 +600,52 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
 
   return (
     <div className="pinboard-editor">
-      {/* ---- toolbar ---- */}
-      <div className="pinboard-toolbar">
+      {/* ---- canvas ---- */}
+      <div
+        ref={canvasRef}
+        className={`pinboard-canvas ${activeTool === "text" ? "pinboard-canvas--crosshair" : ""} ${isPanning ? "pinboard-canvas--grabbing" : ""} ${activeTool === "draw" ? "pinboard-canvas--draw" : ""}`}
+        onMouseDown={handleCanvasMouseDown}
+        onWheel={handleWheel}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+      >
+        <div
+          className="pinboard-canvas__layer"
+          style={{
+            transform: `scale(${viewport.zoom}) translate(${viewport.x}px, ${viewport.y}px)`,
+            transformOrigin: "0 0",
+          }}
+        >
+          {/* SVG layer for lines + active drawing */}
+          <svg className="pinboard-canvas__svg">
+            {renderedLines}
+            {drawingPath ? (
+              <polyline
+                className="pinboard-canvas__drawing-active"
+                points={drawingPath}
+                fill="none"
+                stroke="#fff"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+          </svg>
+
+          {/* Nodes */}
+          {nodes.map(renderNode)}
+        </div>
+      </div>
+
+      {/* ---- floating toolbar ---- */}
+      <div
+        ref={toolbarRef}
+        className={`pinboard-toolbar ${isDraggingToolbar ? "pinboard-toolbar--dragging" : ""}`}
+        style={toolbarPos ? { left: toolbarPos.x, top: toolbarPos.y, bottom: "auto", transform: "none" } : undefined}
+      >
+        <div className="pinboard-toolbar__grip" onMouseDown={handleToolbarDragStart} title="Drag to reposition">
+          ⠿
+        </div>
         <button
           type="button"
           className={`pinboard-toolbar__btn ${activeTool === "select" ? "pinboard-toolbar__btn--active" : ""}`}
@@ -561,7 +662,7 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
           aria-label="Text tool"
           title="Text box"
         >
-          T
+          <TextInitial size={16} />
         </button>
         <button
           type="button"
@@ -579,14 +680,14 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
           aria-label="Draw tool"
           title="Freehand draw"
         >
-          ✏
+          <Brush size={16} />
         </button>
         <span className="pinboard-toolbar__separator" />
         <button type="button" className="pinboard-toolbar__btn" onClick={handleAddImage} aria-label="Add image" title="Add image">
-          🖼
+          <ImageUp size={16} />
         </button>
         <button type="button" className="pinboard-toolbar__btn" onClick={handleAddLink} aria-label="Add link" title="Add link">
-          🔗
+          <LinkIcon size={16} />
         </button>
         <span className="pinboard-toolbar__separator" />
         <span className="pinboard-toolbar__zoom">{zoomPercent}%</span>
@@ -617,43 +718,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
         >
           ⊙
         </button>
-      </div>
-
-      {/* ---- canvas ---- */}
-      <div
-        ref={canvasRef}
-        className={`pinboard-canvas ${activeTool === "text" ? "pinboard-canvas--crosshair" : ""} ${isPanning ? "pinboard-canvas--grabbing" : ""} ${activeTool === "draw" ? "pinboard-canvas--draw" : ""}`}
-        onMouseDown={handleCanvasMouseDown}
-        onWheel={handleWheel}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}
-      >
-        <div
-          className="pinboard-canvas__layer"
-          style={{
-            transform: `scale(${viewport.zoom}) translate(${viewport.x}px, ${viewport.y}px)`,
-            transformOrigin: "0 0",
-          }}
-        >
-          {/* SVG layer for lines + active drawing */}
-          <svg className="pinboard-canvas__svg">
-            {renderedLines}
-            {drawingPath ? (
-              <polyline
-                className="pinboard-canvas__drawing-active"
-                points={drawingPath}
-                fill="none"
-                stroke="var(--app-accent, #7ea8ff)"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ) : null}
-          </svg>
-
-          {/* Nodes */}
-          {nodes.map(renderNode)}
-        </div>
       </div>
 
       {/* hidden file input for add-image */}

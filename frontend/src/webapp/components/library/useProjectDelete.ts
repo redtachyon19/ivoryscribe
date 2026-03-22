@@ -39,10 +39,13 @@ export default function useProjectDelete({ projects, setProjects, setActiveProje
 
   const deleteProject = (projectId: string) => {
     setProjects((current) => {
-      const nextProjects = current.filter((project) => project.id !== projectId)
+      const nextProjects = current.map((project) =>
+        project.id === projectId ? { ...project, deletedAt: new Date().toISOString() } : project,
+      )
       setActiveProjectId((currentSelectedId) => {
         if (currentSelectedId !== projectId) return currentSelectedId
-        return nextProjects[0]?.id ?? null
+        const available = nextProjects.filter((p) => !p.deletedAt && !p.archivedAt)
+        return available[0]?.id ?? null
       })
       return nextProjects
     })

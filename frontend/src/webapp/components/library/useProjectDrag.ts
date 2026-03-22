@@ -38,6 +38,23 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     }
   }
 
+  const copyThemeVars = (source: HTMLElement, target: HTMLElement) => {
+    const themed = source.closest(".app") as HTMLElement | null
+    if (!themed) return
+    const cs = getComputedStyle(themed)
+    const vars = [
+      "--app-bg", "--brand-color", "--menu-bg", "--menu-border", "--menu-button",
+      "--menu-button-hover-bg", "--menu-dropdown-bg", "--menu-dropdown-border",
+      "--app-accent", "--app-accent-primary", "--app-accent-secondary",
+      "--app-accent-complementary", "--app-accent-gold",
+      "--app-ui-font", "--app-display-font",
+    ]
+    for (const v of vars) {
+      const val = cs.getPropertyValue(v)
+      if (val) target.style.setProperty(v, val)
+    }
+  }
+
   const getPointerRatio = (value: number, min: number, size: number) => {
     if (size <= 0) return 0.5
     const ratio = (value - min) / size
@@ -48,11 +65,14 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
 
   const getProjectReorderPosition = (event: DragEvent<HTMLElement>, projectId: string): "before" | "after" => {
     const bounds = event.currentTarget.getBoundingClientRect()
-    const xRatio = getPointerRatio(event.clientX, bounds.left, bounds.width)
-    if (xRatio <= 0.45) return "before"
-    if (xRatio >= 0.55) return "after"
+    const isListRow = event.currentTarget.classList.contains("project-hub__list-row")
+    const ratio = isListRow
+      ? getPointerRatio(event.clientY, bounds.top, bounds.height)
+      : getPointerRatio(event.clientX, bounds.left, bounds.width)
+    if (ratio <= 0.45) return "before"
+    if (ratio >= 0.55) return "after"
     if (dropTarget?.type === "project" && dropTarget.projectId === projectId) return dropTarget.position
-    return xRatio < 0.5 ? "before" : "after"
+    return ratio < 0.5 ? "before" : "after"
   }
 
   const getFolderReorderPosition = (event: DragEvent<HTMLElement>, folderId: string): "before" | "after" => {
@@ -113,21 +133,23 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
 
   // --- Drag start / end handlers ---
 
-  const handleProjectDragStart = (projectId: string, event: DragEvent<HTMLButtonElement>) => {
+  const handleProjectDragStart = (projectId: string, event: DragEvent<HTMLElement>) => {
     setDraggingFolderId(null)
     setFolderDropTarget(null)
     setDraggingProjectId(projectId)
     setDropTarget(null)
     clearDragPreview()
 
-    const sourceCard = event.currentTarget.closest(".project-card")
-    if (!sourceCard || !(sourceCard instanceof HTMLElement)) return
+    const sourceCard = event.currentTarget.closest(".project-card") as HTMLElement | null
+    const sourceElement = sourceCard ?? event.currentTarget
 
-    const dragPreview = sourceCard.cloneNode(true)
+    const dragPreview = sourceElement.cloneNode(true)
     if (!(dragPreview instanceof HTMLElement)) return
 
-    const bounds = sourceCard.getBoundingClientRect()
-    dragPreview.classList.add("project-card--drag-preview")
+    const bounds = sourceElement.getBoundingClientRect()
+    if (sourceCard) {
+      dragPreview.classList.add("project-card--drag-preview")
+    }
     dragPreview.style.width = `${Math.round(bounds.width)}px`
     dragPreview.style.height = `${Math.round(bounds.height)}px`
     dragPreview.style.minHeight = `${Math.round(bounds.height)}px`
@@ -137,6 +159,7 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     dragPreview.style.top = "-1000px"
     dragPreview.style.left = "-1000px"
     dragPreview.style.pointerEvents = "none"
+    copyThemeVars(sourceElement, dragPreview)
     document.body.appendChild(dragPreview)
     dragPreviewElementRef.current = dragPreview
 
@@ -153,7 +176,7 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     clearDragPreview()
   }
 
-  const handleFolderDragStart = (folderId: string, event: DragEvent<HTMLButtonElement>) => {
+  const handleFolderDragStart = (folderId: string, event: DragEvent<HTMLElement>) => {
     setDraggingProjectId(null)
     setDropTarget(null)
     setDraggingFolderId(folderId)
@@ -171,6 +194,7 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
         dragPreview.style.top = "-1000px"
         dragPreview.style.left = "-1000px"
         dragPreview.style.pointerEvents = "none"
+        copyThemeVars(sourceFolder, dragPreview)
         document.body.appendChild(dragPreview)
         dragPreviewElementRef.current = dragPreview
 

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
-import { BookCopy, BookOpenText, BookPlus, FileText, Folder, FolderPlus, LayoutGrid, List, NotebookPen, ScrollText, Trash2 } from "lucide-react"
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react"
+import { Archive, BookCopy, BookOpenText, BookPlus, FileText, Folder, FolderPlus, Library as LibraryIcon, NotebookPen, ScrollText, Trash2 } from "lucide-react"
 import Button from "../components/ui/Button"
 import Modal from "../components/ui/Modal"
 import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
@@ -10,11 +10,13 @@ import { createLocalId } from "../../core/libraryUtils"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import ProjectSettings from "../components/settings/ProjectSettings"
 import ProjectCard from "../components/library/ProjectCard"
-import ProjectFolderItem from "../components/library/ProjectFolder"
+import { FolderDetailView } from "../components/library/ProjectFolder"
+import ProjectFolderGrid from "../components/library/ProjectFolder"
 import TypingConfirmation from "../components/library/TypingConfirmation"
 import useProjectDrag from "../components/library/useProjectDrag"
 import useProjectSettings from "../components/library/useProjectSettings"
 import useProjectDelete from "../components/library/useProjectDelete"
+import { useViewMode, ViewToggle, formatRelativeDate } from "../components/library/useViewMode"
 import "./Library.css"
 
 export type ProjectFolder = {
@@ -41,21 +43,6 @@ export type LibraryProps = {
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
 }
 
-function formatRelativeDate(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  const minutes = Math.floor(diff / 60_000)
-  if (minutes < 1) return "Just now"
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days === 1) return "Yesterday"
-  if (days < 7) return `${days}d ago`
-  const weeks = Math.floor(days / 7)
-  if (weeks < 5) return `${weeks}w ago`
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-}
-
 export default function Library({
   projects,
   folders,
@@ -74,19 +61,18 @@ export default function Library({
   setActiveProjectId,
 }: LibraryProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
-  const [openFolderCreateMenuId, setOpenFolderCreateMenuId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<"list" | "grid">("grid")
+  const { viewMode, toggle: toggleView } = useViewMode()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null)
 
-  const drag = useProjectDrag({ projects, folders, setProjects, setFolders })
+  const activeProjects = projects.filter((p) => !p.archivedAt && !p.deletedAt)
+  const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null
+  const folderProjects = openFolderId ? activeProjects.filter((p) => p.folderId === openFolderId) : []
+
+  const drag = useProjectDrag({ projects: activeProjects, folders, setProjects, setFolders })
   const settings = useProjectSettings({ projects, setProjects })
   const deletion = useProjectDelete({ projects, setProjects, setActiveProjectId })
   const settingsProjectId = settings.settingsProject?.id ?? null
-
-  const recentProjects = useMemo(
-    () => [...projects].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4),
-    [projects],
-  )
 
   const createNewProject = (kind: ProjectKind, folderId?: string) => {
     const nextName = kind === "Book" ? `Book ${bookCounter}` : `Blog ${blogCounter}`
@@ -99,10 +85,6 @@ export default function Library({
     onProjectCreated?.(nextProject)
   }
 
-  const closeCreateMenus = () => {
-    setOpenFolderCreateMenuId(null)
-  }
-
   const createFolder = () => {
     const nextIndex = folders.length + 1
     const newFolder: ProjectFolder = {
@@ -112,21 +94,6 @@ export default function Library({
     }
     setFolders((current) => [newFolder, ...current])
   }
-
-  // Close folder create menus on outside click
-  useEffect(() => {
-    if (!openFolderCreateMenuId) return
-
-    const handleDocumentMouseDown = (event: MouseEvent) => {
-      const target = event.target
-      if (!(target instanceof Node)) return
-      if (target instanceof Element && target.closest(".project-folder__create-menu-wrap")) return
-      closeCreateMenus()
-    }
-
-    document.addEventListener("mousedown", handleDocumentMouseDown)
-    return () => { document.removeEventListener("mousedown", handleDocumentMouseDown) }
-  }, [openFolderCreateMenuId])
 
   // Global create events from the menu bar
   useEffect(() => {
@@ -171,99 +138,108 @@ export default function Library({
     <>
       <div className={`project-hub__main ${deletion.isOpen || settings.isOpen ? "project-hub__main--blurred" : ""}`.trim()}>
         <div className="project-hub__main-scroll">
+          {openFolder ? (
+            <FolderDetailView
+              folder={openFolder}
+              folderProjects={folderProjects}
+              onBack={() => setOpenFolderId(null)}
+              onCreateBook={() => createNewProject("Book", openFolderId!)}
+              onCreateBlog={() => createNewProject("Blog", openFolderId!)}
+              renderProjectCard={renderProjectCard}
+            />
+          ) : (
+            <>
             {/* Header */}
-            <div className="project-hub__header">
-              <h3>Library</h3>
-              <span>Your herd of projects, organized in one place</span>
+            <div className="project-hub__folder-detail-header">
+              <div className="project-hub__folder-detail-title">
+                <LibraryIcon size={20} aria-hidden={true} />
+                <h3>Library</h3>
+              </div>
+              <p className="project-hub__folder-detail-desc">Your herd of projects, organized in one place</p>
+              <p className="project-hub__folder-detail-count">{activeProjects.length} {activeProjects.length === 1 ? "project" : "projects"}</p>
             </div>
 
             {/* Create Row */}
-            <div className="project-hub__create-row" role="list" aria-label="Create actions">
-              <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createNewProject("Book")}>
-                <BookPlus size={28} aria-hidden={true} />
-                <span>Create book</span>
-              </button>
-              <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createNewProject("Blog")}>
-                <NotebookPen size={28} aria-hidden={true} />
-                <span>Create blog</span>
-              </button>
-              <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createFolder()}>
-                <FolderPlus size={28} aria-hidden={true} />
-                <span>Create folder</span>
-              </button>
-            </div>
-
-            {/* Recently Opened */}
-            {recentProjects.length > 0 ? (
-              <div className="project-hub__recent-section">
-                <p className="project-hub__section-label">Recently opened</p>
-                <div className="project-hub__recent-grid">
-                  {recentProjects.map((project) => (
-                    <article
-                      key={project.id}
-                      className="project-hub__recent-item"
-                      onClick={() => onOpenProject(project.id)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === "Enter") onOpenProject(project.id) }}
-                    >
-                      {project.kind === "Book" ? <BookOpenText size={16} aria-hidden={true} /> : <NotebookPen size={16} aria-hidden={true} />}
-                      <div>
-                        <strong>{project.name}</strong>
-                        <span>{project.kind} project &bull; {formatRelativeDate(project.createdAt)}</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+            {activeProjects.length === 0 ? (
+              <div className="project-hub__create-row" role="list" aria-label="Create actions">
+                <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createNewProject("Book")}>
+                  <BookPlus size={28} aria-hidden={true} />
+                  <span>Create book</span>
+                </button>
+                <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createNewProject("Blog")}>
+                  <NotebookPen size={28} aria-hidden={true} />
+                  <span>Create blog</span>
+                </button>
+                <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createFolder()}>
+                  <FolderPlus size={28} aria-hidden={true} />
+                  <span>Create folder</span>
+                </button>
               </div>
             ) : null}
 
             {/* Toolbar */}
-            <div className="project-hub__toolbar">
-              <p>Library</p>
-              <div className="project-hub__toolbar-actions">
-                <div className="project-hub__chips">
-                  <span>Folders {folders.length}</span>
-                  <span>Projects {projects.length}</span>
-                </div>
-                <button
-                  type="button"
-                  className="project-hub__view-toggle"
-                  aria-label={viewMode === "list" ? "Switch to grid view" : "Switch to list view"}
-                  onClick={() => setViewMode((prev) => (prev === "list" ? "grid" : "list"))}
-                >
-                  {viewMode === "list" ? <LayoutGrid size={15} aria-hidden={true} /> : <List size={15} aria-hidden={true} />}
-                </button>
-              </div>
-            </div>
+            <ViewToggle viewMode={viewMode} onToggle={toggleView} />
 
-            {/* Folders Grid */}
-            {folders.length > 0 ? (
-              <div className="project-hub__folders-grid" aria-label="Library folders">
-                {folders.map((folder) => (
-                  <article key={folder.id} className="project-hub__folder-card">
-                    <Folder size={18} aria-hidden={true} />
-                    <div>
-                      <strong>{folder.name}</strong>
-                      <span>{projects.filter((p) => p.folderId === folder.id).length} projects</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : null}
+            {/* Folders */}
+            {viewMode === "list" ? (
+              folders.length > 0 ? (
+                <div className="project-hub__list-view" aria-label="Library folders list">
+                  {folders.map((folder) => (
+                    <article
+                      key={folder.id}
+                      className={`project-hub__list-row project-hub__list-row--folder ${drag.getFolderDropClassName(folder.id)} ${drag.getFolderReorderClassName(folder.id)}`.trim()}
+                      onClick={() => setOpenFolderId(folder.id)}
+                      role="button"
+                      tabIndex={0}
+                      draggable
+                      onKeyDown={(e) => { if (e.key === "Enter") setOpenFolderId(folder.id) }}
+                      onDragStart={(e) => drag.handleFolderDragStart(folder.id, e)}
+                      onDragEnd={drag.handleFolderDragEnd}
+                      onDragOver={drag.handleFolderItemDragOver(folder)}
+                      onDrop={drag.handleFolderItemDrop(folder)}
+                    >
+                      <div className="project-hub__list-row-main">
+                        <Folder size={17} aria-hidden={true} />
+                        <strong>{folder.name}</strong>
+                      </div>
+                      <span>Folder</span>
+                      <span>{activeProjects.filter((p) => p.folderId === folder.id).length} projects</span>
+                    </article>
+                  ))}
+                </div>
+              ) : null
+            ) : (
+              <ProjectFolderGrid
+                folders={folders}
+                projects={activeProjects}
+                onOpenFolder={setOpenFolderId}
+                onFolderDragStart={drag.handleFolderDragStart}
+                onFolderDragEnd={drag.handleFolderDragEnd}
+                onFolderDragOver={drag.handleFolderItemDragOver}
+                onFolderDrop={drag.handleFolderItemDrop}
+                getFolderDropClassName={drag.getFolderDropClassName}
+                getFolderReorderClassName={drag.getFolderReorderClassName}
+              />
+            )}
 
             {/* Projects — List View */}
             {viewMode === "list" ? (
-              projects.length > 0 ? (
+              activeProjects.filter((p) => !p.folderId).length > 0 ? (
                 <div className="project-hub__list-view" aria-label="Library projects list">
-                  {projects.map((project) => (
+                  {activeProjects.filter((p) => !p.folderId).map((project) => (
                     <article
                       key={project.id}
-                      className={`project-hub__list-row ${project.id === (selectedProjectId ?? activeProjectId) ? "project-hub__list-row--selected" : ""}`.trim()}
+                      className={`project-hub__list-row ${project.id === (selectedProjectId ?? activeProjectId) ? "project-hub__list-row--selected" : ""} ${drag.draggingProjectId === project.id ? "project-hub__list-row--dragging" : ""} ${drag.getProjectDropClassName(project.id).replace("project-card", "project-hub__list-row")}`.trim()}
                       onClick={() => { setSelectedProjectId(project.id); onOpenProject(project.id) }}
                       role="button"
                       tabIndex={0}
+                      draggable
                       onKeyDown={(e) => { if (e.key === "Enter") onOpenProject(project.id) }}
+                      onDragStart={(e) => drag.handleProjectDragStart(project.id, e)}
+                      onDragEnd={drag.handleProjectDragEnd}
+                      onDragEnter={drag.updateProjectDropTarget(project)}
+                      onDragOver={drag.updateProjectDropTarget(project)}
+                      onDrop={drag.handleCardDrop(project)}
                     >
                       <div className="project-hub__list-row-main">
                         {project.kind === "Book" ? <BookOpenText size={17} aria-hidden={true} /> : <FileText size={17} aria-hidden={true} />}
@@ -279,7 +255,7 @@ export default function Library({
               /* Projects — Grid View (existing card components with drag/drop) */
               <ul className="project-hub__grid-view">
                 <li
-                  className={`project-hub__root-drop ${drag.getRootDropClassName("top")}`.trim()}
+                  className={`project-hub__root-drop ${drag.draggingProjectId ? "project-hub__root-drop--ready" : ""} ${drag.getRootDropClassName("top")}`.trim()}
                   aria-hidden="true"
                   onDragOver={drag.handleRootDragOver("top")}
                   onDrop={drag.handleRootDrop("top")}
@@ -287,29 +263,10 @@ export default function Library({
 
                 {drag.topRootProjects.map((project) => renderProjectCard(project))}
 
-                {folders.flatMap((folder) => [
-                  <ProjectFolderItem
-                    key={folder.id}
-                    folder={folder}
-                    dropClassName={drag.getFolderDropClassName(folder.id)}
-                    reorderClassName={drag.getFolderReorderClassName(folder.id)}
-                    openFolderCreateMenuId={openFolderCreateMenuId}
-                    onSetOpenFolderCreateMenuId={(id) => { setOpenFolderCreateMenuId(id) }}
-                    onCloseCreateMenus={closeCreateMenus}
-                    onCreateNewProject={createNewProject}
-                    onFolderDragStart={drag.handleFolderDragStart}
-                    onFolderDragEnd={drag.handleFolderDragEnd}
-                    onDragOver={drag.handleFolderItemDragOver(folder)}
-                    onDrop={drag.handleFolderItemDrop(folder)}
-                    setFolders={setFolders}
-                  />,
-                  ...drag.getProjectsForFolder(folder.id).map((project) => renderProjectCard(project)),
-                ])}
-
                 {drag.bottomRootProjects.map((project) => renderProjectCard(project))}
 
                 <li
-                  className={`project-hub__root-drop ${drag.getRootDropClassName("bottom")}`.trim()}
+                  className={`project-hub__root-drop ${drag.draggingProjectId ? "project-hub__root-drop--ready" : ""} ${drag.getRootDropClassName("bottom")}`.trim()}
                   aria-hidden="true"
                   onDragOver={drag.handleRootDragOver("bottom")}
                   onDrop={drag.handleRootDrop("bottom")}
@@ -317,9 +274,11 @@ export default function Library({
               </ul>
             )}
 
-            {projects.length === 0 ? (
+            {activeProjects.length === 0 ? (
               <p className="project-hub__empty">No projects yet. Create one to begin writing.</p>
             ) : null}
+            </>
+          )}
           </div>
       </div>
 
@@ -334,6 +293,18 @@ export default function Library({
             <Button variant="footer" onClick={settings.duplicate} disabled={!settings.settingsProject}>
               <BookCopy size={14} strokeWidth={2} aria-hidden={true} />
               Duplicate
+            </Button>
+            <Button
+              variant="footer"
+              onClick={() => {
+                if (!settings.settingsProject) return
+                setProjects((cur) => cur.map((p) => p.id === settings.settingsProject!.id ? { ...p, archivedAt: new Date().toISOString() } : p))
+                settings.close()
+              }}
+              disabled={!settings.settingsProject}
+            >
+              <Archive size={14} strokeWidth={2} aria-hidden={true} />
+              Archive
             </Button>
             <Button
               variant="footer-danger"

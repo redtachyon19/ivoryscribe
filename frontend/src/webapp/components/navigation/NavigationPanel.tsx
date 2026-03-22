@@ -201,7 +201,7 @@ export default function NavigationPanel({
           {/* Slide 1: Project Browser */}
           <div className="editor-workspace__rail-slide">
             <ProjectBrowserPanel
-              projects={projects}
+              projects={projects.filter((p) => !p.archivedAt && !p.deletedAt)}
               folders={folders}
               activeProjectId={project?.id ?? null}
               isLibraryView={view === "projects"}

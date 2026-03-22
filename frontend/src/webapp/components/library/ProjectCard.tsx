@@ -47,7 +47,7 @@ export type ProjectCardProps = {
   onOpenProjectInNewTab: (projectId: string) => void
   onOpenProjectSettings: (project: Project) => void
   onCloseProjectSettings: () => void
-  onDragStart: (projectId: string, event: DragEvent<HTMLButtonElement>) => void
+  onDragStart: (projectId: string, event: DragEvent<HTMLElement>) => void
   onDragEnd: () => void
   onDragEnter: (event: DragEvent<HTMLElement>) => void
   onDragOver: (event: DragEvent<HTMLElement>) => void
@@ -137,7 +137,7 @@ export default function ProjectCard({
         } as CSSProperties
       }
       draggable
-      onDragStart={(event) => onDragStart(project.id, event as unknown as DragEvent<HTMLButtonElement>)}
+      onDragStart={(event) => onDragStart(project.id, event)}
       onDragEnd={() => onDragEnd()}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
