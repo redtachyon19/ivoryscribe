@@ -115,6 +115,7 @@
 
 .pinboard-canvas--crosshair {
   cursor: crosshair;
+  user-select: none;
 }
 
 .pinboard-canvas--grabbing {
@@ -348,4 +349,15 @@
 
 .pinboard-node--drawing.pinboard-node--selected .pinboard-node__drawing-stroke {
   stroke-width: 3;
+}
+
+/* ---- Marquee Selection ---- */
+
+.pinboard-marquee {
+  position: absolute;
+  border: 1.5px solid color-mix(in srgb, var(--app-accent, #7ea8ff) 75%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #7ea8ff) 10%, transparent);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 10;
 }

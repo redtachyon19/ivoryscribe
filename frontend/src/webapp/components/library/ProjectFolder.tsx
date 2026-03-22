@@ -14,6 +14,7 @@ type ProjectFolderGridProps = {
   getFolderDropClassName?: (folderId: string) => string
   getFolderReorderClassName?: (folderId: string) => string
   onFolderContextMenu?: (folderId: string, x: number, y: number) => void
+  selectedIds?: Set<string>
   editingFolderId?: string | null
   editingFolderName?: string
   onEditingFolderNameChange?: (name: string) => void
@@ -25,6 +26,7 @@ export default function ProjectFolderGrid({
   folders, projects, onOpenFolder,
   onFolderDragStart, onFolderDragEnd, onFolderDragOver, onFolderDrop,
   getFolderDropClassName, getFolderReorderClassName, onFolderContextMenu,
+  selectedIds,
   editingFolderId, editingFolderName, onEditingFolderNameChange, onCommitFolderRename, onCancelFolderRename,
 }: ProjectFolderGridProps) {
   if (folders.length === 0) return null
@@ -34,7 +36,8 @@ export default function ProjectFolderGrid({
       {folders.map((folder) => (
         <article
           key={folder.id}
-          className={`project-hub__folder-card ${getFolderDropClassName?.(folder.id) ?? ""} ${getFolderReorderClassName?.(folder.id) ?? ""}`.trim()}
+          data-selectable-id={folder.id}
+          className={`project-hub__folder-card ${getFolderDropClassName?.(folder.id) ?? ""} ${getFolderReorderClassName?.(folder.id) ?? ""} ${selectedIds?.has(folder.id) ? "project-hub__folder-card--marquee-selected" : ""}`.trim()}
           role="button"
           tabIndex={0}
           draggable

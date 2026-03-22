@@ -27,12 +27,13 @@ export default function useSectionDrop({ folders, setProjects, setFolders }: Use
   const handleSectionDrop = (section: "library" | "archive" | "trash") => (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
     event.stopPropagation()
-    const id = event.dataTransfer.getData("text/plain")
-    if (!id) {
+    const raw = event.dataTransfer.getData("text/plain")
+    if (!raw) {
       setSectionDropTarget(null)
       return
     }
 
+    const ids = raw.split(",").filter(Boolean)
     const now = new Date().toISOString()
     const applySection = (p: Project): Project => {
       switch (section) {
@@ -45,19 +46,24 @@ export default function useSectionDrop({ folders, setProjects, setFolders }: Use
       }
     }
 
-    const isFolder = folders.some((f) => f.id === id)
+    const folderIds = new Set(ids.filter((id) => folders.some((f) => f.id === id)))
+    const projectIds = new Set(ids.filter((id) => !folderIds.has(id)))
 
-    setProjects((cur) => {
-      if (isFolder) {
-        return cur.map((p) =>
-          p.folderId === id ? { ...applySection(p), folderId: null, rootPosition: "top" as const } : p,
-        )
+    setProjects((cur) =>
+      cur.map((p) => {
+        if (projectIds.has(p.id)) return applySection(p)
+        for (const fId of folderIds) {
+          if (p.folderId === fId) return { ...applySection(p), folderId: null, rootPosition: "top" as const }
+        }
+        return p
+      }),
+    )
+
+    if (section !== "library") {
+      const removedFolderIds = folderIds
+      if (removedFolderIds.size > 0) {
+        setFolders((cur) => cur.filter((f) => !removedFolderIds.has(f.id)))
       }
-      return cur.map((p) => (p.id === id ? applySection(p) : p))
-    })
-
-    if (isFolder && section !== "library") {
-      setFolders((cur) => cur.filter((f) => f.id !== id))
     }
 
     setSectionDropTarget(null)

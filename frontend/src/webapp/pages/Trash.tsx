@@ -2,13 +2,14 @@ import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAct
 import { Pencil, Shredder, SquareArrowOutUpRight, Trash2, Undo2 } from "lucide-react"
 import type { Project } from "../../core/projects"
 import ProjectCard from "../components/library/ProjectCard"
-import { handleSectionDragStart } from "../components/library/useSectionDrop"
+
 import { useViewMode, useSortMode, applySortMode, ViewToggle, ProjectListView } from "../components/library/useViewMode"
 import ProjectContextMenu, { type ProjectContextMenuState } from "../components/library/ProjectContextMenu"
 import TypingConfirmation from "../components/library/TypingConfirmation"
 import { splitGraphemes } from "../../core/libraryUtils"
 import Modal from "../components/ui/Modal"
 import Button from "../components/ui/Button"
+import useMultiSelect from "../components/library/useMultiSelect"
 
 type TrashViewProps = {
   projects: Project[]
@@ -23,12 +24,9 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
   const { sortMode, cycleSortMode } = useSortMode("context-desc")
   const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
-  const handleProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
-    setContextMenu({ x, y, projectId })
-  }, [])
 
   /* ── shred-confirmation state ── */
-  const [pendingShredId, setPendingShredId] = useState<string | null>(null)
+  const [pendingShredIds, setPendingShredIds] = useState<Set<string>>(new Set())
   const [pendingShredName, setPendingShredName] = useState("")
   const [confirmationText, setConfirmationText] = useState("")
   const [confirmationError, setConfirmationError] = useState("")
@@ -40,26 +38,34 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
 
   const openShredConfirmation = (projectId: string) => {
     const p = projects.find((entry) => entry.id === projectId)
-    setPendingShredId(projectId)
+    setPendingShredIds(new Set([projectId]))
     setPendingShredName(p?.name ?? "")
     setConfirmationText("")
     setConfirmationError("")
   }
 
+  const openMultiShredConfirmation = (ids: Set<string>) => {
+    setPendingShredIds(new Set(ids))
+    setPendingShredName(`${ids.size} projects`)
+    setConfirmationText("")
+    setConfirmationError("")
+  }
+
   const closeShredConfirmation = () => {
-    setPendingShredId(null)
+    setPendingShredIds(new Set())
     setConfirmationText("")
     setConfirmationError("")
   }
 
   const confirmShred = () => {
-    if (!pendingShredId) return
+    if (pendingShredIds.size === 0) return
     if (confirmationText !== requiredPhrase) {
       setConfirmationError("The confirmation text must match exactly.")
       return
     }
-    setProjects((cur) => cur.filter((p) => p.id !== pendingShredId))
+    setProjects((cur) => cur.filter((p) => !pendingShredIds.has(p.id)))
     closeShredConfirmation()
+    multiSelect.clearSelection()
   }
 
   const trashed = useMemo(
@@ -75,12 +81,38 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
     setProjects((cur) => cur.map((p) => p.id === projectId ? { ...p, deletedAt: null } : p))
   }
 
-  const noop = () => {}
+  const multiSelect = useMultiSelect({
+    onDeleteSelection: (ids) => {
+      openMultiShredConfirmation(ids)
+    },
+  })
+
+  const handleProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
+    if (multiSelect.isMultiSelectTarget(projectId)) {
+      setContextMenu({ x, y, projectId, isMultiSelect: true })
+    } else {
+      setContextMenu({ x, y, projectId })
+    }
+  }, [multiSelect.isMultiSelectTarget])
+
+  const noop = () => { multiSelect.handleMultiSectionDragEnd() }
   const noopDragEl = (_e: React.DragEvent<HTMLElement>) => {}
 
   return (
     <div className="project-hub__main">
-      <div className="project-hub__main-scroll">
+      <div ref={multiSelect.scrollContainerRef} className={`project-hub__main-scroll ${multiSelect.scrollClassName}`} onMouseDown={multiSelect.handleMouseDown}>
+        {multiSelect.isMarqueeActive && multiSelect.marqueeRect ? (
+          <div
+            className="marquee-selection"
+            style={{
+              left: multiSelect.marqueeRect.x,
+              top: multiSelect.marqueeRect.y,
+              width: multiSelect.marqueeRect.width,
+              height: multiSelect.marqueeRect.height,
+            }}
+          />
+        ) : null}
+
         <div className="project-hub__folder-detail-header">
           <div className="project-hub__folder-detail-title">
             <Trash2 size={20} aria-hidden={true} />
@@ -99,7 +131,9 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
               ariaLabel="Trashed projects list"
               onOpenProject={onOpenProject}
               getDate={(p) => p.deletedAt!}
-              onDragStart={handleSectionDragStart}
+              onDragStart={multiSelect.handleMultiSectionDragStart}
+              selectedIds={multiSelect.liveSelectedIds}
+              onContextMenu={handleProjectContextMenu}
             />
           ) : (
           <ul className="project-hub__grid-view">
@@ -110,7 +144,7 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
                   isDragging={false}
                   dropClassName=""
                   onOpenProject={onOpenProject}
-                  onDragStart={handleSectionDragStart}
+                  onDragStart={multiSelect.handleMultiSectionDragStart}
                   onDragEnd={noop}
                   onDragEnter={noopDragEl}
                   onDragOver={noopDragEl}
@@ -119,6 +153,7 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
                   editingProjectId={editingProjectId}
                   setProjects={setProjects}
                   onContextMenu={handleProjectContextMenu}
+                  marqueeSelected={multiSelect.liveSelectedIds.has(project.id)}
                 />
               </li>
             ))}
@@ -134,20 +169,27 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={closeContextMenu}
-          actions={[
-            { label: "Open in New Tab", icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenProjectInNewTab(contextMenu.projectId) },
-            { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => setEditingProjectId(contextMenu.projectId) },
-            { label: "Restore", icon: <Undo2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => restoreProject(contextMenu.projectId) },
-            { label: "Shred", icon: <Shredder size={14} strokeWidth={2} aria-hidden={true} />, action: () => openShredConfirmation(contextMenu.projectId), danger: true },
-          ]}
+          actions={
+            contextMenu.isMultiSelect
+              ? [
+                  { label: `Restore ${multiSelect.selectedIds.size} items`, icon: <Undo2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => { for (const id of multiSelect.selectedIds) restoreProject(id); multiSelect.clearSelection() } },
+                  { label: `Shred ${multiSelect.selectedIds.size} items`, icon: <Shredder size={14} strokeWidth={2} aria-hidden={true} />, action: () => openMultiShredConfirmation(multiSelect.selectedIds), danger: true },
+                ]
+              : [
+                  { label: "Open in New Tab", icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenProjectInNewTab(contextMenu.projectId) },
+                  { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => setEditingProjectId(contextMenu.projectId) },
+                  { label: "Restore", icon: <Undo2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => restoreProject(contextMenu.projectId) },
+                  { label: "Shred", icon: <Shredder size={14} strokeWidth={2} aria-hidden={true} />, action: () => openShredConfirmation(contextMenu.projectId), danger: true },
+                ]
+          }
         />
       ) : null}
 
-      {pendingShredId && (
+      {pendingShredIds.size > 0 && (
         <Modal
-          isOpen={Boolean(pendingShredId)}
+          isOpen={pendingShredIds.size > 0}
           onClose={closeShredConfirmation}
-          title={`Shred \u201c${pendingShredName}\u201d?`}
+          title={pendingShredIds.size > 1 ? `Shred ${pendingShredName}?` : `Shred \u201c${pendingShredName}\u201d?`}
           panelClassName="project-delete-modal__panel"
           actions={
             <>

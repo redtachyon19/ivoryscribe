@@ -127,21 +127,25 @@ type ProjectListViewProps = {
   onOpenProject: (projectId: string) => void
   getDate: (project: Project) => string
   onDragStart?: (projectId: string, event: React.DragEvent<HTMLElement>) => void
+  selectedIds?: Set<string>
+  onContextMenu?: (projectId: string, x: number, y: number) => void
 }
 
-export function ProjectListView({ projects, ariaLabel, onOpenProject, getDate, onDragStart }: ProjectListViewProps) {
+export function ProjectListView({ projects, ariaLabel, onOpenProject, getDate, onDragStart, selectedIds, onContextMenu }: ProjectListViewProps) {
   return (
     <div className="project-hub__list-view" aria-label={ariaLabel}>
       {projects.map((project) => (
         <article
           key={project.id}
-          className="project-hub__list-row"
+          data-selectable-id={project.id}
+          className={`project-hub__list-row ${selectedIds?.has(project.id) ? "project-hub__list-row--selected" : ""}`.trim()}
           onClick={() => onOpenProject(project.id)}
           role="button"
           tabIndex={0}
           draggable={!!onDragStart}
           onKeyDown={(e) => { if (e.key === "Enter") onOpenProject(project.id) }}
           onDragStart={onDragStart ? (e) => onDragStart(project.id, e) : undefined}
+          onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(project.id, e.clientX, e.clientY) } : undefined}
         >
           <div className="project-hub__list-row-main">
             {project.kind === "Book" ? <BookOpenText size={17} aria-hidden={true} /> : <FileText size={17} aria-hidden={true} />}
