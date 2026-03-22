@@ -51,6 +51,7 @@ export type ProjectCardProps = {
   editingProjectId: string | null
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
   onContextMenu?: (projectId: string, x: number, y: number) => void
+  marqueeSelected?: boolean
 }
 
 export default function ProjectCard({
@@ -67,6 +68,7 @@ export default function ProjectCard({
   editingProjectId,
   setProjects,
   onContextMenu,
+  marqueeSelected,
 }: ProjectCardProps) {
   const [editingName, setEditingName] = useState("")
   const renameTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -122,7 +124,8 @@ export default function ProjectCard({
 
   return (
     <li
-      className={`project-card ${dropClassName} ${isDragging ? "project-card--dragging" : ""}`.trim()}
+      data-selectable-id={project.id}
+      className={`project-card ${dropClassName} ${isDragging ? "project-card--dragging" : ""} ${marqueeSelected ? "project-card--marquee-selected" : ""}`.trim()}
       style={
         {
           "--project-accent": project.color,

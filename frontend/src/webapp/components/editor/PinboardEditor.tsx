@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Brush, ImageUp, Link as LinkIcon, TextInitial } from "lucide-react"
+import { Brush, ImageUp, Link as LinkIcon, SquareDashed, TextInitial } from "lucide-react"
 import "./PinboardEditor.css"
 
 /* ------------------------------------------------------------------ */
@@ -34,7 +34,7 @@ type PinboardData = {
   viewport: { x: number; y: number; zoom: number }
 }
 
-type Tool = "select" | "text" | "line" | "draw"
+type Tool = "select" | "text" | "line" | "draw" | "marquee"
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -109,6 +109,13 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [resizingNodeId, setResizingNodeId] = useState<string | null>(null)
   const [resizeStart, setResizeStart] = useState({ startW: 0, startH: 0, startX: 0, startY: 0 })
+
+  // Marquee selection state (select tool)
+  const [isMarquee, setIsMarquee] = useState(false)
+  const [marqueeOrigin, setMarqueeOrigin] = useState({ x: 0, y: 0 })
+  const [marqueeEnd, setMarqueeEnd] = useState({ x: 0, y: 0 })
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set())
+  const isMarqueeRef = useRef(false)
 
   // Drawing-mode state
   const [drawingPoints, setDrawingPoints] = useState<Array<{ x: number; y: number }>>([])
@@ -228,6 +235,19 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
 
       setSelectedNodeId(null)
       setEditingNodeId(null)
+
+      if (activeTool === "marquee") {
+        // Prevent text selection while dragging marquee
+        e.preventDefault()
+        const pos = clientToCanvas(e.clientX, e.clientY)
+        setIsMarquee(true)
+        isMarqueeRef.current = true
+        setMarqueeOrigin(pos)
+        setMarqueeEnd(pos)
+        setSelectedNodeIds(new Set())
+        return
+      }
+
       setIsPanning(true)
       setPanStart({ px: e.clientX, py: e.clientY })
     },
@@ -280,6 +300,16 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
         const next = [...drawingPointsRef.current, { x, y }]
         drawingPointsRef.current = next
         setDrawingPoints(next)
+        return
+      }
+
+      if (isMarqueeRef.current) {
+        const rect = canvasRef.current?.getBoundingClientRect()
+        if (!rect) return
+        const vp = viewportRef.current
+        const x = (e.clientX - rect.left) / vp.zoom - vp.x
+        const y = (e.clientY - rect.top) / vp.zoom - vp.y
+        setMarqueeEnd({ x, y })
       }
     }
 
@@ -311,6 +341,11 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
       setIsDrawing(false)
       drawingPointsRef.current = []
       setDrawingPoints([])
+
+      if (isMarqueeRef.current) {
+        isMarqueeRef.current = false
+        setIsMarquee(false)
+      }
     }
 
     window.addEventListener("mousemove", onMouseMove)
@@ -344,6 +379,7 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
       }
 
       setSelectedNodeId(nodeId)
+      setSelectedNodeIds(new Set())
       const pos = clientToCanvas(e.clientX, e.clientY)
       setDragOffset({ dx: pos.x - node.x, dy: pos.y - node.y })
       setDraggingNodeId(nodeId)
@@ -363,23 +399,36 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     [nodes],
   )
 
-  /* ---- delete node ---- */
+  /* ---- delete node(s) ---- */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!selectedNodeId) return
       if (editingNodeId) return
       if (e.key === "Backspace" || e.key === "Delete") {
-        commitBoard((prev) => ({
-          ...prev,
-          nodes: prev.nodes.filter((n) => n.id !== selectedNodeId),
-          lines: prev.lines.filter((l) => l.fromId !== selectedNodeId && l.toId !== selectedNodeId),
-        }))
-        setSelectedNodeId(null)
+        // Multi-select delete
+        if (selectedNodeIds.size > 0) {
+          commitBoard((prev) => ({
+            ...prev,
+            nodes: prev.nodes.filter((n) => !selectedNodeIds.has(n.id)),
+            lines: prev.lines.filter((l) => !selectedNodeIds.has(l.fromId) && !selectedNodeIds.has(l.toId)),
+          }))
+          setSelectedNodeIds(new Set())
+          setSelectedNodeId(null)
+          return
+        }
+        // Single-select delete
+        if (selectedNodeId) {
+          commitBoard((prev) => ({
+            ...prev,
+            nodes: prev.nodes.filter((n) => n.id !== selectedNodeId),
+            lines: prev.lines.filter((l) => l.fromId !== selectedNodeId && l.toId !== selectedNodeId),
+          }))
+          setSelectedNodeId(null)
+        }
       }
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [selectedNodeId, editingNodeId, commitBoard])
+  }, [selectedNodeId, selectedNodeIds, editingNodeId, commitBoard])
 
   /* ---- drop handler for images / files ---- */
   const handleDrop = useCallback(
@@ -484,9 +533,41 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     commitBoard((prev) => ({ ...prev, nodes: [...prev.nodes, newNode] }))
   }, [viewport, commitBoard])
 
+  /* ---- marquee selection rectangle & hit test ---- */
+  const marqueeRect = useMemo(() => {
+    if (!isMarquee) return null
+    const x = Math.min(marqueeOrigin.x, marqueeEnd.x)
+    const y = Math.min(marqueeOrigin.y, marqueeEnd.y)
+    const width = Math.abs(marqueeEnd.x - marqueeOrigin.x)
+    const height = Math.abs(marqueeEnd.y - marqueeOrigin.y)
+    return { x, y, width, height }
+  }, [isMarquee, marqueeOrigin, marqueeEnd])
+
+  // Compute which nodes intersect the marquee
+  useEffect(() => {
+    if (!marqueeRect) {
+      return
+    }
+    const mx1 = marqueeRect.x
+    const my1 = marqueeRect.y
+    const mx2 = mx1 + marqueeRect.width
+    const my2 = my1 + marqueeRect.height
+    const ids = new Set<string>()
+    for (const node of nodes) {
+      const nx1 = node.x
+      const ny1 = node.y
+      const nx2 = nx1 + node.width
+      const ny2 = ny1 + node.height
+      if (mx1 < nx2 && mx2 > nx1 && my1 < ny2 && my2 > ny1) {
+        ids.add(node.id)
+      }
+    }
+    setSelectedNodeIds(ids)
+  }, [marqueeRect, nodes])
+
   /* ---- render a single node ---- */
   const renderNode = (node: PinboardNode) => {
-    const isSelected = node.id === selectedNodeId
+    const isSelected = node.id === selectedNodeId || selectedNodeIds.has(node.id)
     const isEditing = node.id === editingNodeId
 
     // Detect drawing-encoded text node
@@ -603,7 +684,7 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
       {/* ---- canvas ---- */}
       <div
         ref={canvasRef}
-        className={`pinboard-canvas ${activeTool === "text" ? "pinboard-canvas--crosshair" : ""} ${isPanning ? "pinboard-canvas--grabbing" : ""} ${activeTool === "draw" ? "pinboard-canvas--draw" : ""}`}
+        className={`pinboard-canvas ${activeTool === "text" ? "pinboard-canvas--crosshair" : ""} ${activeTool === "marquee" ? "pinboard-canvas--crosshair" : ""} ${isPanning ? "pinboard-canvas--grabbing" : ""} ${activeTool === "draw" ? "pinboard-canvas--draw" : ""}`}
         onMouseDown={handleCanvasMouseDown}
         onWheel={handleWheel}
         onDragOver={(e) => e.preventDefault()}
@@ -634,6 +715,19 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
 
           {/* Nodes */}
           {nodes.map(renderNode)}
+
+          {/* Marquee selection rectangle */}
+          {marqueeRect ? (
+            <div
+              className="pinboard-marquee"
+              style={{
+                left: marqueeRect.x,
+                top: marqueeRect.y,
+                width: marqueeRect.width,
+                height: marqueeRect.height,
+              }}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -681,6 +775,15 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
           title="Freehand draw"
         >
           <Brush size={16} />
+        </button>
+        <button
+          type="button"
+          className={`pinboard-toolbar__btn ${activeTool === "marquee" ? "pinboard-toolbar__btn--active" : ""}`}
+          onClick={() => setActiveTool("marquee")}
+          aria-label="Marquee select"
+          title="Marquee select"
+        >
+          <SquareDashed size={16} />
         </button>
         <span className="pinboard-toolbar__separator" />
         <button type="button" className="pinboard-toolbar__btn" onClick={handleAddImage} aria-label="Add image" title="Add image">

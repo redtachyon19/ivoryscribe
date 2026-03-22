@@ -98,6 +98,7 @@ export type ProjectContextMenuState = {
   y: number
   projectId: string
   isFolder?: boolean
+  isMultiSelect?: boolean
 } | null
 
 export function buildProjectActions({
@@ -153,5 +154,23 @@ export function buildFolderActions({
     { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => onRename(folderId) },
     { label: "Archive", icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />, action: () => onArchive(folderId) },
     { label: "Trash", icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => onTrash(folderId), danger: true },
+  ]
+}
+
+export function buildMultiSelectActions({
+  ids,
+  onDuplicate,
+  onArchive,
+  onTrash,
+}: {
+  ids: Set<string>
+  onDuplicate: (ids: Set<string>) => void
+  onArchive: (ids: Set<string>) => void
+  onTrash: (ids: Set<string>) => void
+}): ContextMenuAction[] {
+  return [
+    { label: `Duplicate ${ids.size} items`, icon: <BookCopy size={14} strokeWidth={2} aria-hidden={true} />, action: () => onDuplicate(ids) },
+    { label: `Archive ${ids.size} items`, icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />, action: () => onArchive(ids) },
+    { label: `Trash ${ids.size} items`, icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => onTrash(ids), danger: true },
   ]
 }

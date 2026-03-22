@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react"
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Archive, BookCopy, BookOpenText, BookPlus, FileText, Folder, FolderPlus, LibraryBig as LibraryIcon, NotebookPen, ScrollText, Trash2 } from "lucide-react"
 import Button from "../components/ui/Button"
 import Modal from "../components/ui/Modal"
@@ -15,7 +15,8 @@ import ProjectFolderGrid from "../components/library/ProjectFolder"
 import useProjectDrag from "../components/library/useProjectDrag"
 import useProjectSettings from "../components/library/useProjectSettings"
 import { useViewMode, ViewToggle, formatRelativeDate } from "../components/library/useViewMode"
-import ProjectContextMenu, { buildProjectActions, buildFolderActions, type ProjectContextMenuState } from "../components/library/ProjectContextMenu"
+import ProjectContextMenu, { buildProjectActions, buildFolderActions, buildMultiSelectActions, type ProjectContextMenuState } from "../components/library/ProjectContextMenu"
+import useMultiSelect from "../components/library/useMultiSelect"
 import "./Library.css"
 
 export type ProjectFolder = {
@@ -65,17 +66,6 @@ export default function Library({
   const { viewMode, toggle: toggleView } = useViewMode()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [openFolderId, setOpenFolderId] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
-
-  const closeContextMenu = useCallback(() => setContextMenu(null), [])
-
-  const handleProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
-    setContextMenu({ x, y, projectId })
-  }, [])
-
-  const handleFolderContextMenu = useCallback((folderId: string, x: number, y: number) => {
-    setContextMenu({ x, y, projectId: folderId, isFolder: true })
-  }, [])
 
   const activeProjects = projects.filter((p) => !p.archivedAt && !p.deletedAt)
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null
@@ -84,6 +74,52 @@ export default function Library({
   const drag = useProjectDrag({ projects: activeProjects, folders, setProjects, setFolders })
   const settings = useProjectSettings({ projects, setProjects })
   const settingsProjectId = settings.settingsProject?.id ?? null
+
+  const moveToTrash = (projectId: string) => {
+    setProjects((cur) => cur.map((p) => p.id === projectId ? { ...p, deletedAt: new Date().toISOString() } : p))
+    setActiveProjectId((currentId) => {
+      if (currentId !== projectId) return currentId
+      const available = projects.filter((p) => p.id !== projectId && !p.deletedAt && !p.archivedAt)
+      return available[0]?.id ?? null
+    })
+  }
+
+  const folderIdSet = useMemo(() => new Set(folders.map((f) => f.id)), [folders])
+
+  const multiSelect = useMultiSelect({
+    onDeleteSelection: (ids) => {
+      for (const id of ids) {
+        if (folderIdSet.has(id)) {
+          setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, folderId: null } : p))
+          setFolders((cur) => cur.filter((f) => f.id !== id))
+        } else {
+          moveToTrash(id)
+        }
+      }
+    },
+    drag,
+    folderIds: folderIdSet,
+    setProjects,
+  })
+
+  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+
+  const handleProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
+    if (multiSelect.isMultiSelectTarget(projectId)) {
+      setContextMenu({ x, y, projectId, isMultiSelect: true })
+    } else {
+      setContextMenu({ x, y, projectId })
+    }
+  }, [multiSelect.isMultiSelectTarget])
+
+  const handleFolderContextMenu = useCallback((folderId: string, x: number, y: number) => {
+    if (multiSelect.isMultiSelectTarget(folderId)) {
+      setContextMenu({ x, y, projectId: folderId, isMultiSelect: true })
+    } else {
+      setContextMenu({ x, y, projectId: folderId, isFolder: true })
+    }
+  }, [multiSelect.isMultiSelectTarget])
 
   const startFolderRename = (folderId: string) => {
     const folder = folders.find((f) => f.id === folderId)
@@ -105,15 +141,6 @@ export default function Library({
   const cancelFolderRename = () => {
     setEditingFolderId(null)
     setEditingFolderName("")
-  }
-
-  const moveToTrash = (projectId: string) => {
-    setProjects((cur) => cur.map((p) => p.id === projectId ? { ...p, deletedAt: new Date().toISOString() } : p))
-    setActiveProjectId((currentId) => {
-      if (currentId !== projectId) return currentId
-      const available = projects.filter((p) => p.id !== projectId && !p.deletedAt && !p.archivedAt)
-      return available[0]?.id ?? null
-    })
   }
 
   const createNewProject = (kind: ProjectKind, folderId?: string) => {
@@ -158,25 +185,37 @@ export default function Library({
     <ProjectCard
       key={project.id}
       project={project}
-      isDragging={drag.draggingProjectId === project.id}
+      isDragging={drag.draggingProjectId === project.id || multiSelect.isMultiDragging(project.id, drag.draggingProjectId)}
       dropClassName={drag.getProjectDropClassName(project.id)}
       onOpenProject={onOpenProject}
-      onDragStart={drag.handleProjectDragStart}
-      onDragEnd={drag.handleProjectDragEnd}
+      onDragStart={multiSelect.handleMultiDragStart}
+      onDragEnd={multiSelect.handleMultiDragEnd}
       onDragEnter={drag.updateProjectDropTarget(project)}
       onDragOver={drag.updateProjectDropTarget(project)}
-      onDrop={drag.handleCardDrop(project)}
+      onDrop={multiSelect.handleMultiCardDrop(project)}
       setEditingProjectId={setEditingProjectId}
       editingProjectId={editingProjectId}
       setProjects={setProjects}
       onContextMenu={handleProjectContextMenu}
+      marqueeSelected={multiSelect.liveSelectedIds.has(project.id)}
     />
   )
 
   return (
     <>
       <div className={`project-hub__main ${settings.isOpen ? "project-hub__main--blurred" : ""}`.trim()}>
-        <div className="project-hub__main-scroll">
+        <div ref={multiSelect.scrollContainerRef} className={`project-hub__main-scroll ${multiSelect.scrollClassName}`} onMouseDown={multiSelect.handleMouseDown}>
+          {multiSelect.isMarqueeActive && multiSelect.marqueeRect ? (
+            <div
+              className="marquee-selection"
+              style={{
+                left: multiSelect.marqueeRect.x,
+                top: multiSelect.marqueeRect.y,
+                width: multiSelect.marqueeRect.width,
+                height: multiSelect.marqueeRect.height,
+              }}
+            />
+          ) : null}
           {openFolder ? (
             <FolderDetailView
               folder={openFolder}
@@ -226,7 +265,8 @@ export default function Library({
                   {folders.map((folder) => (
                     <article
                       key={folder.id}
-                      className={`project-hub__list-row project-hub__list-row--folder ${drag.getFolderDropClassName(folder.id)} ${drag.getFolderReorderClassName(folder.id)}`.trim()}
+                      data-selectable-id={folder.id}
+                      className={`project-hub__list-row project-hub__list-row--folder ${multiSelect.liveSelectedIds.has(folder.id) ? "project-hub__list-row--selected" : ""} ${drag.getFolderDropClassName(folder.id)} ${drag.getFolderReorderClassName(folder.id)}`.trim()}
                       onClick={() => { if (editingFolderId !== folder.id) setOpenFolderId(folder.id) }}
                       role="button"
                       tabIndex={0}
@@ -235,7 +275,11 @@ export default function Library({
                       onDragStart={(e) => drag.handleFolderDragStart(folder.id, e)}
                       onDragEnd={drag.handleFolderDragEnd}
                       onDragOver={drag.handleFolderItemDragOver(folder)}
-                      onDrop={drag.handleFolderItemDrop(folder)}
+                      onDrop={multiSelect.handleMultiFolderDrop(folder)}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        handleFolderContextMenu(folder.id, e.clientX, e.clientY)
+                      }}
                     >
                       <div className="project-hub__list-row-main">
                         <Folder size={17} aria-hidden={true} />
@@ -270,10 +314,11 @@ export default function Library({
                 onFolderDragStart={drag.handleFolderDragStart}
                 onFolderDragEnd={drag.handleFolderDragEnd}
                 onFolderDragOver={drag.handleFolderItemDragOver}
-                onFolderDrop={drag.handleFolderItemDrop}
+                onFolderDrop={multiSelect.handleMultiFolderDrop}
                 getFolderDropClassName={drag.getFolderDropClassName}
                 getFolderReorderClassName={drag.getFolderReorderClassName}
                 onFolderContextMenu={handleFolderContextMenu}
+                selectedIds={multiSelect.liveSelectedIds}
                 editingFolderId={editingFolderId}
                 editingFolderName={editingFolderName}
                 onEditingFolderNameChange={setEditingFolderName}
@@ -289,17 +334,22 @@ export default function Library({
                   {activeProjects.filter((p) => !p.folderId).map((project) => (
                     <article
                       key={project.id}
-                      className={`project-hub__list-row ${project.id === (selectedProjectId ?? activeProjectId) ? "project-hub__list-row--selected" : ""} ${drag.draggingProjectId === project.id ? "project-hub__list-row--dragging" : ""} ${drag.getProjectDropClassName(project.id).replace("project-card", "project-hub__list-row")}`.trim()}
+                      data-selectable-id={project.id}
+                      className={`project-hub__list-row ${project.id === (selectedProjectId ?? activeProjectId) || multiSelect.liveSelectedIds.has(project.id) ? "project-hub__list-row--selected" : ""} ${drag.draggingProjectId === project.id ? "project-hub__list-row--dragging" : ""} ${drag.getProjectDropClassName(project.id).replace("project-card", "project-hub__list-row")}`.trim()}
                       onClick={() => { setSelectedProjectId(project.id); onOpenProject(project.id) }}
                       role="button"
                       tabIndex={0}
                       draggable
                       onKeyDown={(e) => { if (e.key === "Enter") onOpenProject(project.id) }}
-                      onDragStart={(e) => drag.handleProjectDragStart(project.id, e)}
-                      onDragEnd={drag.handleProjectDragEnd}
+                      onDragStart={(e) => multiSelect.handleMultiDragStart(project.id, e)}
+                      onDragEnd={multiSelect.handleMultiDragEnd}
                       onDragEnter={drag.updateProjectDropTarget(project)}
                       onDragOver={drag.updateProjectDropTarget(project)}
-                      onDrop={drag.handleCardDrop(project)}
+                      onDrop={multiSelect.handleMultiCardDrop(project)}
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        handleProjectContextMenu(project.id, e.clientX, e.clientY)
+                      }}
                     >
                       <div className="project-hub__list-row-main">
                         {project.kind === "Book" ? <BookOpenText size={17} aria-hidden={true} /> : <FileText size={17} aria-hidden={true} />}
@@ -318,7 +368,7 @@ export default function Library({
                   className={`project-hub__root-drop ${drag.draggingProjectId ? "project-hub__root-drop--ready" : ""} ${drag.getRootDropClassName("top")}`.trim()}
                   aria-hidden="true"
                   onDragOver={drag.handleRootDragOver("top")}
-                  onDrop={drag.handleRootDrop("top")}
+                  onDrop={multiSelect.handleMultiRootDrop("top")}
                 />
 
                 {drag.topRootProjects.map((project) => renderProjectCard(project))}
@@ -329,7 +379,7 @@ export default function Library({
                   className={`project-hub__root-drop ${drag.draggingProjectId ? "project-hub__root-drop--ready" : ""} ${drag.getRootDropClassName("bottom")}`.trim()}
                   aria-hidden="true"
                   onDragOver={drag.handleRootDragOver("bottom")}
-                  onDrop={drag.handleRootDrop("bottom")}
+                  onDrop={multiSelect.handleMultiRootDrop("bottom")}
                 />
               </ul>
             )}
@@ -419,7 +469,41 @@ export default function Library({
           y={contextMenu.y}
           onClose={closeContextMenu}
           actions={
-            contextMenu.isFolder
+            contextMenu.isMultiSelect
+              ? buildMultiSelectActions({
+                  ids: multiSelect.selectedIds,
+                  onDuplicate: (ids) => {
+                    for (const id of ids) {
+                      if (!folderIdSet.has(id)) {
+                        setProjects((cur) => duplicateProject(cur, id))
+                      }
+                    }
+                    multiSelect.clearSelection()
+                  },
+                  onArchive: (ids) => {
+                    for (const id of ids) {
+                      if (folderIdSet.has(id)) {
+                        setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+                        setFolders((cur) => cur.filter((f) => f.id !== id))
+                      } else {
+                        setProjects((cur) => cur.map((p) => p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+                      }
+                    }
+                    multiSelect.clearSelection()
+                  },
+                  onTrash: (ids) => {
+                    for (const id of ids) {
+                      if (folderIdSet.has(id)) {
+                        setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, folderId: null } : p))
+                        setFolders((cur) => cur.filter((f) => f.id !== id))
+                      } else {
+                        moveToTrash(id)
+                      }
+                    }
+                    multiSelect.clearSelection()
+                  },
+                })
+              : contextMenu.isFolder
               ? buildFolderActions({
                   folderId: contextMenu.projectId,
                   onRename: (id) => startFolderRename(id),
