@@ -1,10 +1,17 @@
-import { useMemo, useState } from "react"
-import { Archive, BookText, ChevronDown, Clock3, Folder, LibraryBig, NotebookText, Pencil, Settings2, Trash2 } from "lucide-react"
-import { requestNavigateArchive, requestNavigateDeleted, requestNavigateLibrary, requestNavigateRecent } from "../../../core/editorEvents"
+import { useCallback, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
+import { Archive, BookCopy, BookText, ChevronDown, Clock3, Folder, LibraryBig, NotebookText, ScrollText, Trash2 } from "lucide-react"
+import { requestNavigateArchive, requestNavigateTrash, requestNavigateLibrary, requestNavigateRecent } from "../../../core/editorEvents"
 import type { Project } from "../../../core/projects"
+import { duplicateProject } from "../../../core/libraryUtils"
+import { downloadProjectAsMarkdown } from "../../../core/markdown"
+import { exportProjectAsPdf } from "../../../core/pdfExport"
 import type { ProjectFolder } from "../../pages/Library"
 import { useListDrag } from "../editor/hooks/useListDrag"
 import useSectionDrop from "../library/useSectionDrop"
+import useProjectSettings from "../library/useProjectSettings"
+import ProjectContextMenu, { buildProjectActions, buildFolderActions, type ProjectContextMenuState } from "../library/ProjectContextMenu"
+import ProjectSettings from "../settings/ProjectSettings"
 import Modal from "../ui/Modal"
 import Button from "../ui/Button"
 import "./ProjectBrowserPanel.css"
@@ -16,7 +23,6 @@ type ProjectBrowserPanelProps = {
   isLibraryView: boolean
   onNavigateLibrary: () => void
   onOpenProject: (projectId: string) => void
-  onOpenProjectSettings: (projectId: string) => void
   setFolders: React.Dispatch<React.SetStateAction<ProjectFolder[]>>
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
 }
@@ -28,18 +34,22 @@ export default function ProjectBrowserPanel({
   isLibraryView,
   onNavigateLibrary,
   onOpenProject,
-  onOpenProjectSettings,
   setFolders,
   setProjects,
 }: ProjectBrowserPanelProps) {
   const drag = useListDrag({ flatOnly: true })
   const sectionDrop = useSectionDrop({ folders, setProjects, setFolders })
+  const settings = useProjectSettings({ projects, setProjects })
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingFolderName, setEditingFolderName] = useState("")
-  const [pendingDeleteFolderId, setPendingDeleteFolderId] = useState<string | null>(null)
-  const [browserSection, setBrowserSection] = useState<"library" | "recent" | "archive" | "deleted">("library")
+  const [pendingTrashFolderId, setPendingTrashFolderId] = useState<string | null>(null)
+  const [browserSection, setBrowserSection] = useState<"library" | "recent" | "archive" | "trash">("library")
   const [externalFolderDropId, setExternalFolderDropId] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [editingProjectName, setEditingProjectName] = useState("")
 
   const topRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "top")
   const bottomRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "bottom")
@@ -137,23 +147,42 @@ export default function ProjectBrowserPanel({
     cancelFolderRename()
   }
 
-  const confirmDeleteFolder = () => {
-    if (!pendingDeleteFolderId) return
+  const confirmTrashFolder = () => {
+    if (!pendingTrashFolderId) return
 
     setProjects((current) =>
       current.map((p) =>
-        p.folderId === pendingDeleteFolderId
+        p.folderId === pendingTrashFolderId
           ? { ...p, folderId: null, rootPosition: "top" as const }
           : p,
       ),
     )
-    setFolders((current) => current.filter((f) => f.id !== pendingDeleteFolderId))
-    setPendingDeleteFolderId(null)
+    setFolders((current) => current.filter((f) => f.id !== pendingTrashFolderId))
+    setPendingTrashFolderId(null)
   }
 
-  const pendingDeleteFolder = pendingDeleteFolderId
-    ? folders.find((f) => f.id === pendingDeleteFolderId)
+  const pendingTrashFolder = pendingTrashFolderId
+    ? folders.find((f) => f.id === pendingTrashFolderId)
     : null
+
+  const startProjectRename = (projectId: string, currentName: string) => {
+    setEditingProjectId(projectId)
+    setEditingProjectName(currentName)
+  }
+
+  const cancelProjectRename = () => {
+    setEditingProjectId(null)
+    setEditingProjectName("")
+  }
+
+  const commitProjectRename = () => {
+    if (!editingProjectId) return
+    const trimmed = editingProjectName.trim()
+    if (trimmed) {
+      setProjects((cur) => cur.map((p) => p.id === editingProjectId ? { ...p, name: trimmed } : p))
+    }
+    cancelProjectRename()
+  }
 
   const renderProject = (project: Project, depth = 0) => {
     const isActive = project.id === activeProjectId
@@ -161,6 +190,7 @@ export default function ProjectBrowserPanel({
     const isDropBefore = drag.dropTarget?.targetId === project.id && drag.dropTarget.mode === "before"
     const isDropAfter = drag.dropTarget?.targetId === project.id && drag.dropTarget.mode === "after"
     const Icon = project.kind === "Book" ? BookText : NotebookText
+    const isEditingProject = editingProjectId === project.id
 
     return (
       <li key={project.id} className="project-browser__item">
@@ -181,32 +211,40 @@ export default function ProjectBrowserPanel({
             if (result) commitProjectDrop(result.targetId, result.mode as "before" | "after")
           }}
         >
-          <button
-            type="button"
-            draggable
-            className={`project-browser__label ${isDragging ? "project-browser__label--dragging" : ""}`.trim()}
-            style={{ paddingLeft: `${8 + depth * 16}px` }}
-            onClick={() => onOpenProject(project.id)}
-            onDragStart={(event) => drag.handleDragStart(event, project.id, editingFolderId)}
-            onDragEnd={() => drag.handleDragEnd()}
-          >
-            <span className="project-browser__icon">
-              <Icon size={14} strokeWidth={1.8} aria-hidden="true" />
-            </span>
-            <span className="project-browser__label-text">{project.name}</span>
-          </button>
+          {isEditingProject ? (
+            <input
+              className="project-browser__rename-input"
+              value={editingProjectName}
+              autoFocus
+              onChange={(event) => setEditingProjectName(event.target.value)}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") { event.preventDefault(); commitProjectRename() }
+                if (event.key === "Escape") { event.preventDefault(); cancelProjectRename() }
+              }}
+              onBlur={commitProjectRename}
+            />
+          ) : (
+            <button
+              type="button"
+              draggable
+              className={`project-browser__label ${isDragging ? "project-browser__label--dragging" : ""}`.trim()}
+              style={{ paddingLeft: `${8 + depth * 16}px` }}
+              onClick={() => onOpenProject(project.id)}
+              onDragStart={(event) => drag.handleDragStart(event, project.id, editingFolderId)}
+              onDragEnd={() => drag.handleDragEnd()}
+              onContextMenu={(event) => {
+                event.preventDefault()
+                setContextMenu({ x: event.clientX, y: event.clientY, projectId: project.id })
+              }}
+            >
+              <span className="project-browser__icon">
+                <Icon size={14} strokeWidth={1.8} aria-hidden="true" />
+              </span>
+              <span className="project-browser__label-text">{project.name}</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            className="project-browser__settings-btn"
-            aria-label={`Settings for ${project.name}`}
-            onClick={(event) => {
-              event.stopPropagation()
-              onOpenProjectSettings(project.id)
-            }}
-          >
-            <Settings2 size={13} strokeWidth={2} aria-hidden="true" />
-          </button>
         </div>
 
         <div
@@ -293,37 +331,13 @@ export default function ProjectBrowserPanel({
                 }}
                 onContextMenu={(event) => {
                   event.preventDefault()
-                  startFolderRename(folder.id, folder.name)
+                  setContextMenu({ x: event.clientX, y: event.clientY, projectId: folder.id, isFolder: true })
                 }}
               >
                 <span className="project-browser__icon">
                   <Folder size={14} strokeWidth={1.8} aria-hidden="true" />
                 </span>
                 <span className="project-browser__label-text">{folder.name}</span>
-              </button>
-
-              <button
-                type="button"
-                className="project-browser__edit-btn"
-                aria-label={`Rename ${folder.name}`}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  startFolderRename(folder.id, folder.name)
-                }}
-              >
-                <Pencil size={13} strokeWidth={2} aria-hidden="true" />
-              </button>
-
-              <button
-                type="button"
-                className="project-browser__delete-btn"
-                aria-label={`Delete ${folder.name}`}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setPendingDeleteFolderId(folder.id)
-                }}
-              >
-                <Trash2 size={13} strokeWidth={2} aria-hidden="true" />
               </button>
 
               {hasProjects ? (
@@ -414,19 +428,19 @@ export default function ProjectBrowserPanel({
           <button
             type="button"
             role="tab"
-            aria-selected={browserSection === "deleted"}
-            className={`project-browser__section-btn ${browserSection === "deleted" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("deleted")}`.trim()}
+            aria-selected={browserSection === "trash"}
+            className={`project-browser__section-btn ${browserSection === "trash" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("trash")}`.trim()}
             onClick={() => {
-              setBrowserSection("deleted")
+              setBrowserSection("trash")
               onNavigateLibrary()
-              requestNavigateDeleted()
+              requestNavigateTrash()
             }}
-            onDragOver={sectionDrop.handleSectionDragOver("deleted")}
+            onDragOver={sectionDrop.handleSectionDragOver("trash")}
             onDragLeave={sectionDrop.handleSectionDragLeave}
-            onDrop={sectionDrop.handleSectionDrop("deleted")}
+            onDrop={sectionDrop.handleSectionDrop("trash")}
           >
             <Trash2 size={14} strokeWidth={1.9} aria-hidden="true" />
-            <span>Recently Deleted</span>
+            <span>Trash</span>
           </button>
         </div>
         <div className="project-browser__section-divider" aria-hidden="true" />
@@ -451,26 +465,138 @@ export default function ProjectBrowserPanel({
         </ul>
       </div>
 
-      <Modal
-        isOpen={Boolean(pendingDeleteFolderId)}
-        onClose={() => setPendingDeleteFolderId(null)}
-        title="Delete Folder"
-        titleIcon={<Trash2 size={19} strokeWidth={1.9} aria-hidden="true" />}
-        closeLabel="Cancel"
-        footer={
-          <Button variant="footer-danger" onClick={confirmDeleteFolder}>
-            <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-            Delete
-          </Button>
-        }
-      >
-        <p>
-          Are you sure you want to delete <strong>{pendingDeleteFolder?.name}</strong>?
-          {projects.filter((p) => p.folderId === pendingDeleteFolderId).length > 0
-            ? " Projects inside will be moved to the root."
-            : null}
-        </p>
-      </Modal>
+      {createPortal(
+        <>
+          <Modal
+            isOpen={Boolean(pendingTrashFolderId)}
+            onClose={() => setPendingTrashFolderId(null)}
+            title="Trash Folder"
+            titleIcon={<Trash2 size={19} strokeWidth={1.9} aria-hidden="true" />}
+            closeLabel="Cancel"
+            footer={
+              <Button variant="footer-danger" onClick={confirmTrashFolder}>
+                <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+                Trash
+              </Button>
+            }
+          >
+            <p>
+              Are you sure you want to trash <strong>{pendingTrashFolder?.name}</strong>?
+              {projects.filter((p) => p.folderId === pendingTrashFolderId).length > 0
+                ? " Projects inside will be moved to the root."
+                : null}
+            </p>
+          </Modal>
+
+          <Modal
+            isOpen={settings.isOpen}
+            onClose={settings.close}
+            title="Project Preferences"
+            titleIcon={<ScrollText size={19} strokeWidth={1.9} aria-hidden="true" />}
+            closeLabel="Close Settings"
+            actions={
+              <>
+                <Button variant="footer" onClick={settings.duplicate} disabled={!settings.settingsProject}>
+                  <BookCopy size={14} strokeWidth={2} aria-hidden={true} />
+                  Duplicate
+                </Button>
+                <Button
+                  variant="footer"
+                  onClick={() => {
+                    if (!settings.settingsProject) return
+                    setProjects((cur) => cur.map((p) => p.id === settings.settingsProject!.id ? { ...p, archivedAt: new Date().toISOString() } : p))
+                    settings.close()
+                  }}
+                  disabled={!settings.settingsProject}
+                >
+                  <Archive size={14} strokeWidth={2} aria-hidden={true} />
+                  Archive
+                </Button>
+                <Button
+                  variant="footer-danger"
+                  onClick={() => {
+                    if (!settings.settingsProject) return
+                    settings.close()
+                    setProjects((cur) => cur.map((p) => p.id === settings.settingsProject!.id ? { ...p, deletedAt: new Date().toISOString() } : p))
+                  }}
+                >
+                  <Trash2 size={14} strokeWidth={2} aria-hidden={true} />
+                  Trash
+                </Button>
+              </>
+            }
+          >
+            <ProjectSettings
+              fieldClassName="project-settings-modal__field"
+              projectName={settings.projectName}
+              projectKind={settings.projectKind}
+              markdownEditorEnabled={settings.markdownEditorEnabled}
+              projectColor={settings.projectColor}
+              projectWallpaperEmojis={settings.wallpaperEmojis}
+              onProjectNameChange={(nextName) => {
+                settings.setProjectName(nextName)
+                if (settings.error) settings.setError("")
+              }}
+              onProjectKindChange={settings.setProjectKind}
+              onMarkdownEditorEnabledChange={settings.setMarkdownEditorEnabled}
+              onProjectColorChange={settings.setProjectColor}
+              onProjectWallpaperEmojisChange={settings.setWallpaperEmojis}
+              onExportProject={() => {
+                if (!settings.settingsProject) return
+                if (settings.markdownEditorEnabled) { downloadProjectAsMarkdown(settings.settingsProject); return }
+                exportProjectAsPdf(settings.settingsProject)
+              }}
+              onMarkdownPromptDismissed={settings.close}
+            />
+            {settings.error ? <p className="ui-modal__error">{settings.error}</p> : null}
+          </Modal>
+        </>,
+        document.querySelector('.app') ?? document.body,
+      )}
+
+      {contextMenu ? (
+        <ProjectContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={closeContextMenu}
+          actions={
+            contextMenu.isFolder
+              ? buildFolderActions({
+                  folderId: contextMenu.projectId,
+                  onRename: (id) => {
+                    const folder = folders.find((f) => f.id === id)
+                    if (folder) startFolderRename(id, folder.name)
+                  },
+                  onArchive: (id) => {
+                    setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+                    setFolders((cur) => cur.filter((f) => f.id !== id))
+                  },
+                  onTrash: (id) => setPendingTrashFolderId(id),
+                })
+              : buildProjectActions({
+                  projectId: contextMenu.projectId,
+                  onOpenInNewTab: onOpenProject,
+                  onRename: (id) => {
+                    const project = projects.find((p) => p.id === id)
+                    if (project) startProjectRename(id, project.name)
+                  },
+                  onOpenSettings: (id) => {
+                    const project = projects.find((p) => p.id === id)
+                    if (project) settings.open(project)
+                  },
+                  onDuplicate: (id) => {
+                    setProjects((current) => duplicateProject(current, id))
+                  },
+                  onArchive: (id) => {
+                    setProjects((cur) => cur.map((p) => p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+                  },
+                  onTrash: (id) => {
+                    setProjects((cur) => cur.map((p) => p.id === id ? { ...p, deletedAt: new Date().toISOString() } : p))
+                  },
+                })
+          }
+        />
+      ) : null}
     </div>
   )
 }

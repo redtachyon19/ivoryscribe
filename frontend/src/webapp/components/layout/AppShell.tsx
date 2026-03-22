@@ -29,7 +29,6 @@ export type AppShellProps = {
   onCreateProject: () => void
   onCreateFolder: () => void
   onOpenProject: (projectId: string) => void
-  onOpenProjectSettings: (projectId: string) => void
   onReturnToDashboard: () => void
   onToggleWordStats: () => void
   sessionToken: string
@@ -60,7 +59,6 @@ export default function AppShell({
   onCreateProject,
   onCreateFolder,
   onOpenProject,
-  onOpenProjectSettings,
   onReturnToDashboard,
   onToggleWordStats,
   sessionToken,
@@ -282,7 +280,6 @@ export default function AppShell({
           onCreateProject={onCreateProject}
           onCreateFolder={onCreateFolder}
           onOpenProject={handleOpenProject}
-          onOpenProjectSettings={onOpenProjectSettings}
           onReturnToDashboard={handleReturnToDashboard}
           onProjectChange={onProjectChange}
           onToggleWordStats={onToggleWordStats}

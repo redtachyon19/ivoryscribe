@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from "react"
-import { BookText, NotebookText, Settings2, SquareArrowOutUpRight, X } from "lucide-react"
+import { BookText, NotebookText } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type Project } from "../../../core/projects"
-import GhostButton from "../ui/GhostButton"
 
 function hexToRgba(hex: string, alpha: number) {
   const normalized = hex.replace("#", "")
@@ -42,11 +41,7 @@ export type ProjectCardProps = {
   project: Project
   isDragging: boolean
   dropClassName: string
-  openProjectSettingsId: string | null
   onOpenProject: (projectId: string) => void
-  onOpenProjectInNewTab: (projectId: string) => void
-  onOpenProjectSettings: (project: Project) => void
-  onCloseProjectSettings: () => void
   onDragStart: (projectId: string, event: DragEvent<HTMLElement>) => void
   onDragEnd: () => void
   onDragEnter: (event: DragEvent<HTMLElement>) => void
@@ -55,17 +50,14 @@ export type ProjectCardProps = {
   setEditingProjectId: (id: string | null) => void
   editingProjectId: string | null
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
+  onContextMenu?: (projectId: string, x: number, y: number) => void
 }
 
 export default function ProjectCard({
   project,
   isDragging,
   dropClassName,
-  openProjectSettingsId,
   onOpenProject,
-  onOpenProjectInNewTab,
-  onOpenProjectSettings,
-  onCloseProjectSettings,
   onDragStart,
   onDragEnd,
   onDragEnter,
@@ -74,6 +66,7 @@ export default function ProjectCard({
   setEditingProjectId,
   editingProjectId,
   setProjects,
+  onContextMenu,
 }: ProjectCardProps) {
   const [editingName, setEditingName] = useState("")
   const renameTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -143,6 +136,12 @@ export default function ProjectCard({
       onDragOver={onDragOver}
       onDrop={onDrop}
       onClick={handleProjectCardClick}
+      onContextMenu={(event) => {
+        if (onContextMenu) {
+          event.preventDefault()
+          onContextMenu(project.id, event.clientX, event.clientY)
+        }
+      }}
     >
       <div className="project-card__thumb" aria-hidden="true">
         {project.kind === "Book" ? (
@@ -150,38 +149,6 @@ export default function ProjectCard({
         ) : (
           <NotebookText size={28} strokeWidth={1.6} />
         )}
-      </div>
-
-      <div className="project-card__actions">
-        <GhostButton
-          small
-          className="project-card__icon-btn"
-          aria-label={`Open ${project.name} in new tab`}
-          label="Open in New Tab"
-          onClick={() => onOpenProjectInNewTab(project.id)}
-        >
-          <SquareArrowOutUpRight size={13} strokeWidth={2} aria-hidden={true} />
-        </GhostButton>
-
-        <GhostButton
-          small
-          className="project-card__icon-btn"
-          aria-label={openProjectSettingsId === project.id ? "Cancel" : `Edit ${project.name}`}
-          label={openProjectSettingsId === project.id ? "Cancel" : "Edit Project"}
-          onClick={() => {
-            if (openProjectSettingsId === project.id) {
-              onCloseProjectSettings()
-              return
-            }
-            onOpenProjectSettings(project)
-          }}
-        >
-          {openProjectSettingsId === project.id ? (
-            <X size={13} strokeWidth={2} aria-hidden={true} />
-          ) : (
-            <Settings2 size={13} strokeWidth={2} aria-hidden={true} />
-          )}
-        </GhostButton>
       </div>
 
       <div className="project-card__info">

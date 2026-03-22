@@ -2,7 +2,7 @@ import { useState, type DragEvent, type Dispatch, type SetStateAction } from "re
 import type { Project } from "../../../core/projects"
 import type { ProjectFolder } from "../../pages/Library"
 
-type SectionTarget = "library" | "archive" | "deleted" | null
+type SectionTarget = "library" | "archive" | "trash" | null
 
 type UseSectionDropOptions = {
   folders: ProjectFolder[]
@@ -13,7 +13,7 @@ type UseSectionDropOptions = {
 export default function useSectionDrop({ folders, setProjects, setFolders }: UseSectionDropOptions) {
   const [sectionDropTarget, setSectionDropTarget] = useState<SectionTarget>(null)
 
-  const handleSectionDragOver = (section: "library" | "archive" | "deleted") => (event: DragEvent<HTMLElement>) => {
+  const handleSectionDragOver = (section: "library" | "archive" | "trash") => (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
     if (sectionDropTarget !== section) setSectionDropTarget(section)
   }
@@ -24,7 +24,7 @@ export default function useSectionDrop({ folders, setProjects, setFolders }: Use
     setSectionDropTarget(null)
   }
 
-  const handleSectionDrop = (section: "library" | "archive" | "deleted") => (event: DragEvent<HTMLElement>) => {
+  const handleSectionDrop = (section: "library" | "archive" | "trash") => (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
     event.stopPropagation()
     const id = event.dataTransfer.getData("text/plain")
@@ -40,7 +40,7 @@ export default function useSectionDrop({ folders, setProjects, setFolders }: Use
           return { ...p, archivedAt: null, deletedAt: null }
         case "archive":
           return { ...p, archivedAt: p.archivedAt ?? now, deletedAt: null }
-        case "deleted":
+        case "trash":
           return { ...p, deletedAt: p.deletedAt ?? now, archivedAt: null }
       }
     }
@@ -63,13 +63,13 @@ export default function useSectionDrop({ folders, setProjects, setFolders }: Use
     setSectionDropTarget(null)
   }
 
-  const getSectionDropClass = (section: "library" | "archive" | "deleted") =>
+  const getSectionDropClass = (section: "library" | "archive" | "trash") =>
     sectionDropTarget === section ? "project-browser__section-btn--drop-target" : ""
 
   return { sectionDropTarget, handleSectionDragOver, handleSectionDragLeave, handleSectionDrop, getSectionDropClass }
 }
 
-/** Lightweight drag-start handler for cross-section project moves (used by Archive, Deleted, Recent pages). */
+/** Lightweight drag-start handler for cross-section project moves (used by Archive, Trash, Recent pages). */
 export function handleSectionDragStart(projectId: string, event: React.DragEvent<HTMLElement>) {
   event.dataTransfer.effectAllowed = "move"
   event.dataTransfer.setData("text/plain", projectId)

@@ -1,9 +1,10 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Clock } from "lucide-react"
 import type { Project } from "../../core/projects"
 import ProjectCard from "../components/library/ProjectCard"
 import { handleSectionDragStart } from "../components/library/useSectionDrop"
 import { useViewMode, useSortMode, applySortMode, ViewToggle, ProjectListView } from "../components/library/useViewMode"
+import ProjectContextMenu, { buildProjectActions, type ProjectContextMenuState } from "../components/library/ProjectContextMenu"
 
 type RecentViewProps = {
   projects: Project[]
@@ -16,6 +17,11 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const { viewMode, toggle: toggleView } = useViewMode()
   const { sortMode, cycleSortMode } = useSortMode("context-desc")
+  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
+  const closeContextMenu = useCallback(() => setContextMenu(null), [])
+  const handleProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
+    setContextMenu({ x, y, projectId })
+  }, [])
 
   const sorted = useMemo(
     () => applySortMode(
@@ -60,11 +66,7 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
                 project={project}
                 isDragging={false}
                 dropClassName=""
-                openProjectSettingsId={null}
                 onOpenProject={onOpenProject}
-                onOpenProjectInNewTab={onOpenProjectInNewTab}
-                onOpenProjectSettings={noop}
-                onCloseProjectSettings={noop}
                 onDragStart={handleSectionDragStart}
                 onDragEnd={noop}
                 onDragEnter={noopDragEl}
@@ -73,6 +75,7 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
                 setEditingProjectId={setEditingProjectId}
                 editingProjectId={editingProjectId}
                 setProjects={setProjects}
+                onContextMenu={handleProjectContextMenu}
               />
             ))}
           </ul>
@@ -81,6 +84,25 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
           <p className="project-hub__empty">No projects yet. Create one to begin writing.</p>
         )}
       </div>
+
+      {contextMenu ? (
+        <ProjectContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={closeContextMenu}
+          actions={buildProjectActions({
+            projectId: contextMenu.projectId,
+            onOpenInNewTab: onOpenProjectInNewTab,
+            onRename: (id) => setEditingProjectId(id),
+            onArchive: (id) => {
+              setProjects((cur) => cur.map((p) => p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+            },
+            onTrash: (id) => {
+              setProjects((cur) => cur.map((p) => p.id === id ? { ...p, deletedAt: new Date().toISOString() } : p))
+            },
+          })}
+        />
+      ) : null}
     </div>
   )
 }

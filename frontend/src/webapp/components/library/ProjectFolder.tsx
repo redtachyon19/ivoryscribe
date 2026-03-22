@@ -13,12 +13,19 @@ type ProjectFolderGridProps = {
   onFolderDrop?: (folder: ProjectFolderType) => (event: DragEvent<HTMLElement>) => void
   getFolderDropClassName?: (folderId: string) => string
   getFolderReorderClassName?: (folderId: string) => string
+  onFolderContextMenu?: (folderId: string, x: number, y: number) => void
+  editingFolderId?: string | null
+  editingFolderName?: string
+  onEditingFolderNameChange?: (name: string) => void
+  onCommitFolderRename?: () => void
+  onCancelFolderRename?: () => void
 }
 
 export default function ProjectFolderGrid({
   folders, projects, onOpenFolder,
   onFolderDragStart, onFolderDragEnd, onFolderDragOver, onFolderDrop,
-  getFolderDropClassName, getFolderReorderClassName,
+  getFolderDropClassName, getFolderReorderClassName, onFolderContextMenu,
+  editingFolderId, editingFolderName, onEditingFolderNameChange, onCommitFolderRename, onCancelFolderRename,
 }: ProjectFolderGridProps) {
   if (folders.length === 0) return null
 
@@ -31,16 +38,37 @@ export default function ProjectFolderGrid({
           role="button"
           tabIndex={0}
           draggable
-          onClick={() => onOpenFolder(folder.id)}
-          onKeyDown={(e) => { if (e.key === "Enter") onOpenFolder(folder.id) }}
+          onClick={() => { if (editingFolderId !== folder.id) onOpenFolder(folder.id) }}
+          onKeyDown={(e) => { if (e.key === "Enter" && editingFolderId !== folder.id) onOpenFolder(folder.id) }}
           onDragStart={(e) => onFolderDragStart?.(folder.id, e)}
           onDragEnd={onFolderDragEnd}
           onDragOver={onFolderDragOver?.(folder)}
           onDrop={onFolderDrop?.(folder)}
+          onContextMenu={(e) => {
+            if (onFolderContextMenu) {
+              e.preventDefault()
+              onFolderContextMenu(folder.id, e.clientX, e.clientY)
+            }
+          }}
         >
           <Folder size={18} aria-hidden={true} />
           <div>
-            <strong>{folder.name}</strong>
+            {editingFolderId === folder.id ? (
+              <input
+                className="project-hub__folder-rename-input"
+                value={editingFolderName ?? ""}
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => onEditingFolderNameChange?.(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); onCommitFolderRename?.() }
+                  if (e.key === "Escape") { e.preventDefault(); onCancelFolderRename?.() }
+                }}
+                onBlur={() => onCommitFolderRename?.()}
+              />
+            ) : (
+              <strong>{folder.name}</strong>
+            )}
             <span>{projects.filter((p) => p.folderId === folder.id).length} projects</span>
           </div>
         </article>

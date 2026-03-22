@@ -13,7 +13,7 @@ export const PROJECTS_CREATE_FOLDER_EVENT = "projects:create-folder"
 export const NAVIGATE_RECENT_EVENT = "navigate:recent"
 export const NAVIGATE_LIBRARY_EVENT = "navigate:library"
 export const NAVIGATE_ARCHIVE_EVENT = "navigate:archive"
-export const NAVIGATE_DELETED_EVENT = "navigate:deleted"
+export const NAVIGATE_TRASH_EVENT = "navigate:trash"
 
 export type EditorCommand =
   | "undo"
@@ -144,6 +144,6 @@ export function requestNavigateArchive() {
   window.dispatchEvent(new Event(NAVIGATE_ARCHIVE_EVENT))
 }
 
-export function requestNavigateDeleted() {
-  window.dispatchEvent(new Event(NAVIGATE_DELETED_EVENT))
+export function requestNavigateTrash() {
+  window.dispatchEvent(new Event(NAVIGATE_TRASH_EVENT))
 }

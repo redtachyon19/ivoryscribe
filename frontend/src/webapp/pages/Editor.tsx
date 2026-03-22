@@ -4,7 +4,7 @@ import MarkdownEditor from "../components/editor/MarkdownEditor"
 import PinboardEditor from "../components/editor/PinboardEditor"
 import AppShell from "../components/layout/AppShell"
 import Modal from "../components/ui/Modal"
-import { EXPORT_ALL_TABS_PDF_EVENT, NAVIGATE_ARCHIVE_EVENT, NAVIGATE_DELETED_EVENT, NAVIGATE_LIBRARY_EVENT, NAVIGATE_RECENT_EVENT } from "../../core/editorEvents"
+import { EXPORT_ALL_TABS_PDF_EVENT, NAVIGATE_ARCHIVE_EVENT, NAVIGATE_TRASH_EVENT, NAVIGATE_LIBRARY_EVENT, NAVIGATE_RECENT_EVENT } from "../../core/editorEvents"
 import { countWordsFromContent, downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
 import { collectTabIds, getProjectEntryTerms, type Project } from "../../core/projects"
@@ -12,7 +12,7 @@ import type { VersionSettingsEntry } from "../../core/versioning"
 import Library, { type ProjectFolder } from "./Library"
 import RecentView from "./Recent"
 import ArchiveView from "./Archive"
-import DeletedView from "./Deleted"
+import TrashView from "./Trash"
 import "./Library.css"
 import "./Editor.css"
 
@@ -142,7 +142,6 @@ export type EditorProps = {
   onOpenProject: (projectId: string) => void
   onCreateProject: () => void
   onCreateFolder: () => void
-  onOpenProjectSettings: (projectId: string) => void
   onReturnToDashboard: () => void
   onStartTuskCheckout: () => void
   onToggleSettings: () => void
@@ -181,7 +180,6 @@ export default function Editor({
   onOpenProject,
   onCreateProject,
   onCreateFolder,
-  onOpenProjectSettings,
   onToggleSettings,
   onReturnToDashboard,
   onStartTuskCheckout,
@@ -205,24 +203,24 @@ export default function Editor({
   const [isWordStatsOpen, setIsWordStatsOpen] = useState(false)
   const [isDetailedWordStatsOpen, setIsDetailedWordStatsOpen] = useState(false)
   const [includedTabsById, setIncludedTabsById] = useState<Record<string, boolean>>({})
-  const [dashboardSection, setDashboardSection] = useState<"library" | "recent" | "archive" | "deleted">("library")
+  const [dashboardSection, setDashboardSection] = useState<"library" | "recent" | "archive" | "trash">("library")
 
   useEffect(() => {
     const handleNavigateLibrary = () => setDashboardSection("library")
     const handleNavigateRecent = () => setDashboardSection("recent")
     const handleNavigateArchive = () => setDashboardSection("archive")
-    const handleNavigateDeleted = () => setDashboardSection("deleted")
+    const handleNavigateTrash = () => setDashboardSection("trash")
 
     window.addEventListener(NAVIGATE_LIBRARY_EVENT, handleNavigateLibrary)
     window.addEventListener(NAVIGATE_RECENT_EVENT, handleNavigateRecent)
     window.addEventListener(NAVIGATE_ARCHIVE_EVENT, handleNavigateArchive)
-    window.addEventListener(NAVIGATE_DELETED_EVENT, handleNavigateDeleted)
+    window.addEventListener(NAVIGATE_TRASH_EVENT, handleNavigateTrash)
 
     return () => {
       window.removeEventListener(NAVIGATE_LIBRARY_EVENT, handleNavigateLibrary)
       window.removeEventListener(NAVIGATE_RECENT_EVENT, handleNavigateRecent)
       window.removeEventListener(NAVIGATE_ARCHIVE_EVENT, handleNavigateArchive)
-      window.removeEventListener(NAVIGATE_DELETED_EVENT, handleNavigateDeleted)
+      window.removeEventListener(NAVIGATE_TRASH_EVENT, handleNavigateTrash)
     }
   }, [])
   const activeDocumentTitle = useMemo(() => {
@@ -334,7 +332,6 @@ export default function Editor({
       onCreateProject={onCreateProject}
       onCreateFolder={onCreateFolder}
       onOpenProject={onOpenProject}
-      onOpenProjectSettings={onOpenProjectSettings}
       onReturnToDashboard={onReturnToDashboard}
       onToggleWordStats={() => setIsWordStatsOpen((prev) => !prev)}
       sessionToken={sessionToken}
@@ -357,8 +354,8 @@ export default function Editor({
                 onOpenProject={onOpenProject}
                 onOpenProjectInNewTab={onOpenProjectInNewTab}
               />
-            ) : dashboardSection === "deleted" ? (
-              <DeletedView
+            ) : dashboardSection === "trash" ? (
+              <TrashView
                 projects={projects}
                 setProjects={setProjects}
                 onOpenProject={onOpenProject}

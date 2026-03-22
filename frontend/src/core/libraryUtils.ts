@@ -59,3 +59,38 @@ export function buildDuplicateProjectName(baseName: string, existingNames: strin
     suffix += 1
   }
 }
+
+export function duplicateProject<T extends { id: string; name: string; createdAt: string; activeId: string | null; tabs: { id: string; title: string; children: T["tabs"] }[]; contentById: Record<string, string> }>(
+  projects: T[],
+  projectId: string,
+): T[] {
+  const sourceIndex = projects.findIndex((p) => p.id === projectId)
+  if (sourceIndex === -1) return projects
+  const source = projects[sourceIndex]
+  const tabIdMap = new Map<string, string>()
+
+  const cloneTabs = (tabs: T["tabs"]): T["tabs"] =>
+    tabs.map((tab) => {
+      const nextId = createLocalId()
+      tabIdMap.set(tab.id, nextId)
+      return { ...tab, id: nextId, children: cloneTabs(tab.children) }
+    })
+
+  const nextTabs = cloneTabs(source.tabs)
+  const nextContentById: Record<string, string> = {}
+  tabIdMap.forEach((nextId, oldId) => { nextContentById[nextId] = source.contentById[oldId] ?? "" })
+
+  const dup = {
+    ...source,
+    id: createLocalId(),
+    name: buildDuplicateProjectName(source.name, projects.map((p) => p.name)),
+    createdAt: new Date().toISOString(),
+    tabs: nextTabs,
+    activeId: source.activeId ? (tabIdMap.get(source.activeId) ?? (nextTabs[0]?.id ?? null)) : (nextTabs[0]?.id ?? null),
+    contentById: nextContentById,
+  } as T
+
+  const next = [...projects]
+  next.splice(sourceIndex + 1, 0, dup)
+  return next
+}

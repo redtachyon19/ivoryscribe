@@ -204,70 +204,6 @@
   animation: doc-tabs-label-marquee 15s linear infinite;
 }
 
-.doc-tabs__edit-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  border: 0;
-  background: transparent;
-  color: #bebebe;
-  width: 0;
-  height: 28px;
-  overflow: hidden;
-  padding: 0;
-  margin-right: 0;
-  border-radius: 6px;
-  opacity: 0;
-  pointer-events: none;
-  transition: none;
-}
-
-.doc-tabs__row:hover .doc-tabs__edit-btn,
-.doc-tabs__row:hover .doc-tabs__delete-btn,
-.doc-tabs__edit-btn:focus-visible {
-  width: 28px;
-  margin-right: 4px;
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.doc-tabs__delete-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  border: 0;
-  background: transparent;
-  color: #d38d8d;
-  width: 0;
-  height: 28px;
-  overflow: hidden;
-  padding: 0;
-  margin-right: 0;
-  border-radius: 6px;
-  opacity: 0;
-  pointer-events: none;
-  transition: none;
-}
-
-.doc-tabs__delete-btn:focus-visible {
-  width: 28px;
-  margin-right: 4px;
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.doc-tabs__edit-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-}
-
-.doc-tabs__delete-btn:hover {
-  background: rgba(255, 123, 123, 0.18);
-  color: #ff9f9f;
-}
-
 .doc-tabs__rename-input {
   font-family: var(--app-ui-font);
   width: 100%;
@@ -278,8 +214,8 @@
   line-height: 1.25;
   padding: 9px 10px;
   border-radius: 6px;
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--menu-button, #ededed) 55%, transparent);
   outline: none;
+  caret-color: var(--app-accent, #9ab8ff);
 }
 
 .doc-tabs__delete-modal {

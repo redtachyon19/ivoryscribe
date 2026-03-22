@@ -76,7 +76,7 @@ export default function LibraryPreview() {
           </button>
           <button type="button" className="auth-gateway__library-sidebar-item">
             <Trash2 size={15} aria-hidden={true} />
-            <span>Recently Deleted</span>
+            <span>Trash</span>
           </button>
 
           <div className="auth-gateway__library-storage">
