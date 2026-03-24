@@ -32,6 +32,7 @@ export type AppShellProps = {
   onReturnToDashboard: () => void
   onToggleWordStats: () => void
   sessionToken: string
+  projectDocumentMap: Record<string, string>
   tuskAiActivated: boolean
   isStartingTuskCheckout: boolean
   onStartTuskCheckout: () => void
@@ -62,6 +63,7 @@ export default function AppShell({
   onReturnToDashboard,
   onToggleWordStats,
   sessionToken,
+  projectDocumentMap,
   tuskAiActivated,
   isStartingTuskCheckout,
   onStartTuskCheckout,
@@ -283,6 +285,8 @@ export default function AppShell({
           onReturnToDashboard={handleReturnToDashboard}
           onProjectChange={onProjectChange}
           onToggleWordStats={onToggleWordStats}
+          sessionToken={sessionToken}
+          projectDocumentMap={projectDocumentMap}
         />
 
         <div

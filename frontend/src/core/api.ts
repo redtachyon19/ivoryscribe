@@ -480,3 +480,109 @@ export async function confirmTuskAiCheckoutSession(token: string, sessionId: str
     token,
   )
 }
+
+// ── Sharing ────────────────────────────────────────────────────
+
+export type ShareRecord = {
+  id: string
+  documentId: string
+  recipientEmail: string
+  recipientId: string | null
+  permission: "view" | "edit"
+  status: "pending" | "accepted" | "revoked"
+  createdAt: string
+  acceptedAt: string | null
+}
+
+export type ShareInviteInfo = {
+  id: string
+  ownerName: string
+  projectName: string
+  permission: "view" | "edit"
+  recipientEmail: string
+}
+
+export type SharedDocumentEntry = {
+  shareId: string
+  permission: "view" | "edit"
+  acceptedAt: string
+  owner: { id: string; name: string; email: string }
+  document: DocumentRecord | null
+}
+
+export async function createShare(
+  token: string,
+  input: { documentId: string; recipientEmail: string; permission: "view" | "edit" },
+) {
+  const payload = await request<{ share: ShareRecord }>(
+    "/api/shares",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+  return payload.share
+}
+
+export async function getDocumentShares(token: string, documentId: string) {
+  const payload = await request<{ shares: ShareRecord[] }>(
+    `/api/shares/document/${documentId}`,
+    {},
+    token,
+  )
+  return payload.shares
+}
+
+export async function updateShare(
+  token: string,
+  shareId: string,
+  input: { permission: "view" | "edit" },
+) {
+  const payload = await request<{ share: ShareRecord }>(
+    `/api/shares/${shareId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+  return payload.share
+}
+
+export async function revokeShare(token: string, shareId: string) {
+  return request<{ message: string }>(
+    `/api/shares/${shareId}`,
+    { method: "DELETE" },
+    token,
+  )
+}
+
+export async function acceptShareInvite(token: string, inviteToken: string) {
+  return request<{
+    share: { id: string; documentId: string; permission: string; status: string; acceptedAt: string }
+    document: DocumentRecord | null
+  }>(
+    "/api/shares/accept",
+    {
+      method: "POST",
+      body: JSON.stringify({ inviteToken }),
+    },
+    token,
+  )
+}
+
+export async function getShareInviteInfo(inviteToken: string) {
+  return request<{ invite: ShareInviteInfo }>(
+    `/api/shares/invite/${encodeURIComponent(inviteToken)}`,
+  )
+}
+
+export async function getSharedWithMe(token: string) {
+  const payload = await request<{ sharedDocuments: SharedDocumentEntry[] }>(
+    "/api/shares/shared-with-me",
+    {},
+    token,
+  )
+  return payload.sharedDocuments
+}

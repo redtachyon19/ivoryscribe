@@ -306,6 +306,18 @@
   transform: translateY(1px);
 }
 
+/* ── Inline Sharing ── */
+
+.project-preferences-fields__sharing {
+  gap: 10px;
+}
+
+.project-preferences-fields__sharing > .project-preferences-fields__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .project-preferences-fields__history {
   gap: 12px;
 }

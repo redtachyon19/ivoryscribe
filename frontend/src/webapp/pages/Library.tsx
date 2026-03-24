@@ -17,6 +17,7 @@ import useProjectSettings from "../components/library/useProjectSettings"
 import { useViewMode, ViewToggle, formatRelativeDate } from "../components/library/useViewMode"
 import ProjectContextMenu, { buildProjectActions, buildFolderActions, buildMultiSelectActions, type ProjectContextMenuState } from "../components/library/ProjectContextMenu"
 import useMultiSelect from "../components/library/useMultiSelect"
+import ShareDialog from "../components/settings/ShareDialog"
 import "./Library.css"
 
 export type ProjectFolder = {
@@ -26,11 +27,13 @@ export type ProjectFolder = {
 }
 
 export type LibraryProps = {
+  sessionToken: string
   projects: Project[]
   folders: ProjectFolder[]
   activeProjectId: string | null
   bookCounter: number
   blogCounter: number
+  projectDocumentMap: Record<string, string>
   setBookCounter: Dispatch<SetStateAction<number>>
   setBlogCounter: Dispatch<SetStateAction<number>>
   onOpenProject: (projectId: string) => void
@@ -44,11 +47,13 @@ export type LibraryProps = {
 }
 
 export default function Library({
+  sessionToken,
   projects,
   folders,
   activeProjectId,
   bookCounter,
   blogCounter,
+  projectDocumentMap,
   setBookCounter,
   setBlogCounter,
   onOpenProject,
@@ -66,6 +71,7 @@ export default function Library({
   const { viewMode, toggle: toggleView } = useViewMode()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [openFolderId, setOpenFolderId] = useState<string | null>(null)
+  const [shareDialogProjectId, setShareDialogProjectId] = useState<string | null>(null)
 
   const activeProjects = projects.filter((p) => !p.archivedAt && !p.deletedAt)
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null
@@ -74,6 +80,15 @@ export default function Library({
   const drag = useProjectDrag({ projects: activeProjects, folders, setProjects, setFolders })
   const settings = useProjectSettings({ projects, setProjects })
   const settingsProjectId = settings.settingsProject?.id ?? null
+
+  const shareDialogProject = shareDialogProjectId ? projects.find((p) => p.id === shareDialogProjectId) ?? null : null
+  const shareDialogDocumentId = shareDialogProjectId ? (projectDocumentMap[shareDialogProjectId] ?? null) : null
+
+  const openShareDialog = (projectId: string) => {
+    if (projectDocumentMap[projectId]) {
+      setShareDialogProjectId(projectId)
+    }
+  }
 
   const moveToTrash = (projectId: string) => {
     setProjects((cur) => cur.map((p) => p.id === projectId ? { ...p, deletedAt: new Date().toISOString() } : p))
@@ -458,6 +473,8 @@ export default function Library({
             if (settings.markdownEditorEnabled) { downloadProjectAsMarkdown(settings.settingsProject); return }
             exportProjectAsPdf(settings.settingsProject)
           }}
+          sessionToken={sessionToken}
+          documentId={settingsProjectId ? (projectDocumentMap[settingsProjectId] ?? undefined) : undefined}
           onMarkdownPromptDismissed={settings.close}
         />
         {settings.error ? <p className="ui-modal__error">{settings.error}</p> : null}
@@ -525,10 +542,21 @@ export default function Library({
                     if (project) settings.open(project)
                   },
                   onDuplicate: (id) => setProjects((cur) => duplicateProject(cur, id)),
+                  onShare: (id) => openShareDialog(id),
                   onArchive: (id) => setProjects((cur) => cur.map((p) => p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p)),
                   onTrash: (id) => moveToTrash(id),
                 })
           }
+        />
+      ) : null}
+
+      {shareDialogProjectId && shareDialogDocumentId ? (
+        <ShareDialog
+          isOpen={true}
+          onClose={() => setShareDialogProjectId(null)}
+          sessionToken={sessionToken}
+          documentId={shareDialogDocumentId}
+          projectName={shareDialogProject?.name ?? "Untitled"}
         />
       ) : null}
     </>

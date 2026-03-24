@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
-import { Archive, BookCopy, Pencil, Settings2, SquareArrowOutUpRight, Trash2 } from "lucide-react"
+import { Archive, BookCopy, Pencil, Settings2, SquareArrowOutUpRight, Trash2, UserRoundPlus } from "lucide-react"
 
 export type ContextMenuAction = {
   label: string
@@ -107,6 +107,7 @@ export function buildProjectActions({
   onRename,
   onOpenSettings,
   onDuplicate,
+  onShare,
   onArchive,
   onTrash,
 }: {
@@ -115,6 +116,7 @@ export function buildProjectActions({
   onRename: (id: string) => void
   onOpenSettings?: (id: string) => void
   onDuplicate?: (id: string) => void
+  onShare?: (id: string) => void
   onArchive: (id: string) => void
   onTrash: (id: string) => void
 }): ContextMenuAction[] {
@@ -131,6 +133,10 @@ export function buildProjectActions({
     actions.push({ label: "Duplicate", icon: <BookCopy size={14} strokeWidth={2} aria-hidden={true} />, action: () => onDuplicate(projectId) })
   }
 
+  if (onShare) {
+    actions.push({ label: "Share", icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShare(projectId) })
+  }
+
   actions.push(
     { label: "Archive", icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />, action: () => onArchive(projectId) },
     { label: "Trash", icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => onTrash(projectId), danger: true },
@@ -142,19 +148,30 @@ export function buildProjectActions({
 export function buildFolderActions({
   folderId,
   onRename,
+  onShare,
   onArchive,
   onTrash,
 }: {
   folderId: string
   onRename: (id: string) => void
+  onShare?: (id: string) => void
   onArchive: (id: string) => void
   onTrash: (id: string) => void
 }): ContextMenuAction[] {
-  return [
+  const actions: ContextMenuAction[] = [
     { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => onRename(folderId) },
+  ]
+
+  if (onShare) {
+    actions.push({ label: "Share", icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShare(folderId) })
+  }
+
+  actions.push(
     { label: "Archive", icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />, action: () => onArchive(folderId) },
     { label: "Trash", icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => onTrash(folderId), danger: true },
-  ]
+  )
+
+  return actions
 }
 
 export function buildMultiSelectActions({

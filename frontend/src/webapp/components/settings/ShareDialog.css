@@ -1,0 +1,166 @@
+.share-dialog__form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.share-dialog__email-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+
+.share-dialog__email-input:focus {
+  border-color: var(--accent);
+}
+
+.share-dialog__permission-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+}
+
+.share-dialog__permission-select:focus {
+  border-color: var(--accent);
+}
+
+.share-dialog__send-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-text, #fff);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.share-dialog__send-btn:hover {
+  opacity: 0.85;
+}
+
+.share-dialog__send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.share-dialog__error {
+  color: var(--danger, #e74c3c);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.share-dialog__success {
+  color: var(--success, #2ecc71);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.share-dialog__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.share-dialog__list-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.share-dialog__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+
+.share-dialog__item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.share-dialog__item-email {
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-dialog__item-status {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.share-dialog__item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.share-dialog__item-permission-select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+.share-dialog__revoke-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--danger, #e74c3c);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.share-dialog__revoke-btn:hover {
+  background: var(--bg-secondary);
+}
+
+.share-dialog__empty {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 16px 0;
+}
+
+.share-dialog__loading {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 16px 0;
+}

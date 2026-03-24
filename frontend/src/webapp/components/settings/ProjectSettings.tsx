@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
-import { BookText, Check, Download, FileLock2, History, NotebookText } from "lucide-react"
+import { BookText, Check, Download, FileLock2, History, NotebookText, UserRoundPlus } from "lucide-react"
 import type { ProjectKind } from "../../../core/projects"
+import { SharePanel } from "./ShareDialog"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"
 import "./ProjectSettings.css"
@@ -37,6 +38,8 @@ type ProjectPreferencesFieldsProps = {
   onProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onShowVersionHistory?: () => void
   onExportProject: () => void
+  sessionToken?: string
+  documentId?: string
   onMarkdownPromptVisibilityChange?: (visible: boolean) => void
   onMarkdownPromptDismissed?: () => void
 }
@@ -112,6 +115,8 @@ export default function ProjectSettings({
   onProjectWallpaperEmojisChange,
   onShowVersionHistory,
   onExportProject,
+  sessionToken,
+  documentId,
   onMarkdownPromptVisibilityChange,
   onMarkdownPromptDismissed,
 }: ProjectPreferencesFieldsProps) {
@@ -119,6 +124,8 @@ export default function ProjectSettings({
   const resolvedProjectColor = normalizeProjectColor(projectColor)
   const [projectColorHexDraft, setProjectColorHexDraft] = useState(resolvedProjectColor)
   const [markdownPrompt, setMarkdownPrompt] = useState<MarkdownPromptKind | null>(null)
+
+  const canShare = Boolean(sessionToken && documentId)
 
   const activeMarkdownPrompt = markdownPrompt
 
@@ -285,6 +292,16 @@ export default function ProjectSettings({
           <span>{markdownEditorEnabled ? "Download as .md" : "Export as PDF"}</span>
         </button>
       </div>
+
+      {canShare ? (
+        <div className={`${fieldClassName} project-preferences-fields__field project-preferences-fields__sharing`.trim()}>
+          <span className="project-preferences-fields__label">
+            <UserRoundPlus size={17} strokeWidth={2} aria-hidden="true" />
+            <span>Sharing</span>
+          </span>
+          <SharePanel sessionToken={sessionToken!} documentId={documentId!} />
+        </div>
+      ) : null}
 
       {showVersionHistory ? (
         <div className={`${fieldClassName} project-preferences-fields__field project-preferences-fields__history`.trim()}>

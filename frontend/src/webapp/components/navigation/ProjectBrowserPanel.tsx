@@ -12,6 +12,7 @@ import useSectionDrop from "../library/useSectionDrop"
 import useProjectSettings from "../library/useProjectSettings"
 import ProjectContextMenu, { buildProjectActions, buildFolderActions, type ProjectContextMenuState } from "../library/ProjectContextMenu"
 import ProjectSettings from "../settings/ProjectSettings"
+import ShareDialog from "../settings/ShareDialog"
 import Modal from "../ui/Modal"
 import Button from "../ui/Button"
 import "./ProjectBrowserPanel.css"
@@ -25,6 +26,8 @@ type ProjectBrowserPanelProps = {
   onOpenProject: (projectId: string) => void
   setFolders: React.Dispatch<React.SetStateAction<ProjectFolder[]>>
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
+  sessionToken: string
+  projectDocumentMap: Record<string, string>
 }
 
 export default function ProjectBrowserPanel({
@@ -36,6 +39,8 @@ export default function ProjectBrowserPanel({
   onOpenProject,
   setFolders,
   setProjects,
+  sessionToken,
+  projectDocumentMap,
 }: ProjectBrowserPanelProps) {
   const drag = useListDrag({ flatOnly: true })
   const sectionDrop = useSectionDrop({ folders, setProjects, setFolders })
@@ -50,6 +55,16 @@ export default function ProjectBrowserPanel({
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingProjectName, setEditingProjectName] = useState("")
+  const [shareDialogProjectId, setShareDialogProjectId] = useState<string | null>(null)
+
+  const shareDialogProject = shareDialogProjectId ? projects.find((p) => p.id === shareDialogProjectId) ?? null : null
+  const shareDialogDocumentId = shareDialogProjectId ? (projectDocumentMap[shareDialogProjectId] ?? null) : null
+
+  const openShareDialog = (projectId: string) => {
+    if (projectDocumentMap[projectId]) {
+      setShareDialogProjectId(projectId)
+    }
+  }
 
   const topRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "top")
   const bottomRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "bottom")
@@ -546,6 +561,8 @@ export default function ProjectBrowserPanel({
                 if (settings.markdownEditorEnabled) { downloadProjectAsMarkdown(settings.settingsProject); return }
                 exportProjectAsPdf(settings.settingsProject)
               }}
+              sessionToken={sessionToken}
+              documentId={settings.settingsProject ? (projectDocumentMap[settings.settingsProject.id] ?? undefined) : undefined}
               onMarkdownPromptDismissed={settings.close}
             />
             {settings.error ? <p className="ui-modal__error">{settings.error}</p> : null}
@@ -593,8 +610,19 @@ export default function ProjectBrowserPanel({
                   onTrash: (id) => {
                     setProjects((cur) => cur.map((p) => p.id === id ? { ...p, deletedAt: new Date().toISOString() } : p))
                   },
+                  onShare: (id) => openShareDialog(id),
                 })
           }
+        />
+      ) : null}
+
+      {shareDialogProjectId && shareDialogDocumentId ? (
+        <ShareDialog
+          isOpen
+          onClose={() => setShareDialogProjectId(null)}
+          sessionToken={sessionToken}
+          documentId={shareDialogDocumentId}
+          projectName={shareDialogProject?.name ?? "Untitled"}
         />
       ) : null}
     </div>

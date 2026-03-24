@@ -159,6 +159,7 @@ export type EditorProps = {
   onOpenProjectInNewTab: (projectId: string) => void
   activeProjectVersionsByProjectId?: Record<string, VersionSettingsEntry[]>
   onShowVersionHistory?: (projectId: string) => void
+  projectDocumentMap: Record<string, string>
 }
 
 export default function Editor({
@@ -196,6 +197,7 @@ export default function Editor({
   onOpenProjectInNewTab,
   activeProjectVersionsByProjectId = {},
   onShowVersionHistory,
+  projectDocumentMap,
 }: EditorProps) {
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
   const markdownEditorEnabled = project ? Boolean(project.markdownEditorEnabled) : false
@@ -335,6 +337,7 @@ export default function Editor({
       onReturnToDashboard={onReturnToDashboard}
       onToggleWordStats={() => setIsWordStatsOpen((prev) => !prev)}
       sessionToken={sessionToken}
+      projectDocumentMap={projectDocumentMap}
       tuskAiActivated={tuskAiActivated}
       isStartingTuskCheckout={isStartingTuskCheckout}
       onStartTuskCheckout={onStartTuskCheckout}
@@ -363,11 +366,13 @@ export default function Editor({
               />
             ) : (
               <Library
+                sessionToken={sessionToken}
                 projects={projects}
                 folders={folders}
                 activeProjectId={activeProjectId}
                 bookCounter={bookCounter}
                 blogCounter={blogCounter}
+                projectDocumentMap={projectDocumentMap}
                 setBookCounter={setBookCounter}
                 setBlogCounter={setBlogCounter}
                 onOpenProject={onOpenProject}
