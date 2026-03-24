@@ -6,6 +6,7 @@ import {
   getBillingStatus,
   getDocuments,
   getPreferences,
+  getSharedWithMe,
   updateDocument,
   updatePreferences,
 } from "./api"
@@ -157,12 +158,16 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
   const saveTimeoutRef = useRef<number | null>(null)
   const isSyncingRef = useRef(false)
+  // Track document IDs that belong to shared projects (not owned by this user).
+  // These must not be re-created or deleted during sync.
+  const sharedDocumentIdsRef = useRef<Set<string>>(new Set())
 
   const hydrateWorkspace = async (token: string) => {
-    const [documentsResult, preferencesResult, billingResult] = await Promise.allSettled([
+    const [documentsResult, preferencesResult, billingResult, sharedResult] = await Promise.allSettled([
       getDocuments(token),
       getPreferences(token),
       getBillingStatus(token),
+      getSharedWithMe(token),
     ])
 
     if (documentsResult.status === "rejected") {
@@ -210,6 +215,28 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
       nextProjects.push(project)
       nextDocumentMap[project.id] = documentRecord.id
     }
+
+    // Merge shared documents (projects shared with this user by others)
+    const nextSharedDocumentIds = new Set<string>()
+    if (sharedResult.status === "fulfilled") {
+      const sharedEntries = sharedResult.value
+      const ownedProjectIds = new Set(nextProjects.map((p) => p.id))
+
+      for (const entry of sharedEntries) {
+        if (!entry.document || !entry.document.content) continue
+
+        const sharedProject = parseProjectFromDocument(entry.document)
+        if (!sharedProject) continue
+
+        // Skip if the user already owns a project with the same ID
+        if (ownedProjectIds.has(sharedProject.id)) continue
+
+        nextProjects.push(sharedProject)
+        nextDocumentMap[sharedProject.id] = entry.document.id
+        nextSharedDocumentIds.add(entry.document.id)
+      }
+    }
+    sharedDocumentIdsRef.current = nextSharedDocumentIds
 
     const projectList = nextProjects.length ? nextProjects : [createProject("Book 1", "Book")]
     const uiSettings = (preferences.uiSettings ?? {}) as PreferencesPayload["uiSettings"]
@@ -361,14 +388,26 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
             }
 
             const existingDocumentId = projectDocumentMap[project.id] ?? remoteByProjectId.get(project.id)
+            const isSharedDocument = existingDocumentId ? sharedDocumentIdsRef.current.has(existingDocumentId) : false
+
             if (existingDocumentId) {
-              await updateDocument(session.token, existingDocumentId, payload)
+              // For shared documents, attempt update (backend enforces edit permission).
+              // For owned documents, update normally.
+              try {
+                await updateDocument(session.token, existingDocumentId, payload)
+              } catch {
+                // Shared doc with view-only permission will 404 — keep the map entry
+              }
               nextDocumentMap[project.id] = existingDocumentId
               continue
             }
 
-            const created = await createDocument(session.token, payload)
-            nextDocumentMap[project.id] = created.id
+            // Only create new backend documents for projects that aren't shared.
+            // A shared project should always already have an existingDocumentId.
+            if (!isSharedDocument) {
+              const created = await createDocument(session.token, payload)
+              nextDocumentMap[project.id] = created.id
+            }
           }
 
           const localProjectIds = new Set(projects.map((project) => project.id))
@@ -379,6 +418,11 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
                 : null
 
             if (!projectId || localProjectIds.has(projectId)) {
+              continue
+            }
+
+            // Never delete shared documents — only delete owned documents
+            if (sharedDocumentIdsRef.current.has(documentRecord.id)) {
               continue
             }
 

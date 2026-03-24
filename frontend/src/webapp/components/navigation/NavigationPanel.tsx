@@ -62,6 +62,8 @@ export type NavigationPanelProps = {
   onReturnToDashboard: () => void
   onProjectChange: (updater: (project: Project) => Project) => void
   onToggleWordStats: () => void
+  sessionToken: string
+  projectDocumentMap: Record<string, string>
 }
 
 export default function NavigationPanel({
@@ -86,6 +88,8 @@ export default function NavigationPanel({
   onReturnToDashboard,
   onProjectChange,
   onToggleWordStats,
+  sessionToken,
+  projectDocumentMap,
 }: NavigationPanelProps) {
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
 
@@ -207,6 +211,8 @@ export default function NavigationPanel({
               onOpenProject={onOpenProject}
               setFolders={setFolders}
               setProjects={setProjects}
+              sessionToken={sessionToken}
+              projectDocumentMap={projectDocumentMap}
             />
           </div>
 

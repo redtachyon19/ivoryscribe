@@ -7,6 +7,7 @@ import documentsRoutes from "./routes/documents.js";
 import preferencesRoutes from "./routes/preferences.js";
 import syncRoutes from "./routes/sync.js";
 import aiRoutes from "./routes/ai.js";
+import sharesRoutes from "./routes/shares.js";
 import { checkoutRouter as billingRoutes, webhookRouter as billingWebhookRoutes } from "./routes/billing.js";
 import authMiddleware from "./middleware/auth.js";
 import { sequelize } from "./models/index.js";
@@ -60,6 +61,7 @@ app.use("/api/documents", authMiddleware, documentsRoutes);
 app.use("/api/preferences", authMiddleware, preferencesRoutes);
 app.use("/api/sync", authMiddleware, syncRoutes);
 app.use("/api/ai", authMiddleware, aiRoutes);
+app.use("/api/shares", authMiddleware, sharesRoutes);
 app.use("/api/billing", authMiddleware, billingRoutes);
 
 app.use((err, _req, res, _next) => {

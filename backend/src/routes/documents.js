@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { Document } from "../models/index.js";
+import { Document, Share } from "../models/index.js";
+import { Op } from "sequelize";
 
 const router = Router();
 
@@ -36,9 +37,25 @@ router.post("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const document = await Document.findOne({
+    // First check if user owns the document
+    let document = await Document.findOne({
       where: { id: req.params.id, userId: req.user.id },
     });
+
+    if (!document) {
+      // Check if user has shared access
+      const share = await Share.findOne({
+        where: {
+          documentId: req.params.id,
+          recipientId: req.user.id,
+          status: "accepted",
+        },
+      });
+
+      if (share) {
+        document = await Document.findByPk(req.params.id);
+      }
+    }
 
     if (!document) {
       return res.status(404).json({ message: "Document not found" });
@@ -52,9 +69,26 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
-    const document = await Document.findOne({
+    // Check ownership first
+    let document = await Document.findOne({
       where: { id: req.params.id, userId: req.user.id },
     });
+
+    if (!document) {
+      // Check for edit-level shared access
+      const share = await Share.findOne({
+        where: {
+          documentId: req.params.id,
+          recipientId: req.user.id,
+          status: "accepted",
+          permission: "edit",
+        },
+      });
+
+      if (share) {
+        document = await Document.findByPk(req.params.id);
+      }
+    }
 
     if (!document) {
       return res.status(404).json({ message: "Document not found" });

@@ -73,6 +73,8 @@ export type GlobalSettingsProps = {
   onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onShowVersionHistory?: () => void
   onExportProject: () => void
+  sessionToken?: string
+  documentId?: string
   onSaveAccountProfile: (input: { firstName: string; lastName: string }) => Promise<void> | void
   onRequestAccountEmailChange: (email: string) => Promise<{ message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }> | { message: string; change: { currentEmail: string; newEmail: string; step: "verify-current-email" } }
   onVerifyCurrentAccountEmailChange: (code: string) => Promise<{ message: string; change: { currentEmail: string; newEmail: string; step: "verify-new-email" } }> | { message: string; change: { currentEmail: string; newEmail: string; step: "verify-new-email" } }
@@ -126,6 +128,8 @@ export default function GlobalSettings({
   onActiveProjectWallpaperEmojisChange,
   onShowVersionHistory,
   onExportProject,
+  sessionToken,
+  documentId,
   onSaveAccountProfile,
   onRequestAccountEmailChange,
   onVerifyCurrentAccountEmailChange,
@@ -497,6 +501,8 @@ export default function GlobalSettings({
                       onProjectWallpaperEmojisChange={onActiveProjectWallpaperEmojisChange}
                       onShowVersionHistory={onShowVersionHistory}
                       onExportProject={onExportProject}
+                      sessionToken={sessionToken}
+                      documentId={documentId}
                       onMarkdownPromptVisibilityChange={setIsMarkdownPromptVisible}
                       onMarkdownPromptDismissed={onClose}
                     />

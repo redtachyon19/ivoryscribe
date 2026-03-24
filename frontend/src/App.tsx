@@ -47,12 +47,15 @@ export default function App() {
     )
   }
 
+  const isWorkspace = app.session && !["/", "/mission", "/transparency", "/careers", "/products-pricing", "/download", "/auth", "/reset-password"].includes(app.currentPathname)
+
   return (
     <AppLayout
       palette={app.style.palette}
       appStyleVariables={app.style.appStyleVariables}
       menuBarEnabled={app.menuBarProps.enabled}
       menuItems={app.menuBarProps.items}
+      showBrand={Boolean(isWorkspace)}
       onNavigateHome={app.brandProps.onNavigateHome}
     >
       {content}

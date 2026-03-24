@@ -22,6 +22,7 @@ import { useProjectVersioning } from "./useProjectVersioning"
 import { useWorkspaceHydration } from "./useWorkspaceHydration"
 
 import { useTuskBilling } from "./useTuskBilling"
+import { acceptShareInvite } from "./api"
 import { createLocalId } from "./libraryUtils"
 import type { ProjectFolder } from "../webapp/pages/Library"
 
@@ -48,7 +49,7 @@ export function useAppOrchestration() {
   const versioningResetRef = useRef<(v: Record<string, never>) => void>(() => {})
 
   // ── composed hooks ───────────────────────────────────────────
-  const { currentPathname, requestedProjectId, checkoutResult, passwordResetToken, navigateTo, navigateReplace } = useRouting()
+  const { currentPathname, requestedProjectId, checkoutResult, passwordResetToken, inviteToken, navigateTo, navigateReplace } = useRouting()
   const style = useAppStyle()
 
   const {
@@ -145,6 +146,45 @@ export function useAppOrchestration() {
     setActiveProjectId(requestedProjectId)
     setView("editor")
   }, [currentPathname, isWorkspaceHydrated, projects, requestedProjectId])
+
+  // ── invite acceptance ────────────────────────────────────────
+  useEffect(() => {
+    if (!isWorkspaceHydrated || !inviteToken || !session) return
+
+    let cancelled = false
+
+    const handleInvite = async () => {
+      try {
+        const result = await acceptShareInvite(session.token, inviteToken)
+        if (cancelled) return
+
+        if (result.document) {
+          const parsed = JSON.parse(result.document.content)
+          if (parsed && typeof parsed === "object" && parsed.id) {
+            setProjects((current) => {
+              if (current.some((p) => p.id === parsed.id)) return current
+              return [parsed, ...current]
+            })
+            setProjectDocumentMap((current) => ({
+              ...current,
+              [parsed.id]: result.document!.id,
+            }))
+            setActiveProjectId(parsed.id)
+            setView("editor")
+          }
+        }
+
+        // Clear the invite token from URL
+        navigateReplace("/app")
+      } catch {
+        navigateReplace("/app")
+      }
+    }
+
+    handleInvite()
+
+    return () => { cancelled = true }
+  }, [isWorkspaceHydrated, inviteToken, session])
 
   // ── version action message listener (view / export from new-tab pages) ──
   useEffect(() => {
@@ -276,6 +316,7 @@ export function useAppOrchestration() {
       window.open(url.toString(), "_blank")
     },
     activeProjectVersionsByProjectId: projectVersionsForLibraryByProjectId,
+    projectDocumentMap,
     onShowVersionHistory: (projectId: string) => {
       const versions = versioning.projectVersionsByProjectId[projectId] ?? []
       const proj = projects.find((p) => p.id === projectId)
@@ -355,6 +396,8 @@ export function useAppOrchestration() {
       if (!activeProject) return
       activeProject.markdownEditorEnabled ? downloadProjectAsMarkdown(activeProject) : exportProjectAsPdf(activeProject)
     },
+    sessionToken: session.token,
+    documentId: activeProject ? projectDocumentMap[activeProject.id] : undefined,
     onSaveAccountProfile: saveAccountProfile,
     onRequestAccountEmailChange: requestEmailChange,
     onVerifyCurrentAccountEmailChange: verifyCurrentEmailChange,
