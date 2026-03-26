@@ -32,12 +32,6 @@
   transition: left 180ms ease;
 }
 
-.editor-workspace__topbar--hidden-controls .editor-workspace__panel-toggle,
-.editor-workspace__topbar--hidden-controls .editor-workspace__doc-path {
-  opacity: 0;
-  pointer-events: none;
-}
-
 .editor-workspace__panel-toggle {
   width: 30px;
   height: 30px;
@@ -50,7 +44,7 @@
   background: color-mix(in srgb, var(--menu-dropdown-bg, #1b1b1b) 90%, transparent);
   color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
   cursor: pointer;
-  transition: color 120ms ease, background-color 120ms ease, opacity 280ms linear;
+  transition: color 120ms ease, background-color 120ms ease;
 }
 
 .editor-workspace__panel-toggle:hover,
@@ -71,7 +65,6 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
   font-family: var(--app-ui-font);
   font-size: 14px;
-  transition: opacity 280ms linear;
 }
 
 .editor-workspace__doc-nav {
@@ -171,6 +164,7 @@
 .editor-workspace__body {
   flex: 1;
   min-height: 0;
+  position: relative;
   display: grid;
   grid-template-columns: 240px 8px 1fr 8px 280px;
   transition: grid-template-columns 180ms ease;
@@ -270,6 +264,8 @@
 }
 
 .editor-workspace__rail-back {
+  height: 36px;
+  box-sizing: border-box;
   width: 100%;
   padding: 7px 8px;
   margin-bottom: 2px;
@@ -380,8 +376,9 @@
   padding-top: var(--editor-topbar-height);
 }
 
-.editor-workspace__editor-center > .project-hub__main {
+.editor-workspace__editor-center > .project-hub {
   height: 100%;
+  min-height: 0;
 }
 
 .editor-workspace__settings-btn {
@@ -399,7 +396,7 @@
   background: color-mix(in srgb, var(--menu-dropdown-bg, #1b1b1b) 90%, transparent);
   color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
   cursor: pointer;
-  transition: color 120ms ease, background-color 120ms ease, opacity 280ms linear;
+  transition: color 120ms ease, background-color 120ms ease, opacity 280ms linear, right 180ms ease;
 }
 
 .editor-workspace__settings-btn--hidden {

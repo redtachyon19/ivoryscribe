@@ -5,6 +5,15 @@
   flex: 1;
 }
 
+.doc-tabs__section-divider-wrap {
+  margin: 0 4px 10px;
+}
+
+.doc-tabs__section-divider {
+  height: 1px;
+  background: color-mix(in srgb, var(--menu-button, #ededed) 16%, transparent);
+}
+
 .doc-tabs__header {
   display: flex;
   align-items: center;
@@ -330,6 +339,17 @@
 
 .doc-tabs__delete-subtree-note {
   margin-top: 12px;
+}
+
+.doc-tabs__trash-modal-panel {
+  color: var(--menu-button, #ededed);
+}
+
+.doc-tabs__trash-copy {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  font-size: 16px;
+  line-height: 1.35;
 }
 
 .doc-tabs__delete-subtree-list {

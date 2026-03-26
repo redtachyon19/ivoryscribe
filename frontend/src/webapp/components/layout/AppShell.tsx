@@ -133,7 +133,7 @@ export default function AppShell({
   return (
     <div className={`editor-workspace ${menuBarEnabled ? "editor-workspace--with-menu" : ""}`.trim()}>
       <div
-        className={`editor-workspace__topbar ${isEditorTyping ? "editor-workspace__topbar--hidden-controls" : ""}`.trim()}
+        className="editor-workspace__topbar"
         style={{ left: isLeftRailOpen ? leftPanelWidth : 0 }}
       >
         {!isLeftRailOpen ? (
@@ -297,16 +297,18 @@ export default function AppShell({
         />
 
         <div className="editor-workspace__editor-center">
-          <button
-            type="button"
-            className={`editor-workspace__settings-btn ${isEditorTyping ? "editor-workspace__settings-btn--hidden" : ""}`.trim()}
-            aria-label="Open settings"
-            onClick={onToggleSettings}
-          >
-            <Settings size={14} aria-hidden={true} />
-          </button>
           {children}
         </div>
+
+        <button
+          type="button"
+          className={`editor-workspace__settings-btn ${isEditorTyping ? "editor-workspace__settings-btn--hidden" : ""}`.trim()}
+          aria-label="Open settings"
+          onClick={onToggleSettings}
+          style={{ right: `${(isRightRailOpen ? rightPanelWidth + 8 : 0) + 14}px` }}
+        >
+          <Settings size={14} aria-hidden={true} />
+        </button>
 
         <div
           className={`editor-workspace__resizer editor-workspace__resizer--right ${draggingPanel === "right" ? "editor-workspace__resizer--dragging" : ""} ${!isRightRailOpen ? "editor-workspace__resizer--hidden" : ""}`.trim()}
