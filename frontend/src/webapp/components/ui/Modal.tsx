@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react"
+import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import GhostButton from "./GhostButton"
 import "./Modal.css"
@@ -62,7 +63,9 @@ export default function Modal({
   const animSuffix = isClosing ? "--closing" : "--opening"
   const resolvedFooter = footer ?? actions
 
-  return (
+  const portalTarget = document.querySelector<HTMLElement>(".app") ?? document.body
+
+  return createPortal(
     <>
       <div
         className={`ui-modal__overlay ui-modal__overlay${animSuffix}`}
@@ -98,6 +101,7 @@ export default function Modal({
           {resolvedFooter ? <div className="ui-modal__footer ui-modal__actions">{resolvedFooter}</div> : null}
         </div>
       </div>
-    </>
+    </>,
+    portalTarget,
   )
 }

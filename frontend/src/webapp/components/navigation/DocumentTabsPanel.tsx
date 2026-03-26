@@ -689,6 +689,10 @@ export default function DocumentTabsPanel({
 
   return (
     <div className="doc-tabs">
+      <div className="doc-tabs__section-divider-wrap" aria-hidden="true">
+        <div className="doc-tabs__section-divider" />
+      </div>
+
       <header className="doc-tabs__header">
         <p className="doc-tabs__project-name">{projectName}</p>
       </header>
@@ -761,21 +765,22 @@ export default function DocumentTabsPanel({
       <Modal
         isOpen={Boolean(pendingDeleteId)}
         onClose={closeDeleteModal}
-        title={`Delete ${singular}`}
+        title={`Trash ${singular}`}
         titleIcon={<Trash2 size={19} strokeWidth={1.9} aria-hidden="true" />}
+        panelClassName="doc-tabs__trash-modal-panel"
         closeLabel="Cancel"
         footer={(
           <Button variant="footer-danger" onClick={confirmDelete}>
             <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-            Delete
+            Trash
           </Button>
         )}
       >
-        <p>Are you sure you are ready to stomp this {deleteEntryNoun} for good?</p>
+        <p className="doc-tabs__trash-copy">Are you sure you want to trash this {deleteEntryNoun}?</p>
         {pendingDeleteDescendantTitles.length > 0 ? (
           <>
-            <p className="doc-tabs__delete-subtree-note">This will also delete all {subEntryLabel}.</p>
-            <ul className="doc-tabs__delete-subtree-list" aria-label={`Sub ${plural.toLowerCase()} that will be deleted`}>
+            <p className="doc-tabs__trash-copy doc-tabs__delete-subtree-note">This will also trash all {subEntryLabel}.</p>
+            <ul className="doc-tabs__delete-subtree-list" aria-label={`Sub ${plural.toLowerCase()} that will be trashed`}>
               {pendingDeleteDescendantTitles.map((title, index) => (
                 <li key={`${title}-${index}`}>{title}</li>
               ))}
@@ -799,7 +804,7 @@ export default function DocumentTabsPanel({
                 action: () => startRename(contextMenu.tabId, tab.title),
               },
               {
-                label: "Delete",
+                label: "Trash",
                 icon: <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />,
                 action: () => {
                   if (editingId === contextMenu.tabId) cancelRename()
