@@ -59,7 +59,7 @@ export type TuskAiProvider = "gpt" | "claude" | "grok"
 
 export type TuskAiProjectContext = {
   name: string
-  kind: "Book" | "Blog"
+  kind: "Book"
   activeId: string | null
   tabs: Array<{
     id: string

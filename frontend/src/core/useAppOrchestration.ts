@@ -13,7 +13,7 @@ import { requestAppColorPaletteChange } from "./editorEvents"
 import { getAppMenu, projectWorkspaceMenu } from "./menu"
 import { downloadProjectAsMarkdown } from "./markdown"
 import { exportProjectAsPdf } from "./pdfExport"
-import { createProject, DEFAULT_DOCUMENT_CONTENT, type Project, type ProjectKind } from "./projects"
+import { createProject, DEFAULT_DOCUMENT_CONTENT, type Project } from "./projects"
 import { buildVersionHistoryPageHtml, buildVersionPreviewHtml, getInitialManualVersionDefinition, mapVersionsForSettings, resolveThemeForPalette, serializeProjectSnapshot, type VersionSettingsEntry } from "./versioning"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
@@ -33,10 +33,10 @@ export function useAppOrchestration() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [view, setView] = useState<"projects" | "editor">("projects")
   const [bookCounter, setBookCounter] = useState(1)
-  const [blogCounter, setBlogCounter] = useState(1)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isMenuBarEnabled, setIsMenuBarEnabled] = useState(false)
   const [isFlagsEnabled, setIsFlagsEnabled] = useState(false)
+  const [isTranslucentNavPanel, setIsTranslucentNavPanel] = useState(true)
   const [isEditorTyping, setIsEditorTyping] = useState(false)
   const [isWorkspaceHydrated, setIsWorkspaceHydrated] = useState(false)
   const [projectDocumentMap, setProjectDocumentMap] = useState<Record<string, string>>({})
@@ -92,18 +92,18 @@ export function useAppOrchestration() {
     session, setSession, setIsAuthBootstrapping, setAuthLoadError,
     isWorkspaceHydrated, setIsWorkspaceHydrated, projectDocumentMap, setProjectDocumentMap,
     setProjects, setProjectVersionsByProjectId: versioning.setProjectVersionsByProjectId,
-    setFolders, setActiveProjectId, setView, setIsMenuBarEnabled, setIsFlagsEnabled,
+    setFolders, setActiveProjectId, setView, setIsMenuBarEnabled, setIsFlagsEnabled, setIsTranslucentNavPanel,
     setPalette: style.setPalette, setCustomPaletteBackground: style.setCustomPaletteBackground,
     setCustomPaletteAccent: style.setCustomPaletteAccent,
     setDisplayFont: style.setDisplayFont, setBodyFont: style.setBodyFont,
     setUiFont: style.setUiFont, setFontSize: style.setFontSize,
     setIsWordCountEnabled: style.setIsWordCountEnabled,
-    setBookCounter, setBlogCounter, setTuskAiBilling: billing.setTuskAiBilling,
+    setBookCounter, setTuskAiBilling: billing.setTuskAiBilling,
     projects, activeProjectId, palette: style.palette,
     customPaletteBackground: style.customPaletteBackground, customPaletteAccent: style.customPaletteAccent,
     displayFont: style.displayFont, bodyFont: style.bodyFont, uiFont: style.uiFont,
     fontSize: style.fontSize, isWordCountEnabled: style.isWordCountEnabled,
-    folders, isMenuBarEnabled, isFlagsEnabled, view, bookCounter, blogCounter,
+    folders, isMenuBarEnabled, isFlagsEnabled, isTranslucentNavPanel, view, bookCounter,
   })
 
   // ── ref syncs ────────────────────────────────────────────────
@@ -265,6 +265,7 @@ export function useAppOrchestration() {
     activeContent,
     editorFontSize: style.fontSize,
     menuBarEnabled: isMenuBarEnabled,
+    translucentNavPanel: isTranslucentNavPanel,
     flagsEnabled: isFlagsEnabled,
     showWordCount: style.isWordCountEnabled,
     isEditorTyping,
@@ -302,9 +303,7 @@ export function useAppOrchestration() {
     activeProjectId,
     setActiveProjectId,
     bookCounter,
-    blogCounter,
     setBookCounter,
-    setBlogCounter,
     onProjectCreated: (project: Project) => {
       if (sessionRef.current && isWorkspaceHydrated) {
         void versioning.createProjectVersionSnapshot(project, getInitialManualVersionDefinition([], serializeProjectSnapshot(project)), { alertOnFailure: false })
@@ -334,6 +333,7 @@ export function useAppOrchestration() {
     showProjectPreferences: view === "editor",
     menuBarEnabled: isMenuBarEnabled,
     flagsEnabled: isFlagsEnabled,
+    translucentNavPanel: isTranslucentNavPanel,
     displayFont: style.displayFont,
     bodyFont: style.bodyFont,
     uiFont: style.uiFont,
@@ -346,6 +346,7 @@ export function useAppOrchestration() {
     onRestoreDefaults: () => {
       setIsMenuBarEnabled(false)
       setIsFlagsEnabled(false)
+      setIsTranslucentNavPanel(true)
       style.applyDisplayFont(DEFAULT_DISPLAY_FONT)
       style.applyBodyFont(DEFAULT_BODY_FONT)
       style.applyUiFont(DEFAULT_UI_FONT)
@@ -357,6 +358,7 @@ export function useAppOrchestration() {
     },
     onMenuBarEnabledChange: setIsMenuBarEnabled,
     onFlagsEnabledChange: setIsFlagsEnabled,
+    onTranslucentNavPanelChange: setIsTranslucentNavPanel,
     onDisplayFontChange: style.applyDisplayFont,
     onBodyFontChange: style.applyBodyFont,
     onUiFontChange: style.applyUiFont,
@@ -371,13 +373,11 @@ export function useAppOrchestration() {
     accountLastName: session.user.lastName ?? "",
     accountEmail: session.user.email ?? "",
     activeProjectName: activeProject?.name ?? "",
-    activeProjectKind: activeProject?.kind ?? "Book",
     activeProjectMarkdownEditorEnabled: Boolean(activeProject?.markdownEditorEnabled),
     activeProjectColor: activeProject?.color ?? "#7ea8ff",
     activeProjectWallpaperEmojis: activeProject?.wallpaperEmojis ?? "",
     activeProjectVersions: activeProjectVersionsForSettings,
     onActiveProjectNameChange: (name: string) => updateActiveProject((p) => ({ ...p, name })),
-    onActiveProjectKindChange: (kind: ProjectKind) => updateActiveProject((p) => ({ ...p, kind })),
     onActiveProjectMarkdownEditorEnabledChange: (enabled: boolean) => {
       updateActiveProject((p) => (p.markdownEditorEnabled ? p : { ...p, markdownEditorEnabled: enabled }))
     },
@@ -419,6 +419,8 @@ export function useAppOrchestration() {
     // view
     view,
     activeProject,
+    // preferences
+    isTranslucentNavPanel,
     // prop bundles
     passwordResetProps,
     homeProps,

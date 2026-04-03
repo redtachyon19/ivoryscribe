@@ -1,5 +1,13 @@
 import { collectTabSequence, type Project } from "./projects"
 import JSZip from "jszip"
+import { resolveExportPlan, type ExportMode } from "./exportSelection"
+
+export type MarkdownExportMode = ExportMode
+
+type DownloadProjectAsMarkdownOptions = {
+  mode?: MarkdownExportMode
+  selectedTabIds?: string[]
+}
 
 function escapeHtml(value: string) {
   return value
@@ -241,6 +249,10 @@ function getTabMarkdownContent(value: string) {
 
 export function buildProjectMarkdown(project: Project) {
   const sequence = collectTabSequence(project.tabs)
+  return buildProjectMarkdownFromSequence(project, sequence)
+}
+
+function buildProjectMarkdownFromSequence(project: Project, sequence: Array<{ id: string; title: string }>) {
   const sections = [`# ${project.name}`, ""]
 
   if (!sequence.length) {
@@ -261,30 +273,47 @@ export function buildProjectMarkdown(project: Project) {
   return sections.join("\n")
 }
 
-export async function downloadProjectAsMarkdown(project: Project) {
-  if (project.kind === "Blog") {
-    const sequence = collectTabSequence(project.tabs)
-    const folderName = sanitizeZipEntryName(project.name)
-    const zip = new JSZip()
+async function downloadProjectAsMarkdownZip(project: Project, sequence: Array<{ id: string; title: string }>) {
+  const folderName = sanitizeZipEntryName(project.name)
+  const zip = new JSZip()
 
-    if (!sequence.length) {
-      zip.file(`${folderName}/README.md`, `# ${project.name}\n\n_No documents available._\n`)
-    } else {
-      sequence.forEach((tab, index) => {
-        const content = getTabMarkdownContent(project.contentById[tab.id] ?? "")
-        const fileBase = slugifyFileName(tab.title)
-        const fileName = `${String(index + 1).padStart(2, "0")}-${fileBase}.md`
-        const markdown = `# ${tab.title}\n\n${content || "_Empty document._"}\n`
-        zip.file(`${folderName}/${fileName}`, markdown)
-      })
-    }
+  if (!sequence.length) {
+    zip.file(`${folderName}/README.md`, `# ${project.name}\n\n_No documents available._\n`)
+  } else {
+    sequence.forEach((tab, index) => {
+      const content = getTabMarkdownContent(project.contentById[tab.id] ?? "")
+      const fileBase = slugifyFileName(tab.title)
+      const fileName = `${String(index + 1).padStart(2, "0")}-${fileBase}.md`
+      const markdown = `# ${tab.title}\n\n${content || "_Empty document._"}\n`
+      zip.file(`${folderName}/${fileName}`, markdown)
+    })
+  }
 
-    const zipBlob = await zip.generateAsync({ type: "blob" })
-    downloadBlob(zipBlob, `${slugifyFileName(project.name)}.zip`)
+  const zipBlob = await zip.generateAsync({ type: "blob" })
+  downloadBlob(zipBlob, `${slugifyFileName(project.name)}-chapters.zip`)
+}
+
+export async function downloadProjectAsMarkdown(project: Project, options: DownloadProjectAsMarkdownOptions = {}) {
+  const sequence = collectTabSequence(project.tabs)
+  const plan = resolveExportPlan({
+    formatLabel: "Markdown",
+    tabs: sequence,
+    preferredMode: options.mode,
+    preferredSelectedTabIds: options.selectedTabIds,
+  })
+
+  if (!plan) {
     return
   }
 
-  const markdown = buildProjectMarkdown(project)
+  if (plan.mode === "separate-files") {
+    await downloadProjectAsMarkdownZip(project, sequence)
+    return
+  }
+
+  const selectedSet = new Set(plan.selectedTabIds)
+  const selectedSequence = sequence.filter((tab) => selectedSet.has(tab.id))
+  const markdown = buildProjectMarkdownFromSequence(project, selectedSequence)
   const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" })
   downloadBlob(blob, `${slugifyFileName(project.name)}.md`)
 }

@@ -3,9 +3,9 @@ import {
   ArrowDownAZ, ArrowUpAZ,
   BookOpenText, CalendarArrowDown, CalendarArrowUp,
   ClockArrowDown, ClockArrowUp,
-  FileText, LayoutGrid, List,
+  LayoutGrid, List,
 } from "lucide-react"
-import type { Project } from "../../../core/projects"
+import { collectTabIds, type Project } from "../../../core/projects"
 
 export type ViewMode = "grid" | "list"
 
@@ -148,10 +148,10 @@ export function ProjectListView({ projects, ariaLabel, onOpenProject, getDate, o
           onContextMenu={onContextMenu ? (e) => { e.preventDefault(); onContextMenu(project.id, e.clientX, e.clientY) } : undefined}
         >
           <div className="project-hub__list-row-main">
-            {project.kind === "Book" ? <BookOpenText size={17} aria-hidden={true} /> : <FileText size={17} aria-hidden={true} />}
+                <BookOpenText size={17} aria-hidden={true} />
             <strong>{project.name}</strong>
           </div>
-          <span>{project.kind}</span>
+          <span>{collectTabIds(project.tabs).length} docs</span>
           <span>{formatRelativeDate(getDate(project))}</span>
         </article>
       ))}

@@ -1,11 +1,11 @@
 import type { Dispatch, SetStateAction } from "react"
-import { ArrowLeft, BookPlus, FilePlus2, FolderPlus, HardDrive, PanelLeft, Presentation } from "lucide-react"
+import { ArrowLeft, BookPlus, FilePlus2, FolderPlus, PanelLeft, Presentation } from "lucide-react"
 import DocumentTabsPanel from "./DocumentTabsPanel"
 import ProjectBrowserPanel from "./ProjectBrowserPanel"
 import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../../core/projects"
 import type { ProjectFolder } from "../../pages/Library"
 
-const STORAGE_LIMIT_GB = 15
+
 
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -74,8 +74,7 @@ export default function NavigationPanel({
   sidebarSlide,
   isOpen,
   showWordCount,
-  storageUsagePercent,
-  storageUsedLabel,
+
   currentCountLabel,
   isWordStatsOpen,
   setProjects,
@@ -239,20 +238,7 @@ export default function NavigationPanel({
           </div>
         </div>
       </aside>
-      {sidebarSlide === 1 ? (
-        <div className="editor-workspace__word-count-wrap">
-          <div className="project-hub__storage">
-            <div className="project-hub__storage-label">
-              <HardDrive size={15} aria-hidden={true} />
-              <span>Storage</span>
-            </div>
-            <div className="project-hub__storage-bar" aria-hidden={true}>
-              <span style={{ width: `${storageUsagePercent}%` }} />
-            </div>
-            <p>{storageUsedLabel} GB of {STORAGE_LIMIT_GB} GB used</p>
-          </div>
-        </div>
-      ) : showWordCount ? (
+      {sidebarSlide !== 1 && showWordCount ? (
         <div className="editor-workspace__word-count-wrap">
           <button
             type="button"

@@ -5,7 +5,7 @@ export type DocumentTab = {
   children: DocumentTab[]
 }
 
-export type ProjectKind = "Book" | "Blog"
+export type ProjectKind = "Book"
 
 export type Project = {
   id: string
@@ -25,19 +25,15 @@ export type Project = {
   deletedAt?: string | null
 }
 
-export function getProjectEntryTerms(kind: ProjectKind) {
-  if (kind === "Book") {
-    return {
-      singular: "Chapter",
-      plural: "Chapters",
-      untitled: "Untitled Chapter",
-    }
-  }
+type LegacyProjectSnapshot = Omit<Project, "kind"> & {
+  kind: "Book" | "Blog"
+}
 
+export function getProjectEntryTerms(kind: ProjectKind) {
   return {
-    singular: "Post",
-    plural: "Posts",
-    untitled: "Untitled Post",
+    singular: "Chapter",
+    plural: "Chapters",
+    untitled: "Untitled Chapter",
   }
 }
 
@@ -121,7 +117,7 @@ export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTa
 // Factory for a brand-new project with starter tabs and per-tab content state.
 export function createProject(name: string, kind: ProjectKind): Project {
   const tabs = createInitialTabs(kind)
-  const color = kind === "Book" ? "#7ea8ff" : "#8ad39f"
+  const color = "#7ea8ff"
 
   return {
     id: createId(),
@@ -141,14 +137,16 @@ export function createProject(name: string, kind: ProjectKind): Project {
 }
 
 export function extractCounterFromNames(projects: Project[], kind: ProjectKind) {
-  const prefix = kind === "Book" ? "Book" : "Blog"
-  const matcher = new RegExp(`^${prefix}\\s+(\\d+)$`, "i")
+  const matcher = /^Book\s+(\d+)$/i
   const max = projects.reduce((currentMax, project) => {
     if (project.kind !== kind) {
       return currentMax
     }
 
-    const match = project.name.match(matcher)
+    const normalizedName = /^Blog\s+\d+$/i.test(project.name)
+      ? project.name.replace(/^Blog/i, "Book")
+      : project.name
+    const match = normalizedName.match(matcher)
     if (!match) {
       return currentMax
     }
@@ -160,16 +158,17 @@ export function extractCounterFromNames(projects: Project[], kind: ProjectKind) 
   return max + 1
 }
 
-export function isProjectSnapshot(value: unknown): value is Project {
+export function isProjectSnapshot(value: unknown): value is LegacyProjectSnapshot {
   if (!value || typeof value !== "object") {
     return false
   }
 
-  const candidate = value as Partial<Project>
+  const candidate = value as Partial<LegacyProjectSnapshot>
+  const rawKind = (candidate as { kind?: unknown }).kind
   return (
     typeof candidate.id === "string" &&
     typeof candidate.name === "string" &&
-    typeof candidate.kind === "string" &&
+    (rawKind === "Book" || rawKind === "Blog") &&
     Array.isArray(candidate.tabs) &&
     typeof candidate.contentById === "object" &&
     candidate.contentById !== null
@@ -183,7 +182,15 @@ export function parseProjectFromDocument(documentRecord: { title: string; conten
       return null
     }
 
-    return parsedContent
+    const normalizedName = /^Blog\s+\d+$/i.test(parsedContent.name)
+      ? parsedContent.name.replace(/^Blog/i, "Book")
+      : parsedContent.name
+
+    return {
+      ...parsedContent,
+      kind: "Book",
+      name: normalizedName,
+    } satisfies Project
   } catch {
     return null
   }

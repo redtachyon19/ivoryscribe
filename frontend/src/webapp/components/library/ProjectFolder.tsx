@@ -1,5 +1,5 @@
 import { type DragEvent, type ReactNode } from "react"
-import { ArrowLeft, BookPlus, Folder, NotebookPen } from "lucide-react"
+import { ArrowLeft, BookPlus, Folder } from "lucide-react"
 import type { ProjectFolder as ProjectFolderType } from "../../pages/Library"
 import type { Project } from "../../../core/projects"
 
@@ -85,7 +85,6 @@ type FolderDetailViewProps = {
   folderProjects: Project[]
   onBack: () => void
   onCreateBook: () => void
-  onCreateBlog: () => void
   renderProjectCard: (project: Project) => ReactNode
 }
 
@@ -94,7 +93,6 @@ export function FolderDetailView({
   folderProjects,
   onBack,
   onCreateBook,
-  onCreateBlog,
   renderProjectCard,
 }: FolderDetailViewProps) {
   return (
@@ -124,10 +122,6 @@ export function FolderDetailView({
           <button type="button" className="project-hub__create-card" role="listitem" onClick={onCreateBook}>
             <BookPlus size={28} aria-hidden={true} />
             <span>Create book</span>
-          </button>
-          <button type="button" className="project-hub__create-card" role="listitem" onClick={onCreateBlog}>
-            <NotebookPen size={28} aria-hidden={true} />
-            <span>Create blog</span>
           </button>
         </div>
       ) : null}

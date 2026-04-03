@@ -3,7 +3,6 @@ import {
   requestAppSaveProjectVersion,
   requestEditorCommand,
   requestMarkdownEditorCommand,
-  requestCreateBlogProject,
   requestCreateBookProject,
   requestCreateProjectFolder,
   requestAppColorPaletteChange,
@@ -288,13 +287,6 @@ export const projectWorkspaceMenu: MenuItem[] = [
             icon: "book",
             action: () => {
               requestCreateBookProject()
-            },
-          },
-          {
-            label: "Blog",
-            icon: "notebook",
-            action: () => {
-              requestCreateBlogProject()
             },
           },
         ],

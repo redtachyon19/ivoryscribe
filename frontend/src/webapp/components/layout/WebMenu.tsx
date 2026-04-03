@@ -6,13 +6,15 @@ import {
   Copy,
   Folder,
   Italic,
-  NotebookText,
+  Minus,
   Redo2,
   Scissors,
+  Square,
   Trash2,
   Underline,
   Undo2,
   Clipboard,
+  X,
 } from "lucide-react"
 import { useMenuState } from "../../../core/useMenuState"
 import "./WebMenu.css"
@@ -20,7 +22,6 @@ import "./WebMenu.css"
 const menuIcons: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }>> = {
   folder: Folder,
   book: BookText,
-  notebook: NotebookText,
   undo: Undo2,
   redo: Redo2,
   "select-all": CheckCheck,
@@ -130,12 +131,21 @@ type WebMenuProps = {
   items?: MenuItem[]
 }
 
+const isElectron = Boolean(window.electronAPI)
+const isElectronMac = isElectron && window.electronAPI?.platform === "darwin"
+const showWindowControls = isElectron && !isElectronMac
+
 export default function WebMenu({ items = appMenu }: WebMenuProps) {
   const { isMenuOpen, openMenuPath, closeAllMenus, cancelCloseTimer, scheduleCloseAll } = useMenuState()
 
+  const className = [
+    "web-menu",
+    isElectronMac ? "web-menu--electron-mac" : "",
+  ].filter(Boolean).join(" ")
+
   return (
     <nav
-      className="web-menu"
+      className={className}
       aria-label="Application menu"
       onMouseEnter={cancelCloseTimer}
       onMouseLeave={scheduleCloseAll}
@@ -147,6 +157,34 @@ export default function WebMenu({ items = appMenu }: WebMenuProps) {
         openMenuPath={openMenuPath}
         closeAllMenus={closeAllMenus}
       />
+      {showWindowControls ? (
+        <div className="web-menu__window-controls">
+          <button
+            type="button"
+            className="web-menu__window-btn"
+            aria-label="Minimize"
+            onClick={() => window.electronAPI?.minimize()}
+          >
+            <Minus size={14} aria-hidden={true} />
+          </button>
+          <button
+            type="button"
+            className="web-menu__window-btn"
+            aria-label="Maximize"
+            onClick={() => window.electronAPI?.maximize()}
+          >
+            <Square size={12} aria-hidden={true} />
+          </button>
+          <button
+            type="button"
+            className="web-menu__window-btn web-menu__window-btn--close"
+            aria-label="Close"
+            onClick={() => window.electronAPI?.close()}
+          >
+            <X size={14} aria-hidden={true} />
+          </button>
+        </div>
+      ) : null}
     </nav>
   )
 }

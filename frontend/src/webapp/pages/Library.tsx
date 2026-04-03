@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
-import { Archive, BookCopy, BookOpenText, BookPlus, FileText, Folder, FolderPlus, LibraryBig as LibraryIcon, NotebookPen, ScrollText, Trash2 } from "lucide-react"
+import { Archive, BookCopy, BookOpenText, BookPlus, Folder, FolderPlus, LibraryBig as LibraryIcon, ScrollText, Trash2 } from "lucide-react"
 import Button from "../components/ui/Button"
 import Modal from "../components/ui/Modal"
-import { PROJECTS_CREATE_BLOG_EVENT, PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
+import { PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
 import { downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
-import { createProject, type Project, type ProjectKind } from "../../core/projects"
+import { collectTabIds, createProject, type Project } from "../../core/projects"
 import { createLocalId, duplicateProject } from "../../core/libraryUtils"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import ProjectSettings from "../components/settings/ProjectSettings"
@@ -32,10 +32,8 @@ export type LibraryProps = {
   folders: ProjectFolder[]
   activeProjectId: string | null
   bookCounter: number
-  blogCounter: number
   projectDocumentMap: Record<string, string>
   setBookCounter: Dispatch<SetStateAction<number>>
-  setBlogCounter: Dispatch<SetStateAction<number>>
   onOpenProject: (projectId: string) => void
   onOpenProjectInNewTab: (projectId: string) => void
   onProjectCreated?: (project: Project) => void
@@ -52,10 +50,8 @@ export default function Library({
   folders,
   activeProjectId,
   bookCounter,
-  blogCounter,
   projectDocumentMap,
   setBookCounter,
-  setBlogCounter,
   onOpenProject,
   onOpenProjectInNewTab,
   onProjectCreated,
@@ -158,14 +154,13 @@ export default function Library({
     setEditingFolderName("")
   }
 
-  const createNewProject = (kind: ProjectKind, folderId?: string) => {
-    const nextName = kind === "Book" ? `Book ${bookCounter}` : `Blog ${blogCounter}`
-    const nextProject = createProject(nextName, kind)
+  const createNewProject = (folderId?: string) => {
+    const nextName = `Book ${bookCounter}`
+    const nextProject = createProject(nextName, "Book")
     setProjects((cur) => [{ ...nextProject, folderId: folderId ?? null, rootPosition: folderId ? nextProject.rootPosition : "top" }, ...cur])
     setActiveProjectId(nextProject.id)
     setSelectedProjectId(nextProject.id)
-    if (kind === "Book") setBookCounter((c) => c + 1)
-    else setBlogCounter((c) => c + 1)
+    setBookCounter((c) => c + 1)
     onProjectCreated?.(nextProject)
   }
 
@@ -181,20 +176,17 @@ export default function Library({
 
   // Global create events from the menu bar
   useEffect(() => {
-    const handleCreateBook = () => createNewProject("Book")
-    const handleCreateBlog = () => createNewProject("Blog")
+    const handleCreateBook = () => createNewProject()
     const handleCreateFolder = () => createFolder()
 
     window.addEventListener(PROJECTS_CREATE_BOOK_EVENT, handleCreateBook)
-    window.addEventListener(PROJECTS_CREATE_BLOG_EVENT, handleCreateBlog)
     window.addEventListener(PROJECTS_CREATE_FOLDER_EVENT, handleCreateFolder)
 
     return () => {
       window.removeEventListener(PROJECTS_CREATE_BOOK_EVENT, handleCreateBook)
-      window.removeEventListener(PROJECTS_CREATE_BLOG_EVENT, handleCreateBlog)
       window.removeEventListener(PROJECTS_CREATE_FOLDER_EVENT, handleCreateFolder)
     }
-  }, [bookCounter, blogCounter, folders.length])
+  }, [bookCounter, folders.length])
 
   const renderProjectCard = (project: Project) => (
     <ProjectCard
@@ -236,8 +228,7 @@ export default function Library({
               folder={openFolder}
               folderProjects={folderProjects}
               onBack={() => setOpenFolderId(null)}
-              onCreateBook={() => createNewProject("Book", openFolderId!)}
-              onCreateBlog={() => createNewProject("Blog", openFolderId!)}
+              onCreateBook={() => createNewProject(openFolderId!)}
               renderProjectCard={renderProjectCard}
             />
           ) : (
@@ -255,13 +246,9 @@ export default function Library({
             {/* Create Row */}
             {activeProjects.length === 0 ? (
               <div className="project-hub__create-row" role="list" aria-label="Create actions">
-                <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createNewProject("Book")}>
+                <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createNewProject()}>
                   <BookPlus size={28} aria-hidden={true} />
                   <span>Create book</span>
-                </button>
-                <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createNewProject("Blog")}>
-                  <NotebookPen size={28} aria-hidden={true} />
-                  <span>Create blog</span>
                 </button>
                 <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createFolder()}>
                   <FolderPlus size={28} aria-hidden={true} />
@@ -367,10 +354,10 @@ export default function Library({
                       }}
                     >
                       <div className="project-hub__list-row-main">
-                        {project.kind === "Book" ? <BookOpenText size={17} aria-hidden={true} /> : <FileText size={17} aria-hidden={true} />}
+                        <BookOpenText size={17} aria-hidden={true} />
                         <strong>{project.name}</strong>
                       </div>
-                      <span>{project.kind}</span>
+                      <span>{collectTabIds(project.tabs).length} docs</span>
                       <span>{formatRelativeDate(project.createdAt)}</span>
                     </article>
                   ))}
@@ -448,7 +435,6 @@ export default function Library({
         <ProjectSettings
           fieldClassName="project-settings-modal__field"
           projectName={settings.projectName}
-          projectKind={settings.projectKind}
           markdownEditorEnabled={settings.markdownEditorEnabled}
           projectColor={settings.projectColor}
           projectWallpaperEmojis={settings.wallpaperEmojis}
@@ -457,7 +443,6 @@ export default function Library({
             settings.setProjectName(nextName)
             if (settings.error) settings.setError("")
           }}
-          onProjectKindChange={settings.setProjectKind}
           onMarkdownEditorEnabledChange={settings.setMarkdownEditorEnabled}
           onProjectColorChange={settings.setProjectColor}
           onProjectWallpaperEmojisChange={settings.setWallpaperEmojis}

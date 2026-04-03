@@ -1,5 +1,5 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react"
-import type { Project, ProjectKind } from "../../../core/projects"
+import type { Project } from "../../../core/projects"
 import { createLocalId, buildDuplicateProjectName, normalizeProjectColor, normalizeProjectEmojiWallpaper } from "../../../core/libraryUtils"
 
 type UseProjectSettingsOptions = {
@@ -11,7 +11,6 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
   const [openProjectSettingsId, setOpenProjectSettingsId] = useState<string | null>(null)
   const [projectName, setProjectName] = useState("")
   const [projectColor, setProjectColor] = useState("#7ea8ff")
-  const [projectKind, setProjectKind] = useState<ProjectKind>("Book")
   const [markdownEditorEnabled, setMarkdownEditorEnabled] = useState(false)
   const [wallpaperEmojis, setWallpaperEmojis] = useState("")
   const [error, setError] = useState("")
@@ -23,7 +22,6 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
     setOpenProjectSettingsId(project.id)
     setProjectName(project.name)
     setProjectColor(normalizeProjectColor(project.color))
-    setProjectKind(project.kind)
     setMarkdownEditorEnabled(Boolean(project.markdownEditorEnabled))
     setWallpaperEmojis(project.wallpaperEmojis ?? "")
     setError("")
@@ -55,18 +53,17 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
         if (
           project.name === trimmedName &&
           project.color === normalizedColor &&
-          project.kind === projectKind &&
           Boolean(project.markdownEditorEnabled) === markdownEditorEnabled &&
           (project.wallpaperEmojis ?? "") === normalizedWallpaper
         ) return project
 
         hasChanges = true
-        return { ...project, name: trimmedName, color: normalizedColor, kind: projectKind, markdownEditorEnabled, wallpaperEmojis: normalizedWallpaper }
+        return { ...project, name: trimmedName, color: normalizedColor, markdownEditorEnabled, wallpaperEmojis: normalizedWallpaper }
       })
 
       return hasChanges ? nextProjects : current
     })
-  }, [projectColor, projectKind, markdownEditorEnabled, projectName, wallpaperEmojis, setProjects, settingsProject])
+  }, [projectColor, markdownEditorEnabled, projectName, wallpaperEmojis, setProjects, settingsProject])
 
   const duplicate = () => {
     if (!settingsProject) return
@@ -115,13 +112,11 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
     openProjectSettingsId,
     projectName,
     projectColor,
-    projectKind,
     markdownEditorEnabled,
     wallpaperEmojis,
     error,
     setProjectName,
     setProjectColor,
-    setProjectKind,
     setMarkdownEditorEnabled,
     setWallpaperEmojis,
     setError,

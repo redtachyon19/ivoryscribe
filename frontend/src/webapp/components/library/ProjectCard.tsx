@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from "react"
-import { BookText, NotebookText } from "lucide-react"
+import { BookText } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type Project } from "../../../core/projects"
 
 function hexToRgba(hex: string, alpha: number) {
@@ -147,11 +147,7 @@ export default function ProjectCard({
       }}
     >
       <div className="project-card__thumb" aria-hidden="true">
-        {project.kind === "Book" ? (
-          <BookText size={28} strokeWidth={1.6} />
-        ) : (
-          <NotebookText size={28} strokeWidth={1.6} />
-        )}
+        <BookText size={28} strokeWidth={1.6} />
       </div>
 
       <div className="project-card__info">
@@ -190,7 +186,7 @@ export default function ProjectCard({
         ) : (
           <strong>{project.name}</strong>
         )}
-        <span>{project.kind} &middot; {entryCount} {entryLabel} &middot; {formatRelativeTime(project.createdAt)}</span>
+        <span>{entryCount} {entryLabel} &middot; {formatRelativeTime(project.createdAt)}</span>
       </div>
     </li>
   )

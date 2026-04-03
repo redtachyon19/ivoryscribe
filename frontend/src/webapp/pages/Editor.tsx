@@ -131,6 +131,7 @@ export type EditorProps = {
   activeContent: string
   editorFontSize: number
   menuBarEnabled: boolean
+  translucentNavPanel: boolean
   flagsEnabled: boolean
   showWordCount: boolean
   isEditorTyping: boolean
@@ -152,9 +153,7 @@ export type EditorProps = {
   activeProjectId: string | null
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
   bookCounter: number
-  blogCounter: number
   setBookCounter: Dispatch<SetStateAction<number>>
-  setBlogCounter: Dispatch<SetStateAction<number>>
   onProjectCreated?: (project: Project) => void
   onOpenProjectInNewTab: (projectId: string) => void
   activeProjectVersionsByProjectId?: Record<string, VersionSettingsEntry[]>
@@ -170,6 +169,7 @@ export default function Editor({
   activeContent,
   editorFontSize,
   menuBarEnabled,
+  translucentNavPanel,
   flagsEnabled,
   showWordCount,
   isEditorTyping,
@@ -190,9 +190,7 @@ export default function Editor({
   activeProjectId,
   setActiveProjectId,
   bookCounter,
-  blogCounter,
   setBookCounter,
-  setBlogCounter,
   onProjectCreated,
   onOpenProjectInNewTab,
   activeProjectVersionsByProjectId = {},
@@ -315,6 +313,7 @@ export default function Editor({
   return (
     <AppShell
       menuBarEnabled={menuBarEnabled}
+      translucentNavPanel={translucentNavPanel}
       isEditorTyping={isEditorTyping}
       view={view}
       project={project}
@@ -371,10 +370,8 @@ export default function Editor({
                 folders={folders}
                 activeProjectId={activeProjectId}
                 bookCounter={bookCounter}
-                blogCounter={blogCounter}
                 projectDocumentMap={projectDocumentMap}
                 setBookCounter={setBookCounter}
-                setBlogCounter={setBlogCounter}
                 onOpenProject={onOpenProject}
                 onOpenProjectInNewTab={onOpenProjectInNewTab}
                 onProjectCreated={onProjectCreated}

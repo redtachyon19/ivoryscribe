@@ -16,6 +16,7 @@ import PasswordResetPage from "./webapp/pages/PasswordResetPage"
 
 export default function App() {
   const app = useAppOrchestration()
+  const isElectron = Boolean(window.electronAPI)
 
   let content: ReactNode = null
 
@@ -23,17 +24,17 @@ export default function App() {
     content = <PasswordResetPage {...app.passwordResetProps} />
   } else if (app.isAuthBootstrapping) {
     content = <section className="app-loading"><p>Loading workspace...</p></section>
-  } else if (app.currentPathname === "/") {
+  } else if (!isElectron && app.currentPathname === "/") {
     content = <Home {...app.homeProps} />
-  } else if (app.currentPathname === "/mission") {
+  } else if (!isElectron && app.currentPathname === "/mission") {
     content = <MissionPage {...app.homeProps} />
-  } else if (app.currentPathname === "/transparency") {
+  } else if (!isElectron && app.currentPathname === "/transparency") {
     content = <TransparencyPage {...app.homeProps} />
-  } else if (app.currentPathname === "/careers") {
+  } else if (!isElectron && app.currentPathname === "/careers") {
     content = <CareersPage {...app.homeProps} />
-  } else if (app.currentPathname === "/products-pricing") {
+  } else if (!isElectron && app.currentPathname === "/products-pricing") {
     content = <ProductsPricingPage {...app.homeProps} />
-  } else if (app.currentPathname === "/download") {
+  } else if (!isElectron && app.currentPathname === "/download") {
     content = <DownloadPage {...app.homeProps} />
   } else if (app.currentPathname === "/auth" || !app.session) {
     content = <AuthPage {...app.authProps} />
@@ -47,7 +48,8 @@ export default function App() {
     )
   }
 
-  const isWorkspace = app.session && !["/", "/mission", "/transparency", "/careers", "/products-pricing", "/download", "/auth", "/reset-password"].includes(app.currentPathname)
+  const landingRoutes = ["/", "/mission", "/transparency", "/careers", "/products-pricing", "/download", "/auth", "/reset-password"]
+  const isWorkspace = app.session && (isElectron || !landingRoutes.includes(app.currentPathname))
 
   return (
     <AppLayout
@@ -55,7 +57,8 @@ export default function App() {
       appStyleVariables={app.style.appStyleVariables}
       menuBarEnabled={app.menuBarProps.enabled}
       menuItems={app.menuBarProps.items}
-      showBrand={Boolean(isWorkspace)}
+      showBrand={Boolean(isWorkspace) && !isElectron}
+      translucentNavPanel={app.isTranslucentNavPanel}
       onNavigateHome={app.brandProps.onNavigateHome}
     >
       {content}

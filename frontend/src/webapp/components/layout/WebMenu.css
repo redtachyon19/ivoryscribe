@@ -5,6 +5,17 @@
   border-bottom: 1px solid var(--menu-border, #1f1f1f);
   padding: 0 16px;
   font-family: var(--app-ui-font);
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+}
+
+.web-menu--electron-mac {
+  padding-left: 80px;
+}
+
+.app--electron-mac.app--window-fullscreen .web-menu--electron-mac {
+  padding-left: 16px;
 }
 
 .web-menu__list,
@@ -19,6 +30,7 @@
   gap: 8px;
   align-items: center;
   min-height: 44px;
+  flex: 1;
 }
 
 .web-menu__item {
@@ -35,6 +47,7 @@
   font-family: inherit;
   line-height: 1;
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 
 .web-menu__button-content {
@@ -131,4 +144,37 @@
 .web-menu__dropdown .web-menu__button {
   width: 100%;
   text-align: left;
+}
+
+/* ── Electron window controls (non-macOS) ── */
+
+.web-menu__window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+}
+
+.web-menu__window-btn {
+  width: 32px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--menu-button, #d8d8d8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.web-menu__window-btn:hover {
+  background: var(--menu-button-hover-bg, #1d1d1d);
+  color: #ffffff;
+}
+
+.web-menu__window-btn--close:hover {
+  background: #e81123;
+  color: #ffffff;
 }

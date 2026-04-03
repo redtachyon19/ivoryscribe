@@ -8,7 +8,6 @@ export const EXPORT_ALL_TABS_PDF_EVENT = "app:export-all-tabs-pdf"
 export const APP_SAVE_PROJECT_EVENT = "app:save-project"
 export const APP_SAVE_PROJECT_VERSION_EVENT = "app:save-project-version"
 export const PROJECTS_CREATE_BOOK_EVENT = "projects:create-book"
-export const PROJECTS_CREATE_BLOG_EVENT = "projects:create-blog"
 export const PROJECTS_CREATE_FOLDER_EVENT = "projects:create-folder"
 export const NAVIGATE_RECENT_EVENT = "navigate:recent"
 export const NAVIGATE_LIBRARY_EVENT = "navigate:library"
@@ -122,10 +121,6 @@ export function requestAppSaveProjectVersion() {
 
 export function requestCreateBookProject() {
   window.dispatchEvent(new Event(PROJECTS_CREATE_BOOK_EVENT))
-}
-
-export function requestCreateBlogProject() {
-  window.dispatchEvent(new Event(PROJECTS_CREATE_BLOG_EVENT))
 }
 
 export function requestCreateProjectFolder() {

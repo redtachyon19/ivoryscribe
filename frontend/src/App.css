@@ -36,6 +36,15 @@
   transition: background-color var(--palette-transition-duration) var(--palette-transition-easing);
 }
 
+/* In Electron macOS: make root layers transparent so native vibrancy shows through the left panel */
+.app--electron-mac.app--translucent-nav {
+  background-color: transparent;
+}
+
+.app--electron-mac.app--translucent-nav .app-main {
+  background-color: transparent;
+}
+
 .app :where(*, *::before, *::after, button, input, select, textarea) {
   transition:
     color var(--palette-transition-duration) var(--palette-transition-easing),
