@@ -56,9 +56,9 @@ type PreferencesPayload = {
     activeProjectId?: string | null
     menuBarEnabled?: boolean
     flagsEnabled?: boolean
+    translucentNavPanel?: boolean
     view?: "projects" | "editor"
     bookCounter?: number
-    blogCounter?: number
   }
 }
 
@@ -80,6 +80,7 @@ type UseWorkspaceHydrationParams = {
   setView: Dispatch<SetStateAction<"projects" | "editor">>
   setIsMenuBarEnabled: Dispatch<SetStateAction<boolean>>
   setIsFlagsEnabled: Dispatch<SetStateAction<boolean>>
+  setIsTranslucentNavPanel: Dispatch<SetStateAction<boolean>>
   setPalette: Dispatch<SetStateAction<Palette>>
   setCustomPaletteBackground: Dispatch<SetStateAction<string>>
   setCustomPaletteAccent: Dispatch<SetStateAction<string>>
@@ -89,7 +90,6 @@ type UseWorkspaceHydrationParams = {
   setFontSize: Dispatch<SetStateAction<number>>
   setIsWordCountEnabled: Dispatch<SetStateAction<boolean>>
   setBookCounter: Dispatch<SetStateAction<number>>
-  setBlogCounter: Dispatch<SetStateAction<number>>
   setTuskAiBilling: Dispatch<SetStateAction<BillingStatusResponse>>
   // Sync state reads
   projects: Project[]
@@ -105,9 +105,9 @@ type UseWorkspaceHydrationParams = {
   folders: ProjectFolder[]
   isMenuBarEnabled: boolean
   isFlagsEnabled: boolean
+  isTranslucentNavPanel: boolean
   view: "projects" | "editor"
   bookCounter: number
-  blogCounter: number
 }
 
 export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
@@ -127,6 +127,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     setView,
     setIsMenuBarEnabled,
     setIsFlagsEnabled,
+    setIsTranslucentNavPanel,
     setPalette,
     setCustomPaletteBackground,
     setCustomPaletteAccent,
@@ -136,7 +137,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     setFontSize,
     setIsWordCountEnabled,
     setBookCounter,
-    setBlogCounter,
     setTuskAiBilling,
     projects,
     activeProjectId,
@@ -151,9 +151,9 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     folders,
     isMenuBarEnabled,
     isFlagsEnabled,
+    isTranslucentNavPanel,
     view,
     bookCounter,
-    blogCounter,
   } = params
 
   const saveTimeoutRef = useRef<number | null>(null)
@@ -259,6 +259,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     setView("projects")
     setIsMenuBarEnabled(Boolean(uiSettings?.menuBarEnabled))
     setIsFlagsEnabled(Boolean(uiSettings?.flagsEnabled))
+    setIsTranslucentNavPanel(uiSettings?.translucentNavPanel !== false)
 
     const loadedPalette =
       typeof themeSettings?.palette === "string" &&
@@ -282,7 +283,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     requestEditorFontFamilyChange(nextBodyFont)
 
     setBookCounter(typeof uiSettings?.bookCounter === "number" ? uiSettings.bookCounter : extractCounterFromNames(projectList, "Book"))
-    setBlogCounter(typeof uiSettings?.blogCounter === "number" ? uiSettings.blogCounter : extractCounterFromNames(projectList, "Blog"))
   }
 
   // Bootstrap effect
@@ -315,7 +315,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           setActiveProjectId(fallbackProject.id)
           setView("projects")
           setBookCounter(2)
-          setBlogCounter(1)
           setIsWorkspaceHydrated(true)
           setAuthLoadError("")
         }
@@ -449,9 +448,9 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
               activeProjectId,
               menuBarEnabled: isMenuBarEnabled,
               flagsEnabled: isFlagsEnabled,
+              translucentNavPanel: isTranslucentNavPanel,
               view,
               bookCounter,
-              blogCounter,
             },
           })
         } catch {
@@ -465,7 +464,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     }, 700)
   }, [
     activeProjectId,
-    blogCounter,
     bookCounter,
     bodyFont,
     customPaletteAccent,
@@ -474,6 +472,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     folders,
     fontSize,
     isFlagsEnabled,
+    isTranslucentNavPanel,
     isWordCountEnabled,
     isMenuBarEnabled,
     isWorkspaceHydrated,

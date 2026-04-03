@@ -1,4 +1,4 @@
-import { Archive, BookOpenText, BookPlus, Clock3, FileText, Folder, FolderPlus, HardDrive, LayoutGrid, List, NotebookPen, PanelLeft, PanelRight, Sparkles, Tag, Trash2 } from "lucide-react"
+import { Archive, BookOpenText, BookPlus, Clock3, Folder, FolderPlus, HardDrive, LayoutGrid, List, PanelLeft, PanelRight, Sparkles, Tag, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 export default function LibraryPreview() {
@@ -101,17 +101,13 @@ export default function LibraryPreview() {
         <div className="auth-gateway__library-main">
           <div className="auth-gateway__library-header">
             <h3>Library</h3>
-            <span>Your Library for books, blogs, and folders</span>
+            <span>Your Library for books and folders</span>
           </div>
 
           <div className="auth-gateway__library-create-row" role="list" aria-label="Create actions">
             <button type="button" className="auth-gateway__library-create-card" role="listitem">
               <BookPlus size={28} aria-hidden={true} />
               <span>Create book</span>
-            </button>
-            <button type="button" className="auth-gateway__library-create-card" role="listitem">
-              <NotebookPen size={28} aria-hidden={true} />
-              <span>Create blog</span>
             </button>
             <button type="button" className="auth-gateway__library-create-card" role="listitem">
               <FolderPlus size={28} aria-hidden={true} />
@@ -126,28 +122,28 @@ export default function LibraryPreview() {
                 <BookOpenText size={16} aria-hidden={true} />
                 <div>
                   <strong>Fish Out of Water</strong>
-                  <span>Book draft • 2h ago</span>
+                  <span>Draft • 2h ago</span>
                 </div>
               </article>
               <article className="auth-gateway__library-recent-item">
-                <NotebookPen size={16} aria-hidden={true} />
+                <BookOpenText size={16} aria-hidden={true} />
                 <div>
                   <strong>Author Devlog</strong>
-                  <span>Blog project • Yesterday</span>
+                  <span>Updated • Yesterday</span>
                 </div>
               </article>
               <article className="auth-gateway__library-recent-item">
                 <BookOpenText size={16} aria-hidden={true} />
                 <div>
                   <strong>Moonlit Atlas</strong>
-                  <span>Book project • 3d ago</span>
+                  <span>Updated • 3d ago</span>
                 </div>
               </article>
               <article className="auth-gateway__library-recent-item">
-                <NotebookPen size={16} aria-hidden={true} />
+                <BookOpenText size={16} aria-hidden={true} />
                 <div>
                   <strong>Weekly Writing Notes</strong>
-                  <span>Blog draft • 5d ago</span>
+                  <span>Draft • 5d ago</span>
                 </div>
               </article>
             </div>
@@ -209,7 +205,7 @@ export default function LibraryPreview() {
                   <BookOpenText size={17} aria-hidden={true} />
                   <strong>The Last Ivory Bell</strong>
                 </div>
-                <span>Book</span>
+                <span>18 docs</span>
                 <span>2h ago</span>
               </article>
               <article className="auth-gateway__library-row">
@@ -217,23 +213,23 @@ export default function LibraryPreview() {
                   <BookOpenText size={17} aria-hidden={true} />
                   <strong>Across the Monsoon</strong>
                 </div>
-                <span>Book</span>
+                <span>12 docs</span>
                 <span>Yesterday</span>
               </article>
               <article className="auth-gateway__library-row">
                 <div className="auth-gateway__library-row-main">
-                  <FileText size={17} aria-hidden={true} />
-                  <strong>Launch Week Post</strong>
+                  <BookOpenText size={17} aria-hidden={true} />
+                  <strong>Launch Week Notes</strong>
                 </div>
-                <span>Blog</span>
+                <span>6 docs</span>
                 <span>3d ago</span>
               </article>
               <article className="auth-gateway__library-row">
                 <div className="auth-gateway__library-row-main">
-                  <FileText size={17} aria-hidden={true} />
+                  <BookOpenText size={17} aria-hidden={true} />
                   <strong>Newsletter 014</strong>
                 </div>
-                <span>Blog</span>
+                <span>9 docs</span>
                 <span>5d ago</span>
               </article>
               <article className="auth-gateway__library-row">
@@ -241,7 +237,7 @@ export default function LibraryPreview() {
                   <BookOpenText size={17} aria-hidden={true} />
                   <strong>Character Bible v2</strong>
                 </div>
-                <span>Project</span>
+                <span>24 docs</span>
                 <span>1w ago</span>
               </article>
             </div>
@@ -253,7 +249,7 @@ export default function LibraryPreview() {
                 </div>
                 <div className="auth-gateway__library-grid-info">
                   <strong>The Last Ivory Bell</strong>
-                  <span>Book • 2h ago</span>
+                  <span>2h ago</span>
                 </div>
               </article>
               <article className="auth-gateway__library-grid-card">
@@ -262,25 +258,25 @@ export default function LibraryPreview() {
                 </div>
                 <div className="auth-gateway__library-grid-info">
                   <strong>Across the Monsoon</strong>
-                  <span>Book • Yesterday</span>
+                  <span>Yesterday</span>
                 </div>
               </article>
               <article className="auth-gateway__library-grid-card">
                 <div className="auth-gateway__library-grid-thumb">
-                  <FileText size={28} aria-hidden={true} />
+                  <BookOpenText size={28} aria-hidden={true} />
                 </div>
                 <div className="auth-gateway__library-grid-info">
-                  <strong>Launch Week Post</strong>
-                  <span>Blog • 3d ago</span>
+                  <strong>Launch Week Notes</strong>
+                  <span>3d ago</span>
                 </div>
               </article>
               <article className="auth-gateway__library-grid-card">
                 <div className="auth-gateway__library-grid-thumb">
-                  <FileText size={28} aria-hidden={true} />
+                  <BookOpenText size={28} aria-hidden={true} />
                 </div>
                 <div className="auth-gateway__library-grid-info">
                   <strong>Newsletter 014</strong>
-                  <span>Blog • 5d ago</span>
+                  <span>5d ago</span>
                 </div>
               </article>
               <article className="auth-gateway__library-grid-card">
@@ -289,7 +285,7 @@ export default function LibraryPreview() {
                 </div>
                 <div className="auth-gateway__library-grid-info">
                   <strong>Character Bible v2</strong>
-                  <span>Project • 1w ago</span>
+                  <span>1w ago</span>
                 </div>
               </article>
             </div>
@@ -305,7 +301,7 @@ export default function LibraryPreview() {
             <BookOpenText size={20} aria-hidden={true} />
             <div>
               <strong>The Last Ivory Bell</strong>
-              <span>Book draft</span>
+              <span>Draft in progress</span>
             </div>
           </div>
 

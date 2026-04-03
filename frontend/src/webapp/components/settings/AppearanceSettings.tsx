@@ -16,6 +16,7 @@ export type AppearanceSectionProps = {
   isRendered: boolean
   menuBarEnabled: boolean
   flagsEnabled: boolean
+  translucentNavPanel: boolean
   showWordCount: boolean
   displayFont: string
   bodyFont: string
@@ -28,6 +29,7 @@ export type AppearanceSectionProps = {
   customPaletteAccent: string
   onMenuBarEnabledChange: (enabled: boolean) => void
   onFlagsEnabledChange: (enabled: boolean) => void
+  onTranslucentNavPanelChange: (enabled: boolean) => void
   onDisplayFontChange: (fontFamily: string) => void
   onBodyFontChange: (fontFamily: string) => void
   onUiFontChange: (fontFamily: string) => void
@@ -60,6 +62,7 @@ export default function AppearanceSettings({
   isRendered,
   menuBarEnabled,
   flagsEnabled,
+  translucentNavPanel,
   showWordCount,
   displayFont,
   bodyFont,
@@ -72,6 +75,7 @@ export default function AppearanceSettings({
   customPaletteAccent,
   onMenuBarEnabledChange,
   onFlagsEnabledChange,
+  onTranslucentNavPanelChange,
   onDisplayFontChange,
   onBodyFontChange,
   onUiFontChange,
@@ -497,6 +501,23 @@ export default function AppearanceSettings({
           <span className="global-settings__switch-track" />
         </span>
       </label>
+
+      {Boolean(window.electronAPI) ? (
+        <label className="global-settings__field global-settings__field--toggle" htmlFor="settings-translucent-nav-toggle">
+          <span>Translucent Navigation Panel</span>
+          <span className="global-settings__switch" aria-hidden="true">
+            <input
+              id="settings-translucent-nav-toggle"
+              type="checkbox"
+              checked={translucentNavPanel}
+              onChange={(event) => {
+                onTranslucentNavPanelChange(event.target.checked)
+              }}
+            />
+            <span className="global-settings__switch-track" />
+          </span>
+        </label>
+      ) : null}
     </section>
   )
 }

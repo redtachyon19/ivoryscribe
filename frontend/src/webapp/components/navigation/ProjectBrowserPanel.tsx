@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
-import { Archive, BookCopy, BookText, ChevronDown, Clock3, Folder, LibraryBig, NotebookText, ScrollText, Trash2 } from "lucide-react"
+import { Archive, BookCopy, BookText, ChevronDown, Clock3, Folder, LibraryBig, ScrollText, Trash2 } from "lucide-react"
 import { requestNavigateArchive, requestNavigateTrash, requestNavigateLibrary, requestNavigateRecent } from "../../../core/editorEvents"
 import type { Project } from "../../../core/projects"
 import { duplicateProject } from "../../../core/libraryUtils"
@@ -204,7 +204,7 @@ export default function ProjectBrowserPanel({
     const isDragging = drag.draggingId === project.id
     const isDropBefore = drag.dropTarget?.targetId === project.id && drag.dropTarget.mode === "before"
     const isDropAfter = drag.dropTarget?.targetId === project.id && drag.dropTarget.mode === "after"
-    const Icon = project.kind === "Book" ? BookText : NotebookText
+    const Icon = BookText
     const isEditingProject = editingProjectId === project.id
 
     return (
@@ -544,7 +544,6 @@ export default function ProjectBrowserPanel({
             <ProjectSettings
               fieldClassName="project-settings-modal__field"
               projectName={settings.projectName}
-              projectKind={settings.projectKind}
               markdownEditorEnabled={settings.markdownEditorEnabled}
               projectColor={settings.projectColor}
               projectWallpaperEmojis={settings.wallpaperEmojis}
@@ -552,7 +551,6 @@ export default function ProjectBrowserPanel({
                 settings.setProjectName(nextName)
                 if (settings.error) settings.setError("")
               }}
-              onProjectKindChange={settings.setProjectKind}
               onMarkdownEditorEnabledChange={settings.setMarkdownEditorEnabled}
               onProjectColorChange={settings.setProjectColor}
               onProjectWallpaperEmojisChange={settings.setWallpaperEmojis}

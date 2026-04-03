@@ -101,7 +101,7 @@ export default function Home({
             <br />
             100% of profits go to elephant conservation.
           </h1>
-          <p>Perfect for book &amp; blog drafting. Built by an author, for authors.</p>
+          <p>Perfect for book drafting. Built by an author, for authors.</p>
 
           <div className="auth-gateway__actions">
             <a href="/download" className="auth-gateway__cta-button auth-gateway__cta-button--outline">

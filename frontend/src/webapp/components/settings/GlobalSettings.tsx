@@ -22,6 +22,7 @@ export type GlobalSettingsProps = {
   showProjectPreferences?: boolean
   menuBarEnabled: boolean
   flagsEnabled: boolean
+  translucentNavPanel: boolean
   displayFont: string
   bodyFont: string
   uiFont: string
@@ -34,6 +35,7 @@ export type GlobalSettingsProps = {
   onRestoreDefaults: () => void
   onMenuBarEnabledChange: (enabled: boolean) => void
   onFlagsEnabledChange: (enabled: boolean) => void
+  onTranslucentNavPanelChange: (enabled: boolean) => void
   onDisplayFontChange: (fontFamily: string) => void
   onBodyFontChange: (fontFamily: string) => void
   onUiFontChange: (fontFamily: string) => void
@@ -48,7 +50,6 @@ export type GlobalSettingsProps = {
   accountLastName: string
   accountEmail: string
   activeProjectName: string
-  activeProjectKind: ProjectKind
   activeProjectMarkdownEditorEnabled: boolean
   activeProjectColor: string
   activeProjectWallpaperEmojis: string
@@ -67,7 +68,6 @@ export type GlobalSettingsProps = {
     }
   }>
   onActiveProjectNameChange: (name: string) => void
-  onActiveProjectKindChange: (kind: ProjectKind) => void
   onActiveProjectMarkdownEditorEnabledChange: (enabled: boolean) => void
   onActiveProjectColorChange: (color: string) => void
   onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
@@ -90,6 +90,7 @@ export default function GlobalSettings({
   showProjectPreferences = true,
   menuBarEnabled,
   flagsEnabled,
+  translucentNavPanel,
   displayFont,
   bodyFont,
   uiFont,
@@ -102,6 +103,7 @@ export default function GlobalSettings({
   onRestoreDefaults,
   onMenuBarEnabledChange,
   onFlagsEnabledChange,
+  onTranslucentNavPanelChange,
   onDisplayFontChange,
   onBodyFontChange,
   onUiFontChange,
@@ -116,13 +118,11 @@ export default function GlobalSettings({
   accountLastName,
   accountEmail,
   activeProjectName,
-  activeProjectKind,
   activeProjectMarkdownEditorEnabled,
   activeProjectColor,
   activeProjectWallpaperEmojis,
   activeProjectVersions = [],
   onActiveProjectNameChange,
-  onActiveProjectKindChange,
   onActiveProjectMarkdownEditorEnabledChange,
   onActiveProjectColorChange,
   onActiveProjectWallpaperEmojisChange,
@@ -448,6 +448,7 @@ export default function GlobalSettings({
                   isRendered={isRendered}
                   menuBarEnabled={menuBarEnabled}
                   flagsEnabled={flagsEnabled}
+                  translucentNavPanel={translucentNavPanel}
                   showWordCount={showWordCount}
                   displayFont={displayFont}
                   bodyFont={bodyFont}
@@ -460,6 +461,7 @@ export default function GlobalSettings({
                   customPaletteAccent={customPaletteAccent}
                   onMenuBarEnabledChange={onMenuBarEnabledChange}
                   onFlagsEnabledChange={onFlagsEnabledChange}
+                  onTranslucentNavPanelChange={onTranslucentNavPanelChange}
                   onDisplayFontChange={onDisplayFontChange}
                   onBodyFontChange={onBodyFontChange}
                   onUiFontChange={onUiFontChange}
@@ -489,13 +491,11 @@ export default function GlobalSettings({
                     <ProjectSettings
                       fieldClassName="global-settings__field"
                       projectName={activeProjectName}
-                      projectKind={activeProjectKind}
                       markdownEditorEnabled={activeProjectMarkdownEditorEnabled}
                       projectColor={activeProjectColor}
                       projectWallpaperEmojis={activeProjectWallpaperEmojis}
                       projectVersions={activeProjectVersions}
                       onProjectNameChange={onActiveProjectNameChange}
-                      onProjectKindChange={onActiveProjectKindChange}
                       onMarkdownEditorEnabledChange={onActiveProjectMarkdownEditorEnabledChange}
                       onProjectColorChange={onActiveProjectColorChange}
                       onProjectWallpaperEmojisChange={onActiveProjectWallpaperEmojisChange}

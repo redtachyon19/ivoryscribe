@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "concurrently -n frontend,backend -c cyan,green \"npm --prefix frontend run dev\" \"npm --prefix backend run dev\"",
+    "dev:electron": "concurrently -n electron,backend -c cyan,green \"npm --prefix frontend run dev:electron\" \"npm --prefix backend run dev\"",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend run dev",
     "build": "npm --prefix frontend run build",
@@ -11,5 +12,8 @@
     "preview": "npm --prefix frontend run preview",
     "server": "npm --prefix backend run start",
     "server:dev": "npm --prefix backend run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

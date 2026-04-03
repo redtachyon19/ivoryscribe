@@ -10,6 +10,7 @@ const STORAGE_LIMIT_GB = 15
 
 export type AppShellProps = {
   menuBarEnabled: boolean
+  translucentNavPanel: boolean
   isEditorTyping: boolean
   view: "projects" | "editor"
   project: Project | null
@@ -76,6 +77,7 @@ export default function AppShell({
   const [draggingPanel, setDraggingPanel] = useState<"left" | "right" | null>(null)
   const [sidebarSlide, setSidebarSlide] = useState<1 | 2>(view === "projects" ? 1 : 2)
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const panelSeparatorWidth = 8
 
   const estimatedStorageBytes = useMemo(() => {
     const projectBytes = projects.reduce((total, item) => total + new Blob([JSON.stringify(item)]).size, 0)
@@ -134,7 +136,7 @@ export default function AppShell({
     <div className={`editor-workspace ${menuBarEnabled ? "editor-workspace--with-menu" : ""}`.trim()}>
       <div
         className="editor-workspace__topbar"
-        style={{ left: isLeftRailOpen ? leftPanelWidth : 0 }}
+        style={{ "--topbar-left": `${isLeftRailOpen ? leftPanelWidth : 0}px`, left: `var(--topbar-left)` } as React.CSSProperties}
       >
         {!isLeftRailOpen ? (
           <button
@@ -260,7 +262,7 @@ export default function AppShell({
         ref={bodyRef}
         className={`editor-workspace__body ${!isLeftRailOpen ? "editor-workspace__body--collapsed-left" : ""} ${!isRightRailOpen ? "editor-workspace__body--collapsed-right" : ""} ${draggingPanel ? "editor-workspace__body--dragging" : ""}`.trim()}
         style={{
-          gridTemplateColumns: `${isLeftRailOpen ? leftPanelWidth : 0}px ${isLeftRailOpen ? 8 : 0}px 1fr ${isRightRailOpen ? 8 : 0}px ${isRightRailOpen ? rightPanelWidth : 0}px`,
+          gridTemplateColumns: `${isLeftRailOpen ? leftPanelWidth : 0}px ${isLeftRailOpen ? panelSeparatorWidth : 0}px 1fr ${isRightRailOpen ? panelSeparatorWidth : 0}px ${isRightRailOpen ? rightPanelWidth : 0}px`,
         }}
       >
         <NavigationPanel
@@ -305,7 +307,7 @@ export default function AppShell({
           className={`editor-workspace__settings-btn ${isEditorTyping ? "editor-workspace__settings-btn--hidden" : ""}`.trim()}
           aria-label="Open settings"
           onClick={onToggleSettings}
-          style={{ right: `${(isRightRailOpen ? rightPanelWidth + 8 : 0) + 14}px` }}
+          style={{ right: `${(isRightRailOpen ? rightPanelWidth + panelSeparatorWidth : 0) + 14}px` }}
         >
           <Settings size={14} aria-hidden={true} />
         </button>

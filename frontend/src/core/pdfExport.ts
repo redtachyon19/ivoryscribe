@@ -1,6 +1,14 @@
 import { jsPDF } from "jspdf"
 import JSZip from "jszip"
 import { DEFAULT_DOCUMENT_CONTENT, collectTabSequence, type Project } from "./projects"
+import { resolveExportPlan, type ExportMode } from "./exportSelection"
+
+export type PdfExportMode = ExportMode
+
+type ExportProjectAsPdfOptions = {
+  mode?: PdfExportMode
+  selectedTabIds?: string[]
+}
 
 const PARAGRAPH_TAGS = new Set(["p", "li", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "pre"])
 
@@ -294,8 +302,7 @@ function buildSingleDocumentPdf(projectName: string, tabTitle: string, html: str
   return pdf
 }
 
-async function exportBlogAsPdfBundle(project: Project) {
-  const sequence = collectTabSequence(project.tabs)
+async function exportProjectAsPdfZip(project: Project, sequence: Array<{ id: string; title: string }>) {
   const folderName = sanitizeZipEntryName(project.name)
   const zip = new JSZip()
 
@@ -311,18 +318,14 @@ async function exportBlogAsPdfBundle(project: Project) {
   }
 
   const zipBlob = await zip.generateAsync({ type: "blob" })
-  downloadBlob(zipBlob, `${slugifyFileName(project.name)}.zip`)
+  downloadBlob(zipBlob, `${slugifyFileName(project.name)}-chapters.zip`)
 }
 
-export async function exportProjectAsPdf(project: Project) {
-  if (project.kind === "Blog") {
-    await exportBlogAsPdfBundle(project)
-    return
-  }
-
-  // Export documents in the same depth-first order shown in the tab tree.
-  const sequence = collectTabSequence(project.tabs)
-  const tocSequence = collectTabSequenceWithDepth(project.tabs)
+function exportProjectAsSinglePdf(
+  project: Project,
+  sequence: Array<{ id: string; title: string }>,
+  tocSequence: Array<{ id: string; title: string; depth: number }>,
+) {
   const pdf = new jsPDF({ unit: "pt", format: "letter" })
   // Letter page with true 1-inch margins.
   const marginX = 72
@@ -473,4 +476,28 @@ export async function exportProjectAsPdf(project: Project) {
   const slug = project.name.toLowerCase().replace(/\s+/g, "-")
   // Download file with project name + date for easier sorting.
   pdf.save(`ivoryscribe-${slug}-${stamp}.pdf`)
+}
+
+export async function exportProjectAsPdf(project: Project, options: ExportProjectAsPdfOptions = {}) {
+  const sequence = collectTabSequence(project.tabs)
+  const plan = resolveExportPlan({
+    formatLabel: "PDF",
+    tabs: sequence,
+    preferredMode: options.mode,
+    preferredSelectedTabIds: options.selectedTabIds,
+  })
+
+  if (!plan) {
+    return
+  }
+
+  if (plan.mode === "separate-files") {
+    await exportProjectAsPdfZip(project, sequence)
+    return
+  }
+
+  const selectedSet = new Set(plan.selectedTabIds)
+  const selectedSequence = sequence.filter((tab) => selectedSet.has(tab.id))
+  const selectedTocSequence = collectTabSequenceWithDepth(project.tabs).filter((tab) => selectedSet.has(tab.id))
+  exportProjectAsSinglePdf(project, selectedSequence, selectedTocSequence)
 }

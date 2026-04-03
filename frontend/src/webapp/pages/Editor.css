@@ -30,6 +30,13 @@
   padding: 0 12px;
   background: var(--app-bg);
   transition: left 180ms ease;
+  -webkit-app-region: drag;
+}
+
+.editor-workspace__topbar button,
+.editor-workspace__topbar a,
+.editor-workspace__topbar input {
+  -webkit-app-region: no-drag;
 }
 
 .editor-workspace__panel-toggle {
@@ -193,6 +200,7 @@
 .editor-workspace__left-rail {
   min-width: 0;
   height: 100%;
+  box-sizing: border-box;
   overflow: hidden;
   border-right: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
   display: flex;
@@ -261,6 +269,8 @@
 .editor-workspace__body--collapsed-left .editor-workspace__left-rail {
   opacity: 0;
   pointer-events: none;
+  border-right: none;
+  background: transparent;
 }
 
 .editor-workspace__rail-back {
@@ -426,6 +436,7 @@
 
 .editor-workspace__right-rail {
   min-width: 0;
+  box-sizing: border-box;
   overflow-x: hidden;
   overflow-y: auto;
   border-left: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
@@ -433,15 +444,17 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #171717) 92%, transparent);
-  transition: opacity 160ms ease, padding 160ms ease;
+  background: var(--menu-dropdown-bg, #171717);
+  transition: padding 160ms ease;
 }
 
+
+
 .editor-workspace__body--collapsed-right .editor-workspace__right-rail {
-  opacity: 0;
   padding-left: 0;
   padding-right: 0;
   pointer-events: none;
+  border-left: none;
 }
 
 /* ── Word Count ── */
@@ -618,4 +631,50 @@
   .editor-workspace__settings-btn:focus-visible svg {
     animation: none;
   }
+}
+
+/* ── Electron macOS Overrides ── */
+
+/* Shell backgrounds */
+.app--electron-mac.app--translucent-nav .editor-workspace {
+  background: transparent;
+}
+
+.app--electron-mac .editor-workspace__editor-center {
+  background: var(--app-bg);
+}
+
+.app--electron-mac .editor-workspace__topbar {
+  background: var(--app-bg);
+}
+
+/* Topbar traffic-light spacing */
+.app--electron-mac:not(.app--window-fullscreen) .editor-workspace__topbar::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: calc(-1 * max(calc(78px - var(--topbar-left, 0px)), 0px));
+  width: max(calc(78px - var(--topbar-left, 0px)), 0px);
+  height: 1px;
+  background: color-mix(in srgb, var(--menu-border, #2b2b2b) 66%, transparent);
+  pointer-events: none;
+}
+
+.app--electron-mac:not(.app--window-fullscreen) .editor-workspace__topbar {
+  left: max(var(--topbar-left, 0px), 78px) !important;
+}
+
+.app--electron-mac.app--window-fullscreen .editor-workspace__topbar {
+  left: var(--topbar-left, 0px) !important;
+}
+
+/* Translucent navigation rail */
+.app--electron-mac.app--translucent-nav .editor-workspace__left-rail {
+  background: transparent;
+  border-right: none;
+}
+
+/* Keep panel separators opaque even when navigation translucency is enabled */
+.app--electron-mac.app--translucent-nav .editor-workspace__resizer {
+  background: var(--app-bg);
 }

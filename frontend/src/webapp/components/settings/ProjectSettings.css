@@ -236,10 +236,6 @@
   z-index: 0;
 }
 
-.project-preferences-kind-toggle--blog .project-preferences-kind-toggle__pill {
-  transform: translateX(calc(100% + 0px));
-}
-
 .project-preferences-kind-toggle__option {
   position: relative;
   z-index: 1;

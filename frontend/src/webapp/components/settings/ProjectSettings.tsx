@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { BookText, Check, Download, FileLock2, History, NotebookText, UserRoundPlus } from "lucide-react"
+import { Check, Download, FileLock2, History, UserRoundPlus } from "lucide-react"
 import type { ProjectKind } from "../../../core/projects"
 import { SharePanel } from "./ShareDialog"
 import Button from "../ui/Button"
@@ -25,14 +25,12 @@ type ProjectVersionListItem = {
 type ProjectPreferencesFieldsProps = {
   fieldClassName: string
   projectName: string
-  projectKind: ProjectKind
   markdownEditorEnabled: boolean
   projectColor: string
   projectWallpaperEmojis: string
   projectVersions?: ProjectVersionListItem[]
   showVersionHistory?: boolean
   onProjectNameChange: (name: string) => void
-  onProjectKindChange: (kind: ProjectKind) => void
   onMarkdownEditorEnabledChange: (enabled: boolean) => void
   onProjectColorChange: (color: string) => void
   onProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
@@ -102,14 +100,12 @@ function normalizeProjectColor(value: string | null | undefined) {
 export default function ProjectSettings({
   fieldClassName,
   projectName,
-  projectKind,
   markdownEditorEnabled,
   projectColor,
   projectWallpaperEmojis,
   projectVersions = [],
   showVersionHistory = true,
   onProjectNameChange,
-  onProjectKindChange,
   onMarkdownEditorEnabledChange,
   onProjectColorChange,
   onProjectWallpaperEmojisChange,
@@ -158,41 +154,6 @@ export default function ProjectSettings({
             onProjectNameChange(event.target.value)
           }}
         />
-      </label>
-
-      <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
-        <span className="project-preferences-fields__label">Type</span>
-        <div
-          className={`project-preferences-kind-toggle ${projectKind === "Blog" ? "project-preferences-kind-toggle--blog" : "project-preferences-kind-toggle--book"}`.trim()}
-          role="radiogroup"
-          aria-label="Project type"
-        >
-          <span className="project-preferences-kind-toggle__pill" aria-hidden="true" />
-          <button
-            type="button"
-            className={`project-preferences-kind-toggle__option ${projectKind === "Book" ? "project-preferences-kind-toggle__option--active" : ""}`.trim()}
-            onClick={() => {
-              onProjectKindChange("Book")
-            }}
-            role="radio"
-            aria-checked={projectKind === "Book"}
-          >
-            <BookText size={19} strokeWidth={1.9} aria-hidden="true" />
-            <span>Book</span>
-          </button>
-          <button
-            type="button"
-            className={`project-preferences-kind-toggle__option ${projectKind === "Blog" ? "project-preferences-kind-toggle__option--active" : ""}`.trim()}
-            onClick={() => {
-              onProjectKindChange("Blog")
-            }}
-            role="radio"
-            aria-checked={projectKind === "Blog"}
-          >
-            <NotebookText size={19} strokeWidth={1.9} aria-hidden="true" />
-            <span>Blog</span>
-          </button>
-        </div>
       </label>
 
       <label

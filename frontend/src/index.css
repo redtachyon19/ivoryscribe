@@ -17,6 +17,12 @@ body {
   background-color: #0f0f0f;
 }
 
+/* Electron macOS: make html/body transparent for native vibrancy */
+html.electron-mac.translucent-nav,
+html.electron-mac.translucent-nav body {
+  background-color: transparent !important;
+}
+
 #root {
   min-height: 100vh;
 }
