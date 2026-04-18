@@ -81,6 +81,20 @@
   padding-bottom: 352px;
 }
 
+.project-browser__list-shell--marquee {
+  cursor: crosshair;
+  user-select: none;
+}
+
+.project-browser__marquee-selection {
+  position: absolute;
+  z-index: 50;
+  border: 1.5px solid color-mix(in srgb, var(--app-accent, #7ea8ff) 75%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #7ea8ff) 10%, transparent);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
 .project-browser__list {
   display: flex;
   flex-direction: column;
@@ -138,6 +152,16 @@
 
 .project-browser__row--active {
   background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
+}
+
+.project-browser__row--marquee-selected {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 60%, transparent);
+}
+
+.project-browser__row--marquee-selected:hover,
+.project-browser__row--active.project-browser__row--marquee-selected {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, var(--menu-button-hover-bg, #2a2a2a) 52%);
 }
 
 .project-browser__label {

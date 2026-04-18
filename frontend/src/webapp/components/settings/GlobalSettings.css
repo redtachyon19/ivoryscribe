@@ -628,6 +628,12 @@
   animation: global-settings-modal-out 140ms ease-in forwards;
 }
 
+.global-settings__modal--background-hidden {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
 .global-settings__modal h2 {
   margin: 0;
   font-family: var(--app-display-font);

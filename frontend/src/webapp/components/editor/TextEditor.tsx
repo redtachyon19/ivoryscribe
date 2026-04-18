@@ -32,7 +32,7 @@ type EditorCommandDetail = {
   command: EditorCommand
 }
 
-const MIN_FONT_SIZE = 20
+const MIN_FONT_SIZE = 10
 const MAX_FONT_SIZE = 84
 const DEFAULT_FONT_SIZE = 32
 const DEFAULT_FONT_FAMILY = '"Times", "Times New Roman", serif'

@@ -177,17 +177,28 @@ export function buildFolderActions({
 export function buildMultiSelectActions({
   ids,
   onDuplicate,
+  onShare,
   onArchive,
   onTrash,
 }: {
   ids: Set<string>
   onDuplicate: (ids: Set<string>) => void
+  onShare?: (ids: Set<string>) => void
   onArchive: (ids: Set<string>) => void
   onTrash: (ids: Set<string>) => void
 }): ContextMenuAction[] {
-  return [
+  const actions: ContextMenuAction[] = [
     { label: `Duplicate ${ids.size} items`, icon: <BookCopy size={14} strokeWidth={2} aria-hidden={true} />, action: () => onDuplicate(ids) },
+  ]
+
+  if (onShare) {
+    actions.push({ label: `Share ${ids.size} items`, icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShare(ids) })
+  }
+
+  actions.push(
     { label: `Archive ${ids.size} items`, icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />, action: () => onArchive(ids) },
     { label: `Trash ${ids.size} items`, icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => onTrash(ids), danger: true },
-  ]
+  )
+
+  return actions
 }

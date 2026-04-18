@@ -29,7 +29,7 @@ export const PALETTE_OPTIONS: { label: string; value: Palette }[] = [
   { label: "(Custom)", value: "custom" },
 ]
 
-export const MIN_FONT_SIZE = 20
+export const MIN_FONT_SIZE = 10
 export const MAX_FONT_SIZE = 84
 export const DEFAULT_CUSTOM_BACKGROUND = "#0f0f0f"
 export const DEFAULT_CUSTOM_ACCENT = "#9ab8ff"

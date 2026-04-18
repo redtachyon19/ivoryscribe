@@ -10,7 +10,7 @@ import {
   getInitialPalette,
 } from "./appearance"
 import { requestAppColorPaletteChange } from "./editorEvents"
-import { getAppMenu, projectWorkspaceMenu } from "./menu"
+import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "./menu"
 import { downloadProjectAsMarkdown } from "./markdown"
 import { exportProjectAsPdf } from "./pdfExport"
 import { createProject, DEFAULT_DOCUMENT_CONTENT, type Project } from "./projects"
@@ -251,6 +251,29 @@ export function useAppOrchestration() {
     enabled: isMenuBarEnabled,
     items: view === "projects" ? projectWorkspaceMenu : getAppMenu({ markdownEditorEnabled: Boolean(activeProject?.markdownEditorEnabled) }),
   }
+
+  // ── Electron native menu sync ──
+  const isElectronMac = Boolean(window.electronAPI) && window.electronAPI?.platform === "darwin"
+  const nativeMenuCommandMapRef = useRef<Record<string, () => void>>({})
+
+  useEffect(() => {
+    if (!isElectronMac) return
+
+    const { nativeItems, commandMap } = serializeMenuForElectron(menuBarProps.items)
+    nativeMenuCommandMapRef.current = commandMap
+    window.electronAPI?.updateMenu(nativeItems)
+  }, [isElectronMac, menuBarProps.items])
+
+  useEffect(() => {
+    if (!isElectronMac) return
+
+    const unsubscribe = window.electronAPI?.onMenuCommand((commandId: string) => {
+      const action = nativeMenuCommandMapRef.current[commandId]
+      if (action) action()
+    })
+
+    return () => { unsubscribe?.() }
+  }, [isElectronMac])
 
   const brandProps = {
     hasMenu: isMenuBarEnabled && (view === "editor" || view === "projects"),

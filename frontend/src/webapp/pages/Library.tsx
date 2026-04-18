@@ -223,16 +223,17 @@ export default function Library({
               }}
             />
           ) : null}
-          {openFolder ? (
-            <FolderDetailView
-              folder={openFolder}
-              folderProjects={folderProjects}
-              onBack={() => setOpenFolderId(null)}
-              onCreateBook={() => createNewProject(openFolderId!)}
-              renderProjectCard={renderProjectCard}
-            />
-          ) : (
-            <>
+          <div className="project-hub__main-content">
+            {openFolder ? (
+              <FolderDetailView
+                folder={openFolder}
+                folderProjects={folderProjects}
+                onBack={() => setOpenFolderId(null)}
+                onCreateBook={() => createNewProject(openFolderId!)}
+                renderProjectCard={renderProjectCard}
+              />
+            ) : (
+              <>
             {/* Header */}
             <div className="project-hub__folder-detail-header">
               <div className="project-hub__folder-detail-title">
@@ -242,20 +243,6 @@ export default function Library({
               <p className="project-hub__folder-detail-desc">Your herd of projects, organized in one place</p>
               <p className="project-hub__folder-detail-count">{activeProjects.length} {activeProjects.length === 1 ? "project" : "projects"}</p>
             </div>
-
-            {/* Create Row */}
-            {activeProjects.length === 0 ? (
-              <div className="project-hub__create-row" role="list" aria-label="Create actions">
-                <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createNewProject()}>
-                  <BookPlus size={28} aria-hidden={true} />
-                  <span>Create book</span>
-                </button>
-                <button type="button" className="project-hub__create-card" role="listitem" onClick={() => createFolder()}>
-                  <FolderPlus size={28} aria-hidden={true} />
-                  <span>Create folder</span>
-                </button>
-              </div>
-            ) : null}
 
             {/* Toolbar */}
             <ViewToggle viewMode={viewMode} onToggle={toggleView} />
@@ -366,32 +353,46 @@ export default function Library({
             ) : (
               /* Projects — Grid View (existing card components with drag/drop) */
               <ul className="project-hub__grid-view">
-                <li
-                  className={`project-hub__root-drop ${drag.draggingProjectId ? "project-hub__root-drop--ready" : ""} ${drag.getRootDropClassName("top")}`.trim()}
-                  aria-hidden="true"
-                  onDragOver={drag.handleRootDragOver("top")}
-                  onDrop={multiSelect.handleMultiRootDrop("top")}
-                />
+                {drag.draggingProjectId ? (
+                  <li
+                    className={`project-hub__root-drop project-hub__root-drop--ready ${drag.getRootDropClassName("top")}`.trim()}
+                    aria-hidden="true"
+                    onDragOver={drag.handleRootDragOver("top")}
+                    onDrop={multiSelect.handleMultiRootDrop("top")}
+                  />
+                ) : null}
 
                 {drag.topRootProjects.map((project) => renderProjectCard(project))}
 
                 {drag.bottomRootProjects.map((project) => renderProjectCard(project))}
 
-                <li
-                  className={`project-hub__root-drop ${drag.draggingProjectId ? "project-hub__root-drop--ready" : ""} ${drag.getRootDropClassName("bottom")}`.trim()}
-                  aria-hidden="true"
-                  onDragOver={drag.handleRootDragOver("bottom")}
-                  onDrop={multiSelect.handleMultiRootDrop("bottom")}
-                />
+                {drag.draggingProjectId ? (
+                  <li
+                    className={`project-hub__root-drop project-hub__root-drop--ready ${drag.getRootDropClassName("bottom")}`.trim()}
+                    aria-hidden="true"
+                    onDragOver={drag.handleRootDragOver("bottom")}
+                    onDrop={multiSelect.handleMultiRootDrop("bottom")}
+                  />
+                ) : null}
               </ul>
             )}
 
             {activeProjects.length === 0 ? (
-              <p className="project-hub__empty">No projects yet. Create one to begin writing.</p>
+              <div className="project-hub__create-row project-hub__create-row--project-grid" role="list" aria-label="Create actions">
+                <button type="button" className="project-hub__create-card project-hub__create-card--project-size" role="listitem" onClick={() => createNewProject()}>
+                  <BookPlus size={28} aria-hidden={true} />
+                  <span>Create book</span>
+                </button>
+                <button type="button" className="project-hub__create-card project-hub__create-card--project-size" role="listitem" onClick={() => createFolder()}>
+                  <FolderPlus size={28} aria-hidden={true} />
+                  <span>Create folder</span>
+                </button>
+              </div>
             ) : null}
             </>
-          )}
+            )}
           </div>
+        </div>
       </div>
 
       <Modal
@@ -479,6 +480,13 @@ export default function Library({
                       if (!folderIdSet.has(id)) {
                         setProjects((cur) => duplicateProject(cur, id))
                       }
+                    }
+                    multiSelect.clearSelection()
+                  },
+                  onShare: (ids) => {
+                    const shareableProjectId = [...ids].find((id) => !folderIdSet.has(id) && Boolean(projectDocumentMap[id]))
+                    if (shareableProjectId) {
+                      openShareDialog(shareableProjectId)
                     }
                     multiSelect.clearSelection()
                   },

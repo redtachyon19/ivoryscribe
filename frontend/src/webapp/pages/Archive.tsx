@@ -70,6 +70,8 @@ export default function ArchiveView({ projects, setProjects, onOpenProject, onOp
           />
         ) : null}
 
+        <div className="project-hub__main-content">
+
         <div className="project-hub__folder-detail-header">
           <div className="project-hub__folder-detail-title">
             <Archive size={20} aria-hidden={true} />
@@ -95,30 +97,30 @@ export default function ArchiveView({ projects, setProjects, onOpenProject, onOp
           ) : (
           <ul className="project-hub__grid-view">
             {archived.map((project) => (
-              <li key={project.id}>
-                <ProjectCard
-                  project={project}
-                  isDragging={false}
-                  dropClassName=""
-                  onOpenProject={onOpenProject}
-                  onDragStart={multiSelect.handleMultiSectionDragStart}
-                  onDragEnd={noop}
-                  onDragEnter={noopDragEl}
-                  onDragOver={noopDragEl}
-                  onDrop={noopDragEl}
-                  setEditingProjectId={setEditingProjectId}
-                  editingProjectId={editingProjectId}
-                  setProjects={setProjects}
-                  onContextMenu={handleProjectContextMenu}
-                  marqueeSelected={multiSelect.liveSelectedIds.has(project.id)}
-                />
-              </li>
+              <ProjectCard
+                key={project.id}
+                project={project}
+                isDragging={false}
+                dropClassName=""
+                onOpenProject={onOpenProject}
+                onDragStart={multiSelect.handleMultiSectionDragStart}
+                onDragEnd={noop}
+                onDragEnter={noopDragEl}
+                onDragOver={noopDragEl}
+                onDrop={noopDragEl}
+                setEditingProjectId={setEditingProjectId}
+                editingProjectId={editingProjectId}
+                setProjects={setProjects}
+                onContextMenu={handleProjectContextMenu}
+                marqueeSelected={multiSelect.liveSelectedIds.has(project.id)}
+              />
             ))}
           </ul>
           )
         ) : (
           <p className="project-hub__empty">No archived projects.</p>
         )}
+        </div>
       </div>
 
       {contextMenu ? (

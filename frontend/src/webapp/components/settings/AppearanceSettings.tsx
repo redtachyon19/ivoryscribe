@@ -41,7 +41,7 @@ export type AppearanceSectionProps = {
   sectionRef: (element: HTMLElement | null) => void
 }
 
-const MIN_FONT_SIZE = 20
+const MIN_FONT_SIZE = 10
 const MAX_FONT_SIZE = 84
 
 const normalizeHexInput = (value: string) => {

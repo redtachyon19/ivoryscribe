@@ -367,3 +367,53 @@ export function getAppMenu(options?: { markdownEditorEnabled?: boolean }): MenuI
 }
 
 export const appMenu: MenuItem[] = getAppMenu()
+
+// ── Electron native menu helpers ──
+
+export type NativeMenuItem = {
+  label: string
+  id?: string
+  submenu?: NativeMenuItem[]
+  disabled?: boolean
+  shortcut?: string
+}
+
+/**
+ * Convert the MenuItem tree into a serializable structure for Electron's main process,
+ * and collect a flat map of id→action callbacks for the renderer to dispatch.
+ */
+export function serializeMenuForElectron(
+  items: MenuItem[],
+  parentPath = "menu",
+): { nativeItems: NativeMenuItem[]; commandMap: Record<string, () => void> } {
+  const commandMap: Record<string, () => void> = {}
+
+  function walk(menuItems: MenuItem[], prefix: string): NativeMenuItem[] {
+    return menuItems.map((item, index) => {
+      const id = `${prefix}/${index}-${item.label.replace(/\s+/g, "-").toLowerCase()}`
+
+      if (item.submenu?.length) {
+        const nested = walk(item.submenu, id)
+        return {
+          label: item.label,
+          disabled: item.disabled,
+          submenu: nested,
+        }
+      }
+
+      if (item.action) {
+        commandMap[id] = item.action
+      }
+
+      return {
+        label: item.label,
+        id: item.action ? id : undefined,
+        disabled: item.disabled,
+        shortcut: item.shortcut,
+      }
+    })
+  }
+
+  const nativeItems = walk(items, parentPath)
+  return { nativeItems, commandMap }
+}
