@@ -15,8 +15,10 @@ export type AppShellProps = {
   view: "projects" | "editor"
   project: Project | null
   activeFolderName?: string | null
-  previousTabId: string | null
-  nextTabId: string | null
+  canGoBack: boolean
+  canGoForward: boolean
+  onGoBack: () => void
+  onGoForward: () => void
   activeTabPath: Array<{ id: string; title: string }>
   onProjectChange: (updater: (project: Project) => Project) => void
   onToggleSettings: () => void
@@ -46,8 +48,10 @@ export default function AppShell({
   view,
   project,
   activeFolderName = null,
-  previousTabId,
-  nextTabId,
+  canGoBack,
+  canGoForward,
+  onGoBack,
+  onGoForward,
   activeTabPath,
   onProjectChange,
   onToggleSettings,
@@ -132,8 +136,11 @@ export default function AppShell({
     setSidebarSlide(1)
   }
 
+  const isElectronMac = Boolean(window.electronAPI) && window.electronAPI?.platform === "darwin"
+  const showWebMenuSpacing = menuBarEnabled && !isElectronMac
+
   return (
-    <div className={`editor-workspace ${menuBarEnabled ? "editor-workspace--with-menu" : ""}`.trim()}>
+    <div className={`editor-workspace ${showWebMenuSpacing ? "editor-workspace--with-menu" : ""}`.trim()}>
       <div
         className="editor-workspace__topbar"
         style={{ "--topbar-left": `${isLeftRailOpen ? leftPanelWidth : 0}px`, left: `var(--topbar-left)` } as React.CSSProperties}
@@ -150,34 +157,22 @@ export default function AppShell({
         ) : null}
         {view === "editor" && project ? (
         <div className="editor-workspace__doc-path">
-          <div className="editor-workspace__doc-nav" aria-label="Document navigation">
+          <div className="editor-workspace__doc-nav" aria-label="Navigation history">
             <button
               type="button"
               className="editor-workspace__doc-nav-btn"
-              aria-label="Go to previous tab"
-              disabled={!previousTabId}
-              onClick={() => {
-                if (!previousTabId) return
-                onProjectChange((currentProject) => ({
-                  ...currentProject,
-                  activeId: previousTabId,
-                }))
-              }}
+              aria-label="Go back"
+              disabled={!canGoBack}
+              onClick={onGoBack}
             >
               <ArrowLeft size={16} aria-hidden={true} />
             </button>
             <button
               type="button"
               className="editor-workspace__doc-nav-btn"
-              aria-label="Go to next tab"
-              disabled={!nextTabId}
-              onClick={() => {
-                if (!nextTabId) return
-                onProjectChange((currentProject) => ({
-                  ...currentProject,
-                  activeId: nextTabId,
-                }))
-              }}
+              aria-label="Go forward"
+              disabled={!canGoForward}
+              onClick={onGoForward}
             >
               <ArrowRight size={16} aria-hidden={true} />
             </button>
@@ -241,6 +236,26 @@ export default function AppShell({
         </div>
         ) : (
         <div className="editor-workspace__doc-path">
+          <div className="editor-workspace__doc-nav" aria-label="Navigation history">
+            <button
+              type="button"
+              className="editor-workspace__doc-nav-btn"
+              aria-label="Go back"
+              disabled={!canGoBack}
+              onClick={onGoBack}
+            >
+              <ArrowLeft size={16} aria-hidden={true} />
+            </button>
+            <button
+              type="button"
+              className="editor-workspace__doc-nav-btn"
+              aria-label="Go forward"
+              disabled={!canGoForward}
+              onClick={onGoForward}
+            >
+              <ArrowRight size={16} aria-hidden={true} />
+            </button>
+          </div>
           <div className="editor-workspace__doc-path-trail" aria-label="Current view">
             <span className="editor-workspace__doc-path-segment editor-workspace__doc-path-segment--active" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "var(--app-ui-font)", fontSize: 14 }}>
               Library

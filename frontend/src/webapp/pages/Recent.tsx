@@ -67,6 +67,8 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
           />
         ) : null}
 
+        <div className="project-hub__main-content">
+
         <div className="project-hub__folder-detail-header">
           <div className="project-hub__folder-detail-title">
             <Clock size={20} aria-hidden={true} />
@@ -115,6 +117,7 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
         ) : (
           <p className="project-hub__empty">No projects yet. Create one to begin writing.</p>
         )}
+        </div>
       </div>
 
       {contextMenu ? (

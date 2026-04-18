@@ -79,11 +79,11 @@ export default function AppLayout({
   return (
     <div className={appClassName} style={appStyleVariables}>
       <main className="app-main">
-        {menuBarEnabled && <WebMenu items={menuItems} />}
+        {menuBarEnabled && !isElectronMac && <WebMenu items={menuItems} />}
         {showBrand && (
           <button
             type="button"
-            className={`app-brand ${menuBarEnabled ? "app-brand--with-menu" : ""}`.trim()}
+            className={`app-brand ${menuBarEnabled && !isElectronMac ? "app-brand--with-menu" : ""}`.trim()}
             aria-label="Go to home page"
             onClick={onNavigateHome}
           >

@@ -9,6 +9,8 @@ declare global {
       close: () => void
       isMaximized: () => Promise<boolean>
       isFullScreen: () => Promise<boolean>
+      updateMenu: (items: unknown) => void
+      onMenuCommand: (callback: (commandId: string) => void) => () => void
     }
   }
 }

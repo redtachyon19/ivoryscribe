@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron"
+import { app, BrowserWindow, ipcMain, Menu, shell } from "electron"
+import type { MenuItemConstructorOptions } from "electron"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -13,8 +14,83 @@ let mainWindow: BrowserWindow | null = null
 
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
+const isMac = process.platform === "darwin"
+
+// ── Native menu helpers ──
+
+type RendererMenuItem = {
+  label: string
+  id?: string
+  submenu?: RendererMenuItem[]
+  disabled?: boolean
+  shortcut?: string
+}
+
+/** Map web-style shortcut glyphs to Electron accelerator strings */
+function toAccelerator(shortcut: string): string | undefined {
+  if (!shortcut) return undefined
+  return shortcut
+    .replace(/⌘/g, "CmdOrCtrl+")
+    .replace(/⇧/g, "Shift+")
+    .replace(/⌥/g, "Alt+")
+    .replace(/⌃/g, "Ctrl+")
+    .replace(/\+$/g, "")
+}
+
+function buildNativeMenu(items: RendererMenuItem[], sendCommand: (id: string) => void): MenuItemConstructorOptions[] {
+  return items.map((item) => {
+    if (item.submenu?.length) {
+      return {
+        label: item.label,
+        enabled: !item.disabled,
+        submenu: buildNativeMenu(item.submenu, sendCommand),
+      }
+    }
+
+    return {
+      label: item.label,
+      enabled: !item.disabled,
+      accelerator: item.shortcut ? toAccelerator(item.shortcut) : undefined,
+      click: () => {
+        if (item.id) sendCommand(item.id)
+      },
+    }
+  })
+}
+
+function applyNativeMenu(rendererItems: RendererMenuItem[]) {
+  const sendCommand = (id: string) => {
+    mainWindow?.webContents.send("menu:command", id)
+  }
+
+  const appMenuItems = buildNativeMenu(rendererItems, sendCommand)
+
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [{
+          label: app.name,
+          submenu: [
+            { role: "about" as const },
+            { type: "separator" as const },
+            { role: "services" as const },
+            { type: "separator" as const },
+            { role: "hide" as const },
+            { role: "hideOthers" as const },
+            { role: "unhide" as const },
+            { type: "separator" as const },
+            { role: "quit" as const },
+          ],
+        }]
+      : []),
+    ...appMenuItems,
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
+// ── Window creation ──
+
 function createWindow() {
-  const isMac = process.platform === "darwin"
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -71,6 +147,11 @@ ipcMain.handle("window:isFullScreen", () => {
   return mainWindow?.isFullScreen() ?? false
 })
 
+// Menu update from renderer
+ipcMain.on("menu:update", (_event, items: RendererMenuItem[]) => {
+  applyNativeMenu(items)
+})
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit()
@@ -84,4 +165,8 @@ app.on("activate", () => {
   }
 })
 
-void app.whenReady().then(createWindow)
+void app.whenReady().then(() => {
+  createWindow()
+  // Set a minimal default menu; the renderer will send the full menu once loaded
+  applyNativeMenu([])
+})

@@ -3,7 +3,7 @@
 .ui-modal__overlay {
   position: fixed;
   inset: 0;
-  z-index: 118;
+  z-index: 200;
   background: rgba(8, 8, 8, 0.48);
   backdrop-filter: blur(2px);
 }
@@ -25,7 +25,7 @@
   transform: translate(-50%, -50%);
   width: min(560px, calc(100vw - 24px));
   max-height: min(84vh, 720px);
-  z-index: 119;
+  z-index: 201;
 }
 
 /* ── Panel ── */
@@ -61,7 +61,7 @@
   position: absolute;
   top: -36px;
   right: -36px;
-  z-index: 120;
+  z-index: 202;
   border: 0;
   border-radius: 999px;
   width: 36px;

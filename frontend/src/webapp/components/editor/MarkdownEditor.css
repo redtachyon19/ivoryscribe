@@ -41,10 +41,10 @@
   margin: 0;
   background: transparent;
   cursor: pointer;
-  font-family: var(--app-display-font);
+  font-family: var(--app-ui-font);
   font-size: 16px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
   color: color-mix(in srgb, var(--editor-text, #f5f5f5) 38%, transparent);
   opacity: 0.64;
 }

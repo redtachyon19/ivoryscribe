@@ -380,6 +380,12 @@
   position: relative;
   height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.project-hub__main-content {
+  position: relative;
+  min-height: 100%;
   padding: 172px 24px 48px;
   max-width: 900px;
   margin-left: auto;
@@ -424,6 +430,11 @@
   gap: 10px;
 }
 
+.project-hub__create-row--project-grid {
+  margin: 0;
+  padding: 0;
+}
+
 .project-hub__create-card {
   border: 1px dashed color-mix(in srgb, var(--menu-button, #ededed) 42%, transparent);
   border-radius: 10px;
@@ -448,6 +459,11 @@
   color: var(--menu-button, #ededed);
   outline: none;
   transform: translateY(-1px);
+}
+
+.project-hub__create-card--project-size {
+  height: 166px;
+  padding: 24px 12px;
 }
 
 /* ── Recently Opened (legacy inline) ── */

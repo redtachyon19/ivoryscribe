@@ -7,7 +7,8 @@ import Modal from "../components/ui/Modal"
 import { EXPORT_ALL_TABS_PDF_EVENT, NAVIGATE_ARCHIVE_EVENT, NAVIGATE_TRASH_EVENT, NAVIGATE_LIBRARY_EVENT, NAVIGATE_RECENT_EVENT } from "../../core/editorEvents"
 import { countWordsFromContent, downloadProjectAsMarkdown } from "../../core/markdown"
 import { exportProjectAsPdf } from "../../core/pdfExport"
-import { collectTabIds, getProjectEntryTerms, type Project } from "../../core/projects"
+import { getProjectEntryTerms, type Project } from "../../core/projects"
+import { useNavigationHistory } from "../../core/useNavigationHistory"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import Library, { type ProjectFolder } from "./Library"
 import RecentView from "./Recent"
@@ -205,6 +206,17 @@ export default function Editor({
   const [includedTabsById, setIncludedTabsById] = useState<Record<string, boolean>>({})
   const [dashboardSection, setDashboardSection] = useState<"library" | "recent" | "archive" | "trash">("library")
 
+  const { canGoBack, canGoForward, goBack, goForward } = useNavigationHistory({
+    view,
+    activeId: project?.activeId ?? null,
+    dashboardSection,
+    onOpenProject,
+    onReturnToDashboard,
+    onProjectChange,
+    onDashboardSectionChange: setDashboardSection,
+    activeProjectId,
+  })
+
   useEffect(() => {
     const handleNavigateLibrary = () => setDashboardSection("library")
     const handleNavigateRecent = () => setDashboardSection("recent")
@@ -250,16 +262,6 @@ export default function Editor({
     [flatTabWordStats, includedTabsById],
   )
   const tabIdSignature = useMemo(() => flatTabWordStats.map((stat) => stat.id).join("|"), [flatTabWordStats])
-  const orderedTabIds = useMemo(() => project ? collectTabIds(project.tabs) : [], [project])
-  const activeTabIndex = useMemo(() => {
-    if (!project?.activeId) {
-      return -1
-    }
-
-    return orderedTabIds.indexOf(project.activeId)
-  }, [orderedTabIds, project])
-  const previousTabId = activeTabIndex > 0 ? orderedTabIds[activeTabIndex - 1] : null
-  const nextTabId = activeTabIndex >= 0 && activeTabIndex < orderedTabIds.length - 1 ? orderedTabIds[activeTabIndex + 1] : null
   const activeTabPath = useMemo(() => {
     if (!project?.activeId) {
       return [] as Array<{ id: string; title: string }>
@@ -318,8 +320,10 @@ export default function Editor({
       view={view}
       project={project}
       activeFolderName={activeFolderName}
-      previousTabId={previousTabId}
-      nextTabId={nextTabId}
+      canGoBack={canGoBack}
+      canGoForward={canGoForward}
+      onGoBack={goBack}
+      onGoForward={goForward}
       activeTabPath={activeTabPath}
       onProjectChange={onProjectChange}
       onToggleSettings={onToggleSettings}

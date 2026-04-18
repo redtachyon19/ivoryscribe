@@ -113,6 +113,8 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
           />
         ) : null}
 
+        <div className="project-hub__main-content">
+
         <div className="project-hub__folder-detail-header">
           <div className="project-hub__folder-detail-title">
             <Trash2 size={20} aria-hidden={true} />
@@ -138,30 +140,30 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
           ) : (
           <ul className="project-hub__grid-view">
             {trashed.map((project) => (
-              <li key={project.id}>
-                <ProjectCard
-                  project={project}
-                  isDragging={false}
-                  dropClassName=""
-                  onOpenProject={onOpenProject}
-                  onDragStart={multiSelect.handleMultiSectionDragStart}
-                  onDragEnd={noop}
-                  onDragEnter={noopDragEl}
-                  onDragOver={noopDragEl}
-                  onDrop={noopDragEl}
-                  setEditingProjectId={setEditingProjectId}
-                  editingProjectId={editingProjectId}
-                  setProjects={setProjects}
-                  onContextMenu={handleProjectContextMenu}
-                  marqueeSelected={multiSelect.liveSelectedIds.has(project.id)}
-                />
-              </li>
+              <ProjectCard
+                key={project.id}
+                project={project}
+                isDragging={false}
+                dropClassName=""
+                onOpenProject={onOpenProject}
+                onDragStart={multiSelect.handleMultiSectionDragStart}
+                onDragEnd={noop}
+                onDragEnter={noopDragEl}
+                onDragOver={noopDragEl}
+                onDrop={noopDragEl}
+                setEditingProjectId={setEditingProjectId}
+                editingProjectId={editingProjectId}
+                setProjects={setProjects}
+                onContextMenu={handleProjectContextMenu}
+                marqueeSelected={multiSelect.liveSelectedIds.has(project.id)}
+              />
             ))}
           </ul>
           )
         ) : (
           <p className="project-hub__empty">No trashed projects.</p>
         )}
+        </div>
       </div>
 
       {contextMenu ? (

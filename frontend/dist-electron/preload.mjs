@@ -6,7 +6,15 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   maximize: () => electron.ipcRenderer.send("window:maximize"),
   close: () => electron.ipcRenderer.send("window:close"),
   isMaximized: () => electron.ipcRenderer.invoke("window:isMaximized"),
-  isFullScreen: () => electron.ipcRenderer.invoke("window:isFullScreen")
+  isFullScreen: () => electron.ipcRenderer.invoke("window:isFullScreen"),
+  updateMenu: (items) => electron.ipcRenderer.send("menu:update", items),
+  onMenuCommand: (callback) => {
+    const handler = (_event, commandId) => callback(commandId);
+    electron.ipcRenderer.on("menu:command", handler);
+    return () => {
+      electron.ipcRenderer.removeListener("menu:command", handler);
+    };
+  }
 });
 if (process.platform === "darwin") {
   document.addEventListener("DOMContentLoaded", () => {

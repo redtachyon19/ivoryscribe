@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Archive, BookCopy, BookText, ChevronDown, Clock3, Folder, LibraryBig, ScrollText, Trash2 } from "lucide-react"
+import { Archive, BookCopy, BookText, ChevronDown, Clock3, Folder, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
 import { requestNavigateArchive, requestNavigateTrash, requestNavigateLibrary, requestNavigateRecent } from "../../../core/editorEvents"
 import type { Project } from "../../../core/projects"
 import { duplicateProject } from "../../../core/libraryUtils"
@@ -10,11 +10,14 @@ import type { ProjectFolder } from "../../pages/Library"
 import { useListDrag } from "../editor/hooks/useListDrag"
 import useSectionDrop from "../library/useSectionDrop"
 import useProjectSettings from "../library/useProjectSettings"
+import type { ContextMenuAction } from "../library/ProjectContextMenu"
 import ProjectContextMenu, { buildProjectActions, buildFolderActions, type ProjectContextMenuState } from "../library/ProjectContextMenu"
 import ProjectSettings from "../settings/ProjectSettings"
 import ShareDialog from "../settings/ShareDialog"
 import Modal from "../ui/Modal"
 import Button from "../ui/Button"
+import usePanelMarquee from "./usePanelMarquee"
+import useProjectBulkActions from "./useProjectBulkActions"
 import "./ProjectBrowserPanel.css"
 
 type ProjectBrowserPanelProps = {
@@ -45,13 +48,15 @@ export default function ProjectBrowserPanel({
   const drag = useListDrag({ flatOnly: true })
   const sectionDrop = useSectionDrop({ folders, setProjects, setFolders })
   const settings = useProjectSettings({ projects, setProjects })
+  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee()
+  const multiDragIdsRef = useRef<Set<string>>(new Set())
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingFolderName, setEditingFolderName] = useState("")
   const [pendingTrashFolderId, setPendingTrashFolderId] = useState<string | null>(null)
   const [browserSection, setBrowserSection] = useState<"library" | "recent" | "archive" | "trash">("library")
   const [externalFolderDropId, setExternalFolderDropId] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
+  const [contextMenu, setContextMenu] = useState<(ProjectContextMenuState & { selectedProjectIds?: string[] }) | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingProjectName, setEditingProjectName] = useState("")
@@ -59,6 +64,12 @@ export default function ProjectBrowserPanel({
 
   const shareDialogProject = shareDialogProjectId ? projects.find((p) => p.id === shareDialogProjectId) ?? null : null
   const shareDialogDocumentId = shareDialogProjectId ? (projectDocumentMap[shareDialogProjectId] ?? null) : null
+
+  const folderIdSet = useMemo(() => new Set(folders.map((folder) => folder.id)), [folders])
+  const selectedProjectIds = useMemo(
+    () => projects.map((project) => project.id).filter((id) => marqueeSelectedIds.has(id) && !folderIdSet.has(id)),
+    [folderIdSet, marqueeSelectedIds, projects],
+  )
 
   const openShareDialog = (projectId: string) => {
     if (projectDocumentMap[projectId]) {
@@ -68,6 +79,38 @@ export default function ProjectBrowserPanel({
 
   const topRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "top")
   const bottomRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "bottom")
+
+  useEffect(() => {
+    const validIds = new Set<string>([
+      ...projects.map((project) => project.id),
+      ...folders.map((folder) => folder.id),
+    ])
+
+    setMarqueeSelectedIds((current) => {
+      if (current.size === 0) return current
+
+      let changed = false
+      const next = new Set<string>()
+      for (const id of current) {
+        if (validIds.has(id)) {
+          next.add(id)
+        } else {
+          changed = true
+        }
+      }
+
+      return changed ? next : current
+    })
+  }, [projects, folders, setMarqueeSelectedIds])
+
+  const { deleteProjectsByIds, archiveProjectsByIds, duplicateProjectsByIds, shareProjectsByIds } = useProjectBulkActions({
+    selectedProjectIds,
+    setProjects,
+    setMarqueeSelectedIds,
+    projectDocumentMap,
+    closeContextMenu,
+    onOpenShareDialog: openShareDialog,
+  })
 
   // Build a flat ordering of visible item IDs for root list drag handlers
   const visibleItemIds = useMemo(() => {
@@ -85,50 +128,95 @@ export default function ProjectBrowserPanel({
 
   const rootListHandlers = drag.createRootListHandlers(visibleItemIds, "project-browser__item")
 
-  const moveProjectToFolder = (projectId: string, folderId: string) => {
-    setProjects((cur) =>
-      cur.map((p) => (p.id === projectId ? { ...p, folderId, rootPosition: "top" as const, archivedAt: null, deletedAt: null } : p)),
-    )
-  }
+  const moveProjectsToFolder = useCallback((projectIds: string[], folderId: string) => {
+    if (projectIds.length === 0) return
 
-  const commitProjectDrop = (targetId: string, mode: "before" | "after") => {
+    const projectIdSet = new Set(projectIds)
+    setProjects((cur) =>
+      cur.map((p) => (
+        projectIdSet.has(p.id)
+          ? { ...p, folderId, rootPosition: "top" as const, archivedAt: null, deletedAt: null }
+          : p
+      )),
+    )
+  }, [setProjects])
+
+  const commitProjectDrop = useCallback((targetId: string, mode: "before" | "after") => {
     if (!drag.draggingId) return
 
-    const sourceId = drag.draggingId
-    const sourceProject = projects.find((p) => p.id === sourceId)
-    if (!sourceProject) {
+    const sourceIds = multiDragIdsRef.current.size > 1 && multiDragIdsRef.current.has(drag.draggingId)
+      ? [...multiDragIdsRef.current]
+      : [drag.draggingId]
+
+    if (sourceIds.length === 0) {
       drag.handleDragEnd()
+      multiDragIdsRef.current = new Set()
       return
     }
 
-    const targetFolder = folders.find((f) => f.id === targetId)
-    const targetProject = projects.find((p) => p.id === targetId)
+    const sourceIdSet = new Set(sourceIds)
+    const targetFolder = folders.find((folder) => folder.id === targetId)
 
     if (targetFolder) {
-      // Dropping on a folder → move project into that folder
       setProjects((cur) =>
-        cur.map((p) => (p.id === sourceId ? { ...p, folderId: targetFolder.id, rootPosition: "top" as const } : p)),
+        cur.map((p) => (sourceIdSet.has(p.id) ? { ...p, folderId: targetFolder.id, rootPosition: "top" as const } : p)),
       )
-    } else if (targetProject) {
-      // Dropping on another project → place next to it with same folderId
-      setProjects((cur) => {
-        const moved = cur.find((p) => p.id === sourceId)
-        if (!moved) return cur
-
-        const updated = { ...moved, folderId: targetProject.folderId, rootPosition: targetProject.rootPosition }
-        const without = cur.filter((p) => p.id !== sourceId)
-        const targetIndex = without.findIndex((p) => p.id === targetId)
-        if (targetIndex === -1) return cur
-
-        const insertAt = mode === "after" ? targetIndex + 1 : targetIndex
-        const next = [...without]
-        next.splice(insertAt, 0, updated)
-        return next
-      })
+      drag.handleDragEnd()
+      multiDragIdsRef.current = new Set()
+      return
     }
 
+    setProjects((cur) => {
+      const targetProject = cur.find((p) => p.id === targetId)
+      if (!targetProject || sourceIdSet.has(targetProject.id)) return cur
+
+      const movingProjects: Project[] = []
+      for (const id of sourceIds) {
+        const match = cur.find((p) => p.id === id)
+        if (match) movingProjects.push(match)
+      }
+      if (movingProjects.length === 0) return cur
+
+      const normalized = movingProjects.map((project) => ({
+        ...project,
+        folderId: targetProject.folderId,
+        rootPosition: targetProject.rootPosition,
+      }))
+
+      const withoutMoved = cur.filter((p) => !sourceIdSet.has(p.id))
+      const targetIndex = withoutMoved.findIndex((p) => p.id === targetId)
+      if (targetIndex === -1) return cur
+
+      const insertAt = mode === "after" ? targetIndex + 1 : targetIndex
+      const next = [...withoutMoved]
+      next.splice(insertAt, 0, ...normalized)
+      return next
+    })
+
     drag.handleDragEnd()
-  }
+    multiDragIdsRef.current = new Set()
+  }, [drag, folders, setProjects])
+
+  const handleProjectDragStart = useCallback((event: React.DragEvent<HTMLButtonElement>, projectId: string) => {
+    const orderedSelectedProjectIds = projects
+      .map((project) => project.id)
+      .filter((candidateId) => marqueeSelectedIds.has(candidateId) && !folderIdSet.has(candidateId))
+
+    if (orderedSelectedProjectIds.length > 1 && orderedSelectedProjectIds.includes(projectId)) {
+      multiDragIdsRef.current = new Set(orderedSelectedProjectIds)
+      drag.handleDragStart(event, projectId, editingFolderId)
+      event.dataTransfer.setData("text/plain", orderedSelectedProjectIds.join(","))
+      return
+    }
+
+    multiDragIdsRef.current = new Set()
+    drag.handleDragStart(event, projectId, editingFolderId)
+  }, [drag, editingFolderId, folderIdSet, marqueeSelectedIds, projects])
+
+  const handleProjectDragEnd = useCallback(() => {
+    multiDragIdsRef.current = new Set()
+    drag.handleDragEnd()
+  }, [drag])
 
   const isFolderExpanded = (folderId: string) => expandedFolders[folderId] !== false
 
@@ -201,7 +289,8 @@ export default function ProjectBrowserPanel({
 
   const renderProject = (project: Project, depth = 0) => {
     const isActive = project.id === activeProjectId
-    const isDragging = drag.draggingId === project.id
+    const isDragging = drag.draggingId === project.id || (drag.draggingId !== null && multiDragIdsRef.current.has(project.id))
+    const isMarqueeSelected = liveSelectedIds.has(project.id)
     const isDropBefore = drag.dropTarget?.targetId === project.id && drag.dropTarget.mode === "before"
     const isDropAfter = drag.dropTarget?.targetId === project.id && drag.dropTarget.mode === "after"
     const Icon = BookText
@@ -215,7 +304,8 @@ export default function ProjectBrowserPanel({
         />
 
         <div
-          className={`project-browser__row ${isActive ? "project-browser__row--active" : ""}`.trim()}
+          data-selectable-id={project.id}
+          className={`project-browser__row ${isActive ? "project-browser__row--active" : ""} ${isMarqueeSelected ? "project-browser__row--marquee-selected" : ""}`.trim()}
           onDragOver={(event) => {
             if (!drag.draggingId) return
             drag.handleRowDragOver(event, project.id)
@@ -246,11 +336,15 @@ export default function ProjectBrowserPanel({
               className={`project-browser__label ${isDragging ? "project-browser__label--dragging" : ""}`.trim()}
               style={{ paddingLeft: `${8 + depth * 16}px` }}
               onClick={() => onOpenProject(project.id)}
-              onDragStart={(event) => drag.handleDragStart(event, project.id, editingFolderId)}
-              onDragEnd={() => drag.handleDragEnd()}
+              onDragStart={(event) => handleProjectDragStart(event, project.id)}
+              onDragEnd={handleProjectDragEnd}
               onContextMenu={(event) => {
                 event.preventDefault()
-                setContextMenu({ x: event.clientX, y: event.clientY, projectId: project.id })
+                if (liveSelectedIds.size > 1 && liveSelectedIds.has(project.id) && selectedProjectIds.length > 1) {
+                  setContextMenu({ x: event.clientX, y: event.clientY, projectId: project.id, selectedProjectIds })
+                } else {
+                  setContextMenu({ x: event.clientX, y: event.clientY, projectId: project.id })
+                }
               }}
             >
               <span className="project-browser__icon">
@@ -275,6 +369,7 @@ export default function ProjectBrowserPanel({
     const isEditing = editingFolderId === folder.id
     const folderProjects = projects.filter((p) => p.folderId === folder.id)
     const hasProjects = folderProjects.length > 0
+    const isMarqueeSelected = liveSelectedIds.has(folder.id)
     const isDropBefore = drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "before"
     const isDropAfter = drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "after"
     const isDropInside = (drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "inside") || externalFolderDropId === folder.id
@@ -286,7 +381,8 @@ export default function ProjectBrowserPanel({
         />
 
         <div
-          className="project-browser__row project-browser__row--folder"
+          data-selectable-id={folder.id}
+          className={`project-browser__row project-browser__row--folder ${isMarqueeSelected ? "project-browser__row--marquee-selected" : ""}`.trim()}
           onDragOver={(event) => {
             event.preventDefault()
             event.stopPropagation()
@@ -307,8 +403,9 @@ export default function ProjectBrowserPanel({
             if (drag.draggingId) {
               commitProjectDrop(folder.id, "after")
             } else {
-              const projectId = event.dataTransfer.getData("text/plain")
-              if (projectId) moveProjectToFolder(projectId, folder.id)
+              const raw = event.dataTransfer.getData("text/plain")
+              const projectIds = raw.split(",").filter((id) => id && !folderIdSet.has(id))
+              moveProjectsToFolder(projectIds, folder.id)
             }
             setExternalFolderDropId(null)
           }}
@@ -465,7 +562,22 @@ export default function ProjectBrowserPanel({
         <p className="project-browser__title">Projects</p>
       </header>
 
-      <div className="project-browser__list-shell">
+      <div
+        ref={marqueeContainerRef}
+        className={`project-browser__list-shell ${marquee.isActive ? "project-browser__list-shell--marquee" : ""}`.trim()}
+        onMouseDown={marquee.handleMouseDown}
+      >
+        {marquee.isActive && marquee.rect ? (
+          <div
+            className="project-browser__marquee-selection"
+            style={{
+              left: marquee.rect.x,
+              top: marquee.rect.y,
+              width: marquee.rect.width,
+              height: marquee.rect.height,
+            }}
+          />
+        ) : null}
         <ul
           className="project-browser__list"
           onDragOver={rootListHandlers.onDragOver}
@@ -574,43 +686,73 @@ export default function ProjectBrowserPanel({
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={closeContextMenu}
-          actions={
-            contextMenu.isFolder
-              ? buildFolderActions({
-                  folderId: contextMenu.projectId,
-                  onRename: (id) => {
-                    const folder = folders.find((f) => f.id === id)
-                    if (folder) startFolderRename(id, folder.name)
-                  },
-                  onArchive: (id) => {
-                    setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, archivedAt: new Date().toISOString() } : p))
-                    setFolders((cur) => cur.filter((f) => f.id !== id))
-                  },
-                  onTrash: (id) => setPendingTrashFolderId(id),
-                })
-              : buildProjectActions({
-                  projectId: contextMenu.projectId,
-                  onOpenInNewTab: onOpenProject,
-                  onRename: (id) => {
-                    const project = projects.find((p) => p.id === id)
-                    if (project) startProjectRename(id, project.name)
-                  },
-                  onOpenSettings: (id) => {
-                    const project = projects.find((p) => p.id === id)
-                    if (project) settings.open(project)
-                  },
-                  onDuplicate: (id) => {
-                    setProjects((current) => duplicateProject(current, id))
-                  },
-                  onArchive: (id) => {
-                    setProjects((cur) => cur.map((p) => p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p))
-                  },
-                  onTrash: (id) => {
-                    setProjects((cur) => cur.map((p) => p.id === id ? { ...p, deletedAt: new Date().toISOString() } : p))
-                  },
-                  onShare: (id) => openShareDialog(id),
-                })
-          }
+          actions={(() => {
+            if (contextMenu.selectedProjectIds && contextMenu.selectedProjectIds.length > 1) {
+              const selectedIds = contextMenu.selectedProjectIds
+              const actions: ContextMenuAction[] = [
+                {
+                  label: `Duplicate ${selectedIds.length} projects`,
+                  icon: <BookCopy size={14} strokeWidth={2} aria-hidden={true} />,
+                  action: () => duplicateProjectsByIds(selectedIds),
+                },
+                {
+                  label: `Share ${selectedIds.length} projects`,
+                  icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />,
+                  action: () => shareProjectsByIds(selectedIds),
+                },
+                {
+                  label: `Archive ${selectedIds.length} projects`,
+                  icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />,
+                  action: () => archiveProjectsByIds(selectedIds),
+                },
+                {
+                  label: `Trash ${selectedIds.length} projects`,
+                  icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />,
+                  action: () => deleteProjectsByIds(selectedIds),
+                  danger: true,
+                },
+              ]
+              return actions
+            }
+
+            if (contextMenu.isFolder) {
+              return buildFolderActions({
+                folderId: contextMenu.projectId,
+                onRename: (id) => {
+                  const folder = folders.find((f) => f.id === id)
+                  if (folder) startFolderRename(id, folder.name)
+                },
+                onArchive: (id) => {
+                  setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+                  setFolders((cur) => cur.filter((f) => f.id !== id))
+                },
+                onTrash: (id) => setPendingTrashFolderId(id),
+              })
+            }
+
+            return buildProjectActions({
+              projectId: contextMenu.projectId,
+              onOpenInNewTab: onOpenProject,
+              onRename: (id) => {
+                const project = projects.find((p) => p.id === id)
+                if (project) startProjectRename(id, project.name)
+              },
+              onOpenSettings: (id) => {
+                const project = projects.find((p) => p.id === id)
+                if (project) settings.open(project)
+              },
+              onDuplicate: (id) => {
+                setProjects((current) => duplicateProject(current, id))
+              },
+              onArchive: (id) => {
+                setProjects((cur) => cur.map((p) => p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+              },
+              onTrash: (id) => {
+                setProjects((cur) => cur.map((p) => p.id === id ? { ...p, deletedAt: new Date().toISOString() } : p))
+              },
+              onShare: (id) => openShareDialog(id),
+            })
+          })()}
         />
       ) : null}
 

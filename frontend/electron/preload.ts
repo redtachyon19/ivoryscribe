@@ -7,6 +7,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   close: () => ipcRenderer.send("window:close"),
   isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
   isFullScreen: () => ipcRenderer.invoke("window:isFullScreen"),
+  updateMenu: (items: unknown) => ipcRenderer.send("menu:update", items),
+  onMenuCommand: (callback: (commandId: string) => void) => {
+    const handler = (_event: unknown, commandId: string) => callback(commandId)
+    ipcRenderer.on("menu:command", handler)
+    return () => { ipcRenderer.removeListener("menu:command", handler) }
+  },
 })
 
 // Add electron-mac class on html element so CSS can target it for transparency

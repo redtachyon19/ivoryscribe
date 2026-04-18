@@ -1,470 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react"
-import { ChevronDown, CornerDownRight, Pencil, Trash2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
+import { Pencil, Trash2 } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../../core/projects"
-import { useListDrag, getDropMode, type DropMode, type DropTarget } from "../editor/hooks/useListDrag"
+import { useListDrag, type DropMode } from "../editor/hooks/useListDrag"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"
+import TabNode from "./TabNode"
+import usePanelMarquee from "./usePanelMarquee"
+import {
+  findNode,
+  collectDescendantTitles,
+  collectSelectedRootIds,
+  renameTab,
+  deleteTab,
+  findAncestorIds,
+  moveNodes,
+} from "./tabTreeUtils"
 import "./DocumentTabsPanel.css"
 
-// Guards against dropping a node inside its own subtree.
-function containsId(node: DocumentTab, targetId: string): boolean {
-  if (node.id === targetId) {
-    return true
-  }
-
-  return node.children.some((child) => containsId(child, targetId))
-}
-
-// Finds a node anywhere in the tree.
-function findNode(nodes: DocumentTab[], targetId: string): DocumentTab | null {
-  for (const node of nodes) {
-    if (node.id === targetId) {
-      return node
-    }
-
-    const nested = findNode(node.children, targetId)
-    if (nested) {
-      return nested
-    }
-  }
-
-  return null
-}
-
-// Removes a node from any depth and returns both the new tree and removed node.
-function removeNode(
-  nodes: DocumentTab[],
-  targetId: string,
-): { nextNodes: DocumentTab[]; removed: DocumentTab | null } {
-  let removed: DocumentTab | null = null
-
-  const nextNodes = nodes
-    .filter((node) => {
-      if (node.id === targetId) {
-        removed = node
-        return false
-      }
-      return true
-    })
-    .map((node) => {
-      const nested = removeNode(node.children, targetId)
-      if (nested.removed) {
-        removed = nested.removed
-      }
-
-      return {
-        ...node,
-        children: nested.nextNodes,
-      }
-    })
-
-  return { nextNodes, removed }
-}
-
-// Inserts relative to a target node (before/after), preserving nested structure.
-function insertRelative(
-  nodes: DocumentTab[],
-  targetId: string,
-  newNode: DocumentTab,
-  mode: "before" | "after",
-): { nextNodes: DocumentTab[]; inserted: boolean } {
-  let inserted = false
-  const nextNodes: DocumentTab[] = []
-
-  for (const node of nodes) {
-    if (node.id === targetId) {
-      inserted = true
-      if (mode === "before") {
-        nextNodes.push(newNode, node)
-      } else {
-        nextNodes.push(node, newNode)
-      }
-      continue
-    }
-
-    const nested = insertRelative(node.children, targetId, newNode, mode)
-    if (nested.inserted) {
-      inserted = true
-      nextNodes.push({
-        ...node,
-        children: nested.nextNodes,
-      })
-      continue
-    }
-
-    nextNodes.push(node)
-  }
-
-  return { nextNodes, inserted }
-}
-
-// Inserts a node as a child of target.
-function insertInside(
-  nodes: DocumentTab[],
-  targetId: string,
-  newNode: DocumentTab,
-): { nextNodes: DocumentTab[]; inserted: boolean } {
-  let inserted = false
-
-  const nextNodes = nodes.map((node) => {
-    if (node.id === targetId) {
-      inserted = true
-      return {
-        ...node,
-        children: [...node.children, newNode],
-      }
-    }
-
-    const nested = insertInside(node.children, targetId, newNode)
-    if (nested.inserted) {
-      inserted = true
-      return {
-        ...node,
-        children: nested.nextNodes,
-      }
-    }
-
-    return node
-  })
-
-  return { nextNodes, inserted }
-}
-
-// Canonical move operation used by all drag/drop commit paths.
-function moveNode(tabs: DocumentTab[], sourceId: string, targetId: string, mode: DropMode): DocumentTab[] {
-  if (sourceId === targetId) {
-    return tabs
-  }
-
-  const sourceNode = findNode(tabs, sourceId)
-  if (!sourceNode) {
-    return tabs
-  }
-
-  if (containsId(sourceNode, targetId)) {
-    return tabs
-  }
-
-  const removedResult = removeNode(tabs, sourceId)
-  if (!removedResult.removed) {
-    return tabs
-  }
-
-  if (mode === "inside") {
-    const insertedResult = insertInside(removedResult.nextNodes, targetId, removedResult.removed)
-    return insertedResult.inserted ? insertedResult.nextNodes : tabs
-  }
-
-  const insertedResult = insertRelative(removedResult.nextNodes, targetId, removedResult.removed, mode)
-  return insertedResult.inserted ? insertedResult.nextNodes : tabs
-}
-
-// Applies in-place title edits by ID.
-function renameTab(nodes: DocumentTab[], targetId: string, nextTitle: string): DocumentTab[] {
-  return nodes.map((node) => {
-    if (node.id === targetId) {
-      return {
-        ...node,
-        title: nextTitle,
-      }
-    }
-
-    return {
-      ...node,
-      children: renameTab(node.children, targetId, nextTitle),
-    }
-  })
-}
-
-function deleteTab(nodes: DocumentTab[], targetId: string): DocumentTab[] {
-  return removeNode(nodes, targetId).nextNodes
-}
-
-function collectDescendantTitles(node: DocumentTab): string[] {
-  return node.children.flatMap((child) => [child.title, ...collectDescendantTitles(child)])
-}
-
-function findAncestorIds(nodes: DocumentTab[], targetId: string, ancestors: string[] = []): string[] | null {
-  for (const node of nodes) {
-    if (node.id === targetId) {
-      return ancestors
-    }
-
-    const nested = findAncestorIds(node.children, targetId, [...ancestors, node.id])
-    if (nested) {
-      return nested
-    }
-  }
-
-  return null
-}
-
-type TabNodeProps = {
-  tab: DocumentTab
-  depth: number
-  activeId: string | null
-  draggingId: string | null
-  dropTarget: DropTarget
-  editingId: string | null
-  editingTitle: string
-  onSelect: (id: string) => void
-  onDragStart: (event: DragEvent<HTMLButtonElement>, id: string) => void
-  onDragEnd: () => void
-  onDropTargetChange: (target: DropTarget) => void
-  onDropCommit: (targetId: string, mode: DropMode) => void
-  onStartRename: (id: string, currentTitle: string) => void
-  onRequestDelete: (id: string) => void
-  onContextMenu: (id: string, x: number, y: number) => void
-  onEditingTitleChange: (value: string) => void
-  onCommitRename: () => void
-  onCancelRename: () => void
-  onRowRef: (id: string, element: HTMLDivElement | null) => void
-  expandedById: Record<string, boolean>
-  onToggleExpand: (id: string) => void
-}
-
-function TabNode({
-  tab,
-  depth,
-  activeId,
-  draggingId,
-  dropTarget,
-  editingId,
-  editingTitle,
-  onSelect,
-  onDragStart,
-  onDragEnd,
-  onDropTargetChange,
-  onDropCommit,
-  onStartRename,
-  onRequestDelete,
-  onContextMenu: onCtxMenu,
-  onEditingTitleChange,
-  onCommitRename,
-  onCancelRename,
-  onRowRef,
-  expandedById,
-  onToggleExpand,
-}: TabNodeProps) {
-  const marqueeViewportRef = useRef<HTMLSpanElement | null>(null)
-  const marqueeTextRef = useRef<HTMLSpanElement | null>(null)
-  const [marquee, setMarquee] = useState({ isOverflowing: false, loopDistance: 0 })
-  const isActive = activeId === tab.id
-  const isDragging = draggingId === tab.id
-  const isEditing = editingId === tab.id
-  const isDropBefore = dropTarget?.targetId === tab.id && dropTarget.mode === "before"
-  const isDropAfter = dropTarget?.targetId === tab.id && dropTarget.mode === "after"
-  const isDropInside = dropTarget?.targetId === tab.id && dropTarget.mode === "inside"
-  const hasChildren = tab.children.length > 0
-  const isExpanded = expandedById[tab.id] !== false
-
-  useEffect(() => {
-    const viewport = marqueeViewportRef.current
-    const text = marqueeTextRef.current
-
-    if (!viewport || !text) {
-      return
-    }
-
-    const measureMarquee = () => {
-      const viewportWidth = viewport.clientWidth
-      const textWidth = text.scrollWidth
-      const nextIsOverflowing = textWidth > viewportWidth + 1
-      const nextLoopDistance = nextIsOverflowing ? textWidth + 28 : 0
-
-      setMarquee((current) => {
-        if (current.isOverflowing === nextIsOverflowing && current.loopDistance === nextLoopDistance) {
-          return current
-        }
-
-        return {
-          isOverflowing: nextIsOverflowing,
-          loopDistance: nextLoopDistance,
-        }
-      })
-    }
-
-    measureMarquee()
-
-    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measureMarquee) : null
-    resizeObserver?.observe(viewport)
-    resizeObserver?.observe(text)
-    window.addEventListener("resize", measureMarquee)
-
-    return () => {
-      resizeObserver?.disconnect()
-      window.removeEventListener("resize", measureMarquee)
-    }
-  }, [tab.title, depth, isEditing])
-
-  return (
-    <li
-      className={`doc-tabs__item ${isDropInside ? "doc-tabs__item--drop-inside" : ""}`.trim()}
-    >
-      <div
-        className={`doc-tabs__drop-line doc-tabs__drop-line--top ${isDropBefore ? "doc-tabs__drop-line--visible" : ""}`.trim()}
-        style={{ marginLeft: `${12 + depth * 18}px` }}
-      />
-
-      <div
-        ref={(element) => {
-          onRowRef(tab.id, element)
-        }}
-        className={`doc-tabs__row ${isActive ? "doc-tabs__row--active" : ""}`.trim()}
-        onDragOver={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          const mode = getDropMode(event)
-          onDropTargetChange({ targetId: tab.id, mode })
-        }}
-        onDrop={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          const mode = dropTarget?.targetId === tab.id ? dropTarget.mode : getDropMode(event)
-          onDropCommit(tab.id, mode)
-        }}
-      >
-        {isEditing ? (
-          <input
-            className="doc-tabs__rename-input"
-            value={editingTitle}
-            autoFocus
-            style={{ paddingLeft: `${12 + depth * 18}px` }}
-            onChange={(event) => {
-              onEditingTitleChange(event.target.value)
-            }}
-            onClick={(event) => {
-              event.stopPropagation()
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault()
-                onCommitRename()
-              }
-
-              if (event.key === "Escape") {
-                event.preventDefault()
-                onCancelRename()
-              }
-            }}
-            onBlur={() => {
-              onCommitRename()
-            }}
-          />
-        ) : (
-          <>
-            <button
-              type="button"
-              draggable
-              className={`doc-tabs__label ${isDragging ? "doc-tabs__row--dragging" : ""}`.trim()}
-              style={{ paddingLeft: `${8 + depth * 16}px` }}
-              onClick={() => {
-                onSelect(tab.id)
-              }}
-              onDragStart={(event) => {
-                onDragStart(event, tab.id)
-              }}
-              onDragEnd={() => {
-                onDragEnd()
-              }}
-              onContextMenu={(event) => {
-                event.preventDefault()
-                onCtxMenu(tab.id, event.clientX, event.clientY)
-              }}
-            >
-              {depth > 0 ? (
-                <span
-                  className="doc-tabs__indent-icon"
-                  style={{ left: `${8 + (depth - 1) * 16}px` }}
-                  aria-hidden="true"
-                >
-                  <CornerDownRight size={14} strokeWidth={1.9} />
-                </span>
-              ) : null}
-
-              <span
-                ref={marqueeViewportRef}
-                className={`doc-tabs__label-marquee ${marquee.isOverflowing ? "doc-tabs__label-marquee--overflowing" : ""}`.trim()}
-                style={
-                  marquee.isOverflowing
-                    ? ({ "--doc-tabs-marquee-distance": `${marquee.loopDistance}px` } as CSSProperties)
-                    : undefined
-                }
-              >
-                <span className="doc-tabs__label-marquee-track">
-                  <span ref={marqueeTextRef} className="doc-tabs__label-marquee-text">
-                    {tab.title}
-                  </span>
-                  {marquee.isOverflowing ? <span className="doc-tabs__label-marquee-gap" aria-hidden="true" /> : null}
-                  {marquee.isOverflowing ? (
-                    <span className="doc-tabs__label-marquee-text" aria-hidden="true">
-                      {tab.title}
-                    </span>
-                  ) : null}
-                </span>
-              </span>
-            </button>
-
-            {hasChildren ? (
-              <button
-                type="button"
-                className={`doc-tabs__collapse-btn ${isExpanded ? "doc-tabs__collapse-btn--open" : ""}`.trim()}
-                aria-label={isExpanded ? `Collapse ${tab.title}` : `Expand ${tab.title}`}
-                aria-expanded={isExpanded}
-                onMouseDown={(event) => {
-                  event.stopPropagation()
-                }}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onToggleExpand(tab.id)
-                }}
-              >
-                <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />
-              </button>
-            ) : null}
-          </>
-        )}
-      </div>
-
-      <div
-        className={`doc-tabs__drop-line doc-tabs__drop-line--bottom ${isDropAfter ? "doc-tabs__drop-line--visible" : ""}`.trim()}
-        style={{ marginLeft: `${12 + depth * 18}px` }}
-      />
-
-      {hasChildren && isExpanded ? (
-        <ul className="doc-tabs__list doc-tabs__list--nested">
-          {tab.children.map((child) => (
-            <TabNode
-              key={child.id}
-              tab={child}
-              depth={depth + 1}
-              activeId={activeId}
-              draggingId={draggingId}
-              dropTarget={dropTarget}
-              editingId={editingId}
-              editingTitle={editingTitle}
-              onSelect={onSelect}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onDropTargetChange={onDropTargetChange}
-              onDropCommit={onDropCommit}
-              onStartRename={onStartRename}
-              onRequestDelete={onRequestDelete}
-              onContextMenu={onCtxMenu}
-              onEditingTitleChange={onEditingTitleChange}
-              onCommitRename={onCommitRename}
-              onCancelRename={onCancelRename}
-              onRowRef={onRowRef}
-              expandedById={expandedById}
-              onToggleExpand={onToggleExpand}
-            />
-          ))}
-        </ul>
-      ) : null}
-    </li>
-  )
-}
 
 type DocumentTabsProps = {
   projectName: string
@@ -487,11 +40,13 @@ export default function DocumentTabsPanel({
 }: DocumentTabsProps) {
   const drag = useListDrag()
   const { draggingId, dropTarget, setDraggingId, setDropTarget } = drag
+  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee()
+  const multiDragIdsRef = useRef<string[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [expandedById, setExpandedById] = useState<Record<string, boolean>>({})
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabId: string } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabId: string; selectedTabIds?: string[] } | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
   const rootListRef = useRef<HTMLUListElement | null>(null)
   const rowRefs = useRef<Record<string, HTMLDivElement>>({})
@@ -507,6 +62,19 @@ export default function DocumentTabsPanel({
   const pendingDeleteNode = pendingDeleteId ? findNode(tabs, pendingDeleteId) : null
   const pendingDeleteDescendantTitles = pendingDeleteNode ? collectDescendantTitles(pendingDeleteNode) : []
 
+  const selectedRootIds = useMemo(() => collectSelectedRootIds(tabs, marqueeSelectedIds), [tabs, marqueeSelectedIds])
+  const draggingIds = useMemo(() => {
+    if (!draggingId) {
+      return new Set<string>()
+    }
+
+    if (multiDragIdsRef.current.length > 1 && multiDragIdsRef.current.includes(draggingId)) {
+      return new Set(multiDragIdsRef.current)
+    }
+
+    return new Set<string>([draggingId])
+  }, [draggingId])
+
   useEffect(() => {
     setExpandedById((current) => {
       const next: Record<string, boolean> = {}
@@ -516,6 +84,27 @@ export default function DocumentTabsPanel({
       return next
     })
   }, [tabIds])
+
+  useEffect(() => {
+    const validIds = new Set(tabIds)
+
+    setMarqueeSelectedIds((current) => {
+      if (current.size === 0) return current
+
+      let changed = false
+      const next = new Set<string>()
+
+      for (const id of current) {
+        if (validIds.has(id)) {
+          next.add(id)
+        } else {
+          changed = true
+        }
+      }
+
+      return changed ? next : current
+    })
+  }, [tabIds, setMarqueeSelectedIds])
 
   useEffect(() => {
     if (!activeId) {
@@ -638,6 +227,34 @@ export default function DocumentTabsPanel({
     }
   }
 
+  const deleteTabsAndSyncSelection = useCallback((targetIds: string[]) => {
+    if (targetIds.length === 0) {
+      return
+    }
+
+    const normalizedRootIds = collectSelectedRootIds(tabs, new Set(targetIds))
+    if (normalizedRootIds.length === 0) {
+      return
+    }
+
+    const deletedIdSet = new Set(normalizedRootIds)
+    const nextTabs = normalizedRootIds.reduce((current, targetId) => deleteTab(current, targetId), tabs)
+    const remainingIds = collectTabIds(nextTabs)
+
+    onTabsChange(() => nextTabs)
+    setMarqueeSelectedIds(new Set())
+    multiDragIdsRef.current = []
+    setDropTarget(null)
+    setDraggingId(null)
+
+    if (!activeId || deletedIdSet.has(activeId) || !remainingIds.includes(activeId)) {
+      const nextActiveId = remainingIds[0] ?? null
+      if (nextActiveId) {
+        onSelect(nextActiveId)
+      }
+    }
+  }, [activeId, onSelect, onTabsChange, setDropTarget, setDraggingId, setMarqueeSelectedIds, tabs])
+
   const confirmDelete = () => {
     if (!pendingDeleteId) {
       return
@@ -646,6 +263,70 @@ export default function DocumentTabsPanel({
     deleteTabAndSyncSelection(pendingDeleteId)
     closeDeleteModal()
   }
+
+  const getDragSourceIds = useCallback(() => {
+    if (!draggingId) {
+      return [] as string[]
+    }
+
+    if (multiDragIdsRef.current.length > 1 && multiDragIdsRef.current.includes(draggingId)) {
+      return [...multiDragIdsRef.current]
+    }
+
+    return [draggingId]
+  }, [draggingId])
+
+  const handleTabDragStart = useCallback((event: DragEvent<HTMLButtonElement>, id: string) => {
+    const selectedRootIds = collectSelectedRootIds(tabs, marqueeSelectedIds)
+    if (selectedRootIds.length > 1 && selectedRootIds.includes(id)) {
+      multiDragIdsRef.current = selectedRootIds
+      drag.handleDragStart(event, id, editingId)
+      event.dataTransfer.setData("text/plain", selectedRootIds.join(","))
+      return
+    }
+
+    multiDragIdsRef.current = []
+    drag.handleDragStart(event, id, editingId)
+  }, [drag, editingId, marqueeSelectedIds, tabs])
+
+  const handleTabDragEnd = useCallback(() => {
+    multiDragIdsRef.current = []
+    drag.handleDragEnd()
+  }, [drag])
+
+  const commitTabDrop = useCallback((targetId: string, mode: DropMode) => {
+    const sourceIds = getDragSourceIds()
+    if (sourceIds.length === 0) {
+      return
+    }
+
+    onTabsChange((current) => moveNodes(current, sourceIds, targetId, mode))
+    setDraggingId(null)
+    setDropTarget(null)
+  }, [getDragSourceIds, onTabsChange, setDraggingId, setDropTarget])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (selectedRootIds.length === 0) {
+        return
+      }
+
+      if ((event.target as HTMLElement).closest("input, textarea, select")) {
+        return
+      }
+
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault()
+        cancelRename()
+        closeDeleteModal()
+        closeContextMenu()
+        deleteTabsAndSyncSelection(selectedRootIds)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [closeContextMenu, deleteTabsAndSyncSelection, selectedRootIds])
 
   const handleRootListDragOver = (event: DragEvent<HTMLUListElement>) => {
     // Supports dropping into empty list spaces by snapping to first/last tab edges.
@@ -677,14 +358,12 @@ export default function DocumentTabsPanel({
   }
 
   const handleRootListDrop = (event: DragEvent<HTMLUListElement>) => {
-    if (!draggingId || !dropTarget) {
+    if (!dropTarget) {
       return
     }
 
     event.preventDefault()
-    onTabsChange((current) => moveNode(current, draggingId, dropTarget.targetId, dropTarget.mode))
-    setDraggingId(null)
-    setDropTarget(null)
+    commitTabDrop(dropTarget.targetId, dropTarget.mode)
   }
 
   return (
@@ -697,7 +376,23 @@ export default function DocumentTabsPanel({
         <p className="doc-tabs__project-name">{projectName}</p>
       </header>
 
-      <div className="doc-tabs__list-shell">
+      <div
+        ref={marqueeContainerRef}
+        className={`doc-tabs__list-shell ${marquee.isActive ? "doc-tabs__list-shell--marquee" : ""}`.trim()}
+        onMouseDown={marquee.handleMouseDown}
+      >
+        {marquee.isActive && marquee.rect ? (
+          <div
+            className="doc-tabs__marquee-selection"
+            style={{
+              left: marquee.rect.x,
+              top: marquee.rect.y,
+              width: marquee.rect.width,
+              height: marquee.rect.height,
+            }}
+          />
+        ) : null}
+
         <div
           className="doc-tabs__active-indicator"
           style={{
@@ -715,28 +410,23 @@ export default function DocumentTabsPanel({
               tab={tab}
               depth={0}
               activeId={activeId}
-              draggingId={draggingId}
+              draggingIds={draggingIds}
+              marqueeSelectedIds={liveSelectedIds}
               dropTarget={dropTarget}
               editingId={editingId}
               editingTitle={editingTitle}
               onSelect={onSelect}
               onDragStart={(event, id) => {
-                drag.handleDragStart(event, id, editingId)
+                handleTabDragStart(event, id)
               }}
               onDragEnd={() => {
-                drag.handleDragEnd()
+                handleTabDragEnd()
               }}
               onDropTargetChange={(target) => {
                 setDropTarget(target)
               }}
               onDropCommit={(targetId, mode) => {
-                if (!draggingId) {
-                  return
-                }
-
-                onTabsChange((current) => moveNode(current, draggingId, targetId, mode))
-                setDraggingId(null)
-                setDropTarget(null)
+                commitTabDrop(targetId, mode)
               }}
               onStartRename={startRename}
               onRequestDelete={(id) => {
@@ -745,7 +435,14 @@ export default function DocumentTabsPanel({
                 }
                 setPendingDeleteId(id)
               }}
-              onContextMenu={(id, x, y) => setContextMenu({ x, y, tabId: id })}
+              onContextMenu={(id, x, y) => {
+                const liveRootIds = collectSelectedRootIds(tabs, liveSelectedIds)
+                if (liveSelectedIds.size > 1 && liveSelectedIds.has(id) && liveRootIds.length > 1) {
+                  setContextMenu({ x, y, tabId: id, selectedTabIds: liveRootIds })
+                } else {
+                  setContextMenu({ x, y, tabId: id })
+                }
+              }}
               onEditingTitleChange={setEditingTitle}
               onCommitRename={commitRename}
               onCancelRename={cancelRename}
@@ -795,6 +492,27 @@ export default function DocumentTabsPanel({
           y={contextMenu.y}
           onClose={closeContextMenu}
           actions={(() => {
+            const contextMenuSelectedIds = contextMenu.selectedTabIds ?? []
+
+            if (contextMenuSelectedIds.length > 1) {
+              const selectedCount = contextMenuSelectedIds.length
+              const actions: ContextMenuAction[] = [
+                {
+                  label: `Trash ${selectedCount} ${selectedCount === 1 ? singular : plural}`,
+                  icon: <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />,
+                  action: () => {
+                    if (editingId && contextMenuSelectedIds.includes(editingId)) {
+                      cancelRename()
+                    }
+                    deleteTabsAndSyncSelection(contextMenuSelectedIds)
+                    closeContextMenu()
+                  },
+                  danger: true,
+                },
+              ]
+              return actions
+            }
+
             const tab = findNode(tabs, contextMenu.tabId)
             if (!tab) return []
             const actions: ContextMenuAction[] = [

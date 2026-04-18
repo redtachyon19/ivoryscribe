@@ -28,6 +28,7 @@ export type AccountSectionProps = {
   onSignOut: () => void
   onClose: () => void
   sectionRef: (element: HTMLElement | null) => void
+  onActionFeedbackVisibilityChange?: (visible: boolean) => void
 }
 
 export default function AccountSettings({
@@ -44,6 +45,7 @@ export default function AccountSettings({
   onSignOut,
   onClose,
   sectionRef,
+  onActionFeedbackVisibilityChange,
 }: AccountSectionProps) {
   const [accountFirstNameDraft, setAccountFirstNameDraft] = useState(accountFirstName)
   const [accountLastNameDraft, setAccountLastNameDraft] = useState(accountLastName)
@@ -85,6 +87,10 @@ export default function AccountSettings({
       return next
     })
   }
+
+  useEffect(() => {
+    onActionFeedbackVisibilityChange?.(Boolean(actionFeedback))
+  }, [actionFeedback, onActionFeedbackVisibilityChange])
 
   useEffect(() => {
     setAccountFirstNameDraft(accountFirstName)
@@ -236,7 +242,6 @@ export default function AccountSettings({
 
   const requestPasswordReset = async () => {
     setIsUpdatingPassword(true)
-    onClose()
 
     openActionFeedback({
       kind: "password",
@@ -267,7 +272,6 @@ export default function AccountSettings({
 
   const requestAccountDeletion = async () => {
     setIsDeletingAccount(true)
-    onClose()
 
     openActionFeedback({
       kind: "delete",
