@@ -50,7 +50,6 @@ export type GlobalSettingsProps = {
   accountLastName: string
   accountEmail: string
   activeProjectName: string
-  activeProjectMarkdownEditorEnabled: boolean
   activeProjectColor: string
   activeProjectWallpaperEmojis: string
   activeProjectVersions?: Array<{
@@ -68,7 +67,6 @@ export type GlobalSettingsProps = {
     }
   }>
   onActiveProjectNameChange: (name: string) => void
-  onActiveProjectMarkdownEditorEnabledChange: (enabled: boolean) => void
   onActiveProjectColorChange: (color: string) => void
   onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onShowVersionHistory?: () => void
@@ -118,12 +116,10 @@ export default function GlobalSettings({
   accountLastName,
   accountEmail,
   activeProjectName,
-  activeProjectMarkdownEditorEnabled,
   activeProjectColor,
   activeProjectWallpaperEmojis,
   activeProjectVersions = [],
   onActiveProjectNameChange,
-  onActiveProjectMarkdownEditorEnabledChange,
   onActiveProjectColorChange,
   onActiveProjectWallpaperEmojisChange,
   onShowVersionHistory,
@@ -164,7 +160,6 @@ export default function GlobalSettings({
   })
   const [isRendered, setIsRendered] = useState(isOpen)
   const [isClosing, setIsClosing] = useState(false)
-  const [isMarkdownPromptVisible, setIsMarkdownPromptVisible] = useState(false)
   const [isActionFeedbackVisible, setIsActionFeedbackVisible] = useState(false)
 
   const sectionNavItems: { id: SectionId; label: string; icon: ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }> }[] = [
@@ -184,7 +179,6 @@ export default function GlobalSettings({
 
   useEffect(() => {
     if (!isRendered) {
-      setIsMarkdownPromptVisible(false)
       setIsActionFeedbackVisible(false)
     }
   }, [isRendered])
@@ -383,7 +377,7 @@ export default function GlobalSettings({
             onClick={onClose}
           />
           <section
-            className={`global-settings__modal ${modalStateClassName} ${isMarkdownPromptVisible || isActionFeedbackVisible ? "global-settings__modal--background-hidden" : ""}`.trim()}
+            className={`global-settings__modal ${modalStateClassName} ${isActionFeedbackVisible ? "global-settings__modal--background-hidden" : ""}`.trim()}
             role="dialog"
             aria-modal="true"
             aria-label="Global settings"
@@ -494,20 +488,16 @@ export default function GlobalSettings({
                     <ProjectSettings
                       fieldClassName="global-settings__field"
                       projectName={activeProjectName}
-                      markdownEditorEnabled={activeProjectMarkdownEditorEnabled}
                       projectColor={activeProjectColor}
                       projectWallpaperEmojis={activeProjectWallpaperEmojis}
                       projectVersions={activeProjectVersions}
                       onProjectNameChange={onActiveProjectNameChange}
-                      onMarkdownEditorEnabledChange={onActiveProjectMarkdownEditorEnabledChange}
                       onProjectColorChange={onActiveProjectColorChange}
                       onProjectWallpaperEmojisChange={onActiveProjectWallpaperEmojisChange}
                       onShowVersionHistory={onShowVersionHistory}
                       onExportProject={onExportProject}
                       sessionToken={sessionToken}
                       documentId={documentId}
-                      onMarkdownPromptVisibilityChange={setIsMarkdownPromptVisible}
-                      onMarkdownPromptDismissed={onClose}
                     />
                   </section>
                 ) : null}

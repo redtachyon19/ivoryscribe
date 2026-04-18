@@ -31,6 +31,19 @@ npm run dev
 
 The API is served on `http://localhost:4000` by default.
 
+To expose the backend to other computers on the same network:
+
+```bash
+npm run dev:lan
+```
+
+`dev:lan` binds the API to `0.0.0.0` and enables LAN CORS for private-network origins.
+
+Related env vars:
+- `HOST` (default `127.0.0.1`)
+- `ENABLE_LAN_CORS` (default `false`)
+- `CLIENT_ORIGIN` (comma-separated explicit allowed origins)
+
 ## Database Safety
 
 This project now supports `DB_SYNC_MODE`:

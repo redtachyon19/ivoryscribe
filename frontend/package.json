@@ -6,13 +6,16 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host 0.0.0.0",
     "dev:electron": "ELECTRON=true vite",
+    "dev:electron:lan": "ELECTRON=true vite --host 0.0.0.0",
     "build": "tsc -b tsconfig.json && vite build",
     "build:electron": "ELECTRON=true tsc -b tsconfig.json && ELECTRON=true vite build",
     "package": "npm run build:electron && electron-builder",
     "package:mac": "npm run build:electron && electron-builder --mac",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:lan": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
     "@tiptap/extension-highlight": "^3.20.0",

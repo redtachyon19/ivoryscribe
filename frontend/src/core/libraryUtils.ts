@@ -60,7 +60,17 @@ export function buildDuplicateProjectName(baseName: string, existingNames: strin
   }
 }
 
-export function duplicateProject<T extends { id: string; name: string; createdAt: string; activeId: string | null; tabs: { id: string; title: string; children: T["tabs"] }[]; contentById: Record<string, string> }>(
+export function duplicateProject<T extends {
+  id: string
+  name: string
+  createdAt: string
+  activeId: string | null
+  tabs: { id: string; title: string; children: T["tabs"] }[]
+  contentById: Record<string, string>
+  pinboardIds?: string[]
+  markdownIds?: string[]
+  markdownEditorEnabled?: boolean
+}>(
   projects: T[],
   projectId: string,
 ): T[] {
@@ -79,6 +89,18 @@ export function duplicateProject<T extends { id: string; name: string; createdAt
   const nextTabs = cloneTabs(source.tabs)
   const nextContentById: Record<string, string> = {}
   tabIdMap.forEach((nextId, oldId) => { nextContentById[nextId] = source.contentById[oldId] ?? "" })
+  const remapIds = (ids: string[] | undefined) =>
+    (ids ?? [])
+      .map((oldId) => tabIdMap.get(oldId))
+      .filter((nextId): nextId is string => Boolean(nextId))
+  const nextPinboardIds = remapIds(source.pinboardIds)
+  const sourceMarkdownIds = Array.isArray(source.markdownIds)
+    ? source.markdownIds
+    : source.markdownEditorEnabled
+      ? [...tabIdMap.keys()]
+      : []
+  const pinboardIdSet = new Set(nextPinboardIds)
+  const nextMarkdownIds = remapIds(sourceMarkdownIds).filter((id) => !pinboardIdSet.has(id))
 
   const dup = {
     ...source,
@@ -88,6 +110,9 @@ export function duplicateProject<T extends { id: string; name: string; createdAt
     tabs: nextTabs,
     activeId: source.activeId ? (tabIdMap.get(source.activeId) ?? (nextTabs[0]?.id ?? null)) : (nextTabs[0]?.id ?? null),
     contentById: nextContentById,
+    pinboardIds: nextPinboardIds,
+    markdownIds: nextMarkdownIds,
+    markdownEditorEnabled: undefined,
   } as T
 
   const next = [...projects]

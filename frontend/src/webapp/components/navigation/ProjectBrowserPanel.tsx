@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Archive, BookCopy, BookText, ChevronDown, Clock3, Folder, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
+import { Archive, BookCopy, BookPlus, BookText, ChevronDown, Clock3, Folder, FolderPlus, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
 import { requestNavigateArchive, requestNavigateTrash, requestNavigateLibrary, requestNavigateRecent } from "../../../core/editorEvents"
 import type { Project } from "../../../core/projects"
 import { duplicateProject } from "../../../core/libraryUtils"
-import { downloadProjectAsMarkdown } from "../../../core/markdown"
-import { exportProjectAsPdf } from "../../../core/pdfExport"
+import { exportProjectAsPdf } from "../export/pdfExport"
 import type { ProjectFolder } from "../../pages/Library"
 import { useListDrag } from "../editor/hooks/useListDrag"
 import useSectionDrop from "../library/useSectionDrop"
 import useProjectSettings from "../library/useProjectSettings"
 import type { ContextMenuAction } from "../library/ProjectContextMenu"
-import ProjectContextMenu, { buildProjectActions, buildFolderActions, type ProjectContextMenuState } from "../library/ProjectContextMenu"
+import ProjectContextMenu, { buildProjectActions, buildFolderActions } from "../library/ProjectContextMenu"
 import ProjectSettings from "../settings/ProjectSettings"
 import ShareDialog from "../settings/ShareDialog"
 import Modal from "../ui/Modal"
@@ -31,7 +30,13 @@ type ProjectBrowserPanelProps = {
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
   sessionToken: string
   projectDocumentMap: Record<string, string>
+  onCreateProject: () => void
+  onCreateFolder: () => void
 }
+
+type BrowserContextMenuState =
+  | { x: number; y: number; kind: "background" }
+  | { x: number; y: number; kind: "item"; projectId: string; isFolder?: boolean; selectedProjectIds?: string[] }
 
 export default function ProjectBrowserPanel({
   projects,
@@ -44,6 +49,8 @@ export default function ProjectBrowserPanel({
   setProjects,
   sessionToken,
   projectDocumentMap,
+  onCreateProject,
+  onCreateFolder,
 }: ProjectBrowserPanelProps) {
   const drag = useListDrag({ flatOnly: true })
   const sectionDrop = useSectionDrop({ folders, setProjects, setFolders })
@@ -56,7 +63,7 @@ export default function ProjectBrowserPanel({
   const [pendingTrashFolderId, setPendingTrashFolderId] = useState<string | null>(null)
   const [browserSection, setBrowserSection] = useState<"library" | "recent" | "archive" | "trash">("library")
   const [externalFolderDropId, setExternalFolderDropId] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<(ProjectContextMenuState & { selectedProjectIds?: string[] }) | null>(null)
+  const [contextMenu, setContextMenu] = useState<BrowserContextMenuState | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingProjectName, setEditingProjectName] = useState("")
@@ -287,6 +294,17 @@ export default function ProjectBrowserPanel({
     cancelProjectRename()
   }
 
+  const handleBackgroundContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null
+    if (!target) return
+
+    if (target.closest(".project-browser__item")) return
+    if (target.closest("input, textarea, [contenteditable='true']")) return
+
+    event.preventDefault()
+    setContextMenu({ x: event.clientX, y: event.clientY, kind: "background" })
+  }, [])
+
   const renderProject = (project: Project, depth = 0) => {
     const isActive = project.id === activeProjectId
     const isDragging = drag.draggingId === project.id || (drag.draggingId !== null && multiDragIdsRef.current.has(project.id))
@@ -341,9 +359,9 @@ export default function ProjectBrowserPanel({
               onContextMenu={(event) => {
                 event.preventDefault()
                 if (liveSelectedIds.size > 1 && liveSelectedIds.has(project.id) && selectedProjectIds.length > 1) {
-                  setContextMenu({ x: event.clientX, y: event.clientY, projectId: project.id, selectedProjectIds })
+                  setContextMenu({ x: event.clientX, y: event.clientY, kind: "item", projectId: project.id, selectedProjectIds })
                 } else {
-                  setContextMenu({ x: event.clientX, y: event.clientY, projectId: project.id })
+                  setContextMenu({ x: event.clientX, y: event.clientY, kind: "item", projectId: project.id })
                 }
               }}
             >
@@ -443,7 +461,7 @@ export default function ProjectBrowserPanel({
                 }}
                 onContextMenu={(event) => {
                   event.preventDefault()
-                  setContextMenu({ x: event.clientX, y: event.clientY, projectId: folder.id, isFolder: true })
+                  setContextMenu({ x: event.clientX, y: event.clientY, kind: "item", projectId: folder.id, isFolder: true })
                 }}
               >
                 <span className="project-browser__icon">
@@ -485,7 +503,7 @@ export default function ProjectBrowserPanel({
   }
 
   return (
-    <div className="project-browser">
+    <div className="project-browser" onContextMenu={handleBackgroundContextMenu}>
       <div className="project-browser__section-switcher" aria-label="Project browser sections">
         <div className="project-browser__section-divider" aria-hidden="true" />
         <div className="project-browser__section-buttons" role="tablist" aria-label="Project sections">
@@ -656,24 +674,20 @@ export default function ProjectBrowserPanel({
             <ProjectSettings
               fieldClassName="project-settings-modal__field"
               projectName={settings.projectName}
-              markdownEditorEnabled={settings.markdownEditorEnabled}
               projectColor={settings.projectColor}
               projectWallpaperEmojis={settings.wallpaperEmojis}
               onProjectNameChange={(nextName) => {
                 settings.setProjectName(nextName)
                 if (settings.error) settings.setError("")
               }}
-              onMarkdownEditorEnabledChange={settings.setMarkdownEditorEnabled}
               onProjectColorChange={settings.setProjectColor}
               onProjectWallpaperEmojisChange={settings.setWallpaperEmojis}
               onExportProject={() => {
                 if (!settings.settingsProject) return
-                if (settings.markdownEditorEnabled) { downloadProjectAsMarkdown(settings.settingsProject); return }
                 exportProjectAsPdf(settings.settingsProject)
               }}
               sessionToken={sessionToken}
               documentId={settings.settingsProject ? (projectDocumentMap[settings.settingsProject.id] ?? undefined) : undefined}
-              onMarkdownPromptDismissed={settings.close}
             />
             {settings.error ? <p className="ui-modal__error">{settings.error}</p> : null}
           </Modal>
@@ -687,6 +701,21 @@ export default function ProjectBrowserPanel({
           y={contextMenu.y}
           onClose={closeContextMenu}
           actions={(() => {
+            if (contextMenu.kind === "background") {
+              return [
+                {
+                  label: "Create Project",
+                  icon: <BookPlus size={14} strokeWidth={2} aria-hidden={true} />,
+                  action: onCreateProject,
+                },
+                {
+                  label: "Create Folder",
+                  icon: <FolderPlus size={14} strokeWidth={2} aria-hidden={true} />,
+                  action: onCreateFolder,
+                },
+              ]
+            }
+
             if (contextMenu.selectedProjectIds && contextMenu.selectedProjectIds.length > 1) {
               const selectedIds = contextMenu.selectedProjectIds
               const actions: ContextMenuAction[] = [

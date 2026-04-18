@@ -1,6 +1,7 @@
 import "./config/loadEnv.js";
 import cors from "cors";
 import express from "express";
+import os from "node:os";
 import { DataTypes } from "sequelize";
 import authRoutes from "./routes/auth.js";
 import documentsRoutes from "./routes/documents.js";
@@ -15,9 +16,13 @@ import { sequelize } from "./models/index.js";
 const app = express();
 const {
   PORT = "4000",
+  HOST = "127.0.0.1",
   CLIENT_ORIGIN = "http://localhost:5173",
+  ENABLE_LAN_CORS = "false",
   DB_SYNC_MODE = "safe",
 } = process.env;
+
+const lanCorsEnabled = String(ENABLE_LAN_CORS).toLowerCase() === "true";
 
 const configuredOrigins = String(CLIENT_ORIGIN)
   .split(",")
@@ -26,13 +31,72 @@ const configuredOrigins = String(CLIENT_ORIGIN)
 
 const allowedOrigins = new Set(configuredOrigins.length > 0 ? configuredOrigins : ["http://localhost:5173"]);
 
+function isPrivateIpv4Address(hostname) {
+  const octets = hostname.split(".").map((part) => Number(part));
+  if (octets.length !== 4 || octets.some((octet) => Number.isNaN(octet) || octet < 0 || octet > 255)) {
+    return false;
+  }
+
+  const [first, second] = octets;
+  return (
+    first === 10 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
+}
+
+function isLanOrigin(origin) {
+  try {
+    const parsedUrl = new URL(origin);
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      return false;
+    }
+
+    const hostname = parsedUrl.hostname.toLowerCase();
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+      return true;
+    }
+
+    return isPrivateIpv4Address(hostname);
+  } catch {
+    return false;
+  }
+}
+
+function getNetworkUrls(port) {
+  const urls = [];
+  for (const addresses of Object.values(os.networkInterfaces())) {
+    if (!addresses) {
+      continue;
+    }
+
+    for (const address of addresses) {
+      if (address.family !== "IPv4" || address.internal) {
+        continue;
+      }
+
+      urls.push(`http://${address.address}:${port}`);
+    }
+  }
+
+  return urls;
+}
+
 function isAllowedOrigin(origin) {
   if (allowedOrigins.has(origin)) {
     return true;
   }
 
   // Allow local Vite dev servers that auto-increment ports (5173, 5174, ...).
-  return /^https?:\/\/localhost:\d+$/.test(origin) || /^https?:\/\/127\.0\.0\.1:\d+$/.test(origin);
+  if (
+    /^https?:\/\/localhost:\d+$/.test(origin) ||
+    /^https?:\/\/127\.0\.0\.1:\d+$/.test(origin) ||
+    /^https?:\/\/\[::1\]:\d+$/.test(origin)
+  ) {
+    return true;
+  }
+
+  return lanCorsEnabled && isLanOrigin(origin);
 }
 
 app.use(
@@ -122,8 +186,16 @@ async function startServer() {
       await sequelize.sync();
     }
 
-    app.listen(Number(PORT), () => {
-      console.log(`Backend listening on http://localhost:${PORT}`);
+    const port = Number(PORT);
+    app.listen(port, HOST, () => {
+      const localHost = HOST === "0.0.0.0" ? "localhost" : HOST;
+      console.log(`Backend listening on http://${localHost}:${port}`);
+
+      if (HOST === "0.0.0.0") {
+        for (const networkUrl of getNetworkUrls(port)) {
+          console.log(`Backend network URL: ${networkUrl}`);
+        }
+      }
     });
   } catch (error) {
     console.error("Failed to start backend:", error);

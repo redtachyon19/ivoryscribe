@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
-import { Pencil, Trash2 } from "lucide-react"
+import { FilePlus2, FileText, Pencil, Presentation, Trash2 } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../../core/projects"
 import { useListDrag, type DropMode } from "../editor/hooks/useListDrag"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
@@ -27,7 +27,14 @@ type DocumentTabsProps = {
   isVisible?: boolean
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
   onSelect: (id: string) => void
+  onCreateEntry: () => void
+  onCreatePinboard: () => void
+  onCreateMarkdown: () => void
 }
+
+type TabsContextMenuState =
+  | { x: number; y: number; kind: "background" }
+  | { x: number; y: number; kind: "tab"; tabId: string; selectedTabIds?: string[] }
 
 export default function DocumentTabsPanel({
   projectName,
@@ -37,6 +44,9 @@ export default function DocumentTabsPanel({
   isVisible = true,
   onTabsChange,
   onSelect,
+  onCreateEntry,
+  onCreatePinboard,
+  onCreateMarkdown,
 }: DocumentTabsProps) {
   const drag = useListDrag()
   const { draggingId, dropTarget, setDraggingId, setDropTarget } = drag
@@ -46,7 +56,7 @@ export default function DocumentTabsPanel({
   const [editingTitle, setEditingTitle] = useState("")
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [expandedById, setExpandedById] = useState<Record<string, boolean>>({})
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tabId: string; selectedTabIds?: string[] } | null>(null)
+  const [contextMenu, setContextMenu] = useState<TabsContextMenuState | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
   const rootListRef = useRef<HTMLUListElement | null>(null)
   const rowRefs = useRef<Record<string, HTMLDivElement>>({})
@@ -366,8 +376,19 @@ export default function DocumentTabsPanel({
     commitTabDrop(dropTarget.targetId, dropTarget.mode)
   }
 
+  const handleBackgroundContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null
+    if (!target) return
+
+    if (target.closest(".doc-tabs__item")) return
+    if (target.closest("input, textarea, [contenteditable='true']")) return
+
+    event.preventDefault()
+    setContextMenu({ x: event.clientX, y: event.clientY, kind: "background" })
+  }, [])
+
   return (
-    <div className="doc-tabs">
+    <div className="doc-tabs" onContextMenu={handleBackgroundContextMenu}>
       <div className="doc-tabs__section-divider-wrap" aria-hidden="true">
         <div className="doc-tabs__section-divider" />
       </div>
@@ -438,9 +459,9 @@ export default function DocumentTabsPanel({
               onContextMenu={(id, x, y) => {
                 const liveRootIds = collectSelectedRootIds(tabs, liveSelectedIds)
                 if (liveSelectedIds.size > 1 && liveSelectedIds.has(id) && liveRootIds.length > 1) {
-                  setContextMenu({ x, y, tabId: id, selectedTabIds: liveRootIds })
+                  setContextMenu({ x, y, kind: "tab", tabId: id, selectedTabIds: liveRootIds })
                 } else {
-                  setContextMenu({ x, y, tabId: id })
+                  setContextMenu({ x, y, kind: "tab", tabId: id })
                 }
               }}
               onEditingTitleChange={setEditingTitle}
@@ -492,6 +513,26 @@ export default function DocumentTabsPanel({
           y={contextMenu.y}
           onClose={closeContextMenu}
           actions={(() => {
+            if (contextMenu.kind === "background") {
+              return [
+                {
+                  label: `Create ${singular}`,
+                  icon: <FilePlus2 size={15} strokeWidth={1.9} aria-hidden="true" />,
+                  action: onCreateEntry,
+                },
+                {
+                  label: "Create Pinboard",
+                  icon: <Presentation size={15} strokeWidth={1.9} aria-hidden="true" />,
+                  action: onCreatePinboard,
+                },
+                {
+                  label: "Create Markdown",
+                  icon: <FileText size={15} strokeWidth={1.9} aria-hidden="true" />,
+                  action: onCreateMarkdown,
+                },
+              ]
+            }
+
             const contextMenuSelectedIds = contextMenu.selectedTabIds ?? []
 
             if (contextMenuSelectedIds.length > 1) {

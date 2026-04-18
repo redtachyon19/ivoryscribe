@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf"
 import JSZip from "jszip"
-import { DEFAULT_DOCUMENT_CONTENT, collectTabSequence, type Project } from "./projects"
+import { DEFAULT_DOCUMENT_CONTENT, collectTabSequence, type Project } from "../../../core/projects"
 import { resolveExportPlan, type ExportMode } from "./exportSelection"
 
 export type PdfExportMode = ExportMode

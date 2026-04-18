@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 
 const VIEW_FADE_DURATION_MS = 240
 
-export function useViewTransition(view: "projects" | "editor", setView: (v: "projects" | "editor") => void) {
+export function useViewTransition(setView: (v: "projects" | "editor") => void) {
   const [viewFadePhase, setViewFadePhase] = useState<"idle" | "fading-out" | "fading-in">("idle")
 
   useEffect(() => {

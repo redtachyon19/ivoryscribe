@@ -41,6 +41,43 @@
   background-color: transparent;
 }
 
+/* ── Custom fullscreen traffic lights (simple-fullscreen is borderless, so native buttons disappear) ── */
+.mac-fs-traffic-lights {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 10000;
+  -webkit-app-region: no-drag;
+}
+
+.mac-fs-tl {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  padding: 0;
+  -webkit-app-region: no-drag;
+}
+
+.mac-fs-tl--close {
+  background: #ff5f57;
+}
+
+.mac-fs-tl--minimize {
+  background: #febc2e;
+}
+
+.mac-fs-tl--zoom {
+  background: #28c840;
+}
+
+.mac-fs-tl:hover {
+  filter: brightness(0.88);
+}
+
 .app--electron-mac.app--translucent-nav .app-main {
   background-color: transparent;
 }

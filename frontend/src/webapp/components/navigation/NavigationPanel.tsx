@@ -1,9 +1,10 @@
-import type { Dispatch, SetStateAction } from "react"
-import { ArrowLeft, BookPlus, FilePlus2, FolderPlus, PanelLeft, Presentation } from "lucide-react"
+import { useCallback, useEffect, useState, type Dispatch, type MouseEvent, type SetStateAction } from "react"
+import { ArrowLeft, BookPlus, FilePlus2, FileText, FolderPlus, ListPlus, PanelLeft, Presentation } from "lucide-react"
 import DocumentTabsPanel from "./DocumentTabsPanel"
 import ProjectBrowserPanel from "./ProjectBrowserPanel"
 import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../../core/projects"
 import type { ProjectFolder } from "../../pages/Library"
+import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
 
 
 
@@ -91,6 +92,97 @@ export default function NavigationPanel({
   projectDocumentMap,
 }: NavigationPanelProps) {
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
+  const [createMoreMenu, setCreateMoreMenu] = useState<{ x: number; y: number } | null>(null)
+  const closeCreateMoreMenu = useCallback(() => {
+    setCreateMoreMenu(null)
+  }, [])
+
+  useEffect(() => {
+    closeCreateMoreMenu()
+  }, [closeCreateMoreMenu, isOpen, project?.id, sidebarSlide])
+
+  const handleCreateProject = () => {
+    onCreateProject()
+    onSetSidebarSlide(2)
+  }
+
+  const handleCreateFolder = () => {
+    onCreateFolder()
+  }
+
+  const handleCreateEntry = () => {
+    onProjectChange((currentProject) => {
+      const nextId = createId()
+      const nextTitle = getNextEntryName(currentProject.tabs, getProjectEntryTerms(currentProject.kind).singular)
+
+      return {
+        ...currentProject,
+        activeId: nextId,
+        tabs: [...currentProject.tabs, { id: nextId, title: nextTitle, children: [] }],
+        contentById: {
+          ...currentProject.contentById,
+          [nextId]: "",
+        },
+      }
+    })
+  }
+
+  const handleCreatePinboard = () => {
+    onProjectChange((currentProject) => {
+      const nextId = createId()
+      const nextTitle = getNextEntryName(currentProject.tabs, "Pinboard")
+
+      return {
+        ...currentProject,
+        activeId: nextId,
+        pinboardIds: [...(currentProject.pinboardIds ?? []), nextId],
+        tabs: [...currentProject.tabs, { id: nextId, title: nextTitle, children: [] }],
+        contentById: {
+          ...currentProject.contentById,
+          [nextId]: "",
+        },
+      }
+    })
+  }
+
+  const handleCreateMarkdown = () => {
+    onProjectChange((currentProject) => {
+      const nextId = createId()
+      const nextTitle = getNextEntryName(currentProject.tabs, "Markdown")
+
+      return {
+        ...currentProject,
+        activeId: nextId,
+        markdownIds: [...(currentProject.markdownIds ?? []), nextId],
+        tabs: [...currentProject.tabs, { id: nextId, title: nextTitle, children: [] }],
+        contentById: {
+          ...currentProject.contentById,
+          [nextId]: "",
+        },
+      }
+    })
+  }
+
+  const handleOpenCreateMoreMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    const buttonRect = event.currentTarget.getBoundingClientRect()
+    setCreateMoreMenu({
+      x: buttonRect.left,
+      y: buttonRect.bottom + 6,
+    })
+  }
+
+  const createMoreActions: ContextMenuAction[] = [
+    {
+      label: "Create Pinboard",
+      icon: <Presentation size={14} strokeWidth={2} aria-hidden={true} />,
+      action: handleCreatePinboard,
+    },
+    {
+      label: "Create Markdown",
+      icon: <FileText size={14} strokeWidth={2} aria-hidden={true} />,
+      action: handleCreateMarkdown,
+    },
+  ]
 
   return (
     <div className="editor-workspace__left-rail-container">
@@ -113,10 +205,7 @@ export default function NavigationPanel({
               type="button"
               className="editor-workspace__rail-create"
               aria-label="Create Project"
-              onClick={() => {
-                onCreateProject()
-                onSetSidebarSlide(2)
-              }}
+              onClick={handleCreateProject}
             >
               <BookPlus size={14} aria-hidden={true} />
               <span>Create Project</span>
@@ -125,7 +214,7 @@ export default function NavigationPanel({
               type="button"
               className="editor-workspace__rail-create editor-workspace__rail-create-pinboard"
               aria-label="Create Folder"
-              onClick={onCreateFolder}
+              onClick={handleCreateFolder}
             >
               <FolderPlus size={14} aria-hidden={true} />
               <span>Create Folder</span>
@@ -147,22 +236,7 @@ export default function NavigationPanel({
               type="button"
               className="editor-workspace__rail-create"
               aria-label={`Create ${entryTerms.singular}`}
-              onClick={() => {
-                onProjectChange((currentProject) => {
-                  const nextId = createId()
-                  const nextTitle = getNextEntryName(currentProject.tabs, getProjectEntryTerms(currentProject.kind).singular)
-
-                  return {
-                    ...currentProject,
-                    activeId: nextId,
-                    tabs: [...currentProject.tabs, { id: nextId, title: nextTitle, children: [] }],
-                    contentById: {
-                      ...currentProject.contentById,
-                      [nextId]: "",
-                    },
-                  }
-                })
-              }}
+              onClick={handleCreateEntry}
             >
               <FilePlus2 size={14} aria-hidden={true} />
               <span>Create {entryTerms.singular}</span>
@@ -170,27 +244,12 @@ export default function NavigationPanel({
             <button
               type="button"
               className="editor-workspace__rail-create editor-workspace__rail-create-pinboard"
-              aria-label="Create Pinboard"
-              onClick={() => {
-                onProjectChange((currentProject) => {
-                  const nextId = createId()
-                  const nextTitle = getNextEntryName(currentProject.tabs, "Pinboard")
-
-                  return {
-                    ...currentProject,
-                    activeId: nextId,
-                    pinboardIds: [...(currentProject.pinboardIds ?? []), nextId],
-                    tabs: [...currentProject.tabs, { id: nextId, title: nextTitle, children: [] }],
-                    contentById: {
-                      ...currentProject.contentById,
-                      [nextId]: "",
-                    },
-                  }
-                })
-              }}
+              aria-label="Create More"
+              aria-expanded={Boolean(createMoreMenu)}
+              onClick={handleOpenCreateMoreMenu}
             >
-              <Presentation size={14} aria-hidden={true} />
-              <span>Create Pinboard</span>
+              <ListPlus size={14} aria-hidden={true} />
+              <span>Create More</span>
             </button>
           </div>
         </div>
@@ -212,6 +271,8 @@ export default function NavigationPanel({
               setProjects={setProjects}
               sessionToken={sessionToken}
               projectDocumentMap={projectDocumentMap}
+              onCreateProject={handleCreateProject}
+              onCreateFolder={handleCreateFolder}
             />
           </div>
 
@@ -233,6 +294,9 @@ export default function NavigationPanel({
                     activeId: id,
                   }))
                 }}
+                onCreateEntry={handleCreateEntry}
+                onCreatePinboard={handleCreatePinboard}
+                onCreateMarkdown={handleCreateMarkdown}
               />
             ) : null}
           </div>
@@ -251,6 +315,15 @@ export default function NavigationPanel({
             {currentCountLabel}
           </button>
         </div>
+      ) : null}
+
+      {createMoreMenu && sidebarSlide === 2 ? (
+        <ProjectContextMenu
+          x={createMoreMenu.x}
+          y={createMoreMenu.y}
+          actions={createMoreActions}
+          onClose={closeCreateMoreMenu}
+        />
       ) : null}
     </div>
   )
