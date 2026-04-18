@@ -66,6 +66,9 @@ export default function AccountSettings({
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null)
   const accountAutoSaveRequestRef = useRef(0)
 
+  // Reserved for future modal-close actions from account section controls.
+  void onClose
+
   const activeActionFeedback = actionFeedback
   const hasEmailDraftChanged = accountEmailDraft.trim().toLowerCase() !== accountEmail.trim().toLowerCase()
 

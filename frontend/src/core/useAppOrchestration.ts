@@ -11,9 +11,8 @@ import {
 } from "./appearance"
 import { requestAppColorPaletteChange } from "./editorEvents"
 import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "./menu"
-import { downloadProjectAsMarkdown } from "./markdown"
-import { exportProjectAsPdf } from "./pdfExport"
-import { createProject, DEFAULT_DOCUMENT_CONTENT, type Project } from "./projects"
+import { exportProjectAsPdf } from "../webapp/components/export/pdfExport"
+import { createProject, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, type Project } from "./projects"
 import { buildVersionHistoryPageHtml, buildVersionPreviewHtml, getInitialManualVersionDefinition, mapVersionsForSettings, resolveThemeForPalette, serializeProjectSnapshot, type VersionSettingsEntry } from "./versioning"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
@@ -130,6 +129,17 @@ export function useAppOrchestration() {
     () => (activeProject ? mapVersionsForSettings(versioning.projectVersionsByProjectId[activeProject.id] ?? []) : []),
     [activeProject, versioning.projectVersionsByProjectId],
   )
+  const activeDocumentIsMarkdown = useMemo(() => {
+    if (!activeProject?.activeId) {
+      return false
+    }
+
+    if ((activeProject.pinboardIds ?? []).includes(activeProject.activeId)) {
+      return false
+    }
+
+    return getProjectMarkdownIds(activeProject).includes(activeProject.activeId)
+  }, [activeProject])
   const projectVersionsForLibraryByProjectId = useMemo(() => {
     return projects.reduce<Record<string, VersionSettingsEntry[]>>((accumulator, project) => {
       accumulator[project.id] = mapVersionsForSettings(versioning.projectVersionsByProjectId[project.id] ?? [])
@@ -206,11 +216,7 @@ export function useAppOrchestration() {
       }
 
       if (msg.action === "export") {
-        if (version.snapshot.markdownEditorEnabled) {
-          void downloadProjectAsMarkdown(version.snapshot)
-        } else {
-          exportProjectAsPdf(version.snapshot)
-        }
+        exportProjectAsPdf(version.snapshot)
       }
     }
 
@@ -249,7 +255,7 @@ export function useAppOrchestration() {
 
   const menuBarProps = {
     enabled: isMenuBarEnabled,
-    items: view === "projects" ? projectWorkspaceMenu : getAppMenu({ markdownEditorEnabled: Boolean(activeProject?.markdownEditorEnabled) }),
+    items: view === "projects" ? projectWorkspaceMenu : getAppMenu({ markdownDocumentActive: activeDocumentIsMarkdown }),
   }
 
   // ── Electron native menu sync ──
@@ -396,14 +402,10 @@ export function useAppOrchestration() {
     accountLastName: session.user.lastName ?? "",
     accountEmail: session.user.email ?? "",
     activeProjectName: activeProject?.name ?? "",
-    activeProjectMarkdownEditorEnabled: Boolean(activeProject?.markdownEditorEnabled),
     activeProjectColor: activeProject?.color ?? "#7ea8ff",
     activeProjectWallpaperEmojis: activeProject?.wallpaperEmojis ?? "",
     activeProjectVersions: activeProjectVersionsForSettings,
     onActiveProjectNameChange: (name: string) => updateActiveProject((p) => ({ ...p, name })),
-    onActiveProjectMarkdownEditorEnabledChange: (enabled: boolean) => {
-      updateActiveProject((p) => (p.markdownEditorEnabled ? p : { ...p, markdownEditorEnabled: enabled }))
-    },
     onActiveProjectColorChange: (color: string) => updateActiveProject((p) => ({ ...p, color })),
     onActiveProjectWallpaperEmojisChange: (emojis: string) => updateActiveProject((p) => ({ ...p, wallpaperEmojis: emojis })),
     onShowVersionHistory: () => {
@@ -417,7 +419,7 @@ export function useAppOrchestration() {
     },
     onExportProject: () => {
       if (!activeProject) return
-      activeProject.markdownEditorEnabled ? downloadProjectAsMarkdown(activeProject) : exportProjectAsPdf(activeProject)
+      exportProjectAsPdf(activeProject)
     },
     sessionToken: session.token,
     documentId: activeProject ? projectDocumentMap[activeProject.id] : undefined,

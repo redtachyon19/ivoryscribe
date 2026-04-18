@@ -1,4 +1,4 @@
-import { isProjectSnapshot, normalizeProjectAfterTabs, collectTabTitles, findTabTitleById, type Project, type ProjectKind } from "./projects"
+import { parseProjectFromDocument, normalizeProjectAfterTabs, collectTabTitles, findTabTitleById, type Project, type ProjectKind } from "./projects"
 
 export const PROJECT_RECORD_TYPE = "ivory-project"
 export const PROJECT_VERSION_RECORD_TYPE = "ivory-project-version"
@@ -172,28 +172,28 @@ export function parseProjectVersion(documentRecord: DocumentLike): ProjectVersio
     return null
   }
 
-  try {
-    const parsedSnapshot = JSON.parse(documentRecord.content)
-    if (!isProjectSnapshot(parsedSnapshot)) {
-      return null
-    }
-
-    return {
-      id: documentRecord.id,
-      projectId,
-      label,
-      saveKind,
-      baseManualVersion,
-      minor,
-      patch,
-      changedCharacters,
-      createdAt: documentRecord.createdAt,
-      updatedAt: documentRecord.updatedAt,
-      snapshot: parsedSnapshot,
-      serializedSnapshot: documentRecord.content,
-    }
-  } catch {
+  const parsedSnapshot = parseProjectFromDocument({
+    title: documentRecord.title,
+    content: documentRecord.content,
+    metadata: documentRecord.metadata,
+  })
+  if (!parsedSnapshot) {
     return null
+  }
+
+  return {
+    id: documentRecord.id,
+    projectId,
+    label,
+    saveKind,
+    baseManualVersion,
+    minor,
+    patch,
+    changedCharacters,
+    createdAt: documentRecord.createdAt,
+    updatedAt: documentRecord.updatedAt,
+    snapshot: parsedSnapshot,
+    serializedSnapshot: documentRecord.content,
   }
 }
 
@@ -342,7 +342,6 @@ export type VersionSettingsEntry = {
   saveKind: "manual" | "autosave"
   createdAt: string
   changedCharacters: number
-  markdownEditorEnabled: boolean
   preview: {
     projectName: string
     projectKind: ProjectKind
@@ -369,7 +368,6 @@ export function mapVersionsForSettings(versions: ProjectVersion[]): VersionSetti
       saveKind: version.saveKind,
       createdAt: version.createdAt,
       changedCharacters: version.changedCharacters,
-      markdownEditorEnabled: Boolean(version.snapshot.markdownEditorEnabled),
       preview: {
         projectName: version.snapshot.name,
         projectKind: version.snapshot.kind,
@@ -514,7 +512,7 @@ export function buildVersionHistoryPageHtml(params: {
     const delta = version.changedCharacters > 0
       ? `${version.changedCharacters.toLocaleString()} changed characters`
       : "No character delta recorded"
-    const downloadLabel = version.snapshot.markdownEditorEnabled ? "Download .md" : "Download PDF"
+    const downloadLabel = "Download PDF"
 
     return `<article class="card">
       <div class="meta">

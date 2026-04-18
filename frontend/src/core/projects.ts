@@ -12,6 +12,7 @@ export type Project = {
   name: string
   createdAt: string
   kind: ProjectKind
+  markdownIds?: string[]
   markdownEditorEnabled?: boolean
   pinboardIds?: string[]
   color: string
@@ -29,7 +30,7 @@ type LegacyProjectSnapshot = Omit<Project, "kind"> & {
   kind: "Book" | "Blog"
 }
 
-export function getProjectEntryTerms(kind: ProjectKind) {
+export function getProjectEntryTerms(_kind: ProjectKind) {
   return {
     singular: "Chapter",
     plural: "Chapters",
@@ -77,6 +78,35 @@ export function collectTabIds(tabs: DocumentTab[]): string[] {
   return tabs.flatMap((tab) => [tab.id, ...collectTabIds(tab.children)])
 }
 
+function collectValidUniqueIds(tabIds: string[], candidateIds: string[] | undefined) {
+  const validIds = new Set(tabIds)
+  const seen = new Set<string>()
+  const next: string[] = []
+
+  for (const id of candidateIds ?? []) {
+    if (!validIds.has(id) || seen.has(id)) {
+      continue
+    }
+
+    seen.add(id)
+    next.push(id)
+  }
+
+  return next
+}
+
+export function getProjectMarkdownIds(project: Pick<Project, "tabs" | "markdownIds" | "markdownEditorEnabled">) {
+  if (Array.isArray(project.markdownIds)) {
+    return project.markdownIds
+  }
+
+  if (project.markdownEditorEnabled) {
+    return collectTabIds(project.tabs)
+  }
+
+  return []
+}
+
 // Depth-first sequence used for cross-document operations (e.g., PDF export).
 export function collectTabSequence(tabs: DocumentTab[]): Array<{ id: string; title: string }> {
   return tabs.flatMap((tab) => [{ id: tab.id, title: tab.title }, ...collectTabSequence(tab.children)])
@@ -97,6 +127,16 @@ export function createContentById(tabs: DocumentTab[]): Record<string, string> {
 export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTab[]): Project {
   const tabIds = collectTabIds(nextTabs)
   const nextContentById = { ...project.contentById }
+  const nextPinboardIds = collectValidUniqueIds(tabIds, project.pinboardIds)
+  const pinboardIdSet = new Set(nextPinboardIds)
+  const nextMarkdownIds = collectValidUniqueIds(
+    tabIds,
+    getProjectMarkdownIds({
+      tabs: nextTabs,
+      markdownIds: project.markdownIds,
+      markdownEditorEnabled: project.markdownEditorEnabled,
+    }),
+  ).filter((id) => !pinboardIdSet.has(id))
 
   for (const id of tabIds) {
     if (!(id in nextContentById)) {
@@ -110,6 +150,8 @@ export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTa
     ...project,
     tabs: nextTabs,
     activeId: nextActiveId,
+    pinboardIds: nextPinboardIds,
+    markdownIds: nextMarkdownIds,
     contentById: nextContentById,
   }
 }
@@ -124,7 +166,7 @@ export function createProject(name: string, kind: ProjectKind): Project {
     name,
     createdAt: new Date().toISOString(),
     kind,
-    markdownEditorEnabled: false,
+    markdownIds: [],
     pinboardIds: [],
     color,
     wallpaperEmojis: "",
@@ -182,14 +224,30 @@ export function parseProjectFromDocument(documentRecord: { title: string; conten
       return null
     }
 
+    const tabIds = collectTabIds(parsedContent.tabs)
+    const normalizedPinboardIds = collectValidUniqueIds(tabIds, parsedContent.pinboardIds)
+    const pinboardIdSet = new Set(normalizedPinboardIds)
+    const normalizedMarkdownIds = collectValidUniqueIds(
+      tabIds,
+      getProjectMarkdownIds({
+        tabs: parsedContent.tabs,
+        markdownIds: parsedContent.markdownIds,
+        markdownEditorEnabled: parsedContent.markdownEditorEnabled,
+      }),
+    ).filter((id) => !pinboardIdSet.has(id))
+
     const normalizedName = /^Blog\s+\d+$/i.test(parsedContent.name)
       ? parsedContent.name.replace(/^Blog/i, "Book")
       : parsedContent.name
 
+    const { markdownEditorEnabled: _legacyMarkdownMode, ...rest } = parsedContent
+
     return {
-      ...parsedContent,
+      ...rest,
       kind: "Book",
       name: normalizedName,
+      pinboardIds: normalizedPinboardIds,
+      markdownIds: normalizedMarkdownIds,
     } satisfies Project
   } catch {
     return null

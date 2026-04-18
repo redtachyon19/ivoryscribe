@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react"
-import { Check, Download, FileLock2, History, UserRoundPlus } from "lucide-react"
+import { Download, History, UserRoundPlus } from "lucide-react"
 import type { ProjectKind } from "../../../core/projects"
 import { SharePanel } from "./ShareDialog"
 import Button from "../ui/Button"
-import Modal from "../ui/Modal"
 import "./ProjectSettings.css"
 
 type ProjectVersionListItem = {
@@ -12,7 +11,6 @@ type ProjectVersionListItem = {
   saveKind: "manual" | "autosave"
   createdAt: string
   changedCharacters: number
-  markdownEditorEnabled?: boolean
   preview?: {
     projectName: string
     projectKind: ProjectKind
@@ -25,21 +23,17 @@ type ProjectVersionListItem = {
 type ProjectPreferencesFieldsProps = {
   fieldClassName: string
   projectName: string
-  markdownEditorEnabled: boolean
   projectColor: string
   projectWallpaperEmojis: string
   projectVersions?: ProjectVersionListItem[]
   showVersionHistory?: boolean
   onProjectNameChange: (name: string) => void
-  onMarkdownEditorEnabledChange: (enabled: boolean) => void
   onProjectColorChange: (color: string) => void
   onProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onShowVersionHistory?: () => void
   onExportProject: () => void
   sessionToken?: string
   documentId?: string
-  onMarkdownPromptVisibilityChange?: (visible: boolean) => void
-  onMarkdownPromptDismissed?: () => void
 }
 
 function splitGraphemes(value: string) {
@@ -100,50 +94,29 @@ function normalizeProjectColor(value: string | null | undefined) {
 export default function ProjectSettings({
   fieldClassName,
   projectName,
-  markdownEditorEnabled,
   projectColor,
   projectWallpaperEmojis,
   projectVersions = [],
   showVersionHistory = true,
   onProjectNameChange,
-  onMarkdownEditorEnabledChange,
   onProjectColorChange,
   onProjectWallpaperEmojisChange,
   onShowVersionHistory,
   onExportProject,
   sessionToken,
   documentId,
-  onMarkdownPromptVisibilityChange,
-  onMarkdownPromptDismissed,
 }: ProjectPreferencesFieldsProps) {
-  type MarkdownPromptKind = "enable-confirm" | "disable-blocked"
   const resolvedProjectColor = normalizeProjectColor(projectColor)
   const [projectColorHexDraft, setProjectColorHexDraft] = useState(resolvedProjectColor)
-  const [markdownPrompt, setMarkdownPrompt] = useState<MarkdownPromptKind | null>(null)
 
   const canShare = Boolean(sessionToken && documentId)
-
-  const activeMarkdownPrompt = markdownPrompt
-
-  const openMarkdownPrompt = (kind: MarkdownPromptKind) => {
-    setMarkdownPrompt(kind)
-  }
-
-  const closeMarkdownPrompt = () => {
-    setMarkdownPrompt(null)
-    onMarkdownPromptDismissed?.()
-  }
 
   useEffect(() => {
     setProjectColorHexDraft(resolvedProjectColor)
   }, [resolvedProjectColor])
 
-  useEffect(() => {
-    onMarkdownPromptVisibilityChange?.(Boolean(markdownPrompt))
-  }, [markdownPrompt, onMarkdownPromptVisibilityChange])
-
   return (
-    <div className={`project-preferences-fields ${markdownPrompt ? "project-preferences-fields--prompt-open" : ""}`.trim()}>
+    <div className="project-preferences-fields">
       <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
         <span className="project-preferences-fields__label">Name</span>
         <input
@@ -154,37 +127,6 @@ export default function ProjectSettings({
             onProjectNameChange(event.target.value)
           }}
         />
-      </label>
-
-      <label
-        className={`${fieldClassName} project-preferences-fields__field project-preferences-fields__field--toggle project-preferences-fields__markdown-row`.trim()}
-        htmlFor="project-preferences-markdown-toggle"
-      >
-        <span className="project-preferences-fields__label project-preferences-fields__markdown-label">Markdown Editor</span>
-        <span className="project-preferences-fields__toggle-wrap project-preferences-fields__markdown-toggle-wrap">
-          <input
-            id="project-preferences-markdown-toggle"
-            className="project-preferences-fields__toggle-input"
-            type="checkbox"
-            checked={markdownEditorEnabled}
-            onChange={(event) => {
-              const shouldEnable = event.target.checked
-
-              if (markdownEditorEnabled && !shouldEnable) {
-                openMarkdownPrompt("disable-blocked")
-                return
-              }
-
-              if (!markdownEditorEnabled && shouldEnable) {
-                openMarkdownPrompt("enable-confirm")
-                return
-              }
-
-              onMarkdownEditorEnabledChange(shouldEnable)
-            }}
-          />
-          <span className="project-preferences-fields__toggle-track" aria-hidden="true" />
-        </span>
       </label>
 
       <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
@@ -250,7 +192,7 @@ export default function ProjectSettings({
           onClick={onExportProject}
         >
           <Download size={17} strokeWidth={2} aria-hidden="true" />
-          <span>{markdownEditorEnabled ? "Download as .md" : "Export as PDF"}</span>
+          <span>Export as PDF</span>
         </button>
       </div>
 
@@ -288,44 +230,6 @@ export default function ProjectSettings({
           </Button>
         </div>
       ) : null}
-
-      <Modal
-        isOpen={Boolean(activeMarkdownPrompt)}
-        onClose={closeMarkdownPrompt}
-        title={activeMarkdownPrompt === "enable-confirm" ? "Enable Markdown Editor" : "Markdown Editor Locked"}
-        titleIcon={<FileLock2 size={19} strokeWidth={1.9} aria-hidden="true" />}
-        closeLabel="Close Prompt"
-        footer={
-          activeMarkdownPrompt === "enable-confirm" ? (
-            <>
-              <Button variant="footer" onClick={closeMarkdownPrompt}>
-                Cancel
-              </Button>
-              <Button
-                variant="footer-danger"
-                onClick={() => {
-                  onMarkdownEditorEnabledChange(true)
-                  closeMarkdownPrompt()
-                }}
-              >
-                <FileLock2 size={14} strokeWidth={2} aria-hidden="true" />
-                <span>Enable</span>
-              </Button>
-            </>
-          ) : (
-            <Button variant="footer" onClick={closeMarkdownPrompt}>
-              <Check size={14} strokeWidth={2} aria-hidden="true" />
-              <span>Got it</span>
-            </Button>
-          )
-        }
-      >
-        <p className={`project-preferences-fields__prompt-copy ${activeMarkdownPrompt === "disable-blocked" ? "project-preferences-fields__prompt-copy--warning" : ""}`.trim()}>
-          {activeMarkdownPrompt === "enable-confirm"
-            ? "Turn on Markdown Editor mode for this project? This cannot be undone."
-            : "Markdown Editor mode is permanent for this project and cannot be turned off."}
-        </p>
-      </Modal>
 
     </div>
   )

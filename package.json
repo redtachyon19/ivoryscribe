@@ -4,14 +4,20 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "concurrently -n frontend,backend -c cyan,green \"npm --prefix frontend run dev\" \"npm --prefix backend run dev\"",
+    "dev:lan": "node scripts/print-lan-links.mjs && concurrently -n frontend,backend -c cyan,green \"npm --prefix frontend run dev:lan\" \"npm --prefix backend run dev:lan\"",
     "dev:electron": "concurrently -n electron,backend -c cyan,green \"npm --prefix frontend run dev:electron\" \"npm --prefix backend run dev\"",
+    "dev:electron:lan": "node scripts/print-lan-links.mjs && concurrently -n electron,backend -c cyan,green \"npm --prefix frontend run dev:electron:lan\" \"npm --prefix backend run dev:lan\"",
     "dev:frontend": "npm --prefix frontend run dev",
+    "dev:frontend:lan": "npm --prefix frontend run dev:lan",
     "dev:backend": "npm --prefix backend run dev",
+    "dev:backend:lan": "npm --prefix backend run dev:lan",
     "build": "npm --prefix frontend run build",
     "lint": "npm --prefix frontend run lint",
     "preview": "npm --prefix frontend run preview",
+    "preview:lan": "npm --prefix frontend run preview:lan",
     "server": "npm --prefix backend run start",
-    "server:dev": "npm --prefix backend run dev"
+    "server:dev": "npm --prefix backend run dev",
+    "server:lan": "npm --prefix backend run start:lan"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

@@ -1,6 +1,7 @@
 import {
   requestAppSaveProject,
   requestAppSaveProjectVersion,
+  requestExportProject,
   requestEditorCommand,
   requestMarkdownEditorCommand,
   requestCreateBookProject,
@@ -8,7 +9,6 @@ import {
   requestAppColorPaletteChange,
   requestEditorFontFamilyChange,
   requestEditorFontSizeChange,
-  requestExportAllTabsPdf,
 } from "./editorEvents"
 import { FONT_OPTIONS, PALETTE_OPTIONS } from "./appearance"
 
@@ -312,8 +312,8 @@ export const projectWorkspaceMenu: MenuItem[] = [
   helpMenuItem,
 ]
 
-export function getAppMenu(options?: { markdownEditorEnabled?: boolean }): MenuItem[] {
-  const markdownEditorEnabled = Boolean(options?.markdownEditorEnabled)
+export function getAppMenu(options?: { markdownDocumentActive?: boolean }): MenuItem[] {
+  const markdownDocumentActive = Boolean(options?.markdownDocumentActive)
 
   const menu: MenuItem[] = [
     {
@@ -340,10 +340,33 @@ export function getAppMenu(options?: { markdownEditorEnabled?: boolean }): MenuI
           },
         },
         {
-          label: markdownEditorEnabled ? "Download as .md" : "Export as PDF",
-          action: () => {
-            requestExportAllTabsPdf()
-          },
+          label: "Export To",
+          submenu: [
+            {
+              label: "PDF (.pdf)",
+              action: () => {
+                requestExportProject("pdf")
+              },
+            },
+            {
+              label: "Word (.docx)",
+              action: () => {
+                requestExportProject("docx")
+              },
+            },
+            {
+              label: "Markdown (.md)",
+              action: () => {
+                requestExportProject("md")
+              },
+            },
+            {
+              label: "Text (.txt)",
+              action: () => {
+                requestExportProject("txt")
+              },
+            },
+          ],
         },
       ],
     },
@@ -359,7 +382,7 @@ export function getAppMenu(options?: { markdownEditorEnabled?: boolean }): MenuI
     helpMenuItem,
   ]
 
-  if (markdownEditorEnabled) {
+  if (markdownDocumentActive) {
     menu.splice(3, 0, markdownMenuItem)
   }
 

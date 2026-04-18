@@ -113,8 +113,29 @@ type PreferencesRecord = {
 }
 
 const configuredApiBase = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "")
-const API_BASE = configuredApiBase ?? "http://localhost:4000"
-const DEV_FALLBACK_API_BASE = "http://localhost:4000"
+const API_PORT = (import.meta.env.VITE_API_PORT as string | undefined)?.trim() || "4000"
+
+function resolveDefaultApiBase() {
+  const localhostBase = `http://localhost:${API_PORT}`
+
+  if (typeof window === "undefined") {
+    return localhostBase
+  }
+
+  const { protocol, hostname } = window.location
+  if (!hostname || protocol === "file:") {
+    return localhostBase
+  }
+
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+    return localhostBase
+  }
+
+  return `http://${hostname}:${API_PORT}`
+}
+
+const API_BASE = configuredApiBase ?? resolveDefaultApiBase()
+const DEV_FALLBACK_API_BASE = `http://localhost:${API_PORT}`
 
 function isLikelyNetworkFailure(message: string) {
   const normalized = message.toLowerCase()

@@ -3,8 +3,7 @@ import { Archive, BookCopy, BookOpenText, BookPlus, Folder, FolderPlus, LibraryB
 import Button from "../components/ui/Button"
 import Modal from "../components/ui/Modal"
 import { PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
-import { downloadProjectAsMarkdown } from "../../core/markdown"
-import { exportProjectAsPdf } from "../../core/pdfExport"
+import { exportProjectAsPdf } from "../components/export/pdfExport"
 import { collectTabIds, createProject, type Project } from "../../core/projects"
 import { createLocalId, duplicateProject } from "../../core/libraryUtils"
 import type { VersionSettingsEntry } from "../../core/versioning"
@@ -15,10 +14,15 @@ import ProjectFolderGrid from "../components/library/ProjectFolder"
 import useProjectDrag from "../components/library/useProjectDrag"
 import useProjectSettings from "../components/library/useProjectSettings"
 import { useViewMode, ViewToggle, formatRelativeDate } from "../components/library/useViewMode"
-import ProjectContextMenu, { buildProjectActions, buildFolderActions, buildMultiSelectActions, type ProjectContextMenuState } from "../components/library/ProjectContextMenu"
+import ProjectContextMenu, { buildProjectActions, buildFolderActions, buildMultiSelectActions } from "../components/library/ProjectContextMenu"
 import useMultiSelect from "../components/library/useMultiSelect"
 import ShareDialog from "../components/settings/ShareDialog"
 import "./Library.css"
+
+type LibraryContextMenuState =
+  | null
+  | { x: number; y: number; kind: "background" }
+  | { x: number; y: number; kind: "item"; projectId: string; isFolder?: boolean; isMultiSelect?: boolean }
 
 export type ProjectFolder = {
   id: string
@@ -113,24 +117,35 @@ export default function Library({
     setProjects,
   })
 
-  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
+  const [contextMenu, setContextMenu] = useState<LibraryContextMenuState>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
   const handleProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
     if (multiSelect.isMultiSelectTarget(projectId)) {
-      setContextMenu({ x, y, projectId, isMultiSelect: true })
+      setContextMenu({ x, y, kind: "item", projectId, isMultiSelect: true })
     } else {
-      setContextMenu({ x, y, projectId })
+      setContextMenu({ x, y, kind: "item", projectId })
     }
   }, [multiSelect.isMultiSelectTarget])
 
   const handleFolderContextMenu = useCallback((folderId: string, x: number, y: number) => {
     if (multiSelect.isMultiSelectTarget(folderId)) {
-      setContextMenu({ x, y, projectId: folderId, isMultiSelect: true })
+      setContextMenu({ x, y, kind: "item", projectId: folderId, isMultiSelect: true })
     } else {
-      setContextMenu({ x, y, projectId: folderId, isFolder: true })
+      setContextMenu({ x, y, kind: "item", projectId: folderId, isFolder: true })
     }
   }, [multiSelect.isMultiSelectTarget])
+
+  const handleLibraryBackgroundContextMenu = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null
+    if (!target) return
+
+    if (target.closest("[data-selectable-id]")) return
+    if (target.closest("button, a, input, textarea, [contenteditable='true']")) return
+
+    event.preventDefault()
+    setContextMenu({ x: event.clientX, y: event.clientY, kind: "background" })
+  }, [])
 
   const startFolderRename = (folderId: string) => {
     const folder = folders.find((f) => f.id === folderId)
@@ -211,7 +226,12 @@ export default function Library({
   return (
     <>
       <div className={`project-hub__main ${settings.isOpen ? "project-hub__main--blurred" : ""}`.trim()}>
-        <div ref={multiSelect.scrollContainerRef} className={`project-hub__main-scroll ${multiSelect.scrollClassName}`} onMouseDown={multiSelect.handleMouseDown}>
+        <div
+          ref={multiSelect.scrollContainerRef}
+          className={`project-hub__main-scroll ${multiSelect.scrollClassName}`}
+          onMouseDown={multiSelect.handleMouseDown}
+          onContextMenu={handleLibraryBackgroundContextMenu}
+        >
           {multiSelect.isMarqueeActive && multiSelect.marqueeRect ? (
             <div
               className="marquee-selection"
@@ -436,7 +456,6 @@ export default function Library({
         <ProjectSettings
           fieldClassName="project-settings-modal__field"
           projectName={settings.projectName}
-          markdownEditorEnabled={settings.markdownEditorEnabled}
           projectColor={settings.projectColor}
           projectWallpaperEmojis={settings.wallpaperEmojis}
           projectVersions={settingsProjectId ? (activeProjectVersionsByProjectId[settingsProjectId] ?? []) : []}
@@ -444,7 +463,6 @@ export default function Library({
             settings.setProjectName(nextName)
             if (settings.error) settings.setError("")
           }}
-          onMarkdownEditorEnabledChange={settings.setMarkdownEditorEnabled}
           onProjectColorChange={settings.setProjectColor}
           onProjectWallpaperEmojisChange={settings.setWallpaperEmojis}
           onShowVersionHistory={
@@ -456,12 +474,10 @@ export default function Library({
           }
           onExportProject={() => {
             if (!settings.settingsProject) return
-            if (settings.markdownEditorEnabled) { downloadProjectAsMarkdown(settings.settingsProject); return }
             exportProjectAsPdf(settings.settingsProject)
           }}
           sessionToken={sessionToken}
           documentId={settingsProjectId ? (projectDocumentMap[settingsProjectId] ?? undefined) : undefined}
-          onMarkdownPromptDismissed={settings.close}
         />
         {settings.error ? <p className="ui-modal__error">{settings.error}</p> : null}
       </Modal>
@@ -472,7 +488,20 @@ export default function Library({
           y={contextMenu.y}
           onClose={closeContextMenu}
           actions={
-            contextMenu.isMultiSelect
+            contextMenu.kind === "background"
+              ? [
+                  {
+                    label: "Create Project",
+                    icon: <BookPlus size={14} strokeWidth={2} aria-hidden={true} />,
+                    action: () => createNewProject(openFolderId ?? undefined),
+                  },
+                  {
+                    label: "Create Folder",
+                    icon: <FolderPlus size={14} strokeWidth={2} aria-hidden={true} />,
+                    action: createFolder,
+                  },
+                ]
+              : contextMenu.isMultiSelect
               ? buildMultiSelectActions({
                   ids: multiSelect.selectedIds,
                   onDuplicate: (ids) => {

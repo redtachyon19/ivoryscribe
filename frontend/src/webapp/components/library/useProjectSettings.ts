@@ -11,7 +11,6 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
   const [openProjectSettingsId, setOpenProjectSettingsId] = useState<string | null>(null)
   const [projectName, setProjectName] = useState("")
   const [projectColor, setProjectColor] = useState("#7ea8ff")
-  const [markdownEditorEnabled, setMarkdownEditorEnabled] = useState(false)
   const [wallpaperEmojis, setWallpaperEmojis] = useState("")
   const [error, setError] = useState("")
 
@@ -22,7 +21,6 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
     setOpenProjectSettingsId(project.id)
     setProjectName(project.name)
     setProjectColor(normalizeProjectColor(project.color))
-    setMarkdownEditorEnabled(Boolean(project.markdownEditorEnabled))
     setWallpaperEmojis(project.wallpaperEmojis ?? "")
     setError("")
   }
@@ -53,17 +51,16 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
         if (
           project.name === trimmedName &&
           project.color === normalizedColor &&
-          Boolean(project.markdownEditorEnabled) === markdownEditorEnabled &&
           (project.wallpaperEmojis ?? "") === normalizedWallpaper
         ) return project
 
         hasChanges = true
-        return { ...project, name: trimmedName, color: normalizedColor, markdownEditorEnabled, wallpaperEmojis: normalizedWallpaper }
+        return { ...project, name: trimmedName, color: normalizedColor, wallpaperEmojis: normalizedWallpaper }
       })
 
       return hasChanges ? nextProjects : current
     })
-  }, [projectColor, markdownEditorEnabled, projectName, wallpaperEmojis, setProjects, settingsProject])
+  }, [projectColor, projectName, wallpaperEmojis, setProjects, settingsProject])
 
   const duplicate = () => {
     if (!settingsProject) return
@@ -87,6 +84,18 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
       tabIdMap.forEach((nextId, oldId) => {
         nextContentById[nextId] = source.contentById[oldId] ?? ""
       })
+      const remapIds = (ids: string[] | undefined) =>
+        (ids ?? [])
+          .map((oldId) => tabIdMap.get(oldId))
+          .filter((nextId): nextId is string => Boolean(nextId))
+      const nextPinboardIds = remapIds(source.pinboardIds)
+      const sourceMarkdownIds = Array.isArray(source.markdownIds)
+        ? source.markdownIds
+        : source.markdownEditorEnabled
+          ? [...tabIdMap.keys()]
+          : []
+      const pinboardIdSet = new Set(nextPinboardIds)
+      const nextMarkdownIds = remapIds(sourceMarkdownIds).filter((id) => !pinboardIdSet.has(id))
 
       const duplicate: Project = {
         ...source,
@@ -96,6 +105,9 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
         tabs: nextTabs,
         activeId: source.activeId ? (tabIdMap.get(source.activeId) ?? (nextTabs[0]?.id ?? null)) : (nextTabs[0]?.id ?? null),
         contentById: nextContentById,
+        pinboardIds: nextPinboardIds,
+        markdownIds: nextMarkdownIds,
+        markdownEditorEnabled: undefined,
       }
 
       const nextProjects = [...current]
@@ -112,12 +124,10 @@ export default function useProjectSettings({ projects, setProjects }: UseProject
     openProjectSettingsId,
     projectName,
     projectColor,
-    markdownEditorEnabled,
     wallpaperEmojis,
     error,
     setProjectName,
     setProjectColor,
-    setMarkdownEditorEnabled,
     setWallpaperEmojis,
     setError,
     open,

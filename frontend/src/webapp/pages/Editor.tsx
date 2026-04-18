@@ -2,12 +2,17 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import TextEditor from "../components/editor/TextEditor.tsx"
 import MarkdownEditor from "../components/editor/MarkdownEditor"
 import PinboardEditor from "../components/editor/PinboardEditor"
+import ProjectExportModal from "../components/export/ProjectExportModal"
 import AppShell from "../components/layout/AppShell"
 import Modal from "../components/ui/Modal"
-import { EXPORT_ALL_TABS_PDF_EVENT, NAVIGATE_ARCHIVE_EVENT, NAVIGATE_TRASH_EVENT, NAVIGATE_LIBRARY_EVENT, NAVIGATE_RECENT_EVENT } from "../../core/editorEvents"
-import { countWordsFromContent, downloadProjectAsMarkdown } from "../../core/markdown"
-import { exportProjectAsPdf } from "../../core/pdfExport"
-import { getProjectEntryTerms, type Project } from "../../core/projects"
+import { APP_EXPORT_PROJECT_EVENT, type ExportProjectFormat, NAVIGATE_ARCHIVE_EVENT, NAVIGATE_TRASH_EVENT, NAVIGATE_LIBRARY_EVENT, NAVIGATE_RECENT_EVENT } from "../../core/editorEvents"
+import { countWordsFromContent } from "../../core/markdown"
+import { exportProjectAsDocx } from "../components/export/docxExport"
+import { downloadProjectAsMarkdown } from "../components/export/markdownExport"
+import { exportProjectAsPdf } from "../components/export/pdfExport"
+import { exportProjectAsTxt } from "../components/export/txtExport"
+import { collectTabSequence, getProjectEntryTerms, getProjectMarkdownIds, type Project } from "../../core/projects"
+import type { ExportMode } from "../components/export/exportSelection"
 import { useNavigationHistory } from "../../core/useNavigationHistory"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import Library, { type ProjectFolder } from "./Library"
@@ -199,10 +204,10 @@ export default function Editor({
   projectDocumentMap,
 }: EditorProps) {
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
-  const markdownEditorEnabled = project ? Boolean(project.markdownEditorEnabled) : false
   const [selectedWordCount, setSelectedWordCount] = useState<number | null>(null)
   const [isWordStatsOpen, setIsWordStatsOpen] = useState(false)
   const [isDetailedWordStatsOpen, setIsDetailedWordStatsOpen] = useState(false)
+  const [pendingExportFormat, setPendingExportFormat] = useState<ExportProjectFormat | null>(null)
   const [includedTabsById, setIncludedTabsById] = useState<Record<string, boolean>>({})
   const [dashboardSection, setDashboardSection] = useState<"library" | "recent" | "archive" | "trash">("library")
 
@@ -269,6 +274,25 @@ export default function Editor({
 
     return findTabPathById(project.tabs, project.activeId) ?? []
   }, [project])
+  const exportTabs = useMemo(
+    () => project ? collectTabSequence(project.tabs) : [],
+    [project],
+  )
+  const activeDocumentType = useMemo(() => {
+    if (!project?.activeId) {
+      return "text" as const
+    }
+
+    if ((project.pinboardIds ?? []).includes(project.activeId)) {
+      return "pinboard" as const
+    }
+
+    if (getProjectMarkdownIds(project).includes(project.activeId)) {
+      return "markdown" as const
+    }
+
+    return "text" as const
+  }, [project])
 
   const currentCountLabel = selectedWordCount === null
     ? `${activeDocumentWordCount.toLocaleString()} ${activeDocumentWordCount === 1 ? "word" : "words"}`
@@ -296,21 +320,49 @@ export default function Editor({
 
   useEffect(() => {
     // Menu action emits a global event; this page handles it for the current project.
-    const onExportRequest = () => {
+    const onExportRequest: EventListener = (event) => {
       if (!project) return
-      if (project.markdownEditorEnabled) {
-        void downloadProjectAsMarkdown(project)
-        return
-      }
-
-      exportProjectAsPdf(project)
+      const customEvent = event as CustomEvent<{ format?: ExportProjectFormat }>
+      const format = customEvent.detail?.format ?? "pdf"
+      setPendingExportFormat(format)
     }
 
-    window.addEventListener(EXPORT_ALL_TABS_PDF_EVENT, onExportRequest)
+    window.addEventListener(APP_EXPORT_PROJECT_EVENT, onExportRequest)
     return () => {
-      window.removeEventListener(EXPORT_ALL_TABS_PDF_EVENT, onExportRequest)
+      window.removeEventListener(APP_EXPORT_PROJECT_EVENT, onExportRequest)
     }
   }, [project])
+
+  const closeExportModal = () => {
+    setPendingExportFormat(null)
+  }
+
+  const runExport = (format: ExportProjectFormat, mode: ExportMode, selectedTabIds: string[]) => {
+    if (!project) {
+      return
+    }
+
+    const options = mode === "separate-files"
+      ? { mode: "separate-files" as const }
+      : { mode: "single-document" as const, selectedTabIds }
+
+    if (format === "md") {
+      void downloadProjectAsMarkdown(project, options)
+      return
+    }
+
+    if (format === "docx") {
+      void exportProjectAsDocx(project, options)
+      return
+    }
+
+    if (format === "txt") {
+      void exportProjectAsTxt(project, options)
+      return
+    }
+
+    void exportProjectAsPdf(project, options)
+  }
 
   return (
     <AppShell
@@ -389,7 +441,22 @@ export default function Editor({
           ) : project ? (
             /* ── Editor Content ── */
             <>
-              {project.activeId && (project.pinboardIds ?? []).includes(project.activeId) ? (
+              <ProjectExportModal
+                isOpen={Boolean(project && pendingExportFormat)}
+                format={pendingExportFormat}
+                tabs={exportTabs}
+                onClose={closeExportModal}
+                onConfirm={({ mode, selectedTabIds }) => {
+                  if (!pendingExportFormat) {
+                    return
+                  }
+
+                  runExport(pendingExportFormat, mode, selectedTabIds)
+                  closeExportModal()
+                }}
+              />
+
+              {activeDocumentType === "pinboard" ? (
                 <PinboardEditor
                   documentId={project.activeId}
                   content={activeContent}
@@ -409,7 +476,7 @@ export default function Editor({
                     })
                   }}
                 />
-              ) : markdownEditorEnabled ? (
+              ) : activeDocumentType === "markdown" ? (
                 <MarkdownEditor
                   documentId={project.activeId}
                   content={activeContent}
