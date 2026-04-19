@@ -13,6 +13,7 @@ import {
   type ProjectSearchFocusDetail,
   type SpellCheckFocusDetail,
 } from "../../../core/editorEvents"
+import { withEmojiFontFallback } from "../../../core/appearance"
 import { countWords } from "../../../core/markdown"
 import { FlagRail } from "./FlagRail"
 import { useFlagRail } from "./hooks/useFlagRail"
@@ -160,7 +161,7 @@ export default function TextEditor({
   const [fontSize, setFontSize] = useState(() =>
     Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, editorFontSize || DEFAULT_FONT_SIZE)),
   )
-  const [fontFamily, setFontFamily] = useState(DEFAULT_FONT_FAMILY)
+  const [fontFamily, setFontFamily] = useState(() => withEmojiFontFallback(DEFAULT_FONT_FAMILY))
   const [titleDraft, setTitleDraft] = useState(documentTitle)
 
   const { isUiTyping, markUiTypingActivity } = useTypingState({ onTypingStateChange })
@@ -329,7 +330,7 @@ export default function TextEditor({
         return
       }
 
-      setFontFamily(nextFontFamily)
+      setFontFamily(withEmojiFontFallback(nextFontFamily))
     }
 
     const onEditorCommand = async (event: Event) => {

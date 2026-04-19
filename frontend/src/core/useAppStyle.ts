@@ -11,6 +11,7 @@ import {
   getSystemPalette,
   mixHexColors,
   pickReadableTextColor,
+  withEmojiFontFallback,
   type Palette,
 } from "./appearance"
 import {
@@ -142,9 +143,9 @@ export function useAppStyle() {
 
   const appStyleVariables = useMemo(() => {
     const variables: Record<string, string> = {
-      "--app-display-font": displayFont,
-      "--app-body-font": bodyFont,
-      "--app-ui-font": uiFont,
+      "--app-display-font": withEmojiFontFallback(displayFont),
+      "--app-body-font": withEmojiFontFallback(bodyFont),
+      "--app-ui-font": withEmojiFontFallback(uiFont),
     }
 
     if (palette !== "custom") {

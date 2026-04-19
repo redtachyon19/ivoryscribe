@@ -55,33 +55,36 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     }
   }
 
-  const getPointerRatio = (value: number, min: number, size: number) => {
-    if (size <= 0) return 0.5
-    const ratio = (value - min) / size
-    if (ratio < 0) return 0
-    if (ratio > 1) return 1
-    return ratio
+  const getProjectReorderPosition = (_event: DragEvent<HTMLElement>, projectId: string): "before" | "after" => {
+    if (!draggingProjectId) {
+      if (dropTarget?.type === "project" && dropTarget.projectId === projectId) return dropTarget.position
+      return "before"
+    }
+
+    const fromIndex = projects.findIndex((project) => project.id === draggingProjectId)
+    const targetIndex = projects.findIndex((project) => project.id === projectId)
+    if (fromIndex === -1 || targetIndex === -1) {
+      if (dropTarget?.type === "project" && dropTarget.projectId === projectId) return dropTarget.position
+      return "before"
+    }
+
+    return fromIndex < targetIndex ? "after" : "before"
   }
 
-  const getProjectReorderPosition = (event: DragEvent<HTMLElement>, projectId: string): "before" | "after" => {
-    const bounds = event.currentTarget.getBoundingClientRect()
-    const isListRow = event.currentTarget.classList.contains("project-hub__list-row")
-    const ratio = isListRow
-      ? getPointerRatio(event.clientY, bounds.top, bounds.height)
-      : getPointerRatio(event.clientX, bounds.left, bounds.width)
-    if (ratio <= 0.45) return "before"
-    if (ratio >= 0.55) return "after"
-    if (dropTarget?.type === "project" && dropTarget.projectId === projectId) return dropTarget.position
-    return ratio < 0.5 ? "before" : "after"
-  }
+  const getFolderReorderPosition = (_event: DragEvent<HTMLElement>, folderId: string): "before" | "after" => {
+    if (!draggingFolderId) {
+      if (folderDropTarget?.folderId === folderId) return folderDropTarget.position
+      return "before"
+    }
 
-  const getFolderReorderPosition = (event: DragEvent<HTMLElement>, folderId: string): "before" | "after" => {
-    const bounds = event.currentTarget.getBoundingClientRect()
-    const yRatio = getPointerRatio(event.clientY, bounds.top, bounds.height)
-    if (yRatio <= 0.42) return "before"
-    if (yRatio >= 0.58) return "after"
-    if (folderDropTarget?.folderId === folderId) return folderDropTarget.position
-    return yRatio < 0.5 ? "before" : "after"
+    const fromIndex = folders.findIndex((folder) => folder.id === draggingFolderId)
+    const targetIndex = folders.findIndex((folder) => folder.id === folderId)
+    if (fromIndex === -1 || targetIndex === -1) {
+      if (folderDropTarget?.folderId === folderId) return folderDropTarget.position
+      return "before"
+    }
+
+    return fromIndex < targetIndex ? "after" : "before"
   }
 
   // --- Move logic ---

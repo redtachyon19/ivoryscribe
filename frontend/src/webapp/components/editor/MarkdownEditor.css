@@ -74,7 +74,7 @@
   background: transparent;
   color: var(--editor-text, #f5f5f5);
   padding: 34px 10px 18px;
-  font-family: "IBM Plex Mono", "Menlo", "Consolas", monospace;
+  font-family: "IBM Plex Mono", "Menlo", "Consolas", "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji", monospace;
   font-size: var(--markdown-source-font-size, 18px);
   line-height: 1.65;
   outline: none;
@@ -207,7 +207,7 @@
 }
 
 .markdown-editor__preview code {
-  font-family: "IBM Plex Mono", "Menlo", "Consolas", monospace;
+  font-family: "IBM Plex Mono", "Menlo", "Consolas", "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji", monospace;
   font-size: 0.86em;
 }
 

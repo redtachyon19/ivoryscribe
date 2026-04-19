@@ -7,8 +7,9 @@
   --palette-transition-duration: 380ms;
   --palette-transition-easing: ease;
   --app-display-font: var(--app-display-font);
+  --app-emoji-font: "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
   --app-body-font: var(--app-ui-font);
-  --app-ui-font: "Lato", sans-serif;
+  --app-ui-font: "Lato", sans-serif, var(--app-emoji-font);
   --app-bg: #f8f3e3;
   --brand-color: #1d180f;
   --menu-bg: #efe6cb;
