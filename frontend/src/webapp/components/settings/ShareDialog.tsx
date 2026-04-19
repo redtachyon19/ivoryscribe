@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
-import { Send, UserX, UserRoundPlus } from "lucide-react"
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
+import { ChevronDown, Send, UserCheck, UserX, UserRoundPlus } from "lucide-react"
 import Modal from "../ui/Modal"
 import {
   createShare,
@@ -15,6 +15,71 @@ type SharePanelProps = {
   documentId: string
   /** When true, the panel loads shares immediately on mount. Defaults to true. */
   autoLoad?: boolean
+}
+
+function PermissionMenu({
+  value,
+  onChange,
+  size = "normal",
+}: {
+  value: "view" | "edit"
+  onChange: (next: "view" | "edit") => void
+  size?: "normal" | "small"
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (wrapRef.current?.contains(event.target as Node)) return
+      setIsOpen(false)
+    }
+    window.addEventListener("mousedown", onPointerDown)
+    return () => window.removeEventListener("mousedown", onPointerDown)
+  }, [isOpen])
+
+  const label = value === "edit" ? "Can edit" : "View only"
+  const options: { value: "view" | "edit"; label: string }[] = [
+    { value: "view", label: "View only" },
+    { value: "edit", label: "Can edit" },
+  ]
+
+  return (
+    <div className="share-dialog__permission-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className={`share-dialog__permission-trigger ${size === "small" ? "share-dialog__permission-trigger--small" : ""}`.trim()}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((c) => !c)}
+      >
+        <span>{label}</span>
+        <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
+      </button>
+      <div
+        className={`share-dialog__permission-menu ${isOpen ? "share-dialog__permission-menu--open" : "share-dialog__permission-menu--closed"}`.trim()}
+        role="listbox"
+        aria-label="Permission"
+      >
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            role="option"
+            aria-selected={opt.value === value}
+            className={`share-dialog__permission-option ${opt.value === value ? "share-dialog__permission-option--active" : ""}`.trim()}
+            onClick={() => {
+              onChange(opt.value)
+              setIsOpen(false)
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -106,7 +171,12 @@ export function SharePanel({
       <div className="share-dialog__form">
         <input
           className="share-dialog__email-input"
-          type="email"
+          type="text"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           placeholder="Enter email address"
           value={email}
           onChange={(e) => {
@@ -121,14 +191,7 @@ export function SharePanel({
             }
           }}
         />
-        <select
-          className="share-dialog__permission-select"
-          value={permission}
-          onChange={(e) => setPermission(e.target.value as "view" | "edit")}
-        >
-          <option value="view">View only</option>
-          <option value="edit">Can edit</option>
-        </select>
+        <PermissionMenu value={permission} onChange={setPermission} />
         <button
           type="button"
           className="share-dialog__send-btn"
@@ -151,18 +214,17 @@ export function SharePanel({
           {shares.map((share) => (
             <div key={share.id} className="share-dialog__item">
               <div className="share-dialog__item-info">
+                {share.status === "accepted" ? (
+                  <UserCheck size={14} strokeWidth={2} aria-label="Accepted" className="share-dialog__item-accepted-icon" />
+                ) : null}
                 <span className="share-dialog__item-email">{share.recipientEmail}</span>
-                <span className="share-dialog__item-status">{share.status}</span>
               </div>
               <div className="share-dialog__item-actions">
-                <select
-                  className="share-dialog__item-permission-select"
+                <PermissionMenu
                   value={share.permission}
-                  onChange={(e) => handlePermissionChange(share.id, e.target.value as "view" | "edit")}
-                >
-                  <option value="view">View only</option>
-                  <option value="edit">Can edit</option>
-                </select>
+                  onChange={(next) => handlePermissionChange(share.id, next)}
+                  size="small"
+                />
                 <button
                   type="button"
                   className="share-dialog__revoke-btn"
@@ -198,14 +260,85 @@ export default function ShareDialog({
   documentId,
   projectName,
 }: ShareDialogProps) {
+  const [viewportEl, setViewportEl] = useState<HTMLSpanElement | null>(null)
+  const marqueeTextRef = useRef<HTMLSpanElement | null>(null)
+  const [marquee, setMarquee] = useState({ isOverflowing: false, loopDistance: 0 })
+
+  useEffect(() => {
+    if (!isOpen || !viewportEl) return
+
+    const text = marqueeTextRef.current
+    if (!text) return
+
+    const measure = () => {
+      const viewportWidth = viewportEl.clientWidth
+      const textWidth = text.scrollWidth
+      const nextIsOverflowing = textWidth > viewportWidth + 1
+      const nextLoopDistance = nextIsOverflowing ? textWidth + 28 : 0
+
+      setMarquee((current) => {
+        if (current.isOverflowing === nextIsOverflowing && current.loopDistance === nextLoopDistance) return current
+        return { isOverflowing: nextIsOverflowing, loopDistance: nextLoopDistance }
+      })
+    }
+
+    measure()
+    const rafId = window.requestAnimationFrame(measure)
+    const delayedMeasureId = window.setTimeout(measure, 240)
+
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null
+    resizeObserver?.observe(viewportEl)
+    resizeObserver?.observe(text)
+    window.addEventListener("resize", measure)
+
+    return () => {
+      window.cancelAnimationFrame(rafId)
+      window.clearTimeout(delayedMeasureId)
+      resizeObserver?.disconnect()
+      window.removeEventListener("resize", measure)
+    }
+  }, [isOpen, projectName, viewportEl])
+
+  const titleNode = (
+    <span
+      ref={setViewportEl}
+      className={`share-dialog__title-marquee ${marquee.isOverflowing ? "share-dialog__title-marquee--overflowing" : ""}`.trim()}
+      style={
+        marquee.isOverflowing
+          ? ({ "--share-dialog-marquee-distance": `${marquee.loopDistance}px` } as CSSProperties)
+          : undefined
+      }
+    >
+      <span className="share-dialog__title-marquee-track">
+        <span ref={marqueeTextRef} className="share-dialog__title-marquee-text">
+          Share &ldquo;{projectName}&rdquo;
+        </span>
+        {marquee.isOverflowing ? <span className="share-dialog__title-marquee-gap" aria-hidden="true" /> : null}
+        {marquee.isOverflowing ? (
+          <span className="share-dialog__title-marquee-text" aria-hidden="true">
+            Share &ldquo;{projectName}&rdquo;
+          </span>
+        ) : null}
+      </span>
+    </span>
+  )
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Share "${projectName}"`}
       titleIcon={<UserRoundPlus size={19} strokeWidth={1.9} aria-hidden="true" />}
       closeLabel="Close Share Dialog"
+      panelClassName="share-dialog__modal-panel"
     >
+      <div className="share-dialog__custom-header">
+        <h3 className="share-dialog__custom-title">
+          <UserRoundPlus size={19} strokeWidth={1.9} aria-hidden="true" />
+          <span className="share-dialog__title-label" tabIndex={0}>
+            {titleNode}
+          </span>
+        </h3>
+      </div>
       <SharePanel
         sessionToken={sessionToken}
         documentId={documentId}
