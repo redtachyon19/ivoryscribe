@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Download, History, UserRoundPlus } from "lucide-react"
 import type { ProjectKind } from "../../../core/projects"
 import { SharePanel } from "./ShareDialog"
@@ -31,7 +31,7 @@ type ProjectPreferencesFieldsProps = {
   onProjectColorChange: (color: string) => void
   onProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onShowVersionHistory?: () => void
-  onExportProject: () => void
+  onExportProject: (format: "pdf" | "docx" | "md" | "txt") => void
   sessionToken?: string
   documentId?: string
 }
@@ -109,6 +109,25 @@ export default function ProjectSettings({
   const resolvedProjectColor = normalizeProjectColor(projectColor)
   const [projectColorHexDraft, setProjectColorHexDraft] = useState(resolvedProjectColor)
 
+  const emojiRefs = useRef<Array<HTMLInputElement | null>>([null, null, null])
+
+  const emojiTokens = extractEmojiTokens(projectWallpaperEmojis, 3)
+  const emojiSlots: [string, string, string] = [
+    emojiTokens[0] ?? "",
+    emojiTokens[1] ?? "",
+    emojiTokens[2] ?? "",
+  ]
+
+  function handleEmojiSlotChange(index: 0 | 1 | 2, raw: string) {
+    const token = extractEmojiTokens(raw, 1)[0] ?? ""
+    const next: [string, string, string] = [...emojiSlots]
+    next[index] = token
+    onProjectWallpaperEmojisChange(next.filter(Boolean).join(" "))
+    if (token && index < 2) {
+      emojiRefs.current[index + 1]?.focus()
+    }
+  }
+
   const canShare = Boolean(sessionToken && documentId)
 
   useEffect(() => {
@@ -129,9 +148,9 @@ export default function ProjectSettings({
         />
       </label>
 
-      <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
-        <span className="project-preferences-fields__label">Color</span>
-        <div className="project-preferences-fields__color-input-wrap">
+      <div className={`${fieldClassName} project-preferences-fields__field`.trim()}>
+        <span className="project-preferences-fields__label">Project Card Wallpaper</span>
+        <div className="project-preferences-fields__wallpaper-row">
           <input
             className="project-preferences-fields__input project-preferences-fields__input--color"
             type="color"
@@ -143,7 +162,7 @@ export default function ProjectSettings({
             }}
           />
           <input
-            className="project-preferences-fields__color-value-input"
+            className="project-preferences-fields__color-value-input project-preferences-fields__color-value-input--compact"
             type="text"
             inputMode="text"
             autoComplete="off"
@@ -161,39 +180,36 @@ export default function ProjectSettings({
                 setProjectColorHexDraft(resolvedProjectColor)
               }
             }}
-            placeholder="#000000"
+            placeholder="#HEXCLR"
             aria-label="Project color hex"
           />
+          {([0, 1, 2] as const).map((i) => (
+            <input
+              key={i}
+              ref={(el) => { emojiRefs.current[i] = el }}
+              className="project-preferences-fields__input project-preferences-fields__input--emoji project-preferences-fields__emoji-slot"
+              type="text"
+              inputMode="text"
+              autoComplete="off"
+              spellCheck={false}
+              value={emojiSlots[i]}
+              onChange={(event) => handleEmojiSlotChange(i, event.target.value)}
+              onFocus={(event) => event.target.select()}
+              onKeyDown={(event) => {
+                if (event.key === "Backspace" || event.key === "Delete") {
+                  event.preventDefault()
+                  if (emojiSlots[i]) {
+                    handleEmojiSlotChange(i, "")
+                  } else if (i > 0) {
+                    emojiRefs.current[i - 1]?.focus()
+                  }
+                }
+              }}
+              placeholder="😀"
+              aria-label={`Emoji ${i + 1}`}
+            />
+          ))}
         </div>
-      </label>
-
-      <label className={`${fieldClassName} project-preferences-fields__field`.trim()}>
-        <span className="project-preferences-fields__label">Card Emoji Wallpaper (up to 3)</span>
-        <input
-          className="project-preferences-fields__input project-preferences-fields__input--emoji"
-          type="text"
-          inputMode="text"
-          autoComplete="off"
-          spellCheck={false}
-          value={projectWallpaperEmojis}
-          onChange={(event) => {
-            onProjectWallpaperEmojisChange(normalizeProjectEmojiWallpaper(event.target.value))
-          }}
-          placeholder="e.g. 📚 🐘 ✍️"
-          aria-label="Card emoji wallpaper"
-        />
-      </label>
-
-      <div className={`${fieldClassName} project-preferences-fields__field`.trim()}>
-        <span className="project-preferences-fields__label">Export</span>
-        <button
-          type="button"
-          className="project-preferences-fields__export-btn"
-          onClick={onExportProject}
-        >
-          <Download size={17} strokeWidth={2} aria-hidden="true" />
-          <span>Export as PDF</span>
-        </button>
       </div>
 
       {canShare ? (
@@ -206,6 +222,25 @@ export default function ProjectSettings({
         </div>
       ) : null}
 
+      <div className={`${fieldClassName} project-preferences-fields__field project-preferences-fields__field--toggle`.trim()}>
+        <span className="project-preferences-fields__label project-preferences-fields__export-label">
+          <Download size={17} strokeWidth={2} aria-hidden="true" />
+          <span>Export as</span>
+        </span>
+        <div className="project-preferences-fields__export-formats">
+          {(["pdf", "docx", "md", "txt"] as const).map((fmt) => (
+            <button
+              key={fmt}
+              type="button"
+              className="project-preferences-fields__export-format-btn"
+              onClick={() => onExportProject(fmt)}
+            >
+              .{fmt}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {showVersionHistory ? (
         <div className={`${fieldClassName} project-preferences-fields__field project-preferences-fields__history`.trim()}>
           <div className="project-preferences-fields__history-header">
@@ -213,21 +248,16 @@ export default function ProjectSettings({
               <History size={17} strokeWidth={2} aria-hidden="true" />
               <span>Version History</span>
             </span>
-            <span className="project-preferences-fields__history-count">
+            <Button
+              variant="footer"
+              className="project-preferences-fields__history-open-btn"
+              onClick={() => {
+                onShowVersionHistory?.()
+              }}
+            >
               {projectVersions.length === 1 ? "1 saved version" : `${projectVersions.length} saved versions`}
-            </span>
+            </Button>
           </div>
-
-          <Button
-            variant="footer"
-            className="project-preferences-fields__history-open-btn"
-            onClick={() => {
-              onShowVersionHistory?.()
-            }}
-          >
-            <History size={14} strokeWidth={2} aria-hidden="true" />
-            <span>Show Version History</span>
-          </Button>
         </div>
       ) : null}
 

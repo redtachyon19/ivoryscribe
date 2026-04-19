@@ -70,7 +70,7 @@ export type GlobalSettingsProps = {
   onActiveProjectColorChange: (color: string) => void
   onActiveProjectWallpaperEmojisChange: (wallpaperEmojis: string) => void
   onShowVersionHistory?: () => void
-  onExportProject: () => void
+  onExportProject: (format: "pdf" | "docx" | "md" | "txt") => void
   sessionToken?: string
   documentId?: string
   onSaveAccountProfile: (input: { firstName: string; lastName: string }) => Promise<void> | void

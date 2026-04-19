@@ -9,7 +9,7 @@ import {
   PALETTE_OPTIONS,
   getInitialPalette,
 } from "./appearance"
-import { requestAppColorPaletteChange } from "./editorEvents"
+import { requestAppColorPaletteChange, requestExportProject } from "./editorEvents"
 import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "./menu"
 import { exportProjectAsPdf } from "../webapp/components/export/pdfExport"
 import { createProject, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, type Project } from "./projects"
@@ -433,9 +433,9 @@ export function useAppOrchestration() {
       window.open(blobUrl, "_blank")
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)
     },
-    onExportProject: () => {
+    onExportProject: (format: "pdf" | "docx" | "md" | "txt") => {
       if (!activeProject) return
-      exportProjectAsPdf(activeProject)
+      requestExportProject(format)
     },
     sessionToken: session.token,
     documentId: activeProject ? projectDocumentMap[activeProject.id] : undefined,

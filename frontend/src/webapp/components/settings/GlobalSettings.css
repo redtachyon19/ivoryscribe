@@ -200,7 +200,7 @@
   padding-right: 14px;
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 48px;
   scroll-behavior: smooth;
 }
 

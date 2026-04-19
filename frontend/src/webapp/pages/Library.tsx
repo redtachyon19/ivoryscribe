@@ -4,6 +4,9 @@ import Button from "../components/ui/Button"
 import Modal from "../components/ui/Modal"
 import { PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
 import { exportProjectAsPdf } from "../components/export/pdfExport"
+import { exportProjectAsDocx } from "../components/export/docxExport"
+import { downloadProjectAsMarkdown } from "../components/export/markdownExport"
+import { exportProjectAsTxt } from "../components/export/txtExport"
 import { collectTabIds, createProject, type Project } from "../../core/projects"
 import { createLocalId, duplicateProject } from "../../core/libraryUtils"
 import type { VersionSettingsEntry } from "../../core/versioning"
@@ -472,9 +475,12 @@ export default function Library({
                 }
               : undefined
           }
-          onExportProject={() => {
+          onExportProject={(format) => {
             if (!settings.settingsProject) return
-            exportProjectAsPdf(settings.settingsProject)
+            if (format === "pdf") void exportProjectAsPdf(settings.settingsProject)
+            else if (format === "docx") void exportProjectAsDocx(settings.settingsProject)
+            else if (format === "md") void downloadProjectAsMarkdown(settings.settingsProject)
+            else if (format === "txt") void exportProjectAsTxt(settings.settingsProject)
           }}
           sessionToken={sessionToken}
           documentId={settingsProjectId ? (projectDocumentMap[settingsProjectId] ?? undefined) : undefined}
