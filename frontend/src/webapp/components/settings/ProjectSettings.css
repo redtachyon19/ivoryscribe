@@ -47,13 +47,18 @@
   font-family: var(--app-body-font);
 }
 
+.project-preferences-fields__input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--menu-button, #ededed) 75%, transparent);
+  outline-offset: 2px;
+}
+
 .project-preferences-fields__input:focus {
   border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
 }
 
 .project-preferences-fields__input--color {
-  width: 42px;
-  height: 32px;
+  width: 52px;
+  height: 38px;
   padding: 2px;
   border-radius: 8px;
   border: 1px solid var(--menu-dropdown-border, #2e2e2e);
@@ -61,6 +66,7 @@
   cursor: pointer;
   align-self: auto;
   box-shadow: none;
+  flex-shrink: 0;
   transition: border-color 160ms ease;
 }
 
@@ -89,6 +95,13 @@
   width: 100%;
 }
 
+.project-preferences-fields__wallpaper-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
 .project-preferences-fields__color-value-input {
   flex: 1 1 auto;
   width: auto;
@@ -104,11 +117,24 @@
   letter-spacing: 0.03em;
 }
 
+.project-preferences-fields__color-value-input--compact {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 0;
+}
+
+.project-preferences-fields__emoji-slot {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 20px;
+  padding: 6px 4px;
+}
+
 .project-preferences-fields__color-value-input:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--menu-button, #ededed) 75%, transparent);
   outline-offset: 2px;
 }
-
 .project-preferences-fields__input--emoji {
   font-family: "Noto Emoji", "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
   letter-spacing: 0.05em;
@@ -126,6 +152,8 @@
 
 .global-settings__field.project-preferences-fields__field--toggle,
 .project-settings-modal__field.project-preferences-fields__field--toggle {
+  flex-direction: row;
+  align-items: center;
   justify-content: space-between;
 }
 
@@ -268,38 +296,49 @@
   color: var(--menu-button, #ededed);
 }
 
-.project-preferences-fields__export-btn {
+.project-preferences-fields__export-label {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  width: 100%;
-  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
+  gap: 7px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.project-preferences-fields__export-formats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+
+.project-preferences-fields__export-format-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
   font-family: var(--app-ui-font);
-  font-size: 19px;
-  text-align: left;
-  padding: 10px 12px;
+  font-size: 15px;
+  white-space: nowrap;
   cursor: pointer;
-  transition: transform 140ms ease, border-color 160ms ease, background-color 160ms ease;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
-.project-preferences-fields__export-btn span {
-  text-align: left;
-}
-
-.project-preferences-fields__export-btn:hover,
-.project-preferences-fields__export-btn:focus-visible {
-  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
+.project-preferences-fields__export-format-btn:hover,
+.project-preferences-fields__export-format-btn:focus-visible {
   background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
+  border-color: transparent;
   color: var(--menu-button, #ededed);
   outline: none;
 }
 
-.project-preferences-fields__export-btn:active {
-  transform: translateY(1px);
+.project-preferences-fields__export-format-btn:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
 }
 
 /* ── Inline Sharing ── */
@@ -340,6 +379,7 @@
 .project-preferences-fields__history-open-btn {
   width: fit-content;
   max-width: 100%;
+  flex-shrink: 0;
 }
 
 .project-preferences-fields__history-list {
