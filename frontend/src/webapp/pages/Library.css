@@ -1250,7 +1250,7 @@
 
 .project-card {
   --project-accent: #7ea8ff;
-  --project-accent-soft: rgba(126, 168, 255, 0.14);
+  --project-accent-soft: rgba(126, 168, 255, 0.05);
   position: relative;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
@@ -1284,13 +1284,66 @@
 
 /* ── Thumbnail ── */
 
+.project-card__emoji-wallpaper {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.34;
+}
+
+.project-card__emoji-glyph {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  font-family: "Noto Emoji", var(--app-ui-font);
+  font-size: 16px;
+  line-height: 1;
+  color: var(--project-accent);
+  transform: translate(-50%, -50%) rotate(-24deg);
+  opacity: 0.72;
+  user-select: none;
+}
+
+.project-card__emoji-glyph-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .project-card__thumb {
+  position: relative;
+  overflow: hidden;
   height: 110px;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--project-accent-soft), var(--menu-dropdown-bg, #1e1e1e) 88%);
+  background: var(--project-accent-soft);
   border-bottom: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 46%, transparent);
   color: var(--project-accent);
+}
+
+.project-card__thumb-icon {
+  position: relative;
+  z-index: 1;
+}
+
+.project-card__thumb-emojis {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.project-card__thumb-emoji {
+  display: block;
+  font-family: "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  font-size: 28px;
+  line-height: 1;
 }
 
 /* ── Info section ── */
