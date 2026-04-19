@@ -1,18 +1,10 @@
-import crypto from "node:crypto";
 import { Router } from "express";
 import { Op } from "sequelize";
 import { Share, Document, User } from "../models/index.js";
-import { sendShareInviteEmail, isEmailServiceConfigured } from "../services/email.js";
-
-const { CLIENT_ORIGIN = "http://localhost:5173" } = process.env;
-
-function primaryClientOrigin() {
-  return String(CLIENT_ORIGIN).split(",")[0].trim() || "http://localhost:5173";
-}
 
 const router = Router();
 
-// POST /api/shares — create a share invite
+// POST /api/shares — create a share request (recipient must accept in-app)
 router.post("/", async (req, res) => {
   try {
     const { documentId, recipientEmail, permission } = req.body;
@@ -21,7 +13,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "documentId and recipientEmail are required" });
     }
 
-    const normalizedPermission = permission === "edit" ? "edit" : "view";
+    const normalizedPermission = permission === "view" ? "view" : "edit";
 
     const document = await Document.findOne({
       where: { id: documentId, userId: req.user.id },
@@ -33,6 +25,15 @@ router.post("/", async (req, res) => {
 
     if (recipientEmail.toLowerCase() === req.user.email?.toLowerCase()) {
       return res.status(400).json({ message: "You cannot share a project with yourself" });
+    }
+
+    // Recipient must have an account
+    const recipient = await User.findOne({
+      where: { email: recipientEmail.toLowerCase() },
+    });
+
+    if (!recipient) {
+      return res.status(404).json({ message: "No user found with that email address" });
     }
 
     // Check for existing active share to same email for same document
@@ -48,34 +49,14 @@ router.post("/", async (req, res) => {
       return res.status(409).json({ message: "This project is already shared with that email address" });
     }
 
-    const inviteToken = crypto.randomBytes(32).toString("hex");
-
     const share = await Share.create({
       documentId,
       ownerId: req.user.id,
+      recipientId: recipient.id,
       recipientEmail: recipientEmail.toLowerCase(),
       permission: normalizedPermission,
-      inviteToken,
       status: "pending",
     });
-
-    // Send invite email
-    const acceptUrl = `${primaryClientOrigin()}/app?inviteToken=${encodeURIComponent(inviteToken)}`;
-    const ownerName = [req.user.firstName, req.user.lastName].filter(Boolean).join(" ") || "Someone";
-
-    if (isEmailServiceConfigured()) {
-      try {
-        await sendShareInviteEmail({
-          to: recipientEmail.toLowerCase(),
-          ownerName,
-          projectName: document.title,
-          permission: normalizedPermission,
-          acceptUrl,
-        });
-      } catch (emailError) {
-        console.error("Failed to send share invite email:", emailError.message);
-      }
-    }
 
     return res.status(201).json({
       share: {
@@ -84,7 +65,6 @@ router.post("/", async (req, res) => {
         recipientEmail: share.recipientEmail,
         permission: share.permission,
         status: share.status,
-        inviteToken: share.inviteToken,
         createdAt: share.createdAt,
       },
     });
@@ -183,91 +163,95 @@ router.delete("/:shareId", async (req, res) => {
   }
 });
 
-// POST /api/shares/accept — accept a share invite using token
-router.post("/accept", async (req, res) => {
+// POST /api/shares/:shareId/respond — accept or reject a share request
+router.post("/:shareId/respond", async (req, res) => {
   try {
-    const { inviteToken } = req.body;
+    const { action } = req.body;
 
-    if (!inviteToken) {
-      return res.status(400).json({ message: "inviteToken is required" });
+    if (!action || !["accept", "reject"].includes(action)) {
+      return res.status(400).json({ message: "action must be 'accept' or 'reject'" });
     }
 
     const share = await Share.findOne({
-      where: { inviteToken, status: "pending" },
+      where: {
+        id: req.params.shareId,
+        recipientId: req.user.id,
+        status: "pending",
+      },
     });
 
     if (!share) {
-      return res.status(404).json({ message: "Invite not found or already used" });
+      return res.status(404).json({ message: "Share request not found" });
     }
 
-    // Verify the accepting user's email matches the invite
-    if (req.user.email?.toLowerCase() !== share.recipientEmail.toLowerCase()) {
-      return res.status(403).json({
-        message: "This invite was sent to a different email address",
-        expectedEmail: share.recipientEmail,
+    if (action === "accept") {
+      await share.update({
+        status: "accepted",
+        acceptedAt: new Date(),
+      });
+
+      const document = await Document.findByPk(share.documentId);
+
+      return res.status(200).json({
+        share: {
+          id: share.id,
+          documentId: share.documentId,
+          permission: share.permission,
+          status: share.status,
+          acceptedAt: share.acceptedAt,
+        },
+        document: document
+          ? {
+              id: document.id,
+              title: document.title,
+              content: document.content,
+              theme: document.theme,
+              metadata: document.metadata,
+              createdAt: document.createdAt,
+              updatedAt: document.updatedAt,
+            }
+          : null,
       });
     }
 
-    await share.update({
-      recipientId: req.user.id,
-      status: "accepted",
-      acceptedAt: new Date(),
-    });
-
-    // Fetch the shared document so the recipient can hydrate it
-    const document = await Document.findByPk(share.documentId);
-
-    return res.status(200).json({
-      share: {
-        id: share.id,
-        documentId: share.documentId,
-        permission: share.permission,
-        status: share.status,
-        acceptedAt: share.acceptedAt,
-      },
-      document: document
-        ? {
-            id: document.id,
-            title: document.title,
-            content: document.content,
-            theme: document.theme,
-            metadata: document.metadata,
-            createdAt: document.createdAt,
-            updatedAt: document.updatedAt,
-          }
-        : null,
-    });
+    // reject
+    await share.update({ status: "rejected" });
+    return res.status(200).json({ message: "Share request rejected" });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to accept invite", details: error.message });
+    return res.status(500).json({ message: "Failed to respond to share request", details: error.message });
   }
 });
 
-// GET /api/shares/invite/:inviteToken — get invite info (for the accept page UI)
-router.get("/invite/:inviteToken", async (req, res) => {
+// GET /api/shares/pending-requests — pending share requests for the current user
+router.get("/pending-requests", async (req, res) => {
   try {
-    const share = await Share.findOne({
-      where: { inviteToken: req.params.inviteToken, status: "pending" },
+    const shares = await Share.findAll({
+      where: {
+        recipientId: req.user.id,
+        status: "pending",
+      },
       include: [
-        { model: User, as: "owner", attributes: ["firstName", "lastName"] },
-        { model: Document, as: "document", attributes: ["title"] },
+        { model: User, as: "owner", attributes: ["id", "firstName", "lastName", "email"] },
+        { model: Document, as: "document", attributes: ["id", "title"] },
       ],
+      order: [["createdAt", "DESC"]],
     });
-
-    if (!share) {
-      return res.status(404).json({ message: "Invite not found or already used" });
-    }
 
     return res.status(200).json({
-      invite: {
-        id: share.id,
-        ownerName: [share.owner?.firstName, share.owner?.lastName].filter(Boolean).join(" ") || "Someone",
-        projectName: share.document?.title ?? "Untitled Project",
-        permission: share.permission,
-        recipientEmail: share.recipientEmail,
-      },
+      pendingRequests: shares.map((s) => ({
+        id: s.id,
+        permission: s.permission,
+        createdAt: s.createdAt,
+        owner: {
+          id: s.owner?.id,
+          name: [s.owner?.firstName, s.owner?.lastName].filter(Boolean).join(" "),
+          email: s.owner?.email,
+        },
+        projectName: s.document?.title ?? "Untitled Project",
+      })),
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch invite info", details: error.message });
+    return res.status(500).json({ message: "Failed to fetch pending requests", details: error.message });
   }
 });
 

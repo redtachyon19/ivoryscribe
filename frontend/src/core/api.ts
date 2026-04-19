@@ -510,17 +510,17 @@ export type ShareRecord = {
   recipientEmail: string
   recipientId: string | null
   permission: "view" | "edit"
-  status: "pending" | "accepted" | "revoked"
+  status: "pending" | "accepted" | "rejected" | "revoked"
   createdAt: string
   acceptedAt: string | null
 }
 
-export type ShareInviteInfo = {
+export type PendingShareRequest = {
   id: string
-  ownerName: string
-  projectName: string
   permission: "view" | "edit"
-  recipientEmail: string
+  createdAt: string
+  owner: { id: string; name: string; email: string }
+  projectName: string
 }
 
 export type SharedDocumentEntry = {
@@ -579,23 +579,31 @@ export async function revokeShare(token: string, shareId: string) {
   )
 }
 
-export async function acceptShareInvite(token: string, inviteToken: string) {
-  return request<{
-    share: { id: string; documentId: string; permission: string; status: string; acceptedAt: string }
-    document: DocumentRecord | null
-  }>(
-    "/api/shares/accept",
-    {
-      method: "POST",
-      body: JSON.stringify({ inviteToken }),
-    },
+export async function getPendingShareRequests(token: string) {
+  const payload = await request<{ pendingRequests: PendingShareRequest[] }>(
+    "/api/shares/pending-requests",
+    {},
     token,
   )
+  return payload.pendingRequests
 }
 
-export async function getShareInviteInfo(inviteToken: string) {
-  return request<{ invite: ShareInviteInfo }>(
-    `/api/shares/invite/${encodeURIComponent(inviteToken)}`,
+export async function respondToShareRequest(
+  token: string,
+  shareId: string,
+  action: "accept" | "reject",
+) {
+  return request<{
+    share?: { id: string; documentId: string; permission: string; status: string; acceptedAt: string }
+    document?: DocumentRecord | null
+    message?: string
+  }>(
+    `/api/shares/${shareId}/respond`,
+    {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    },
+    token,
   )
 }
 

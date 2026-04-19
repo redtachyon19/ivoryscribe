@@ -28,14 +28,14 @@ export default function createShareModel(sequelize) {
       permission: {
         type: DataTypes.STRING,
         allowNull: false,
-        defaultValue: "view",
+        defaultValue: "edit",
         validate: {
           isIn: [["view", "edit"]],
         },
       },
       inviteToken: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
         unique: true,
       },
       status: {
@@ -43,7 +43,7 @@ export default function createShareModel(sequelize) {
         allowNull: false,
         defaultValue: "pending",
         validate: {
-          isIn: [["pending", "accepted", "revoked"]],
+          isIn: [["pending", "accepted", "rejected", "revoked"]],
         },
       },
       acceptedAt: {

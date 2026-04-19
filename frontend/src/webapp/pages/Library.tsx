@@ -17,6 +17,8 @@ import { useViewMode, ViewToggle, formatRelativeDate } from "../components/libra
 import ProjectContextMenu, { buildProjectActions, buildFolderActions, buildMultiSelectActions } from "../components/library/ProjectContextMenu"
 import useMultiSelect from "../components/library/useMultiSelect"
 import ShareDialog from "../components/settings/ShareDialog"
+import ShareRequestList from "../components/library/ShareRequestList"
+import type { PendingShareRequest } from "../../core/api"
 import "./Library.css"
 
 type LibraryContextMenuState =
@@ -46,6 +48,10 @@ export type LibraryProps = {
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
+  pendingShareRequests: PendingShareRequest[]
+  onAcceptShareRequest: (shareId: string) => void
+  onRejectShareRequest: (shareId: string) => void
+  onRefreshPendingShareRequests: () => void
 }
 
 export default function Library({
@@ -64,6 +70,9 @@ export default function Library({
   setProjects,
   setFolders,
   setActiveProjectId,
+  pendingShareRequests,
+  onAcceptShareRequest,
+  onRejectShareRequest,
 }: LibraryProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -266,6 +275,15 @@ export default function Library({
 
             {/* Toolbar */}
             <ViewToggle viewMode={viewMode} onToggle={toggleView} />
+
+            {/* Share Requests */}
+            {pendingShareRequests.length > 0 ? (
+              <ShareRequestList
+                requests={pendingShareRequests}
+                onAccept={onAcceptShareRequest}
+                onReject={onRejectShareRequest}
+              />
+            ) : null}
 
             {/* Folders */}
             {viewMode === "list" ? (

@@ -27,7 +27,7 @@ export function SharePanel({
   autoLoad = true,
 }: SharePanelProps) {
   const [email, setEmail] = useState("")
-  const [permission, setPermission] = useState<"view" | "edit">("view")
+  const [permission, setPermission] = useState<"view" | "edit">("edit")
   const [shares, setShares] = useState<ShareRecord[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -70,7 +70,7 @@ export function SharePanel({
         recipientEmail: trimmedEmail,
         permission,
       })
-      setSuccess(`Invite sent to ${trimmedEmail}`)
+      setSuccess(`Share request sent to ${trimmedEmail}`)
       setEmail("")
       await loadShares()
     } catch (err: unknown) {
@@ -136,7 +136,7 @@ export function SharePanel({
           disabled={isSending || !email.trim()}
         >
           <Send size={14} strokeWidth={2} aria-hidden="true" />
-          {isSending ? "Sending…" : "Send Invite"}
+          {isSending ? "Sending…" : "Share"}
         </button>
       </div>
 

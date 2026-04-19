@@ -21,7 +21,7 @@ import { useProjectVersioning } from "./useProjectVersioning"
 import { useWorkspaceHydration } from "./useWorkspaceHydration"
 
 import { useTuskBilling } from "./useTuskBilling"
-import { acceptShareInvite } from "./api"
+import { getPendingShareRequests, respondToShareRequest, type PendingShareRequest } from "./api"
 import { createLocalId } from "./libraryUtils"
 import type { ProjectFolder } from "../webapp/pages/Library"
 
@@ -39,6 +39,7 @@ export function useAppOrchestration() {
   const [isEditorTyping, setIsEditorTyping] = useState(false)
   const [isWorkspaceHydrated, setIsWorkspaceHydrated] = useState(false)
   const [projectDocumentMap, setProjectDocumentMap] = useState<Record<string, string>>({})
+  const [pendingShareRequests, setPendingShareRequests] = useState<PendingShareRequest[]>([])
   const viewRef = useRef<"projects" | "editor">("projects")
   const activeProjectRef = useRef<Project | null>(null)
   const projectDocumentMapRef = useRef<Record<string, string>>({})
@@ -48,7 +49,7 @@ export function useAppOrchestration() {
   const versioningResetRef = useRef<(v: Record<string, never>) => void>(() => {})
 
   // ── composed hooks ───────────────────────────────────────────
-  const { currentPathname, requestedProjectId, checkoutResult, passwordResetToken, inviteToken, navigateTo, navigateReplace } = useRouting()
+  const { currentPathname, requestedProjectId, checkoutResult, passwordResetToken, navigateTo, navigateReplace } = useRouting()
   const style = useAppStyle()
 
   const {
@@ -66,6 +67,7 @@ export function useAppOrchestration() {
       versioningResetRef.current({})
       setFolders([])
       setProjectDocumentMap({})
+      setPendingShareRequests([])
       billingResetRef.current()
       setActiveProjectId(null)
       setView("projects")
@@ -87,7 +89,7 @@ export function useAppOrchestration() {
   billingResetRef.current = billing.reset
   versioningResetRef.current = versioning.setProjectVersionsByProjectId as (v: Record<string, never>) => void
 
-  useWorkspaceHydration({
+  const { sharedDocumentIdsRef } = useWorkspaceHydration({
     session, setSession, setIsAuthBootstrapping, setAuthLoadError,
     isWorkspaceHydrated, setIsWorkspaceHydrated, projectDocumentMap, setProjectDocumentMap,
     setProjects, setProjectVersionsByProjectId: versioning.setProjectVersionsByProjectId,
@@ -98,6 +100,7 @@ export function useAppOrchestration() {
     setUiFont: style.setUiFont, setFontSize: style.setFontSize,
     setIsWordCountEnabled: style.setIsWordCountEnabled,
     setBookCounter, setTuskAiBilling: billing.setTuskAiBilling,
+    setPendingShareRequests,
     projects, activeProjectId, palette: style.palette,
     customPaletteBackground: style.customPaletteBackground, customPaletteAccent: style.customPaletteAccent,
     displayFont: style.displayFont, bodyFont: style.bodyFont, uiFont: style.uiFont,
@@ -157,44 +160,53 @@ export function useAppOrchestration() {
     setView("editor")
   }, [currentPathname, isWorkspaceHydrated, projects, requestedProjectId])
 
-  // ── invite acceptance ────────────────────────────────────────
-  useEffect(() => {
-    if (!isWorkspaceHydrated || !inviteToken || !session) return
+  // ── share request handlers ────────────────────────────────────
+  const handleAcceptShareRequest = async (shareId: string) => {
+    if (!session) return
+    try {
+      const result = await respondToShareRequest(session.token, shareId, "accept")
+      setPendingShareRequests((cur) => cur.filter((r) => r.id !== shareId))
 
-    let cancelled = false
+      if (result.document) {
+        const parsed = JSON.parse(result.document.content)
+        if (parsed && typeof parsed === "object" && parsed.id) {
+          // Track this as a shared document so sync handles it correctly
+          sharedDocumentIdsRef.current = new Set([...sharedDocumentIdsRef.current, result.document.id])
 
-    const handleInvite = async () => {
-      try {
-        const result = await acceptShareInvite(session.token, inviteToken)
-        if (cancelled) return
-
-        if (result.document) {
-          const parsed = JSON.parse(result.document.content)
-          if (parsed && typeof parsed === "object" && parsed.id) {
-            setProjects((current) => {
-              if (current.some((p) => p.id === parsed.id)) return current
-              return [parsed, ...current]
-            })
-            setProjectDocumentMap((current) => ({
-              ...current,
-              [parsed.id]: result.document!.id,
-            }))
-            setActiveProjectId(parsed.id)
-            setView("editor")
-          }
+          setProjects((current) => {
+            if (current.some((p) => p.id === parsed.id)) return current
+            return [parsed, ...current]
+          })
+          setProjectDocumentMap((current) => ({
+            ...current,
+            [parsed.id]: result.document!.id,
+          }))
         }
-
-        // Clear the invite token from URL
-        navigateReplace("/app")
-      } catch {
-        navigateReplace("/app")
       }
+    } catch {
+      // silently fail
     }
+  }
 
-    handleInvite()
+  const handleRejectShareRequest = async (shareId: string) => {
+    if (!session) return
+    try {
+      await respondToShareRequest(session.token, shareId, "reject")
+      setPendingShareRequests((cur) => cur.filter((r) => r.id !== shareId))
+    } catch {
+      // silently fail
+    }
+  }
 
-    return () => { cancelled = true }
-  }, [isWorkspaceHydrated, inviteToken, session])
+  const refreshPendingShareRequests = async () => {
+    if (!session) return
+    try {
+      const requests = await getPendingShareRequests(session.token)
+      setPendingShareRequests(requests)
+    } catch {
+      // silently fail
+    }
+  }
 
   // ── version action message listener (view / export from new-tab pages) ──
   useEffect(() => {
@@ -345,6 +357,10 @@ export function useAppOrchestration() {
     },
     activeProjectVersionsByProjectId: projectVersionsForLibraryByProjectId,
     projectDocumentMap,
+    pendingShareRequests,
+    onAcceptShareRequest: handleAcceptShareRequest,
+    onRejectShareRequest: handleRejectShareRequest,
+    onRefreshPendingShareRequests: refreshPendingShareRequests,
     onShowVersionHistory: (projectId: string) => {
       const versions = versioning.projectVersionsByProjectId[projectId] ?? []
       const proj = projects.find((p) => p.id === projectId)

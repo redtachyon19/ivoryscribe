@@ -170,10 +170,33 @@ async function ensureUsersBillingColumns() {
   }
 }
 
+async function ensureSharesColumnMigrations() {
+  const queryInterface = sequelize.getQueryInterface();
+  let sharesTable;
+
+  try {
+    sharesTable = await queryInterface.describeTable("shares");
+  } catch {
+    // Table does not exist yet; normal sync will create it.
+    return;
+  }
+
+  // inviteToken was originally NOT NULL — make it nullable now that shares
+  // are accepted in-app instead of via email links.
+  if (sharesTable.inviteToken && !sharesTable.inviteToken.allowNull) {
+    await queryInterface.changeColumn("shares", "inviteToken", {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+    });
+  }
+}
+
 async function startServer() {
   try {
     await sequelize.authenticate();
     await ensureUsersBillingColumns();
+    await ensureSharesColumnMigrations();
 
     const normalizedSyncMode = String(DB_SYNC_MODE).toLowerCase();
     if (normalizedSyncMode === "alter") {
