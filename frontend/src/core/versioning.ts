@@ -1,4 +1,5 @@
 import { parseProjectFromDocument, normalizeProjectAfterTabs, collectTabTitles, findTabTitleById, type Project, type ProjectKind } from "./projects"
+import { withEmojiFontFallback } from "./appearance"
 
 export const PROJECT_RECORD_TYPE = "ivory-project"
 export const PROJECT_VERSION_RECORD_TYPE = "ivory-project-version"
@@ -385,6 +386,7 @@ export function buildVersionPreviewHtml(params: {
   projectId: string
 }): string {
   const { version, bodyFont, projectId } = params
+  const resolvedBodyFont = withEmojiFontFallback(bodyFont)
   const activeDocumentTitle =
     (version.snapshot.activeId
       ? findTabTitleById(version.snapshot.tabs, version.snapshot.activeId)
@@ -400,7 +402,7 @@ export function buildVersionPreviewHtml(params: {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(version.snapshot.name)} - Version ${escapeHtml(version.label)}</title>
     <style>
-      body { margin: 0; padding: 24px; font-family: ${bodyFont}; background: #101113; color: #ececec; }
+      body { margin: 0; padding: 24px; font-family: ${resolvedBodyFont}; background: #101113; color: #ececec; }
       .wrap { max-width: 860px; margin: 0 auto; }
       h1 { margin: 0 0 8px; font-weight: 400; font-size: 36px; }
       .meta { margin: 0; color: #b6bcc8; font-size: 15px; }
@@ -494,6 +496,9 @@ export function buildVersionHistoryPageHtml(params: {
   appAccent: string
 }): string {
   const { versions, projectName, projectId, bodyFont, uiFont, displayFont, appBg, menuBg, menuButton, menuButtonHoverBg, menuDropdownBg, menuDropdownBorder, appAccent } = params
+  const resolvedBodyFont = withEmojiFontFallback(bodyFont)
+  const resolvedUiFont = withEmojiFontFallback(uiFont)
+  const resolvedDisplayFont = withEmojiFontFallback(displayFont)
 
   // Lucide SVG icon paths (stroke-based, 24x24 viewBox)
   const iconSvg = (path: string, size = 15) =>
@@ -551,9 +556,9 @@ export function buildVersionHistoryPageHtml(params: {
         --menu-dropdown-bg: ${menuDropdownBg};
         --menu-dropdown-border: ${menuDropdownBorder};
         --app-accent: ${appAccent};
-        --app-body-font: ${bodyFont};
-        --app-ui-font: ${uiFont};
-        --app-display-font: ${displayFont};
+        --app-body-font: ${resolvedBodyFont};
+        --app-ui-font: ${resolvedUiFont};
+        --app-display-font: ${resolvedDisplayFont};
       }
 
       * { box-sizing: border-box; margin: 0; padding: 0; }

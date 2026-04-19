@@ -829,6 +829,7 @@
 /* ── Grid View ── */
 
 .project-hub__grid-view {
+  position: relative;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -981,40 +982,6 @@
   padding-top: 20px;
 }
 
-.project-hub__root-drop {
-  grid-column: 1 / -1;
-  position: relative;
-  height: 0;
-  background: transparent;
-  transition: height 120ms ease;
-}
-
-.project-hub__root-drop--ready,
-.project-hub__root-drop--active {
-  height: 24px;
-}
-
-.project-hub__root-drop::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 3px;
-  transform: translateY(-50%);
-  border-radius: 999px;
-  background: transparent;
-  transition: background 120ms ease;
-}
-
-.project-hub__root-drop--active {
-  background: transparent;
-}
-
-.project-hub__root-drop--active::before {
-  background: var(--app-accent, #9ab8ff);
-}
-
 .project-folder {
   display: flex;
   flex-direction: column;
@@ -1039,28 +1006,33 @@
               0 0 12px color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, transparent);
 }
 
+.project-folder--drop-before,
+.project-folder--drop-after {
+  position: relative;
+  overflow: visible;
+}
+
 .project-folder--drop-before::after,
 .project-folder--drop-after::after {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
-  height: 3px;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 96%, white 4%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 52%, #0f0f0f),
-              0 0 10px color-mix(in srgb, var(--app-accent, #9ab8ff) 45%, transparent);
+  background: var(--app-accent, #9ab8ff);
   pointer-events: none;
+  z-index: 3;
 }
 
 .project-folder--drop-before::after {
-  top: 0;
-  transform: scaleX(1);
+  left: -4px;
+  transform: translateX(-50%);
 }
 
 .project-folder--drop-after::after {
-  bottom: 0;
-  transform: scaleX(1);
+  left: calc(100% + 4px);
+  transform: translateX(-50%);
 }
 
 .project-folder--drag-preview {
@@ -1342,7 +1314,7 @@
 .project-card__thumb-emoji {
   display: block;
   font-family: "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -1414,8 +1386,6 @@
 .project-card--drop-after::after {
   right: -8px;
 }
-
-/* ── Rename ── */
 
 .project-card__rename-wrap {
   position: relative;

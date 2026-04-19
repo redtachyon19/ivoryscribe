@@ -103,7 +103,6 @@ export default function NavigationPanel({
 
   const handleCreateProject = () => {
     onCreateProject()
-    onSetSidebarSlide(2)
   }
 
   const handleCreateFolder = () => {

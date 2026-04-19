@@ -373,27 +373,9 @@ export default function Library({
             ) : (
               /* Projects — Grid View (existing card components with drag/drop) */
               <ul className="project-hub__grid-view">
-                {drag.draggingProjectId ? (
-                  <li
-                    className={`project-hub__root-drop project-hub__root-drop--ready ${drag.getRootDropClassName("top")}`.trim()}
-                    aria-hidden="true"
-                    onDragOver={drag.handleRootDragOver("top")}
-                    onDrop={multiSelect.handleMultiRootDrop("top")}
-                  />
-                ) : null}
-
                 {drag.topRootProjects.map((project) => renderProjectCard(project))}
 
                 {drag.bottomRootProjects.map((project) => renderProjectCard(project))}
-
-                {drag.draggingProjectId ? (
-                  <li
-                    className={`project-hub__root-drop project-hub__root-drop--ready ${drag.getRootDropClassName("bottom")}`.trim()}
-                    aria-hidden="true"
-                    onDragOver={drag.handleRootDragOver("bottom")}
-                    onDrop={multiSelect.handleMultiRootDrop("bottom")}
-                  />
-                ) : null}
               </ul>
             )}
 

@@ -1,6 +1,20 @@
 export const DEFAULT_DISPLAY_FONT = '"EB Garamond", serif'
 export const DEFAULT_BODY_FONT = '"Times", "Times New Roman", serif'
 export const DEFAULT_UI_FONT = '"Lato", sans-serif'
+export const EMOJI_FONT_FALLBACK = '"Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif'
+
+export function withEmojiFontFallback(fontFamily: string) {
+  const trimmed = fontFamily.trim()
+  if (!trimmed) {
+    return EMOJI_FONT_FALLBACK
+  }
+
+  if (/(noto emoji|--app-emoji-font)/i.test(trimmed)) {
+    return trimmed
+  }
+
+  return `${trimmed}, ${EMOJI_FONT_FALLBACK}`
+}
 
 export const FONT_OPTIONS = [
   { label: "Times (Default)", value: '"Times", "Times New Roman", serif' },
