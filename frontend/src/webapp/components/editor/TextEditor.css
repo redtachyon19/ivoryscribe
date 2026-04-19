@@ -59,6 +59,16 @@
   margin-top: 0.55em;
 }
 
+.ProseMirror ::spelling-error {
+  text-decoration: underline wavy #e55353;
+  text-decoration-thickness: 1.5px;
+}
+
+.ProseMirror ::grammar-error {
+  text-decoration: underline wavy #e0a43a;
+  text-decoration-thickness: 1.5px;
+}
+
 .ProseMirror a,
 .ProseMirror a:visited {
   color: var(--app-accent, #9ab8ff);

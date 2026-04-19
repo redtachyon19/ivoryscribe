@@ -1,6 +1,8 @@
 import {
+  requestAppProjectSearch,
   requestAppSaveProject,
   requestAppSaveProjectVersion,
+  requestAppSpellCheck,
   requestExportProject,
   requestEditorCommand,
   requestMarkdownEditorCommand,
@@ -38,6 +40,13 @@ const editMenuItem: MenuItem = {
       shortcut: "⇧⌘Z",
       action: () => {
         requestEditorCommand("redo")
+      },
+    },
+    {
+      label: "Find and Replace",
+      shortcut: "⌘F",
+      action: () => {
+        requestAppProjectSearch()
       },
     },
     {
@@ -101,6 +110,13 @@ const editMenuItem: MenuItem = {
       shortcut: "⌘U",
       action: () => {
         requestEditorCommand("underline")
+      },
+    },
+    {
+      label: "Spell Check",
+      shortcut: "⌥⌘X",
+      action: () => {
+        requestAppSpellCheck()
       },
     },
   ],
@@ -192,6 +208,8 @@ const helpMenuItem: MenuItem = {
             "Bold: ⌘B",
             "Italic: ⌘I",
             "Underline: ⌘U",
+            "Find and Replace: ⌘F",
+            "Spell Check: ⌥⌘X",
             "Select All: ⌘A",
             "Copy: ⌘C",
             "Paste: ⌘V",

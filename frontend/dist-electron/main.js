@@ -117,6 +117,43 @@ ipcMain.handle("window:isMaximized", () => {
 ipcMain.handle("window:isFullScreen", () => {
     return mainWindow?.isFullScreen() ?? false;
 });
+ipcMain.handle("spellcheck:add-word", (_event, word) => {
+    if (typeof word !== "string") {
+        return false;
+    }
+    const normalizedWord = word.trim().toLowerCase();
+    if (!normalizedWord) {
+        return false;
+    }
+    try {
+        return mainWindow?.webContents.session.addWordToSpellCheckerDictionary(normalizedWord) ?? false;
+    }
+    catch {
+        return false;
+    }
+});
+ipcMain.handle("spellcheck:remove-word", (_event, word) => {
+    if (typeof word !== "string") {
+        return false;
+    }
+    const normalizedWord = word.trim().toLowerCase();
+    if (!normalizedWord) {
+        return false;
+    }
+    const session = mainWindow?.webContents.session;
+    if (!session) {
+        return false;
+    }
+    if (typeof session.removeWordFromSpellCheckerDictionary !== "function") {
+        return false;
+    }
+    try {
+        return session.removeWordFromSpellCheckerDictionary(normalizedWord);
+    }
+    catch {
+        return false;
+    }
+});
 // Menu update from renderer
 ipcMain.on("menu:update", (_event, items) => {
     applyNativeMenu(items);
