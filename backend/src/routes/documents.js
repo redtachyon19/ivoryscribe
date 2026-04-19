@@ -75,19 +75,24 @@ router.patch("/:id", async (req, res) => {
     });
 
     if (!document) {
-      // Check for edit-level shared access
+      // Check shared access and enforce edit permission for writes
       const share = await Share.findOne({
         where: {
           documentId: req.params.id,
           recipientId: req.user.id,
           status: "accepted",
-          permission: "edit",
         },
       });
 
-      if (share) {
-        document = await Document.findByPk(req.params.id);
+      if (!share) {
+        return res.status(404).json({ message: "Document not found" });
       }
+
+      if (share.permission !== "edit") {
+        return res.status(403).json({ message: "You have view-only access to this document" });
+      }
+
+      document = await Document.findByPk(req.params.id);
     }
 
     if (!document) {

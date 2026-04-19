@@ -61,15 +61,6 @@ export function useRouting() {
     return url.searchParams.get("token")?.trim() ?? ""
   }, [currentLocation, currentPathname])
 
-  const inviteToken = useMemo(() => {
-    if (typeof window === "undefined" || currentPathname !== "/app") {
-      return ""
-    }
-
-    const url = new URL(currentLocation, window.location.origin)
-    return url.searchParams.get("inviteToken")?.trim() ?? ""
-  }, [currentLocation, currentPathname])
-
   const navigateTo = (path: string) => {
     if (typeof window !== "undefined") {
       window.history.pushState({}, "", path)
@@ -91,7 +82,6 @@ export function useRouting() {
     requestedProjectId,
     checkoutResult,
     passwordResetToken,
-    inviteToken,
     navigateTo,
     navigateReplace,
   }

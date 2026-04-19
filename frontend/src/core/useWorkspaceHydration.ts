@@ -1,11 +1,13 @@
 import { type Dispatch, type SetStateAction, useEffect, useRef } from "react"
 import {
   type BillingStatusResponse,
+  type PendingShareRequest,
   createDocument,
   deleteDocument,
   getBillingStatus,
   getDocuments,
   getPreferences,
+  getPendingShareRequests,
   getSharedWithMe,
   updateDocument,
   updatePreferences,
@@ -91,6 +93,7 @@ type UseWorkspaceHydrationParams = {
   setIsWordCountEnabled: Dispatch<SetStateAction<boolean>>
   setBookCounter: Dispatch<SetStateAction<number>>
   setTuskAiBilling: Dispatch<SetStateAction<BillingStatusResponse>>
+  setPendingShareRequests: Dispatch<SetStateAction<PendingShareRequest[]>>
   // Sync state reads
   projects: Project[]
   activeProjectId: string | null
@@ -138,6 +141,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     setIsWordCountEnabled,
     setBookCounter,
     setTuskAiBilling,
+    setPendingShareRequests,
     projects,
     activeProjectId,
     palette,
@@ -158,16 +162,20 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
   const saveTimeoutRef = useRef<number | null>(null)
   const isSyncingRef = useRef(false)
+  // Stores the JSON content last pushed/pulled per project ID.
+  // Used to detect local edits: if current !== lastPushed, user has unsaved changes.
+  const lastPushedContentRef = useRef<Map<string, string>>(new Map())
   // Track document IDs that belong to shared projects (not owned by this user).
   // These must not be re-created or deleted during sync.
   const sharedDocumentIdsRef = useRef<Set<string>>(new Set())
 
   const hydrateWorkspace = async (token: string) => {
-    const [documentsResult, preferencesResult, billingResult, sharedResult] = await Promise.allSettled([
+    const [documentsResult, preferencesResult, billingResult, sharedResult, pendingResult] = await Promise.allSettled([
       getDocuments(token),
       getPreferences(token),
       getBillingStatus(token),
       getSharedWithMe(token),
+      getPendingShareRequests(token),
     ])
 
     if (documentsResult.status === "rejected") {
@@ -237,6 +245,12 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
       }
     }
     sharedDocumentIdsRef.current = nextSharedDocumentIds
+
+    if (pendingResult.status === "fulfilled") {
+      setPendingShareRequests(pendingResult.value)
+    } else {
+      setPendingShareRequests([])
+    }
 
     const projectList = nextProjects.length ? nextProjects : [createProject("Book 1", "Book")]
     const uiSettings = (preferences.uiSettings ?? {}) as PreferencesPayload["uiSettings"]
@@ -335,6 +349,102 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     }
   }, [])
 
+  // Poll for remote document updates from collaborators (both directions)
+  useEffect(() => {
+    if (!session || !isWorkspaceHydrated) {
+      return
+    }
+
+    const pollRemoteUpdates = async () => {
+      if (isSyncingRef.current) return
+      try {
+        // Fetch both owned documents and shared-with-me in parallel
+        const [ownedDocs, sharedEntries] = await Promise.all([
+          getDocuments(session.token),
+          getSharedWithMe(session.token),
+        ])
+
+        // Build a map of remote project states from BOTH sources
+        const remoteProjectUpdates = new Map<string, { project: Project; documentId: string }>()
+        const nextSharedDocumentIds = new Set<string>()
+
+        // Parse owned documents for changes made by collaborators
+        for (const doc of ownedDocs) {
+          if (doc.metadata?.recordType !== PROJECT_RECORD_TYPE) continue
+          const project = parseProjectFromDocument(doc)
+          if (!project) continue
+          remoteProjectUpdates.set(project.id, { project, documentId: doc.id })
+        }
+
+        // Parse shared documents (recipient side)
+        for (const entry of sharedEntries) {
+          if (!entry.document || !entry.document.content) continue
+          const sharedProject = parseProjectFromDocument(entry.document)
+          if (!sharedProject) continue
+          nextSharedDocumentIds.add(entry.document.id)
+          // Shared entries take precedence (they're the canonical source for shared projects)
+          remoteProjectUpdates.set(sharedProject.id, { project: sharedProject, documentId: entry.document.id })
+        }
+        sharedDocumentIdsRef.current = nextSharedDocumentIds
+
+        if (remoteProjectUpdates.size > 0) {
+          setProjects((current) => {
+            let changed = false
+            const updated = current.map((p) => {
+              const remote = remoteProjectUpdates.get(p.id)
+              if (!remote) return p
+
+              // Check if user has local unsaved edits for this project.
+              const localContent = JSON.stringify({ ...p, activeId: null })
+              const lastPushed = lastPushedContentRef.current.get(p.id)
+              const hasLocalEdits = lastPushed != null && localContent !== lastPushed
+
+              if (hasLocalEdits) {
+                // User has unsaved edits — don't overwrite with remote data
+                return p
+              }
+
+              // Apply remote content but preserve local activeId (per-user nav state)
+              const merged = { ...remote.project, activeId: p.activeId }
+              if (JSON.stringify(p) !== JSON.stringify(merged)) {
+                changed = true
+                lastPushedContentRef.current.set(p.id, JSON.stringify({ ...merged, activeId: null }))
+                return merged
+              }
+              return p
+            })
+
+            const localIds = new Set(current.map((p) => p.id))
+            for (const [, { project }] of remoteProjectUpdates) {
+              if (!localIds.has(project.id)) {
+                changed = true
+                updated.push(project)
+                lastPushedContentRef.current.set(project.id, JSON.stringify({ ...project, activeId: null }))
+              }
+            }
+
+            return changed ? updated : current
+          })
+
+          setProjectDocumentMap((current) => {
+            const additions: Record<string, string> = {}
+            for (const [projectId, { documentId }] of remoteProjectUpdates) {
+              if (current[projectId] !== documentId) {
+                additions[projectId] = documentId
+              }
+            }
+            return Object.keys(additions).length > 0 ? { ...current, ...additions } : current
+          })
+        }
+      } catch {
+        // Polling failure is non-critical
+      }
+    }
+
+    const intervalId = window.setInterval(pollRemoteUpdates, 3000)
+    return () => window.clearInterval(intervalId)
+  }, [session, isWorkspaceHydrated])
+
   // Debounced sync effect
   useEffect(() => {
     if (!session || !isWorkspaceHydrated) {
@@ -354,6 +464,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
       const syncWorkspace = async () => {
         try {
+          // ── Step 1: Push local changes to backend ────────────────
           const remoteDocuments = await getDocuments(session.token)
           const remoteProjectDocuments = remoteDocuments.filter(
             (documentRecord) => documentRecord.metadata?.recordType === PROJECT_RECORD_TYPE,
@@ -374,9 +485,11 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           const nextDocumentMap: Record<string, string> = {}
 
           for (const project of projects) {
+            const contentJson = JSON.stringify(project)
+            const contentForComparison = JSON.stringify({ ...project, activeId: null })
             const payload = {
               title: project.name,
-              content: JSON.stringify(project),
+              content: contentJson,
               metadata: {
                 recordType: PROJECT_RECORD_TYPE,
                 projectId: project.id,
@@ -390,22 +503,27 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
             const isSharedDocument = existingDocumentId ? sharedDocumentIdsRef.current.has(existingDocumentId) : false
 
             if (existingDocumentId) {
-              // For shared documents, attempt update (backend enforces edit permission).
-              // For owned documents, update normally.
+              // Skip push if content hasn't changed since last push (avoids echo cycles)
+              const lastPushed = lastPushedContentRef.current.get(project.id)
+              if (lastPushed != null && contentForComparison === lastPushed) {
+                nextDocumentMap[project.id] = existingDocumentId
+                continue
+              }
+
               try {
                 await updateDocument(session.token, existingDocumentId, payload)
+                lastPushedContentRef.current.set(project.id, contentForComparison)
               } catch {
-                // Shared doc with view-only permission will 404 — keep the map entry
+                // Shared doc with view-only permission will 403 — keep the map entry
               }
               nextDocumentMap[project.id] = existingDocumentId
               continue
             }
 
-            // Only create new backend documents for projects that aren't shared.
-            // A shared project should always already have an existingDocumentId.
             if (!isSharedDocument) {
               const created = await createDocument(session.token, payload)
               nextDocumentMap[project.id] = created.id
+              lastPushedContentRef.current.set(project.id, contentForComparison)
             }
           }
 
@@ -420,7 +538,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
               continue
             }
 
-            // Never delete shared documents — only delete owned documents
             if (sharedDocumentIdsRef.current.has(documentRecord.id)) {
               continue
             }
@@ -429,6 +546,64 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           }
 
           setProjectDocumentMap(nextDocumentMap)
+
+          // ── Step 2: Pull shared document updates AFTER saving ────
+          // Fetching after push ensures we get back what we just saved
+          // (or newer changes from the owner), avoiding overwrite races.
+          const sharedEntries = await getSharedWithMe(session.token)
+
+          const nextSharedDocumentIds = new Set<string>()
+          const sharedProjectUpdates = new Map<string, { project: Project; documentId: string }>()
+
+          for (const entry of sharedEntries) {
+            if (!entry.document || !entry.document.content) continue
+            const sharedProject = parseProjectFromDocument(entry.document)
+            if (!sharedProject) continue
+            nextSharedDocumentIds.add(entry.document.id)
+            sharedProjectUpdates.set(sharedProject.id, { project: sharedProject, documentId: entry.document.id })
+          }
+          sharedDocumentIdsRef.current = nextSharedDocumentIds
+
+          if (sharedProjectUpdates.size > 0) {
+            setProjects((current) => {
+              let changed = false
+              const updated = current.map((p) => {
+                const remote = sharedProjectUpdates.get(p.id)
+                if (!remote) return p
+                // Preserve local activeId — it's per-user navigation state
+                const merged = { ...remote.project, activeId: p.activeId }
+                if (JSON.stringify(p) !== JSON.stringify(merged)) {
+                  changed = true
+                  lastPushedContentRef.current.set(p.id, JSON.stringify({ ...merged, activeId: null }))
+                  return merged
+                }
+                return p
+              })
+
+              const localIds = new Set(current.map((p) => p.id))
+              for (const [projectId, { project }] of sharedProjectUpdates) {
+                if (!localIds.has(projectId)) {
+                  changed = true
+                  updated.push(project)
+                  lastPushedContentRef.current.set(projectId, JSON.stringify({ ...project, activeId: null }))
+                }
+              }
+
+              return changed ? updated : current
+            })
+
+            setProjectDocumentMap((current) => {
+              const additions: Record<string, string> = {}
+              for (const [projectId, { documentId }] of sharedProjectUpdates) {
+                if (current[projectId] !== documentId) {
+                  additions[projectId] = documentId
+                }
+              }
+              return Object.keys(additions).length > 0 ? { ...current, ...additions } : current
+            })
+          }
+
+          // ── Step 3: Save preferences ────────────────────────────
 
           await updatePreferences(session.token, {
             theme: {
@@ -484,5 +659,5 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     view,
   ])
 
-  return {}
+  return { sharedDocumentIdsRef }
 }

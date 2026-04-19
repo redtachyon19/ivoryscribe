@@ -31,6 +31,7 @@ import { useNavigationHistory } from "../../core/useNavigationHistory"
 import { useFindReplaceModal } from "../../core/useFindReplaceModal"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import Library, { type ProjectFolder } from "./Library"
+import type { PendingShareRequest } from "../../core/api"
 import RecentView from "./Recent"
 import ArchiveView from "./Archive"
 import TrashView from "./Trash"
@@ -240,6 +241,10 @@ export type EditorProps = {
   activeProjectVersionsByProjectId?: Record<string, VersionSettingsEntry[]>
   onShowVersionHistory?: (projectId: string) => void
   projectDocumentMap: Record<string, string>
+  pendingShareRequests: PendingShareRequest[]
+  onAcceptShareRequest: (shareId: string) => void
+  onRejectShareRequest: (shareId: string) => void
+  onRefreshPendingShareRequests: () => void
 }
 
 export default function Editor({
@@ -277,6 +282,10 @@ export default function Editor({
   activeProjectVersionsByProjectId = {},
   onShowVersionHistory,
   projectDocumentMap,
+  pendingShareRequests,
+  onAcceptShareRequest,
+  onRejectShareRequest,
+  onRefreshPendingShareRequests,
 }: EditorProps) {
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
   const [selectedWordCount, setSelectedWordCount] = useState<number | null>(null)
@@ -805,6 +814,10 @@ export default function Editor({
                 setProjects={setProjects}
                 setFolders={setFolders}
                 setActiveProjectId={setActiveProjectId}
+                pendingShareRequests={pendingShareRequests}
+                onAcceptShareRequest={onAcceptShareRequest}
+                onRejectShareRequest={onRejectShareRequest}
+                onRefreshPendingShareRequests={onRefreshPendingShareRequests}
               />
             )
           ) : project ? (
