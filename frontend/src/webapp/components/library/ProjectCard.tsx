@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from "react"
 import { BookText } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type Project } from "../../../core/projects"
+import { extractEmojiTokens } from "../../../core/libraryUtils"
 
 function hexToRgba(hex: string, alpha: number) {
   const normalized = hex.replace("#", "")
@@ -12,6 +13,44 @@ function hexToRgba(hex: string, alpha: number) {
   const green = Number.parseInt(normalized.slice(2, 4), 16)
   const blue = Number.parseInt(normalized.slice(4, 6), 16)
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`
+}
+
+const tintedEmojiCache = new Map<string, string>()
+
+function getTintedEmojiDataUrl(emoji: string, color: string) {
+  const cacheKey = `${emoji}|${color}`
+  const cached = tintedEmojiCache.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+
+  if (typeof document === "undefined") {
+    return ""
+  }
+
+  const canvasSize = 64
+  const canvas = document.createElement("canvas")
+  canvas.width = canvasSize
+  canvas.height = canvasSize
+
+  const context = canvas.getContext("2d")
+  if (!context) {
+    return ""
+  }
+
+  context.clearRect(0, 0, canvasSize, canvasSize)
+  context.textAlign = "center"
+  context.textBaseline = "middle"
+  context.font = '56px "Apple Color Emoji", "Segoe UI Emoji", "Noto Emoji", sans-serif'
+  context.fillText(emoji, canvasSize / 2, canvasSize / 2 + 1)
+
+  context.globalCompositeOperation = "source-in"
+  context.fillStyle = color
+  context.fillRect(0, 0, canvasSize, canvasSize)
+
+  const dataUrl = canvas.toDataURL("image/png")
+  tintedEmojiCache.set(cacheKey, dataUrl)
+  return dataUrl
 }
 
 function formatRelativeTime(dateValue: string) {
@@ -35,6 +74,43 @@ function formatRelativeTime(dateValue: string) {
   const diffMo = Math.floor(diffDay / 30)
   if (diffMo < 12) return `${diffMo}mo ago`
   return `${Math.floor(diffDay / 365)}y ago`
+}
+
+type EmojiWallpaperGlyph = {
+  key: string
+  emoji: string
+  top: string
+  left: string
+}
+
+function buildEmojiWallpaperGlyphs(wallpaperEmojis: string): EmojiWallpaperGlyph[] {
+  const tokens = Array.from(new Set(extractEmojiTokens(wallpaperEmojis, 6)))
+  if (tokens.length === 0) {
+    return []
+  }
+
+  const rows = 8
+  const columns = 10
+  const glyphs: EmojiWallpaperGlyph[] = []
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const top = row * 23 + column * 2 - 20
+      const left = column * 36 + row * 18 - 88
+      const evenEmoji = tokens[row % tokens.length] ?? tokens[0]
+      const oddEmoji = tokens[(row + 1) % tokens.length] ?? tokens[0]
+      const emoji = (row + column) % 2 === 0 ? evenEmoji : oddEmoji
+
+      glyphs.push({
+        key: `${row}-${column}`,
+        emoji,
+        top: `${top}px`,
+        left: `${left}px`,
+      })
+    }
+  }
+
+  return glyphs
 }
 
 export type ProjectCardProps = {
@@ -114,6 +190,27 @@ export default function ProjectCard({
   const entryCount = collectTabIds(project.tabs).length
   const { singular, plural } = getProjectEntryTerms(project.kind)
   const entryLabel = entryCount === 1 ? singular.toLowerCase() : plural.toLowerCase()
+  const emojiWallpaperGlyphs = useMemo(
+    () => buildEmojiWallpaperGlyphs(project.wallpaperEmojis ?? ""),
+    [project.wallpaperEmojis],
+  )
+  const thumbEmojis = useMemo(
+    () => extractEmojiTokens(project.wallpaperEmojis ?? "", 3),
+    [project.wallpaperEmojis],
+  )
+  const tintedEmojiByToken = useMemo(() => {
+    const tokens = Array.from(new Set(emojiWallpaperGlyphs.map((glyph) => glyph.emoji)))
+    const byToken = new Map<string, string>()
+
+    for (const token of tokens) {
+      const tintedEmoji = getTintedEmojiDataUrl(token, project.color)
+      if (tintedEmoji) {
+        byToken.set(token, tintedEmoji)
+      }
+    }
+
+    return byToken
+  }, [emojiWallpaperGlyphs, project.color])
 
   const handleProjectCardClick = (event: ReactMouseEvent<HTMLElement>) => {
     if (isEditing) return
@@ -129,7 +226,7 @@ export default function ProjectCard({
       style={
         {
           "--project-accent": project.color,
-          "--project-accent-soft": hexToRgba(project.color, 0.14),
+          "--project-accent-soft": hexToRgba(project.color, 0.05),
         } as CSSProperties
       }
       draggable
@@ -147,7 +244,41 @@ export default function ProjectCard({
       }}
     >
       <div className="project-card__thumb" aria-hidden="true">
-        <BookText size={28} strokeWidth={1.6} />
+        {emojiWallpaperGlyphs.length > 0 ? (
+          <div className="project-card__emoji-wallpaper">
+            {emojiWallpaperGlyphs.map((glyph) => {
+              const tintedEmoji = tintedEmojiByToken.get(glyph.emoji)
+
+              return (
+                <span
+                  key={glyph.key}
+                  className="project-card__emoji-glyph"
+                  style={
+                    {
+                      top: glyph.top,
+                      left: glyph.left,
+                    } as CSSProperties
+                  }
+                >
+                  {tintedEmoji ? (
+                    <img className="project-card__emoji-glyph-image" src={tintedEmoji} alt="" draggable={false} />
+                  ) : (
+                    glyph.emoji
+                  )}
+                </span>
+              )
+            })}
+          </div>
+        ) : null}
+        {thumbEmojis.length > 0 ? (
+          <div className="project-card__thumb-emojis">
+            {thumbEmojis.map((emoji, index) => (
+              <span key={`${emoji}-${index}`} className="project-card__thumb-emoji">{emoji}</span>
+            ))}
+          </div>
+        ) : (
+          <BookText className="project-card__thumb-icon" size={28} strokeWidth={1.6} />
+        )}
       </div>
 
       <div className="project-card__info">
