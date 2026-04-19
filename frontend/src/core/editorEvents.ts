@@ -6,6 +6,10 @@ export const MARKDOWN_EDITOR_COMMAND_EVENT = "markdown-editor:command"
 export const APP_COLOR_PALETTE_CHANGE_EVENT = "app:color-palette-change"
 export const EXPORT_ALL_TABS_PDF_EVENT = "app:export-all-tabs-pdf"
 export const APP_EXPORT_PROJECT_EVENT = "app:export-project"
+export const APP_SPELL_CHECK_EVENT = "app:spell-check"
+export const APP_SPELL_CHECK_FOCUS_EVENT = "app:spell-check-focus"
+export const APP_PROJECT_SEARCH_EVENT = "app:project-search"
+export const APP_PROJECT_SEARCH_FOCUS_EVENT = "app:project-search-focus"
 export const APP_SAVE_PROJECT_EVENT = "app:save-project"
 export const APP_SAVE_PROJECT_VERSION_EVENT = "app:save-project-version"
 export const PROJECTS_CREATE_BOOK_EVENT = "projects:create-book"
@@ -37,6 +41,38 @@ export type MarkdownEditorCommand =
   | "link"
 
 export type ExportProjectFormat = "pdf" | "docx" | "md" | "txt"
+
+export type SpellCheckFocusDetail =
+  | {
+    documentId: string
+    documentType: "text"
+    normalizedWord: string
+    occurrenceIndex: number
+  }
+  | {
+    documentId: string
+    documentType: "markdown"
+    normalizedWord: string
+    occurrenceIndex: number
+    start: number
+    end: number
+  }
+
+export type ProjectSearchFocusDetail =
+  | {
+    documentId: string
+    documentType: "text"
+    query: string
+    occurrenceIndex: number
+  }
+  | {
+    documentId: string
+    documentType: "markdown"
+    query: string
+    occurrenceIndex: number
+    start: number
+    end: number
+  }
 
 type FontSizeChangeDetail = {
   delta: number
@@ -124,6 +160,30 @@ export function requestExportProject(format: ExportProjectFormat) {
 
 export function requestExportAllTabsPdf() {
   requestExportProject("pdf")
+}
+
+export function requestAppSpellCheck() {
+  window.dispatchEvent(new Event(APP_SPELL_CHECK_EVENT))
+}
+
+export function requestAppProjectSearch() {
+  window.dispatchEvent(new Event(APP_PROJECT_SEARCH_EVENT))
+}
+
+export function requestAppSpellCheckFocus(detail: SpellCheckFocusDetail) {
+  const event = new CustomEvent<SpellCheckFocusDetail>(APP_SPELL_CHECK_FOCUS_EVENT, {
+    detail,
+  })
+
+  window.dispatchEvent(event)
+}
+
+export function requestAppProjectSearchFocus(detail: ProjectSearchFocusDetail) {
+  const event = new CustomEvent<ProjectSearchFocusDetail>(APP_PROJECT_SEARCH_FOCUS_EVENT, {
+    detail,
+  })
+
+  window.dispatchEvent(event)
 }
 
 export function requestAppSaveProject() {

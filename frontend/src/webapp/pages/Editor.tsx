@@ -1,19 +1,34 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { Suspense, lazy, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import TextEditor from "../components/editor/TextEditor.tsx"
 import MarkdownEditor from "../components/editor/MarkdownEditor"
 import PinboardEditor from "../components/editor/PinboardEditor"
 import ProjectExportModal from "../components/export/ProjectExportModal"
 import AppShell from "../components/layout/AppShell"
 import Modal from "../components/ui/Modal"
-import { APP_EXPORT_PROJECT_EVENT, type ExportProjectFormat, NAVIGATE_ARCHIVE_EVENT, NAVIGATE_TRASH_EVENT, NAVIGATE_LIBRARY_EVENT, NAVIGATE_RECENT_EVENT } from "../../core/editorEvents"
+import {
+  APP_EXPORT_PROJECT_EVENT,
+  APP_SPELL_CHECK_EVENT,
+  NAVIGATE_ARCHIVE_EVENT,
+  NAVIGATE_LIBRARY_EVENT,
+  NAVIGATE_RECENT_EVENT,
+  NAVIGATE_TRASH_EVENT,
+  requestAppSpellCheck,
+  requestAppSpellCheckFocus,
+  type ExportProjectFormat,
+  type SpellCheckFocusDetail,
+} from "../../core/editorEvents"
 import { countWordsFromContent } from "../../core/markdown"
 import { exportProjectAsDocx } from "../components/export/docxExport"
 import { downloadProjectAsMarkdown } from "../components/export/markdownExport"
 import { exportProjectAsPdf } from "../components/export/pdfExport"
 import { exportProjectAsTxt } from "../components/export/txtExport"
+import { collectSpellCheckIssues, replaceSpellCheckIssue } from "../components/editor/spellcheck.ts"
+import FindReplaceModal from "../components/editor/FindReplaceModal"
 import { collectTabSequence, getProjectEntryTerms, getProjectMarkdownIds, type Project } from "../../core/projects"
 import type { ExportMode } from "../components/export/exportSelection"
+import type { SpellCheckDocumentType } from "../components/editor/spellcheck.ts"
 import { useNavigationHistory } from "../../core/useNavigationHistory"
+import { useFindReplaceModal } from "../../core/useFindReplaceModal"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import Library, { type ProjectFolder } from "./Library"
 import RecentView from "./Recent"
@@ -21,6 +36,66 @@ import ArchiveView from "./Archive"
 import TrashView from "./Trash"
 import "./Library.css"
 import "./Editor.css"
+
+const SpellCheckModal = lazy(() => import("../components/editor/SpellCheckModal"))
+const SPELL_CHECK_DICTIONARY_STORAGE_KEY = "ivoryscribe:spell-check-dictionary"
+
+function normalizeSpellCheckWord(value: string) {
+  return value.trim().replace(/’/g, "'").toLowerCase()
+}
+
+async function addNativeSpellCheckWord(word: string) {
+  const normalizedWord = normalizeSpellCheckWord(word)
+  if (!normalizedWord || typeof window === "undefined") {
+    return false
+  }
+
+  try {
+    return (await window.electronAPI?.addSpellCheckerWord?.(normalizedWord)) ?? false
+  } catch {
+    return false
+  }
+}
+
+async function removeNativeSpellCheckWord(word: string) {
+  const normalizedWord = normalizeSpellCheckWord(word)
+  if (!normalizedWord || typeof window === "undefined") {
+    return false
+  }
+
+  try {
+    return (await window.electronAPI?.removeSpellCheckerWord?.(normalizedWord)) ?? false
+  } catch {
+    return false
+  }
+}
+
+function loadSpellCheckDictionary() {
+  if (typeof window === "undefined") {
+    return [] as string[]
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SPELL_CHECK_DICTIONARY_STORAGE_KEY)
+    if (!raw) {
+      return []
+    }
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return Array.from(new Set(
+      parsed
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.trim().toLowerCase())
+        .filter((entry) => entry.length > 0),
+    ))
+  } catch {
+    return []
+  }
+}
 
 function findTabTitleById(tabs: Project["tabs"], targetId: string): string | null {
   for (const tab of tabs) {
@@ -208,6 +283,13 @@ export default function Editor({
   const [isWordStatsOpen, setIsWordStatsOpen] = useState(false)
   const [isDetailedWordStatsOpen, setIsDetailedWordStatsOpen] = useState(false)
   const [pendingExportFormat, setPendingExportFormat] = useState<ExportProjectFormat | null>(null)
+  const [isSpellCheckOpen, setIsSpellCheckOpen] = useState(false)
+  const [spellCheckDocumentId, setSpellCheckDocumentId] = useState<string | null>(null)
+  const [spellCheckDocumentType, setSpellCheckDocumentType] = useState<SpellCheckDocumentType | null>(null)
+  const [spellCheckIndex, setSpellCheckIndex] = useState(0)
+  const [spellCheckDictionary, setSpellCheckDictionary] = useState<string[]>(() => loadSpellCheckDictionary())
+  const [spellCheckIgnoredWords, setSpellCheckIgnoredWords] = useState<string[]>([])
+  const [spellCheckIgnoredDocumentId, setSpellCheckIgnoredDocumentId] = useState<string | null>(null)
   const [includedTabsById, setIncludedTabsById] = useState<Record<string, boolean>>({})
   const [dashboardSection, setDashboardSection] = useState<"library" | "recent" | "archive" | "trash">("library")
 
@@ -220,6 +302,11 @@ export default function Editor({
     onProjectChange,
     onDashboardSectionChange: setDashboardSection,
     activeProjectId,
+  })
+  const findReplace = useFindReplaceModal({
+    view,
+    project,
+    onProjectChange,
   })
 
   useEffect(() => {
@@ -298,6 +385,35 @@ export default function Editor({
     ? `${activeDocumentWordCount.toLocaleString()} ${activeDocumentWordCount === 1 ? "word" : "words"}`
     : `${selectedWordCount.toLocaleString()} ${selectedWordCount === 1 ? "word" : "words"} selected`
 
+  const spellCheckAcceptedWordSet = useMemo(() => {
+    return new Set<string>([...spellCheckDictionary, ...spellCheckIgnoredWords])
+  }, [spellCheckDictionary, spellCheckIgnoredWords])
+
+  const spellCheckIssues = useMemo(() => {
+    if (!isSpellCheckOpen || !spellCheckDocumentType) {
+      return []
+    }
+
+    return collectSpellCheckIssues(activeContent, spellCheckDocumentType, spellCheckAcceptedWordSet)
+  }, [isSpellCheckOpen, spellCheckDocumentType, activeContent, spellCheckAcceptedWordSet])
+
+  const spellCheckIssue = spellCheckIssues[spellCheckIndex] ?? null
+
+  const releaseSessionIgnoredSpellCheckWords = (
+    ignoredWords = spellCheckIgnoredWords,
+    dictionaryWords = spellCheckDictionary,
+  ) => {
+    const persistedDictionarySet = new Set(dictionaryWords)
+
+    for (const word of ignoredWords) {
+      if (persistedDictionarySet.has(word)) {
+        continue
+      }
+
+      void removeNativeSpellCheckWord(word)
+    }
+  }
+
 
 
 
@@ -319,6 +435,42 @@ export default function Editor({
   }, [tabIdSignature, flatTabWordStats])
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    window.localStorage.setItem(SPELL_CHECK_DICTIONARY_STORAGE_KEY, JSON.stringify(spellCheckDictionary))
+  }, [spellCheckDictionary])
+
+  useEffect(() => {
+    for (const word of spellCheckDictionary) {
+      void addNativeSpellCheckWord(word)
+    }
+  }, [spellCheckDictionary])
+
+  useEffect(() => {
+    if (!isSpellCheckOpen) {
+      return
+    }
+
+    setSpellCheckIndex((current) => {
+      if (spellCheckIssues.length === 0) {
+        return 0
+      }
+
+      return Math.min(current, spellCheckIssues.length - 1)
+    })
+  }, [isSpellCheckOpen, spellCheckIssues.length])
+
+  useEffect(() => {
+    if (spellCheckIgnoredWords.length > 0 || !spellCheckIgnoredDocumentId) {
+      return
+    }
+
+    setSpellCheckIgnoredDocumentId(null)
+  }, [spellCheckIgnoredWords, spellCheckIgnoredDocumentId])
+
+  useEffect(() => {
     // Menu action emits a global event; this page handles it for the current project.
     const onExportRequest: EventListener = (event) => {
       if (!project) return
@@ -332,6 +484,220 @@ export default function Editor({
       window.removeEventListener(APP_EXPORT_PROJECT_EVENT, onExportRequest)
     }
   }, [project])
+
+  useEffect(() => {
+    const onSpellCheckRequest: EventListener = () => {
+      if (view !== "editor") {
+        return
+      }
+
+      const targetDocumentId = project?.activeId ?? null
+      if (!targetDocumentId) {
+        return
+      }
+
+      const nextDocumentType: SpellCheckDocumentType | null =
+        activeDocumentType === "markdown"
+          ? "markdown"
+          : activeDocumentType === "text"
+            ? "text"
+            : null
+
+      if (
+        spellCheckIgnoredWords.length > 0
+        && spellCheckIgnoredDocumentId
+        && spellCheckIgnoredDocumentId !== targetDocumentId
+      ) {
+        releaseSessionIgnoredSpellCheckWords()
+        setSpellCheckIgnoredWords([])
+        setSpellCheckIgnoredDocumentId(null)
+      }
+
+      setSpellCheckDocumentId(targetDocumentId)
+      setSpellCheckDocumentType(nextDocumentType)
+      setSpellCheckIndex(0)
+      setIsSpellCheckOpen(true)
+    }
+
+    window.addEventListener(APP_SPELL_CHECK_EVENT, onSpellCheckRequest)
+    return () => {
+      window.removeEventListener(APP_SPELL_CHECK_EVENT, onSpellCheckRequest)
+    }
+  }, [view, project?.activeId, activeDocumentType, spellCheckIgnoredWords, spellCheckIgnoredDocumentId, spellCheckDictionary])
+
+  useEffect(() => {
+    const onSpellCheckShortcut = (event: KeyboardEvent) => {
+      if (event.repeat) {
+        return
+      }
+
+      const hasPrimaryModifier = event.metaKey || event.ctrlKey
+      if (!hasPrimaryModifier || !event.altKey || event.shiftKey) {
+        return
+      }
+
+      // Option can change event.key on macOS layouts, so prefer the physical key code.
+      const isXShortcut = event.code === "KeyX" || event.key.toLowerCase() === "x"
+      if (!isXShortcut) {
+        return
+      }
+
+      event.preventDefault()
+      requestAppSpellCheck()
+    }
+
+    window.addEventListener("keydown", onSpellCheckShortcut, true)
+    return () => {
+      window.removeEventListener("keydown", onSpellCheckShortcut, true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isSpellCheckOpen || !spellCheckIssue || !spellCheckDocumentId) {
+      return
+    }
+
+    if (spellCheckIssue.focusTarget.documentType === "markdown") {
+      const detail: SpellCheckFocusDetail = {
+        documentId: spellCheckDocumentId,
+        documentType: "markdown",
+        normalizedWord: spellCheckIssue.focusTarget.normalizedWord,
+        occurrenceIndex: spellCheckIssue.focusTarget.occurrenceIndex,
+        start: spellCheckIssue.focusTarget.start,
+        end: spellCheckIssue.focusTarget.end,
+      }
+
+      requestAppSpellCheckFocus(detail)
+      return
+    }
+
+    const detail: SpellCheckFocusDetail = {
+      documentId: spellCheckDocumentId,
+      documentType: "text",
+      normalizedWord: spellCheckIssue.focusTarget.normalizedWord,
+      occurrenceIndex: spellCheckIssue.focusTarget.occurrenceIndex,
+    }
+
+    requestAppSpellCheckFocus(detail)
+  }, [isSpellCheckOpen, spellCheckIssue, spellCheckDocumentId])
+
+  useEffect(() => {
+    if (!isSpellCheckOpen || !spellCheckDocumentId) {
+      return
+    }
+
+    if (project?.activeId !== spellCheckDocumentId) {
+      releaseSessionIgnoredSpellCheckWords()
+      setIsSpellCheckOpen(false)
+      setSpellCheckDocumentId(null)
+      setSpellCheckDocumentType(null)
+      setSpellCheckIndex(0)
+      setSpellCheckIgnoredWords([])
+      setSpellCheckIgnoredDocumentId(null)
+    }
+  }, [project?.activeId, isSpellCheckOpen, spellCheckDocumentId, spellCheckIgnoredWords, spellCheckDictionary])
+
+  const closeSpellCheckModal = () => {
+    setIsSpellCheckOpen(false)
+    setSpellCheckDocumentId(null)
+    setSpellCheckDocumentType(null)
+    setSpellCheckIndex(0)
+  }
+
+  const goToPreviousSpellCheckIssue = () => {
+    setSpellCheckIndex((current) => Math.max(0, current - 1))
+  }
+
+  const goToNextSpellCheckIssue = () => {
+    setSpellCheckIndex((current) => Math.min(current + 1, Math.max(0, spellCheckIssues.length - 1)))
+  }
+
+  const ignoreSpellCheckIssue = () => {
+    const normalizedWord = spellCheckIssue?.normalizedWord
+    if (!normalizedWord || !spellCheckDocumentId) {
+      return
+    }
+
+    setSpellCheckIgnoredDocumentId(spellCheckDocumentId)
+    setSpellCheckIgnoredWords((current) => {
+      if (current.includes(normalizedWord)) {
+        return current
+      }
+
+      return [...current, normalizedWord]
+    })
+
+    void addNativeSpellCheckWord(normalizedWord)
+  }
+
+  const addSpellCheckWordToDictionary = () => {
+    const normalizedWord = spellCheckIssue?.normalizedWord
+    if (!normalizedWord) {
+      return
+    }
+
+    setSpellCheckDictionary((current) => {
+      if (current.includes(normalizedWord)) {
+        return current
+      }
+
+      return [...current, normalizedWord]
+    })
+
+    setSpellCheckIgnoredWords((current) => current.filter((word) => word !== normalizedWord))
+    void addNativeSpellCheckWord(normalizedWord)
+  }
+
+  const removeSpellCheckWordFromDictionary = (word: string) => {
+    const normalizedWord = normalizeSpellCheckWord(word)
+    if (!normalizedWord) {
+      return
+    }
+
+    setSpellCheckDictionary((current) => current.filter((entry) => entry !== normalizedWord))
+
+    if (spellCheckIgnoredWords.includes(normalizedWord)) {
+      return
+    }
+
+    void removeNativeSpellCheckWord(normalizedWord)
+  }
+
+  const applySpellCheckSuggestion = (replacement: string) => {
+    if (!spellCheckIssue || !spellCheckDocumentId || !spellCheckDocumentType) {
+      return
+    }
+
+    const targetDocumentId = spellCheckDocumentId
+    const nextContent = replaceSpellCheckIssue(activeContent, spellCheckDocumentType, spellCheckIssue, replacement)
+
+    if (nextContent === activeContent) {
+      return
+    }
+
+    onProjectChange((currentProject) => ({
+      ...currentProject,
+      contentById: {
+        ...currentProject.contentById,
+        [targetDocumentId]: nextContent,
+      },
+    }))
+  }
+
+  const commitSpellCheckPrimaryAction = () => {
+    if (!spellCheckIssue) {
+      return
+    }
+
+    const primarySuggestion = spellCheckIssue.suggestions[0]
+
+    if (primarySuggestion) {
+      applySpellCheckSuggestion(primarySuggestion)
+      return
+    }
+
+    addSpellCheckWordToDictionary()
+  }
 
   const closeExportModal = () => {
     setPendingExportFormat(null)
@@ -378,7 +744,10 @@ export default function Editor({
       onGoForward={goForward}
       activeTabPath={activeTabPath}
       onProjectChange={onProjectChange}
-      onToggleSettings={onToggleSettings}
+      onToggleSettings={() => {
+        findReplace.close()
+        onToggleSettings()
+      }}
       projects={projects}
       folders={folders}
       showWordCount={showWordCount}
@@ -441,6 +810,45 @@ export default function Editor({
           ) : project ? (
             /* ── Editor Content ── */
             <>
+              <FindReplaceModal
+                isOpen={findReplace.isOpen}
+                query={findReplace.query}
+                replaceQuery={findReplace.replaceQuery}
+                normalizedQuery={findReplace.normalizedQuery}
+                resultCount={findReplace.resultCount}
+                currentIndex={findReplace.currentIndex}
+                expanded={findReplace.expanded}
+                onQueryChange={findReplace.setQuery}
+                onReplaceQueryChange={findReplace.setReplaceQuery}
+                onGoNext={findReplace.goToNext}
+                onGoPrevious={findReplace.goToPrevious}
+                onReplaceCurrent={findReplace.replaceCurrent}
+                onReplaceAll={findReplace.replaceAll}
+                onToggleExpanded={() => findReplace.setExpanded(!findReplace.expanded)}
+                onClose={findReplace.close}
+              />
+
+              <Suspense fallback={null}>
+                <SpellCheckModal
+                  isOpen={isSpellCheckOpen}
+                  documentType={spellCheckDocumentType}
+                  issue={spellCheckIssue}
+                  issueIndex={spellCheckIssue ? spellCheckIndex + 1 : 0}
+                  issueCount={spellCheckIssues.length}
+                  dictionaryWords={spellCheckDictionary}
+                  canGoPrevious={spellCheckIndex > 0}
+                  canGoNext={spellCheckIndex < spellCheckIssues.length - 1}
+                  onPrevious={goToPreviousSpellCheckIssue}
+                  onNext={goToNextSpellCheckIssue}
+                  onIgnore={ignoreSpellCheckIssue}
+                  onAddToDictionary={addSpellCheckWordToDictionary}
+                  onRemoveDictionaryWord={removeSpellCheckWordFromDictionary}
+                  onApplySuggestion={applySpellCheckSuggestion}
+                  onCommitPrimaryAction={commitSpellCheckPrimaryAction}
+                  onClose={closeSpellCheckModal}
+                />
+              </Suspense>
+
               <ProjectExportModal
                 isOpen={Boolean(project && pendingExportFormat)}
                 format={pendingExportFormat}

@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   close: () => ipcRenderer.send("window:close"),
   isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
   isFullScreen: () => ipcRenderer.invoke("window:isFullScreen"),
+  addSpellCheckerWord: (word: string) => ipcRenderer.invoke("spellcheck:add-word", word),
+  removeSpellCheckerWord: (word: string) => ipcRenderer.invoke("spellcheck:remove-word", word),
   updateMenu: (items: unknown) => ipcRenderer.send("menu:update", items),
   onMenuCommand: (callback: (commandId: string) => void) => {
     const handler = (_event: unknown, commandId: string) => callback(commandId)

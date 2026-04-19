@@ -85,6 +85,16 @@
   opacity: 1;
 }
 
+.markdown-editor__textarea::spelling-error {
+  text-decoration: underline wavy #e55353;
+  text-decoration-thickness: 1.5px;
+}
+
+.markdown-editor__textarea::grammar-error {
+  text-decoration: underline wavy #e0a43a;
+  text-decoration-thickness: 1.5px;
+}
+
 .markdown-editor__divider {
   position: relative;
   width: 28px;

@@ -1,0 +1,276 @@
+/* ── Find & Replace Modal ── */
+
+.find-replace-modal__wrap {
+  position: sticky;
+  top: 46px;
+  z-index: 10;
+  float: right;
+  margin-right: 14px;
+  width: fit-content;
+  pointer-events: auto;
+  height: 0;
+  overflow: visible;
+}
+
+.find-replace-modal__wrap.find-replace-modal--opening {
+  animation: find-replace-modal-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.find-replace-modal__wrap.find-replace-modal--closing {
+  animation: find-replace-modal-out 140ms ease-in forwards;
+}
+
+.find-replace-modal__wrap.find-replace-modal--closing .find-replace-modal__close-btn svg {
+  animation: find-replace-icon-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
+  transform-origin: 50% 50%;
+}
+
+.find-replace-modal {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 64%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #161616) 96%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.36);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--menu-button, #ededed);
+}
+
+.find-replace-modal__close-btn {
+  position: absolute;
+  top: -30px;
+  right: 0;
+  border: 0;
+  border-radius: 999px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #161616) 90%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.find-replace-modal__close-btn:hover,
+.find-replace-modal__close-btn:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
+  color: var(--menu-button, #ededed);
+}
+
+.find-replace-modal__close-btn:hover svg,
+.find-replace-modal__close-btn:focus-visible svg {
+  animation: find-replace-icon-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
+  transform-origin: 50% 50%;
+}
+
+.find-replace-modal__row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.find-replace-modal__replace-row {
+  padding-left: 33px;
+}
+
+.find-replace-modal__actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* ── Expand / Collapse ── */
+
+.find-replace-modal__expandable {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 280ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms ease;
+  overflow: hidden;
+}
+
+.find-replace-modal__expandable--open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.find-replace-modal__expandable-inner {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* ── Inputs ── */
+
+.find-replace-modal__input {
+  width: 200px;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
+  color: var(--menu-button, #f4f4f4);
+  font-family: var(--app-ui-font);
+  font-size: 16px;
+  padding: 7px 10px;
+  caret-color: var(--app-accent, #9ab8ff);
+}
+
+.find-replace-modal__input::placeholder {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 44%, transparent);
+}
+
+.find-replace-modal__input:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
+}
+
+/* Override global caret overlay hiding native caret (z-index conflict) */
+.find-replace-modal .global-caret-target {
+  caret-color: var(--app-accent, #9ab8ff) !important;
+}
+
+.find-replace-modal__counter {
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 56%, transparent);
+  white-space: nowrap;
+  padding: 0 6px;
+  user-select: none;
+  min-width: 72px;
+  text-align: center;
+  flex: 1;
+}
+
+.find-replace-modal__btn {
+  border: 0;
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.find-replace-modal__btn:hover,
+.find-replace-modal__btn:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
+  color: var(--menu-button, #ededed);
+}
+
+.find-replace-modal__toggle:hover svg,
+.find-replace-modal__toggle:focus-visible svg {
+  animation: find-replace-icon-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
+  transform-origin: 50% 50%;
+}
+
+.find-replace-modal__btn:disabled {
+  opacity: 0.32;
+  cursor: default;
+  pointer-events: none;
+}
+
+.find-replace-modal__action-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  line-height: 1.2;
+  padding: 7px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.find-replace-modal__action-btn:hover,
+.find-replace-modal__action-btn:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
+  border-color: transparent;
+  color: var(--menu-button, #ededed);
+}
+
+.find-replace-modal__action-btn:disabled {
+  opacity: 0.56;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ── Animations ── */
+
+@keyframes find-replace-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes find-replace-modal-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes find-replace-icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .find-replace-modal__wrap,
+  .find-replace-modal__close-btn svg,
+  .find-replace-modal__toggle svg,
+  .find-replace-modal__expandable {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .find-replace-modal__wrap {
+    top: 42px;
+    margin-right: 10px;
+  }
+
+  .find-replace-modal__input {
+    width: 160px;
+  }
+}

@@ -1,6 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Eye, SquarePen } from "lucide-react"
-import { MARKDOWN_EDITOR_COMMAND_EVENT, type MarkdownEditorCommand } from "../../../core/editorEvents"
+import {
+  APP_PROJECT_SEARCH_FOCUS_EVENT,
+  APP_SPELL_CHECK_FOCUS_EVENT,
+  MARKDOWN_EDITOR_COMMAND_EVENT,
+  type MarkdownEditorCommand,
+  type ProjectSearchFocusDetail,
+  type SpellCheckFocusDetail,
+} from "../../../core/editorEvents"
 import { countWords, normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../../core/markdown"
 import "./MarkdownEditor.css"
 
@@ -286,6 +293,64 @@ export default function MarkdownEditor({
     }
   }, [])
 
+  useEffect(() => {
+    const onSpellCheckFocus = (event: Event) => {
+      const customEvent = event as CustomEvent<SpellCheckFocusDetail>
+      const detail = customEvent.detail
+
+      if (!detail || detail.documentType !== "markdown" || detail.documentId !== documentId) {
+        return
+      }
+
+      const textarea = textareaRef.current
+      if (!textarea) {
+        return
+      }
+
+      const valueLength = textarea.value.length
+      const start = Math.max(0, Math.min(valueLength, detail.start))
+      const end = Math.max(start, Math.min(valueLength, detail.end))
+
+      textarea.focus()
+      textarea.setSelectionRange(start, end)
+      textarea.scrollIntoView({ behavior: "smooth", block: "center" })
+    }
+
+    window.addEventListener(APP_SPELL_CHECK_FOCUS_EVENT, onSpellCheckFocus as EventListener)
+    return () => {
+      window.removeEventListener(APP_SPELL_CHECK_FOCUS_EVENT, onSpellCheckFocus as EventListener)
+    }
+  }, [documentId])
+
+  useEffect(() => {
+    const onProjectSearchFocus = (event: Event) => {
+      const customEvent = event as CustomEvent<ProjectSearchFocusDetail>
+      const detail = customEvent.detail
+
+      if (!detail || detail.documentType !== "markdown" || detail.documentId !== documentId) {
+        return
+      }
+
+      const textarea = textareaRef.current
+      if (!textarea) {
+        return
+      }
+
+      const valueLength = textarea.value.length
+      const start = Math.max(0, Math.min(valueLength, detail.start))
+      const end = Math.max(start, Math.min(valueLength, detail.end))
+
+      textarea.focus()
+      textarea.setSelectionRange(start, end)
+      textarea.scrollIntoView({ behavior: "smooth", block: "center" })
+    }
+
+    window.addEventListener(APP_PROJECT_SEARCH_FOCUS_EVENT, onProjectSearchFocus as EventListener)
+    return () => {
+      window.removeEventListener(APP_PROJECT_SEARCH_FOCUS_EVENT, onProjectSearchFocus as EventListener)
+    }
+  }, [documentId])
+
   const previewHtml = useMemo(() => {
     return renderMarkdownToHtml(markdownDraft)
   }, [markdownDraft])
@@ -478,7 +543,9 @@ export default function MarkdownEditor({
             })
           }}
           placeholder="# Start writing in Markdown"
-          spellCheck={false}
+          spellCheck={true}
+          autoCorrect="on"
+          autoCapitalize="sentences"
           aria-label="Markdown editor"
         />
       </section>
