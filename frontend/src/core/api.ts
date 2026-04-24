@@ -579,6 +579,28 @@ export async function revokeShare(token: string, shareId: string) {
   )
 }
 
+export async function transferOwnership(
+  token: string,
+  input: { documentId: string; recipientEmail: string },
+) {
+  return request<{ message: string }>(
+    "/api/shares/transfer-ownership",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+    token,
+  )
+}
+
+export async function leaveShare(token: string, shareId: string) {
+  return request<{ message: string }>(
+    `/api/shares/${shareId}/leave`,
+    { method: "POST" },
+    token,
+  )
+}
+
 export async function getPendingShareRequests(token: string) {
   const payload = await request<{ pendingRequests: PendingShareRequest[] }>(
     "/api/shares/pending-requests",

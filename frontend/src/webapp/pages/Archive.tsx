@@ -103,6 +103,7 @@ export default function ArchiveView({ projects, setProjects, onOpenProject, onOp
                 isDragging={false}
                 dropClassName=""
                 onOpenProject={onOpenProject}
+                onOpenInNewTab={onOpenProjectInNewTab}
                 onDragStart={multiSelect.handleMultiSectionDragStart}
                 onDragEnd={noop}
                 onDragEnter={noopDragEl}

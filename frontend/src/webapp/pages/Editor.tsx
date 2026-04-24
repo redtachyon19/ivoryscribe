@@ -32,6 +32,7 @@ import { useFindReplaceModal } from "../../core/useFindReplaceModal"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import Library, { type ProjectFolder } from "./Library"
 import type { PendingShareRequest } from "../../core/api"
+import { deleteDocument } from "../../core/api"
 import RecentView from "./Recent"
 import ArchiveView from "./Archive"
 import TrashView from "./Trash"
@@ -241,6 +242,10 @@ export type EditorProps = {
   activeProjectVersionsByProjectId?: Record<string, VersionSettingsEntry[]>
   onShowVersionHistory?: (projectId: string) => void
   projectDocumentMap: Record<string, string>
+  onPermanentlyDeleteProjects?: (ids: Set<string>) => Promise<void>
+  userEmail?: string
+  sharedProjectIds?: Set<string>
+  ownerEmailByProjectId?: Map<string, string>
   pendingShareRequests: PendingShareRequest[]
   onAcceptShareRequest: (shareId: string) => void
   onRejectShareRequest: (shareId: string) => void
@@ -282,6 +287,10 @@ export default function Editor({
   activeProjectVersionsByProjectId = {},
   onShowVersionHistory,
   projectDocumentMap,
+  onPermanentlyDeleteProjects,
+  userEmail,
+  sharedProjectIds,
+  ownerEmailByProjectId,
   pendingShareRequests,
   onAcceptShareRequest,
   onRejectShareRequest,
@@ -767,6 +776,7 @@ export default function Editor({
       onCreateProject={onCreateProject}
       onCreateFolder={onCreateFolder}
       onOpenProject={onOpenProject}
+      onOpenProjectInNewTab={onOpenProjectInNewTab}
       onReturnToDashboard={onReturnToDashboard}
       onToggleWordStats={() => setIsWordStatsOpen((prev) => !prev)}
       sessionToken={sessionToken}
@@ -796,6 +806,7 @@ export default function Editor({
                 setProjects={setProjects}
                 onOpenProject={onOpenProject}
                 onOpenProjectInNewTab={onOpenProjectInNewTab}
+                onShredProjects={onPermanentlyDeleteProjects}
               />
             ) : (
               <Library
@@ -818,6 +829,9 @@ export default function Editor({
                 onAcceptShareRequest={onAcceptShareRequest}
                 onRejectShareRequest={onRejectShareRequest}
                 onRefreshPendingShareRequests={onRefreshPendingShareRequests}
+                userEmail={userEmail}
+                sharedProjectIds={sharedProjectIds}
+                ownerEmailByProjectId={ownerEmailByProjectId}
               />
             )
           ) : project ? (

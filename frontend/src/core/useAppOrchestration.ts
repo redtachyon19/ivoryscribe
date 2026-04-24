@@ -12,7 +12,7 @@ import {
 import { requestAppColorPaletteChange, requestExportProject } from "./editorEvents"
 import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "./menu"
 import { exportProjectAsPdf } from "../webapp/components/export/pdfExport"
-import { createProject, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, type Project } from "./projects"
+import { createProject, generateUntitledName, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, type Project } from "./projects"
 import { buildVersionHistoryPageHtml, buildVersionPreviewHtml, getInitialManualVersionDefinition, mapVersionsForSettings, resolveThemeForPalette, serializeProjectSnapshot, type VersionSettingsEntry } from "./versioning"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
@@ -89,7 +89,7 @@ export function useAppOrchestration() {
   billingResetRef.current = billing.reset
   versioningResetRef.current = versioning.setProjectVersionsByProjectId as (v: Record<string, never>) => void
 
-  const { sharedDocumentIdsRef } = useWorkspaceHydration({
+  const { sharedDocumentIdsRef, shareIdByProjectIdRef, ownerEmailByProjectIdRef, permanentlyDeleteProjects } = useWorkspaceHydration({
     session, setSession, setIsAuthBootstrapping, setAuthLoadError,
     isWorkspaceHydrated, setIsWorkspaceHydrated, projectDocumentMap, setProjectDocumentMap,
     setProjects, setProjectVersionsByProjectId: versioning.setProjectVersionsByProjectId,
@@ -317,11 +317,10 @@ export function useAppOrchestration() {
     setFolders,
     onOpenProject: (projectId: string) => { setActiveProjectId(projectId); setView("editor") },
     onCreateProject: () => {
-      const nextName = `Book ${bookCounter}`
+      const nextName = generateUntitledName(projects, "Book")
       const nextProject = createProject(nextName, "Book")
       setProjects((cur) => [{ ...nextProject, folderId: null, rootPosition: "top" }, ...cur])
       setActiveProjectId(nextProject.id)
-      setBookCounter((c) => c + 1)
       if (sessionRef.current && isWorkspaceHydrated) {
         void versioning.createProjectVersionSnapshot(nextProject, getInitialManualVersionDefinition([], serializeProjectSnapshot(nextProject)), { alertOnFailure: false })
       }
@@ -357,6 +356,10 @@ export function useAppOrchestration() {
     },
     activeProjectVersionsByProjectId: projectVersionsForLibraryByProjectId,
     projectDocumentMap,
+    onPermanentlyDeleteProjects: permanentlyDeleteProjects,
+    userEmail: session.user.email,
+    sharedProjectIds: new Set(shareIdByProjectIdRef.current.keys()),
+    ownerEmailByProjectId: ownerEmailByProjectIdRef.current,
     pendingShareRequests,
     onAcceptShareRequest: handleAcceptShareRequest,
     onRejectShareRequest: handleRejectShareRequest,

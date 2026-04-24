@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, ty
 import { ArrowLeft, ArrowRight, BookText, Folder, PanelLeft, PanelRight, Settings } from "lucide-react"
 import NavigationPanel from "../navigation/NavigationPanel"
 import TuskAiTab from "../ai/TuskAiTab"
+import MarqueeText from "../ui/MarqueeText"
 import type { Project } from "../../../core/projects"
 import type { ProjectFolder } from "../../pages/Library"
 import "../../pages/Editor.css"
@@ -32,6 +33,7 @@ export type AppShellProps = {
   onCreateProject: () => void
   onCreateFolder: () => void
   onOpenProject: (projectId: string) => void
+  onOpenProjectInNewTab?: (projectId: string) => void
   onReturnToDashboard: () => void
   onToggleWordStats: () => void
   sessionToken: string
@@ -65,6 +67,7 @@ export default function AppShell({
   onCreateProject,
   onCreateFolder,
   onOpenProject,
+  onOpenProjectInNewTab,
   onReturnToDashboard,
   onToggleWordStats,
   sessionToken,
@@ -183,32 +186,35 @@ export default function AppShell({
               <>
                 <button
                   type="button"
+                  data-marquee-parent
                   className="editor-workspace__doc-path-btn editor-workspace__doc-path-segment editor-workspace__doc-path-segment--folder"
                   onClick={handleReturnToDashboard}
                   aria-label="Open project folder"
                 >
                   <Folder size={14} aria-hidden={true} />
-                  <span>{activeFolderName}</span>
+                  <MarqueeText text={activeFolderName} />
                 </button>
                 <span className="editor-workspace__doc-path-separator" aria-hidden={true}>/</span>
                 <button
                   type="button"
+                  data-marquee-parent
                   className="editor-workspace__doc-path-btn editor-workspace__doc-path-segment"
                   onClick={handleReturnToDashboard}
                   aria-label="Open library"
                 >
-                  {project.name}
+                  <MarqueeText text={project.name} />
                 </button>
               </>
             ) : (
               <button
                 type="button"
+                data-marquee-parent
                 className="editor-workspace__doc-path-btn editor-workspace__doc-path-segment editor-workspace__doc-path-segment--folder"
                 onClick={handleReturnToDashboard}
                 aria-label="Open library"
               >
                 <BookText size={14} aria-hidden={true} />
-                <span>{project.name}</span>
+                <MarqueeText text={project.name} />
               </button>
             )}
 
@@ -218,6 +224,7 @@ export default function AppShell({
               <span key={node.id} className="editor-workspace__doc-path-part">
                 <button
                   type="button"
+                  data-marquee-parent
                   className={`editor-workspace__doc-path-btn editor-workspace__doc-path-segment ${index === activeTabPath.length - 1 ? "editor-workspace__doc-path-segment--active" : ""}`.trim()}
                   onClick={() => {
                     onProjectChange((currentProject) => ({
@@ -227,7 +234,7 @@ export default function AppShell({
                   }}
                   aria-label={`Open ${node.title}`}
                 >
-                  {node.title}
+                  <MarqueeText text={node.title} />
                 </button>
                 {index < activeTabPath.length - 1 ? <span className="editor-workspace__doc-path-separator" aria-hidden={true}>/</span> : null}
               </span>
@@ -299,6 +306,7 @@ export default function AppShell({
           onCreateProject={onCreateProject}
           onCreateFolder={onCreateFolder}
           onOpenProject={handleOpenProject}
+          onOpenProjectInNewTab={onOpenProjectInNewTab}
           onReturnToDashboard={handleReturnToDashboard}
           onProjectChange={onProjectChange}
           onToggleWordStats={onToggleWordStats}

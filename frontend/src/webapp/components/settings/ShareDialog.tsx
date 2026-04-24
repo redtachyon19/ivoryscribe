@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
-import { ChevronDown, Send, UserCheck, UserX, UserRoundPlus } from "lucide-react"
+import { ChevronDown, Send, UserCheck, UserX, UserRoundPlus, Crown, Users } from "lucide-react"
 import Modal from "../ui/Modal"
 import {
   createShare,
   getDocumentShares,
   updateShare,
   revokeShare,
+  transferOwnership,
   type ShareRecord,
 } from "../../../core/api"
 import "./ShareDialog.css"
@@ -15,16 +16,28 @@ type SharePanelProps = {
   documentId: string
   /** When true, the panel loads shares immediately on mount. Defaults to true. */
   autoLoad?: boolean
+  /** Whether the current user owns this project. If false, shows read-only collaborator view. */
+  isOwner?: boolean
+  /** The current user's email — shown as "You" in the collaborators list. */
+  userEmail?: string
+  /** The project owner's email — shown in the non-owner collaborator view. */
+  ownerEmail?: string
+  /** Called after ownership is successfully transferred so the dialog can close. */
+  onClose?: () => void
 }
 
 function PermissionMenu({
   value,
   onChange,
+  onTransferOwnership,
   size = "normal",
+  showOwnerOption = false,
 }: {
   value: "view" | "edit"
   onChange: (next: "view" | "edit") => void
+  onTransferOwnership?: () => void
   size?: "normal" | "small"
+  showOwnerOption?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -39,10 +52,10 @@ function PermissionMenu({
     return () => window.removeEventListener("mousedown", onPointerDown)
   }, [isOpen])
 
-  const label = value === "edit" ? "Can edit" : "View only"
-  const options: { value: "view" | "edit"; label: string }[] = [
-    { value: "view", label: "View only" },
-    { value: "edit", label: "Can edit" },
+  const label = value === "edit" ? "Editor" : "Viewer"
+  const baseOptions: { value: "view" | "edit"; label: string }[] = [
+    { value: "view", label: "Viewer" },
+    { value: "edit", label: "Editor" },
   ]
 
   return (
@@ -62,7 +75,21 @@ function PermissionMenu({
         role="listbox"
         aria-label="Permission"
       >
-        {options.map((opt) => (
+        {showOwnerOption ? (
+          <button
+            type="button"
+            role="option"
+            aria-selected={false}
+            className="share-dialog__permission-option share-dialog__permission-option--owner"
+            onClick={() => {
+              onTransferOwnership?.()
+              setIsOpen(false)
+            }}
+          >
+            Owner
+          </button>
+        ) : null}
+        {baseOptions.map((opt) => (
           <button
             key={opt.value}
             type="button"
@@ -90,12 +117,18 @@ export function SharePanel({
   sessionToken,
   documentId,
   autoLoad = true,
+  isOwner = true,
+  userEmail = "",
+  ownerEmail = "",
+  onClose,
 }: SharePanelProps) {
   const [email, setEmail] = useState("")
   const [permission, setPermission] = useState<"view" | "edit">("edit")
   const [shares, setShares] = useState<ShareRecord[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [isTransferring, setIsTransferring] = useState(false)
+  const [transferTarget, setTransferTarget] = useState<{ shareId: string; email: string } | null>(null)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
@@ -103,14 +136,18 @@ export function SharePanel({
     if (!documentId || !sessionToken) return
     setIsLoading(true)
     try {
-      const result = await getDocumentShares(sessionToken, documentId)
-      setShares(result)
+      if (isOwner) {
+        const result = await getDocumentShares(sessionToken, documentId)
+        setShares(result)
+      }
+      // For non-owners, shares list is populated from the sharedWithMe data already loaded.
+      // We just show a static collaborator view.
     } catch {
       // Ignore load errors silently
     } finally {
       setIsLoading(false)
     }
-  }, [documentId, sessionToken])
+  }, [documentId, sessionToken, isOwner])
 
   useEffect(() => {
     if (autoLoad) {
@@ -166,6 +203,56 @@ export function SharePanel({
     }
   }
 
+  const handleTransferOwnership = async () => {
+    if (!transferTarget) return
+    setIsTransferring(true)
+    setError("")
+    try {
+      await transferOwnership(sessionToken, { documentId, recipientEmail: transferTarget.email })
+      onClose?.()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to transfer ownership"
+      setError(message)
+      setTransferTarget(null)
+    } finally {
+      setIsTransferring(false)
+    }
+  }
+
+  // ── Non-owner view ────────────────────────────────────────────
+  if (!isOwner) {
+    return (
+      <div className="share-dialog__readonly">
+        <div className="share-dialog__readonly-notice">
+          <Users size={15} strokeWidth={2} aria-hidden="true" className="share-dialog__readonly-icon" />
+          <span>You are a collaborator on this project. Only the owner can invite others.</span>
+        </div>
+        <div className="share-dialog__list">
+          <span className="share-dialog__list-title">Collaborators</span>
+          <div className="share-dialog__item">
+            <div className="share-dialog__item-info">
+              <Crown size={14} strokeWidth={2} aria-label="Owner" className="share-dialog__item-owner-icon" />
+              <span className="share-dialog__item-email share-dialog__item-email--owner">
+                {ownerEmail || "Project owner"}
+              </span>
+            </div>
+            <span className="share-dialog__item-role">Owner</span>
+          </div>
+          {userEmail ? (
+            <div className="share-dialog__item">
+              <div className="share-dialog__item-info">
+                <UserCheck size={14} strokeWidth={2} aria-label="You" className="share-dialog__item-accepted-icon" />
+                <span className="share-dialog__item-email">{userEmail}</span>
+              </div>
+              <span className="share-dialog__item-role">You</span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Owner view ────────────────────────────────────────────────
   return (
     <>
       <div className="share-dialog__form">
@@ -208,38 +295,81 @@ export function SharePanel({
 
       {isLoading ? (
         <p className="share-dialog__loading">Loading shared users…</p>
-      ) : shares.length > 0 ? (
-        <div className="share-dialog__list">
-          <span className="share-dialog__list-title">Shared with</span>
-          {shares.map((share) => (
-            <div key={share.id} className="share-dialog__item">
-              <div className="share-dialog__item-info">
-                {share.status === "accepted" ? (
-                  <UserCheck size={14} strokeWidth={2} aria-label="Accepted" className="share-dialog__item-accepted-icon" />
-                ) : null}
-                <span className="share-dialog__item-email">{share.recipientEmail}</span>
-              </div>
-              <div className="share-dialog__item-actions">
-                <PermissionMenu
-                  value={share.permission}
-                  onChange={(next) => handlePermissionChange(share.id, next)}
-                  size="small"
-                />
-                <button
-                  type="button"
-                  className="share-dialog__revoke-btn"
-                  onClick={() => handleRevoke(share.id)}
-                  title="Revoke access"
-                >
-                  <UserX size={14} strokeWidth={2} aria-hidden="true" />
-                  Revoke
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
       ) : (
-        <p className="share-dialog__empty">This project hasn't been shared with anyone yet.</p>
+        <div className="share-dialog__list">
+          <span className="share-dialog__list-title">Collaborators</span>
+          {/* Owner row */}
+          <div className="share-dialog__item">
+            <div className="share-dialog__item-info">
+              <Crown size={14} strokeWidth={2} aria-label="Owner" className="share-dialog__item-owner-icon" />
+              <span className="share-dialog__item-email share-dialog__item-email--owner">
+                {userEmail || "You"}
+              </span>
+            </div>
+            <span className="share-dialog__item-role">Owner</span>
+          </div>
+          {/* Collaborator rows */}
+          {shares.length > 0 ? shares.map((share) => (
+            <div key={share.id} className="share-dialog__item-group">
+              <div className="share-dialog__item">
+                <div className="share-dialog__item-info">
+                  {share.status === "accepted" ? (
+                    <UserCheck size={14} strokeWidth={2} aria-label="Accepted" className="share-dialog__item-accepted-icon" />
+                  ) : (
+                    <span className="share-dialog__item-pending-dot" aria-label="Pending" />
+                  )}
+                  <span className="share-dialog__item-email">{share.recipientEmail}</span>
+                  {share.status === "pending" ? <span className="share-dialog__item-pending-label">Pending</span> : null}
+                </div>
+                <div className="share-dialog__item-actions">
+                  <PermissionMenu
+                    value={share.permission}
+                    onChange={(next) => handlePermissionChange(share.id, next)}
+                    onTransferOwnership={share.status === "accepted" ? () => setTransferTarget({ shareId: share.id, email: share.recipientEmail }) : undefined}
+                    showOwnerOption={share.status === "accepted"}
+                    size="small"
+                  />
+                  <button
+                    type="button"
+                    className="share-dialog__revoke-btn"
+                    onClick={() => handleRevoke(share.id)}
+                    title="Revoke access"
+                  >
+                    <UserX size={14} strokeWidth={2} aria-hidden="true" />
+                    Revoke
+                  </button>
+                </div>
+              </div>
+              {transferTarget?.shareId === share.id ? (
+                <div className="share-dialog__transfer-confirm">
+                  <p className="share-dialog__transfer-confirm-text">
+                    Transfer ownership to <strong>{transferTarget.email}</strong>? You will become an editor on this project.
+                  </p>
+                  <div className="share-dialog__transfer-confirm-actions">
+                    <button
+                      type="button"
+                      className="share-dialog__transfer-confirm-btn share-dialog__transfer-confirm-btn--cancel"
+                      onClick={() => setTransferTarget(null)}
+                      disabled={isTransferring}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="share-dialog__transfer-confirm-btn share-dialog__transfer-confirm-btn--confirm"
+                      onClick={handleTransferOwnership}
+                      disabled={isTransferring}
+                    >
+                      {isTransferring ? "Transferring…" : "Transfer"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )) : (
+            <p className="share-dialog__empty">No collaborators yet.</p>
+          )}
+        </div>
       )}
     </>
   )
@@ -251,6 +381,9 @@ type ShareDialogProps = {
   sessionToken: string
   documentId: string
   projectName: string
+  isOwner?: boolean
+  userEmail?: string
+  ownerEmail?: string
 }
 
 export default function ShareDialog({
@@ -259,6 +392,9 @@ export default function ShareDialog({
   sessionToken,
   documentId,
   projectName,
+  isOwner = true,
+  userEmail = "",
+  ownerEmail = "",
 }: ShareDialogProps) {
   const [viewportEl, setViewportEl] = useState<HTMLSpanElement | null>(null)
   const marqueeTextRef = useRef<HTMLSpanElement | null>(null)
@@ -343,6 +479,10 @@ export default function ShareDialog({
         sessionToken={sessionToken}
         documentId={documentId}
         autoLoad={isOpen}
+        isOwner={isOwner}
+        userEmail={userEmail}
+        ownerEmail={ownerEmail}
+        onClose={onClose}
       />
     </Modal>
   )

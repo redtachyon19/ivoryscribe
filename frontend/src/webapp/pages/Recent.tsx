@@ -100,6 +100,7 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
                 isDragging={false}
                 dropClassName=""
                 onOpenProject={onOpenProject}
+                onOpenInNewTab={onOpenProjectInNewTab}
                   onDragStart={multiSelect.handleMultiSectionDragStart}
                 onDragEnd={noop}
                 onDragEnter={noopDragEl}

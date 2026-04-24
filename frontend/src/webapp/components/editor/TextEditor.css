@@ -11,22 +11,56 @@
   color: var(--editor-text, #ffffff);
 }
 
+.editor-document-title-wrap {
+  position: relative;
+  isolation: isolate;
+  margin-top: 34vh;
+  margin-bottom: calc(1em - 0.2em);
+}
+
 .editor-document-title {
+  position: relative;
+  z-index: 2;
   width: 100%;
+  box-sizing: border-box;
+  display: block;
+  padding: 0 0 0.2em;
   border: 0;
   background: transparent;
   outline: none;
-  margin-top: 34vh;
-  margin-bottom: 1em;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
   font-family: var(--app-display-font);
   font-size: 58px;
   line-height: 1.05;
-  color: var(--editor-title, #f5f2ec);
-  caret-color: var(--app-accent, #9ab8ff);
   letter-spacing: 0.01em;
+  color: transparent;
+  caret-color: transparent;
 }
 
-.editor-document-title::selection {
+.editor-document-title:focus {
+  color: var(--editor-title, #f5f2ec);
+  caret-color: var(--app-accent, #9ab8ff);
+}
+
+/* Overlay sits behind the editable (z-index: 1 < 2).
+   Hidden imperatively via onFocus/onBlur in JS — synchronous before paint. */
+.editor-document-title-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  font-family: var(--app-display-font);
+  font-size: 58px;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  color: var(--editor-title, #f5f2ec);
+}
+
+.editor-document-title::selection,
+.editor-document-title *::selection {
   background: rgba(255, 255, 255, 0.24);
   color: #ffffff;
 }

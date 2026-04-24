@@ -118,6 +118,7 @@ export type ProjectCardProps = {
   isDragging: boolean
   dropClassName: string
   onOpenProject: (projectId: string) => void
+  onOpenInNewTab?: (projectId: string) => void
   onDragStart: (projectId: string, event: DragEvent<HTMLElement>) => void
   onDragEnd: () => void
   onDragEnter: (event: DragEvent<HTMLElement>) => void
@@ -135,6 +136,7 @@ export default function ProjectCard({
   isDragging,
   dropClassName,
   onOpenProject,
+  onOpenInNewTab,
   onDragStart,
   onDragEnd,
   onDragEnter,
@@ -216,7 +218,11 @@ export default function ProjectCard({
     if (isEditing) return
     const target = event.target
     if (target instanceof Element && target.closest("button, input, textarea, select, label")) return
-    onOpenProject(project.id)
+    if ((event.metaKey || event.ctrlKey) && onOpenInNewTab) {
+      onOpenInNewTab(project.id)
+    } else {
+      onOpenProject(project.id)
+    }
   }
 
   return (

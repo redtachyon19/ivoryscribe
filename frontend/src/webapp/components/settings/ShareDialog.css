@@ -368,3 +368,150 @@
   text-align: center;
   padding: 16px 0;
 }
+
+/* ── Owner / non-owner views ── */
+
+.share-dialog__item-owner-icon {
+  flex-shrink: 0;
+  color: color-mix(in srgb, #f5c842 80%, var(--menu-button, #ededed));
+}
+
+.share-dialog__item-email--owner {
+  font-style: italic;
+}
+
+.share-dialog__item-role {
+  font-size: 13px;
+  font-family: var(--app-ui-font);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 48%, transparent);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.share-dialog__item-pending-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--menu-button, #ededed) 40%, transparent);
+}
+
+.share-dialog__item-pending-label {
+  font-size: 12px;
+  font-family: var(--app-ui-font);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 44%, transparent);
+  flex-shrink: 0;
+}
+
+.share-dialog__readonly {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.share-dialog__readonly-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-accent, #9ab8ff) 22%, transparent);
+  font-size: 15px;
+  font-family: var(--app-ui-font);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  line-height: 1.45;
+}
+
+.share-dialog__readonly-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: color-mix(in srgb, var(--app-accent, #9ab8ff) 80%, var(--menu-button, #ededed));
+}
+
+/* ── Transfer ownership ── */
+
+.share-dialog__item-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.share-dialog__permission-option--owner {
+  border-bottom: 1px solid color-mix(in srgb, var(--menu-button, #ededed) 12%, transparent);
+  margin-bottom: 4px;
+  padding-bottom: 10px;
+}
+
+.share-dialog__permission-option--owner:hover,
+.share-dialog__permission-option--owner:focus-visible {
+  background: color-mix(in srgb, var(--menu-button, #ededed) 8%, transparent);
+}
+
+.share-dialog__transfer-confirm {
+  margin: 6px 0 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, #f5c842 7%, transparent);
+  border: 1px solid color-mix(in srgb, #f5c842 25%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.share-dialog__transfer-confirm-text {
+  margin: 0;
+  font-size: 14px;
+  font-family: var(--app-ui-font);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 80%, transparent);
+  line-height: 1.45;
+}
+
+.share-dialog__transfer-confirm-text strong {
+  color: var(--menu-button, #ededed);
+  font-weight: 500;
+}
+
+.share-dialog__transfer-confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.share-dialog__transfer-confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, opacity 140ms ease;
+}
+
+.share-dialog__transfer-confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.share-dialog__transfer-confirm-btn--cancel {
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 65%, transparent);
+  border-color: color-mix(in srgb, var(--menu-button, #ededed) 18%, transparent);
+}
+
+.share-dialog__transfer-confirm-btn--cancel:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--menu-button, #ededed) 8%, transparent);
+}
+
+.share-dialog__transfer-confirm-btn--confirm {
+  background: color-mix(in srgb, #f5c842 18%, transparent);
+  color: color-mix(in srgb, #f5c842 90%, var(--menu-button, #ededed));
+  border-color: color-mix(in srgb, #f5c842 30%, transparent);
+}
+
+.share-dialog__transfer-confirm-btn--confirm:hover:not(:disabled) {
+  background: color-mix(in srgb, #f5c842 26%, transparent);
+}

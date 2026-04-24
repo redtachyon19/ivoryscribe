@@ -142,6 +142,8 @@
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
+  max-width: 200px;
+  overflow: hidden;
   cursor: pointer;
 }
 

@@ -155,13 +155,13 @@
 }
 
 .project-browser__row--marquee-selected {
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 14%, transparent);
+  background: transparent;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 60%, transparent);
 }
 
 .project-browser__row--marquee-selected:hover,
 .project-browser__row--active.project-browser__row--marquee-selected {
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, var(--menu-button-hover-bg, #2a2a2a) 52%);
+  background: transparent;
 }
 
 .project-browser__label {
@@ -180,7 +180,6 @@
   align-items: center;
   gap: 8px;
   overflow: hidden;
-  white-space: nowrap;
   opacity: 0.75;
   transition: opacity 320ms ease-in-out;
 }
@@ -199,12 +198,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-.project-browser__label-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 
