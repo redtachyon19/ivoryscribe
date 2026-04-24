@@ -16,9 +16,10 @@ type TrashViewProps = {
   setProjects: Dispatch<SetStateAction<Project[]>>
   onOpenProject: (projectId: string) => void
   onOpenProjectInNewTab: (projectId: string) => void
+  onShredProjects?: (ids: Set<string>) => Promise<void>
 }
 
-export default function TrashView({ projects, setProjects, onOpenProject, onOpenProjectInNewTab }: TrashViewProps) {
+export default function TrashView({ projects, setProjects, onOpenProject, onOpenProjectInNewTab, onShredProjects }: TrashViewProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const { viewMode, toggle: toggleView } = useViewMode()
   const { sortMode, cycleSortMode } = useSortMode("context-desc")
@@ -57,15 +58,20 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
     setConfirmationError("")
   }
 
-  const confirmShred = () => {
+  const confirmShred = async () => {
     if (pendingShredIds.size === 0) return
     if (confirmationText !== requiredPhrase) {
       setConfirmationError("The confirmation text must match exactly.")
       return
     }
-    setProjects((cur) => cur.filter((p) => !pendingShredIds.has(p.id)))
+    const idsToShred = new Set(pendingShredIds)
     closeShredConfirmation()
     multiSelect.clearSelection()
+    if (onShredProjects) {
+      await onShredProjects(idsToShred)
+    } else {
+      setProjects((cur) => cur.filter((p) => !idsToShred.has(p.id)))
+    }
   }
 
   const trashed = useMemo(
@@ -146,6 +152,7 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
                 isDragging={false}
                 dropClassName=""
                 onOpenProject={onOpenProject}
+                onOpenInNewTab={onOpenProjectInNewTab}
                 onDragStart={multiSelect.handleMultiSectionDragStart}
                 onDragEnd={noop}
                 onDragEnter={noopDragEl}

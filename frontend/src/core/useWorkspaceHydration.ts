@@ -4,6 +4,7 @@ import {
   type PendingShareRequest,
   createDocument,
   deleteDocument,
+  leaveShare,
   getBillingStatus,
   getDocuments,
   getPreferences,
@@ -162,12 +163,16 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
   const saveTimeoutRef = useRef<number | null>(null)
   const isSyncingRef = useRef(false)
-  // Stores the JSON content last pushed/pulled per project ID.
-  // Used to detect local edits: if current !== lastPushed, user has unsaved changes.
   const lastPushedContentRef = useRef<Map<string, string>>(new Map())
-  // Track document IDs that belong to shared projects (not owned by this user).
-  // These must not be re-created or deleted during sync.
   const sharedDocumentIdsRef = useRef<Set<string>>(new Set())
+  // Tombstones: project IDs that are being permanently deleted.
+  // Prevents the polling loop from resurrecting them.
+  const shredProjectIdsRef = useRef<Set<string>>(new Set())
+  // Maps project ID → shareId for projects shared WITH this user (recipient side).
+  // Used to call leaveShare when the user shreds a shared project.
+  const shareIdByProjectIdRef = useRef<Map<string, string>>(new Map())
+  // Maps project ID → owner email for projects shared WITH this user (recipient side).
+  const ownerEmailByProjectIdRef = useRef<Map<string, string>>(new Map())
 
   const hydrateWorkspace = async (token: string) => {
     const [documentsResult, preferencesResult, billingResult, sharedResult, pendingResult] = await Promise.allSettled([
@@ -242,6 +247,8 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
         nextProjects.push(sharedProject)
         nextDocumentMap[sharedProject.id] = entry.document.id
         nextSharedDocumentIds.add(entry.document.id)
+        shareIdByProjectIdRef.current.set(sharedProject.id, entry.shareId)
+        ownerEmailByProjectIdRef.current.set(sharedProject.id, entry.owner.email)
       }
     }
     sharedDocumentIdsRef.current = nextSharedDocumentIds
@@ -384,6 +391,8 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           nextSharedDocumentIds.add(entry.document.id)
           // Shared entries take precedence (they're the canonical source for shared projects)
           remoteProjectUpdates.set(sharedProject.id, { project: sharedProject, documentId: entry.document.id })
+          shareIdByProjectIdRef.current.set(sharedProject.id, entry.shareId)
+          ownerEmailByProjectIdRef.current.set(sharedProject.id, entry.owner.email)
         }
         sharedDocumentIdsRef.current = nextSharedDocumentIds
 
@@ -416,7 +425,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
             const localIds = new Set(current.map((p) => p.id))
             for (const [, { project }] of remoteProjectUpdates) {
-              if (!localIds.has(project.id)) {
+              if (!localIds.has(project.id) && !shredProjectIdsRef.current.has(project.id)) {
                 changed = true
                 updated.push(project)
                 lastPushedContentRef.current.set(project.id, JSON.stringify({ ...project, activeId: null }))
@@ -429,6 +438,8 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           setProjectDocumentMap((current) => {
             const additions: Record<string, string> = {}
             for (const [projectId, { documentId }] of remoteProjectUpdates) {
+              // Never re-add a shredded project to the document map
+              if (shredProjectIdsRef.current.has(projectId)) continue
               if (current[projectId] !== documentId) {
                 additions[projectId] = documentId
               }
@@ -485,6 +496,9 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           const nextDocumentMap: Record<string, string> = {}
 
           for (const project of projects) {
+            // Never push a project that has been permanently shredded
+            if (shredProjectIdsRef.current.has(project.id)) continue
+
             const contentJson = JSON.stringify(project)
             const contentForComparison = JSON.stringify({ ...project, activeId: null })
             const payload = {
@@ -534,7 +548,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
                 ? documentRecord.metadata.projectId
                 : null
 
-            if (!projectId || localProjectIds.has(projectId)) {
+            if (!projectId || (localProjectIds.has(projectId) && !shredProjectIdsRef.current.has(projectId))) {
               continue
             }
 
@@ -543,6 +557,15 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
             }
 
             await deleteDocument(session.token, documentRecord.id)
+            // Confirmed remote deletion — safe to clear the tombstone
+            shredProjectIdsRef.current.delete(projectId)
+          }
+
+          // Clear tombstones for shredded projects that had no remote doc at all
+          for (const shredId of shredProjectIdsRef.current) {
+            if (!remoteByProjectId.has(shredId)) {
+              shredProjectIdsRef.current.delete(shredId)
+            }
           }
 
           setProjectDocumentMap(nextDocumentMap)
@@ -561,6 +584,8 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
             if (!sharedProject) continue
             nextSharedDocumentIds.add(entry.document.id)
             sharedProjectUpdates.set(sharedProject.id, { project: sharedProject, documentId: entry.document.id })
+            shareIdByProjectIdRef.current.set(sharedProject.id, entry.shareId)
+            ownerEmailByProjectIdRef.current.set(sharedProject.id, entry.owner.email)
           }
           sharedDocumentIdsRef.current = nextSharedDocumentIds
 
@@ -659,5 +684,43 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     view,
   ])
 
-  return { sharedDocumentIdsRef }
+  const permanentlyDeleteProjects = async (ids: Set<string>) => {
+    if (!session) return
+
+    // 1. Tombstone immediately — prevents polling from resurrecting these projects
+    for (const id of ids) shredProjectIdsRef.current.add(id)
+
+    // 2. Remove from local state immediately
+    setProjects((cur) => cur.filter((p) => !ids.has(p.id)))
+    setProjectDocumentMap((cur) => {
+      const next = { ...cur }
+      for (const id of ids) delete next[id]
+      return next
+    })
+
+    // 3. Directly delete/leave each project on the backend.
+    //    Do NOT rely on the debounced sync — it can be skipped if isSyncingRef is true.
+    for (const projectId of ids) {
+      const shareId = shareIdByProjectIdRef.current.get(projectId)
+      if (shareId) {
+        // Shared project (recipient side): leave the share so it disappears for this user
+        try {
+          await leaveShare(session.token, shareId)
+        } catch { /* best-effort */ }
+        shareIdByProjectIdRef.current.delete(projectId)
+      } else {
+        // Owned project: permanently delete the document
+        const documentId = projectDocumentMap[projectId]
+        if (documentId) {
+          try {
+            await deleteDocument(session.token, documentId)
+          } catch { /* best-effort */ }
+        }
+      }
+      // Clear tombstone — remote is gone
+      shredProjectIdsRef.current.delete(projectId)
+    }
+  }
+
+  return { sharedDocumentIdsRef, shareIdByProjectIdRef, ownerEmailByProjectIdRef, permanentlyDeleteProjects }
 }

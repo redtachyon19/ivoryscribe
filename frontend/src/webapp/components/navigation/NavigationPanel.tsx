@@ -60,6 +60,7 @@ export type NavigationPanelProps = {
   onCreateProject: () => void
   onCreateFolder: () => void
   onOpenProject: (projectId: string) => void
+  onOpenProjectInNewTab?: (projectId: string) => void
   onReturnToDashboard: () => void
   onProjectChange: (updater: (project: Project) => Project) => void
   onToggleWordStats: () => void
@@ -85,6 +86,7 @@ export default function NavigationPanel({
   onCreateProject,
   onCreateFolder,
   onOpenProject,
+  onOpenProjectInNewTab,
   onReturnToDashboard,
   onProjectChange,
   onToggleWordStats,

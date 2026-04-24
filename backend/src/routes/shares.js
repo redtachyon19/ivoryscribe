@@ -109,6 +109,64 @@ router.get("/document/:documentId", async (req, res) => {
   }
 });
 
+// POST /api/shares/transfer-ownership — transfer document ownership to an accepted collaborator
+router.post("/transfer-ownership", async (req, res) => {
+  try {
+    const { documentId, recipientEmail } = req.body;
+
+    if (!documentId || !recipientEmail) {
+      return res.status(400).json({ message: "documentId and recipientEmail are required" });
+    }
+
+    // Verify the current user owns the document
+    const document = await Document.findOne({
+      where: { id: documentId, userId: req.user.id },
+    });
+
+    if (!document) {
+      return res.status(404).json({ message: "Document not found or you are not the owner" });
+    }
+
+    // Find the accepted share to the recipient
+    const share = await Share.findOne({
+      where: {
+        documentId,
+        recipientEmail: recipientEmail.toLowerCase(),
+        ownerId: req.user.id,
+        status: "accepted",
+      },
+    });
+
+    if (!share) {
+      return res.status(404).json({ message: "No accepted collaborator found with that email" });
+    }
+
+    const newOwnerId = share.recipientId;
+    const oldOwnerEmail = req.user.email;
+
+    // Transfer ownership: update Document.userId
+    await document.update({ userId: newOwnerId });
+
+    // Remove the old share (recipient is now the owner)
+    await share.update({ status: "revoked" });
+
+    // Auto-create an accepted share giving the old owner continued editor access
+    await Share.create({
+      documentId,
+      ownerId: newOwnerId,
+      recipientId: req.user.id,
+      recipientEmail: oldOwnerEmail,
+      permission: "edit",
+      status: "accepted",
+      acceptedAt: new Date(),
+    });
+
+    return res.status(200).json({ message: "Ownership transferred successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to transfer ownership", details: error.message });
+  }
+});
+
 // PATCH /api/shares/:shareId — update permission or status
 router.patch("/:shareId", async (req, res) => {
   try {
@@ -219,6 +277,29 @@ router.post("/:shareId/respond", async (req, res) => {
     return res.status(200).json({ message: "Share request rejected" });
   } catch (error) {
     return res.status(500).json({ message: "Failed to respond to share request", details: error.message });
+  }
+});
+
+// POST /api/shares/:shareId/leave — recipient removes themselves from an accepted share
+router.post("/:shareId/leave", async (req, res) => {
+  try {
+    const share = await Share.findOne({
+      where: {
+        id: req.params.shareId,
+        recipientId: req.user.id,
+        status: "accepted",
+      },
+    });
+
+    if (!share) {
+      return res.status(404).json({ message: "Accepted share not found" });
+    }
+
+    await share.update({ status: "rejected" });
+
+    return res.status(200).json({ message: "You have left this shared project" });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to leave shared project", details: error.message });
   }
 });
 

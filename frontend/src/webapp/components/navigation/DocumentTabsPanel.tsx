@@ -5,6 +5,7 @@ import { useListDrag, type DropMode } from "../editor/hooks/useListDrag"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"
+import MarqueeText from "../ui/MarqueeText"
 import TabNode from "./TabNode"
 import usePanelMarquee from "./usePanelMarquee"
 import {
@@ -394,7 +395,7 @@ export default function DocumentTabsPanel({
       </div>
 
       <header className="doc-tabs__header">
-        <p className="doc-tabs__project-name">{projectName}</p>
+        <p className="doc-tabs__project-name" data-marquee-parent><MarqueeText text={projectName} /></p>
       </header>
 
       <div

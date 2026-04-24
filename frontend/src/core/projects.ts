@@ -57,17 +57,6 @@ export function createInitialTabs(kind: ProjectKind): DocumentTab[] {
     {
       id: createId(),
       title: `${singular} 1`,
-      children: [
-        {
-          id: createId(),
-          title: `${singular} 1.1`,
-          children: [],
-        },
-      ],
-    },
-    {
-      id: createId(),
-      title: `${singular} 2`,
       children: [],
     },
   ]
@@ -176,6 +165,19 @@ export function createProject(name: string, kind: ProjectKind): Project {
     activeId: collectTabIds(tabs)[0] ?? null,
     contentById: createContentById(tabs),
   }
+}
+
+export function generateUntitledName(projects: Project[], kind: ProjectKind): string {
+  const base = `Untitled ${kind}`
+  const existingNames = new Set(projects.map((p) => p.name))
+  if (!existingNames.has(base)) {
+    return base
+  }
+  let n = 2
+  while (existingNames.has(`${base} ${n}`)) {
+    n++
+  }
+  return `${base} ${n}`
 }
 
 export function extractCounterFromNames(projects: Project[], kind: ProjectKind) {

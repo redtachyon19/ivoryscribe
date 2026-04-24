@@ -15,6 +15,7 @@ import ProjectSettings from "../settings/ProjectSettings"
 import ShareDialog from "../settings/ShareDialog"
 import Modal from "../ui/Modal"
 import Button from "../ui/Button"
+import MarqueeText from "../ui/MarqueeText"
 import usePanelMarquee from "./usePanelMarquee"
 import useProjectBulkActions from "./useProjectBulkActions"
 import "./ProjectBrowserPanel.css"
@@ -26,6 +27,7 @@ type ProjectBrowserPanelProps = {
   isLibraryView: boolean
   onNavigateLibrary: () => void
   onOpenProject: (projectId: string) => void
+  onOpenProjectInNewTab?: (projectId: string) => void
   setFolders: React.Dispatch<React.SetStateAction<ProjectFolder[]>>
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
   sessionToken: string
@@ -45,6 +47,7 @@ export default function ProjectBrowserPanel({
   isLibraryView,
   onNavigateLibrary,
   onOpenProject,
+  onOpenProjectInNewTab,
   setFolders,
   setProjects,
   sessionToken,
@@ -351,9 +354,16 @@ export default function ProjectBrowserPanel({
             <button
               type="button"
               draggable
+              data-marquee-parent
               className={`project-browser__label ${isDragging ? "project-browser__label--dragging" : ""}`.trim()}
               style={{ paddingLeft: `${8 + depth * 16}px` }}
-              onClick={() => onOpenProject(project.id)}
+              onClick={(event) => {
+                if ((event.metaKey || event.ctrlKey) && onOpenProjectInNewTab) {
+                  onOpenProjectInNewTab(project.id)
+                } else {
+                  onOpenProject(project.id)
+                }
+              }}
               onDragStart={(event) => handleProjectDragStart(event, project.id)}
               onDragEnd={handleProjectDragEnd}
               onContextMenu={(event) => {
@@ -368,7 +378,7 @@ export default function ProjectBrowserPanel({
               <span className="project-browser__icon">
                 <Icon size={14} strokeWidth={1.8} aria-hidden="true" />
               </span>
-              <span className="project-browser__label-text">{project.name}</span>
+              <MarqueeText text={project.name} />
             </button>
           )}
 
@@ -453,6 +463,7 @@ export default function ProjectBrowserPanel({
               <button
                 type="button"
                 draggable
+                data-marquee-parent
                 className="project-browser__label"
                 onClick={() => toggleFolder(folder.id)}
                 onDragStart={(event) => {
@@ -467,7 +478,7 @@ export default function ProjectBrowserPanel({
                 <span className="project-browser__icon">
                   <Folder size={14} strokeWidth={1.8} aria-hidden="true" />
                 </span>
-                <span className="project-browser__label-text">{folder.name}</span>
+                <MarqueeText text={folder.name} />
               </button>
 
               {hasProjects ? (

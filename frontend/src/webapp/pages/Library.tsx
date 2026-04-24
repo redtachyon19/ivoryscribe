@@ -7,7 +7,7 @@ import { exportProjectAsPdf } from "../components/export/pdfExport"
 import { exportProjectAsDocx } from "../components/export/docxExport"
 import { downloadProjectAsMarkdown } from "../components/export/markdownExport"
 import { exportProjectAsTxt } from "../components/export/txtExport"
-import { collectTabIds, createProject, type Project } from "../../core/projects"
+import { collectTabIds, createProject, generateUntitledName, type Project } from "../../core/projects"
 import { createLocalId, duplicateProject } from "../../core/libraryUtils"
 import type { VersionSettingsEntry } from "../../core/versioning"
 import ProjectSettings from "../components/settings/ProjectSettings"
@@ -55,6 +55,9 @@ export type LibraryProps = {
   onAcceptShareRequest: (shareId: string) => void
   onRejectShareRequest: (shareId: string) => void
   onRefreshPendingShareRequests: () => void
+  userEmail?: string
+  sharedProjectIds?: Set<string>
+  ownerEmailByProjectId?: Map<string, string>
 }
 
 export default function Library({
@@ -76,6 +79,10 @@ export default function Library({
   pendingShareRequests,
   onAcceptShareRequest,
   onRejectShareRequest,
+  onRefreshPendingShareRequests,
+  userEmail,
+  sharedProjectIds,
+  ownerEmailByProjectId,
 }: LibraryProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -182,12 +189,11 @@ export default function Library({
   }
 
   const createNewProject = (folderId?: string) => {
-    const nextName = `Book ${bookCounter}`
+    const nextName = generateUntitledName(projects, "Book")
     const nextProject = createProject(nextName, "Book")
     setProjects((cur) => [{ ...nextProject, folderId: folderId ?? null, rootPosition: folderId ? nextProject.rootPosition : "top" }, ...cur])
     setActiveProjectId(nextProject.id)
     setSelectedProjectId(nextProject.id)
-    setBookCounter((c) => c + 1)
     onProjectCreated?.(nextProject)
   }
 
@@ -222,6 +228,7 @@ export default function Library({
       isDragging={drag.draggingProjectId === project.id || multiSelect.isMultiDragging(project.id, drag.draggingProjectId)}
       dropClassName={drag.getProjectDropClassName(project.id)}
       onOpenProject={onOpenProject}
+      onOpenInNewTab={onOpenProjectInNewTab}
       onDragStart={multiSelect.handleMultiDragStart}
       onDragEnd={multiSelect.handleMultiDragEnd}
       onDragEnter={drag.updateProjectDropTarget(project)}
@@ -585,6 +592,9 @@ export default function Library({
           sessionToken={sessionToken}
           documentId={shareDialogDocumentId}
           projectName={shareDialogProject?.name ?? "Untitled"}
+          isOwner={!sharedProjectIds?.has(shareDialogProjectId)}
+          userEmail={userEmail ?? ""}
+          ownerEmail={ownerEmailByProjectId?.get(shareDialogProjectId) ?? ""}
         />
       ) : null}
     </>
