@@ -5,6 +5,7 @@ import ProjectBrowserPanel from "./ProjectBrowserPanel"
 import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../../core/projects"
 import type { ProjectFolder } from "../../pages/Library"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
+import { deepCloneTab, findNode, insertRelative } from "./tabTreeUtils"
 
 
 
@@ -164,6 +165,39 @@ export default function NavigationPanel({
     })
   }
 
+  const handleOpenTabInNewTab = (tabId: string) => {
+    if (!project) return
+    const url = new URL("/app", window.location.origin)
+    url.searchParams.set("projectId", project.id)
+    url.searchParams.set("tabId", tabId)
+    window.open(url.toString(), "_blank")
+  }
+
+  const handleDuplicateTab = (tabId: string) => {
+    if (!project) return
+    onProjectChange((currentProject) => {
+      const node = findNode(currentProject.tabs, tabId)
+      if (!node) return currentProject
+
+      const { cloned, idMap } = deepCloneTab(node, createId)
+
+      const nextContentById = { ...currentProject.contentById }
+      idMap.forEach((newId, oldId) => {
+        nextContentById[newId] = currentProject.contentById[oldId] ?? ""
+      })
+
+      const inserted = insertRelative(currentProject.tabs, tabId, cloned, "after")
+      const nextTabs = inserted.inserted ? inserted.nextNodes : [...currentProject.tabs, cloned]
+
+      return {
+        ...currentProject,
+        activeId: cloned.id,
+        tabs: nextTabs,
+        contentById: nextContentById,
+      }
+    })
+  }
+
   const handleOpenCreateMoreMenu = (event: MouseEvent<HTMLButtonElement>) => {
     const buttonRect = event.currentTarget.getBoundingClientRect()
     setCreateMoreMenu({
@@ -268,6 +302,7 @@ export default function NavigationPanel({
               isLibraryView={view === "projects"}
               onNavigateLibrary={onReturnToDashboard}
               onOpenProject={onOpenProject}
+              onOpenProjectInNewTab={onOpenProjectInNewTab}
               setFolders={setFolders}
               setProjects={setProjects}
               sessionToken={sessionToken}
@@ -298,6 +333,8 @@ export default function NavigationPanel({
                 onCreateEntry={handleCreateEntry}
                 onCreatePinboard={handleCreatePinboard}
                 onCreateMarkdown={handleCreateMarkdown}
+                onOpenTabInNewTab={handleOpenTabInNewTab}
+                onDuplicateTab={handleDuplicateTab}
               />
             ) : null}
           </div>

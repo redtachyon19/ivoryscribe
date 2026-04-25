@@ -49,7 +49,7 @@ export function useAppOrchestration() {
   const versioningResetRef = useRef<(v: Record<string, never>) => void>(() => {})
 
   // ── composed hooks ───────────────────────────────────────────
-  const { currentPathname, requestedProjectId, checkoutResult, passwordResetToken, navigateTo, navigateReplace } = useRouting()
+  const { currentPathname, requestedProjectId, requestedTabId, checkoutResult, passwordResetToken, navigateTo, navigateReplace } = useRouting()
   const style = useAppStyle()
 
   const {
@@ -158,7 +158,15 @@ export function useAppOrchestration() {
     if (!projects.some((p) => p.id === requestedProjectId)) return
     setActiveProjectId(requestedProjectId)
     setView("editor")
-  }, [currentPathname, isWorkspaceHydrated, projects, requestedProjectId])
+    if (requestedTabId) {
+      setProjects((cur) => cur.map((p) => {
+        if (p.id !== requestedProjectId) return p
+        const tabIds = p.tabs.flatMap(function collect(t): string[] { return [t.id, ...t.children.flatMap(collect)] })
+        if (!tabIds.includes(requestedTabId)) return p
+        return { ...p, activeId: requestedTabId }
+      }))
+    }
+  }, [currentPathname, isWorkspaceHydrated, projects, requestedProjectId, requestedTabId])
 
   // ── share request handlers ────────────────────────────────────
   const handleAcceptShareRequest = async (shareId: string) => {

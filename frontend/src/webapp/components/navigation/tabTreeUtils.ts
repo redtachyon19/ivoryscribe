@@ -234,3 +234,25 @@ export function moveNodes(tabs: DocumentTab[], sourceIds: string[], targetId: st
   const orderedSourceIds = mode === "after" ? [...sourceIds].reverse() : sourceIds
   return orderedSourceIds.reduce((current, sourceId) => moveNode(current, sourceId, targetId, mode), tabs)
 }
+
+// Deep-clones a tab tree node, assigning new IDs throughout.
+// Returns the cloned node and a map of oldId → newId for content duplication.
+export function deepCloneTab(
+  node: DocumentTab,
+  generateId: () => string,
+): { cloned: DocumentTab; idMap: Map<string, string> } {
+  const idMap = new Map<string, string>()
+
+  function cloneNode(n: DocumentTab): DocumentTab {
+    const newId = generateId()
+    idMap.set(n.id, newId)
+    return {
+      id: newId,
+      title: n.title,
+      children: n.children.map(cloneNode),
+    }
+  }
+
+  const cloned = cloneNode(node)
+  return { cloned, idMap }
+}

@@ -781,6 +781,9 @@ export default function Editor({
       onToggleWordStats={() => setIsWordStatsOpen((prev) => !prev)}
       sessionToken={sessionToken}
       projectDocumentMap={projectDocumentMap}
+      sharedProjectIds={sharedProjectIds}
+      ownerEmailByProjectId={ownerEmailByProjectId}
+      userEmail={userEmail}
       tuskAiActivated={tuskAiActivated}
       isStartingTuskCheckout={isStartingTuskCheckout}
       onStartTuskCheckout={onStartTuskCheckout}
