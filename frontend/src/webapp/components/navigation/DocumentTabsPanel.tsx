@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
-import { FilePlus2, FileText, Pencil, Presentation, Trash2 } from "lucide-react"
+import { Copy, ExternalLink, FilePlus2, FileText, Pencil, Presentation, Trash2 } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../../core/projects"
 import { useListDrag, type DropMode } from "../editor/hooks/useListDrag"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
@@ -31,6 +31,8 @@ type DocumentTabsProps = {
   onCreateEntry: () => void
   onCreatePinboard: () => void
   onCreateMarkdown: () => void
+  onOpenTabInNewTab?: (tabId: string) => void
+  onDuplicateTab?: (tabId: string) => void
 }
 
 type TabsContextMenuState =
@@ -48,6 +50,8 @@ export default function DocumentTabsPanel({
   onCreateEntry,
   onCreatePinboard,
   onCreateMarkdown,
+  onOpenTabInNewTab,
+  onDuplicateTab,
 }: DocumentTabsProps) {
   const drag = useListDrag()
   const { draggingId, dropTarget, setDraggingId, setDropTarget } = drag
@@ -438,6 +442,7 @@ export default function DocumentTabsPanel({
               editingId={editingId}
               editingTitle={editingTitle}
               onSelect={onSelect}
+              onOpenInNewTab={onOpenTabInNewTab}
               onDragStart={(event, id) => {
                 handleTabDragStart(event, id)
               }}
@@ -558,11 +563,27 @@ export default function DocumentTabsPanel({
             const tab = findNode(tabs, contextMenu.tabId)
             if (!tab) return []
             const actions: ContextMenuAction[] = [
+              ...(onOpenTabInNewTab ? [{
+                label: "Open in New Tab",
+                icon: <ExternalLink size={15} strokeWidth={1.9} aria-hidden="true" />,
+                action: () => {
+                  onOpenTabInNewTab(contextMenu.tabId)
+                  closeContextMenu()
+                },
+              }] : []),
               {
                 label: "Rename",
                 icon: <Pencil size={15} strokeWidth={1.9} aria-hidden="true" />,
                 action: () => startRename(contextMenu.tabId, tab.title),
               },
+              ...(onDuplicateTab ? [{
+                label: "Duplicate",
+                icon: <Copy size={15} strokeWidth={1.9} aria-hidden="true" />,
+                action: () => {
+                  onDuplicateTab(contextMenu.tabId)
+                  closeContextMenu()
+                },
+              }] : []),
               {
                 label: "Trash",
                 icon: <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />,

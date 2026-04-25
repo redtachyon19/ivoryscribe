@@ -13,6 +13,7 @@ export type TabNodeProps = {
   editingId: string | null
   editingTitle: string
   onSelect: (id: string) => void
+  onOpenInNewTab?: (id: string) => void
   onDragStart: (event: DragEvent<HTMLButtonElement>, id: string) => void
   onDragEnd: () => void
   onDropTargetChange: (target: DropTarget) => void
@@ -38,6 +39,7 @@ export default function TabNode({
   editingId,
   editingTitle,
   onSelect,
+  onOpenInNewTab,
   onDragStart,
   onDragEnd,
   onDropTargetChange,
@@ -166,8 +168,13 @@ export default function TabNode({
               draggable
               className={`doc-tabs__label ${isDragging ? "doc-tabs__row--dragging" : ""}`.trim()}
               style={{ paddingLeft: `${8 + depth * 16}px` }}
-              onClick={() => {
-                onSelect(tab.id)
+              onClick={(event) => {
+                if ((event.metaKey || event.ctrlKey) && onOpenInNewTab) {
+                  event.preventDefault()
+                  onOpenInNewTab(tab.id)
+                } else {
+                  onSelect(tab.id)
+                }
               }}
               onDragStart={(event) => {
                 onDragStart(event, tab.id)
@@ -253,6 +260,7 @@ export default function TabNode({
               editingId={editingId}
               editingTitle={editingTitle}
               onSelect={onSelect}
+              onOpenInNewTab={onOpenInNewTab}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
               onDropTargetChange={onDropTargetChange}

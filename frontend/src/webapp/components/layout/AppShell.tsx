@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
-import { ArrowLeft, ArrowRight, BookText, Folder, PanelLeft, PanelRight, Settings } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
+import { Archive, ArrowLeft, ArrowRight, BookCopy, BookText, Copy, ExternalLink, Folder, Pencil, PanelLeft, PanelRight, Settings, Settings2, Trash2, UserRoundPlus } from "lucide-react"
 import NavigationPanel from "../navigation/NavigationPanel"
 import TuskAiTab from "../ai/TuskAiTab"
 import MarqueeText from "../ui/MarqueeText"
-import type { Project } from "../../../core/projects"
+import Modal from "../ui/Modal"
+import Button from "../ui/Button"
+import ShareDialog from "../settings/ShareDialog"
+import ProjectContextMenu from "../library/ProjectContextMenu"
+import type { ContextMenuAction } from "../library/ProjectContextMenu"
+import { createId, type Project } from "../../../core/projects"
 import type { ProjectFolder } from "../../pages/Library"
+import { duplicateProject } from "../../../core/libraryUtils"
+import { deepCloneTab, findNode, insertRelative } from "../navigation/tabTreeUtils"
 import "../../pages/Editor.css"
 
 const STORAGE_LIMIT_GB = 15
@@ -38,6 +45,9 @@ export type AppShellProps = {
   onToggleWordStats: () => void
   sessionToken: string
   projectDocumentMap: Record<string, string>
+  sharedProjectIds?: Set<string>
+  ownerEmailByProjectId?: Map<string, string>
+  userEmail?: string
   tuskAiActivated: boolean
   isStartingTuskCheckout: boolean
   onStartTuskCheckout: () => void
@@ -72,6 +82,9 @@ export default function AppShell({
   onToggleWordStats,
   sessionToken,
   projectDocumentMap,
+  sharedProjectIds,
+  ownerEmailByProjectId,
+  userEmail = "",
   tuskAiActivated,
   isStartingTuskCheckout,
   onStartTuskCheckout,
@@ -85,6 +98,225 @@ export default function AppShell({
   const [sidebarSlide, setSidebarSlide] = useState<1 | 2>(view === "projects" ? 1 : 2)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const panelSeparatorWidth = 8
+
+  type TopbarContextMenu = { x: number; y: number } & (
+    | { kind: "folder" }
+    | { kind: "project" }
+    | { kind: "tab"; tabId: string }
+  )
+  const [topbarMenu, setTopbarMenu] = useState<TopbarContextMenu | null>(null)
+  const closeTopbarMenu = useCallback(() => setTopbarMenu(null), [])
+
+  // Rename modal state
+  type RenameTarget = { kind: "project"; id: string } | { kind: "folder"; id: string } | { kind: "tab"; id: string }
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
+  const [renameValue, setRenameValue] = useState("")
+  const closeRenameModal = () => { setRenameTarget(null); setRenameValue("") }
+  const commitRename = () => {
+    const trimmed = renameValue.trim()
+    if (!trimmed || !renameTarget) { closeRenameModal(); return }
+    if (renameTarget.kind === "project") {
+      setProjects((cur) => cur.map((p) => p.id === renameTarget.id ? { ...p, name: trimmed } : p))
+    } else if (renameTarget.kind === "folder") {
+      setFolders((cur) => cur.map((f) => f.id === renameTarget.id ? { ...f, name: trimmed } : f))
+    } else if (renameTarget.kind === "tab") {
+      onProjectChange((p) => ({
+        ...p,
+        tabs: (function renameNode(tabs: Project["tabs"]): Project["tabs"] {
+          return tabs.map((t) => t.id === renameTarget.id ? { ...t, title: trimmed } : { ...t, children: renameNode(t.children) })
+        })(p.tabs),
+      }))
+    }
+    closeRenameModal()
+  }
+
+  // Share dialog state
+  const [shareProjectId, setShareProjectId] = useState<string | null>(null)
+  const shareDocumentId = shareProjectId ? (projectDocumentMap[shareProjectId] ?? null) : null
+  const shareProject = shareProjectId ? projects.find((p) => p.id === shareProjectId) ?? null : null
+
+  const handleProjectSegmentContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    setTopbarMenu({ x: event.clientX, y: event.clientY, kind: "project" })
+  }, [])
+
+  const handleFolderSegmentContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    setTopbarMenu({ x: event.clientX, y: event.clientY, kind: "folder" })
+  }, [])
+
+  const handleTabSegmentContextMenu = useCallback((event: React.MouseEvent, tabId: string) => {
+    event.preventDefault()
+    setTopbarMenu({ x: event.clientX, y: event.clientY, kind: "tab", tabId })
+  }, [])
+
+  const topbarMenuActions = useMemo((): ContextMenuAction[] => {
+    if (!topbarMenu) return []
+
+    if (topbarMenu.kind === "folder") {
+      const folder = folders.find((f) => f.name === activeFolderName)
+      return [
+        {
+          label: "Open in New Tab",
+          icon: <ExternalLink size={14} strokeWidth={2} aria-hidden={true} />,
+          action: () => { window.open(new URL("/app", window.location.origin).toString(), "_blank"); closeTopbarMenu() },
+        },
+        {
+          label: "Rename",
+          icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />,
+          action: () => {
+            if (folder) { setRenameTarget({ kind: "folder", id: folder.id }); setRenameValue(folder.name) }
+            closeTopbarMenu()
+          },
+        },
+        {
+          label: "Archive",
+          icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />,
+          action: () => {
+            if (folder) setProjects((cur) => cur.map((p) => p.folderId === folder.id ? { ...p, archivedAt: new Date().toISOString() } : p))
+            closeTopbarMenu()
+          },
+        },
+        {
+          label: "Trash",
+          icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />,
+          action: () => {
+            if (folder) {
+              setProjects((cur) => cur.map((p) => p.folderId === folder.id ? { ...p, folderId: null } : p))
+              setFolders((cur) => cur.filter((f) => f.id !== folder.id))
+            }
+            closeTopbarMenu()
+          },
+          danger: true,
+        },
+      ]
+    }
+
+    if (topbarMenu.kind === "project") {
+      const actions: ContextMenuAction[] = []
+      if (onOpenProjectInNewTab && project) {
+        actions.push({
+          label: "Open in New Tab",
+          icon: <ExternalLink size={14} strokeWidth={2} aria-hidden={true} />,
+          action: () => { onOpenProjectInNewTab(project.id); closeTopbarMenu() },
+        })
+      }
+      if (project) {
+        actions.push(
+          {
+            label: "Rename",
+            icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => { setRenameTarget({ kind: "project", id: project.id }); setRenameValue(project.name); closeTopbarMenu() },
+          },
+          {
+            label: "Open Project Settings",
+            icon: <Settings2 size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => { onToggleSettings(); closeTopbarMenu() },
+          },
+          {
+            label: "Duplicate",
+            icon: <BookCopy size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => { setProjects((cur) => duplicateProject(cur, project.id)); closeTopbarMenu() },
+          },
+        )
+        if (projectDocumentMap[project.id]) {
+          actions.push({
+            label: "Share",
+            icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => { setShareProjectId(project.id); closeTopbarMenu() },
+          })
+        }
+        actions.push(
+          {
+            label: "Archive",
+            icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => {
+              setProjects((cur) => cur.map((p) => p.id === project.id ? { ...p, archivedAt: new Date().toISOString() } : p))
+              onReturnToDashboard()
+              closeTopbarMenu()
+            },
+          },
+          {
+            label: "Trash",
+            icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => {
+              setProjects((cur) => cur.map((p) => p.id === project.id ? { ...p, deletedAt: new Date().toISOString() } : p))
+              onReturnToDashboard()
+              closeTopbarMenu()
+            },
+            danger: true,
+          },
+        )
+      }
+      return actions
+    }
+
+    if (topbarMenu.kind === "tab") {
+      const { tabId } = topbarMenu
+      const actions: ContextMenuAction[] = []
+      if (project) {
+        const tabNode = findNode(project.tabs, tabId)
+        actions.push(
+          {
+            label: "Open in New Tab",
+            icon: <ExternalLink size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => {
+              const url = new URL("/app", window.location.origin)
+              url.searchParams.set("projectId", project.id)
+              url.searchParams.set("tabId", tabId)
+              window.open(url.toString(), "_blank")
+              closeTopbarMenu()
+            },
+          },
+          {
+            label: "Rename",
+            icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => {
+              setRenameTarget({ kind: "tab", id: tabId })
+              setRenameValue(tabNode?.title ?? "")
+              closeTopbarMenu()
+            },
+          },
+          {
+            label: "Duplicate",
+            icon: <Copy size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => {
+              onProjectChange((currentProject) => {
+                const node = findNode(currentProject.tabs, tabId)
+                if (!node) return currentProject
+                const { cloned, idMap } = deepCloneTab(node, createId)
+                const nextContentById = { ...currentProject.contentById }
+                idMap.forEach((newId, oldId) => { nextContentById[newId] = currentProject.contentById[oldId] ?? "" })
+                const inserted = insertRelative(currentProject.tabs, tabId, cloned, "after")
+                const nextTabs = inserted.inserted ? inserted.nextNodes : [...currentProject.tabs, cloned]
+                return { ...currentProject, activeId: cloned.id, tabs: nextTabs, contentById: nextContentById }
+              })
+              closeTopbarMenu()
+            },
+          },
+          {
+            label: "Trash",
+            icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />,
+            action: () => {
+              onProjectChange((currentProject) => {
+                const nextTabs = (function remove(tabs: Project["tabs"]): Project["tabs"] {
+                  return tabs.filter((t) => t.id !== tabId).map((t) => ({ ...t, children: remove(t.children) }))
+                })(currentProject.tabs)
+                const remainingIds = nextTabs.flatMap(function collect(t): string[] { return [t.id, ...t.children.flatMap(collect)] })
+                const nextActiveId = currentProject.activeId === tabId ? (remainingIds[0] ?? null) : currentProject.activeId
+                return { ...currentProject, tabs: nextTabs, activeId: nextActiveId }
+              })
+              closeTopbarMenu()
+            },
+            danger: true,
+          },
+        )
+      }
+      return actions
+    }
+
+    return []
+  }, [topbarMenu, project, folders, activeFolderName, onOpenProjectInNewTab, onToggleSettings, onProjectChange, onReturnToDashboard, projectDocumentMap, setProjects, setFolders, closeTopbarMenu])
 
   const estimatedStorageBytes = useMemo(() => {
     const projectBytes = projects.reduce((total, item) => total + new Blob([JSON.stringify(item)]).size, 0)
@@ -188,7 +420,14 @@ export default function AppShell({
                   type="button"
                   data-marquee-parent
                   className="editor-workspace__doc-path-btn editor-workspace__doc-path-segment editor-workspace__doc-path-segment--folder"
-                  onClick={handleReturnToDashboard}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey) {
+                      window.open(new URL("/app", window.location.origin).toString(), "_blank")
+                    } else {
+                      handleReturnToDashboard()
+                    }
+                  }}
+                  onContextMenu={handleFolderSegmentContextMenu}
                   aria-label="Open project folder"
                 >
                   <Folder size={14} aria-hidden={true} />
@@ -199,7 +438,14 @@ export default function AppShell({
                   type="button"
                   data-marquee-parent
                   className="editor-workspace__doc-path-btn editor-workspace__doc-path-segment"
-                  onClick={handleReturnToDashboard}
+                  onClick={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && onOpenProjectInNewTab) {
+                      onOpenProjectInNewTab(project.id)
+                    } else {
+                      handleReturnToDashboard()
+                    }
+                  }}
+                  onContextMenu={handleProjectSegmentContextMenu}
                   aria-label="Open library"
                 >
                   <MarqueeText text={project.name} />
@@ -210,7 +456,14 @@ export default function AppShell({
                 type="button"
                 data-marquee-parent
                 className="editor-workspace__doc-path-btn editor-workspace__doc-path-segment editor-workspace__doc-path-segment--folder"
-                onClick={handleReturnToDashboard}
+                onClick={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && onOpenProjectInNewTab) {
+                    onOpenProjectInNewTab(project.id)
+                  } else {
+                    handleReturnToDashboard()
+                  }
+                }}
+                onContextMenu={handleProjectSegmentContextMenu}
                 aria-label="Open library"
               >
                 <BookText size={14} aria-hidden={true} />
@@ -226,12 +479,20 @@ export default function AppShell({
                   type="button"
                   data-marquee-parent
                   className={`editor-workspace__doc-path-btn editor-workspace__doc-path-segment ${index === activeTabPath.length - 1 ? "editor-workspace__doc-path-segment--active" : ""}`.trim()}
-                  onClick={() => {
-                    onProjectChange((currentProject) => ({
-                      ...currentProject,
-                      activeId: node.id,
-                    }))
+                  onClick={(event) => {
+                    if (event.metaKey || event.ctrlKey) {
+                      const url = new URL("/app", window.location.origin)
+                      url.searchParams.set("projectId", project.id)
+                      url.searchParams.set("tabId", node.id)
+                      window.open(url.toString(), "_blank")
+                    } else {
+                      onProjectChange((currentProject) => ({
+                        ...currentProject,
+                        activeId: node.id,
+                      }))
+                    }
                   }}
+                  onContextMenu={(e) => handleTabSegmentContextMenu(e, node.id)}
                   aria-label={`Open ${node.title}`}
                 >
                   <MarqueeText text={node.title} />
@@ -278,6 +539,15 @@ export default function AppShell({
         >
           <PanelRight size={16} aria-hidden={true} />
         </button>
+
+        {topbarMenu && topbarMenuActions.length > 0 ? (
+          <ProjectContextMenu
+            x={topbarMenu.x}
+            y={topbarMenu.y}
+            actions={topbarMenuActions}
+            onClose={closeTopbarMenu}
+          />
+        ) : null}
       </div>
 
       <div
@@ -369,6 +639,43 @@ export default function AppShell({
           ) : null}
         </aside>
       </div>
+
+      {/* Rename modal */}
+      <Modal
+        isOpen={Boolean(renameTarget)}
+        onClose={closeRenameModal}
+        title="Rename"
+        titleIcon={<Pencil size={19} strokeWidth={1.9} aria-hidden="true" />}
+        closeLabel="Cancel"
+        footer={(
+          <Button variant="footer" onClick={commitRename}>
+            Rename
+          </Button>
+        )}
+      >
+        <input
+          className="doc-tabs__rename-input"
+          style={{ width: "100%", boxSizing: "border-box" }}
+          value={renameValue}
+          autoFocus
+          onChange={(e) => setRenameValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitRename() } else if (e.key === "Escape") closeRenameModal() }}
+        />
+      </Modal>
+
+      {/* Share dialog */}
+      {shareProject && shareDocumentId ? (
+        <ShareDialog
+          isOpen={true}
+          onClose={() => setShareProjectId(null)}
+          sessionToken={sessionToken}
+          documentId={shareDocumentId}
+          projectName={shareProject.name}
+          isOwner={!sharedProjectIds?.has(shareProject.id)}
+          userEmail={userEmail}
+          ownerEmail={ownerEmailByProjectId?.get(shareProject.id) ?? ""}
+        />
+      ) : null}
     </div>
   )
 }

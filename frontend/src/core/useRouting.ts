@@ -37,6 +37,15 @@ export function useRouting() {
     return url.searchParams.get("projectId")?.trim() ?? ""
   }, [currentLocation, currentPathname])
 
+  const requestedTabId = useMemo(() => {
+    if (typeof window === "undefined" || currentPathname !== "/app") {
+      return ""
+    }
+
+    const url = new URL(currentLocation, window.location.origin)
+    return url.searchParams.get("tabId")?.trim() ?? ""
+  }, [currentLocation, currentPathname])
+
   const checkoutResult = useMemo(() => {
     if (typeof window === "undefined" || currentPathname !== "/app") {
       return {
@@ -80,6 +89,7 @@ export function useRouting() {
     setCurrentLocation,
     currentPathname,
     requestedProjectId,
+    requestedTabId,
     checkoutResult,
     passwordResetToken,
     navigateTo,
