@@ -51,6 +51,12 @@ export type AppShellProps = {
   tuskAiActivated: boolean
   isStartingTuskCheckout: boolean
   onStartTuskCheckout: () => void
+  /** When true, the topbar shows a Drafting/Typewriter view toggle. */
+  viewToggleAvailable?: boolean
+  /** Current view mode for the active prose tab. */
+  viewMode?: "drafting" | "typewriter"
+  /** Flips the active prose tab between Drafting and Typewriter. */
+  onToggleViewMode?: () => void
   children: ReactNode
 }
 
@@ -88,6 +94,9 @@ export default function AppShell({
   tuskAiActivated,
   isStartingTuskCheckout,
   onStartTuskCheckout,
+  viewToggleAvailable = false,
+  viewMode = "drafting",
+  onToggleViewMode,
   children,
 }: AppShellProps) {
   const [isLeftRailOpen, setIsLeftRailOpen] = useState(true)
@@ -98,6 +107,41 @@ export default function AppShell({
   const [sidebarSlide, setSidebarSlide] = useState<1 | 2>(view === "projects" ? 1 : 2)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const panelSeparatorWidth = 8
+
+  /* ── View-toggle sliding-pill indicator ──
+     Mirrors the global settings sidebar pattern: a single absolutely
+     positioned pill animates left/width to whichever pill is active, instead
+     of swapping a coloured background between the two options. */
+  const viewToggleRefs = useRef<{ drafting: HTMLButtonElement | null; typewriter: HTMLButtonElement | null }>({
+    drafting: null,
+    typewriter: null,
+  })
+  const [viewIndicatorStyle, setViewIndicatorStyle] = useState<{ left: number; width: number; visible: boolean }>({
+    left: 0, width: 0, visible: false,
+  })
+  useEffect(() => {
+    if (!viewToggleAvailable) {
+      setViewIndicatorStyle((c) => (c.visible ? { left: 0, width: 0, visible: false } : c))
+      return
+    }
+    const active = viewToggleRefs.current[viewMode]
+    if (!active) return
+    const parent = active.parentElement
+    if (!parent) return
+    const sync = () => {
+      const parentRect = parent.getBoundingClientRect()
+      const itemRect = active.getBoundingClientRect()
+      const left = itemRect.left - parentRect.left
+      const width = itemRect.width
+      setViewIndicatorStyle((c) =>
+        c.left === left && c.width === width && c.visible ? c : { left, width, visible: true },
+      )
+    }
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(parent)
+    return () => ro.disconnect()
+  }, [viewMode, viewToggleAvailable])
 
   type TopbarContextMenu = { x: number; y: number } & (
     | { kind: "folder" }
@@ -531,6 +575,42 @@ export default function AppShell({
           </div>
         </div>
         )}
+        {viewToggleAvailable ? (
+          <div className="editor-workspace__view-toggle" role="tablist" aria-label="Editor view mode">
+            <span
+              className="editor-workspace__view-toggle-indicator"
+              style={{
+                left: `${viewIndicatorStyle.left}px`,
+                width: `${viewIndicatorStyle.width}px`,
+                opacity: viewIndicatorStyle.visible ? 1 : 0,
+              }}
+              aria-hidden={true}
+            />
+            <button
+              ref={(el) => { viewToggleRefs.current.drafting = el }}
+              type="button"
+              role="tab"
+              aria-selected={viewMode === "drafting"}
+              className={`editor-workspace__view-toggle-pill${viewMode === "drafting" ? " editor-workspace__view-toggle-pill--active" : ""}`}
+              onClick={() => { if (viewMode !== "drafting") onToggleViewMode?.() }}
+              title="Drafting view"
+            >
+              Draft
+            </button>
+            <button
+              ref={(el) => { viewToggleRefs.current.typewriter = el }}
+              type="button"
+              role="tab"
+              aria-selected={viewMode === "typewriter"}
+              className={`editor-workspace__view-toggle-pill${viewMode === "typewriter" ? " editor-workspace__view-toggle-pill--active" : ""}`}
+              onClick={() => { if (viewMode !== "typewriter") onToggleViewMode?.() }}
+              title="Typewriter view"
+            >
+              Typewriter
+            </button>
+          </div>
+        ) : null}
+
         <button
           type="button"
           className="editor-workspace__panel-toggle"
@@ -555,6 +635,14 @@ export default function AppShell({
         className={`editor-workspace__body ${!isLeftRailOpen ? "editor-workspace__body--collapsed-left" : ""} ${!isRightRailOpen ? "editor-workspace__body--collapsed-right" : ""} ${draggingPanel ? "editor-workspace__body--dragging" : ""}`.trim()}
         style={{
           gridTemplateColumns: `${isLeftRailOpen ? leftPanelWidth : 0}px ${isLeftRailOpen ? panelSeparatorWidth : 0}px 1fr ${isRightRailOpen ? panelSeparatorWidth : 0}px ${isRightRailOpen ? rightPanelWidth : 0}px`,
+          // Expose rail widths so descendants (e.g. the typewriter scroll) can
+          // anchor their content to the viewport center regardless of which
+          // rails are open. `--rail-left-natural-w` always reflects the rail's
+          // natural width (open or not) so editors can keep content fixed in
+          // viewport space when a panel collapses.
+          ["--rail-left-w" as string]: `${isLeftRailOpen ? leftPanelWidth + panelSeparatorWidth : 0}px`,
+          ["--rail-right-w" as string]: `${isRightRailOpen ? rightPanelWidth + panelSeparatorWidth : 0}px`,
+          ["--rail-left-natural-w" as string]: `${leftPanelWidth + panelSeparatorWidth}px`,
         }}
       >
         <NavigationPanel

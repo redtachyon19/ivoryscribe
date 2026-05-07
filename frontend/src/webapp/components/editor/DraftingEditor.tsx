@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef, type CSSProperties } from "react"
+import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react"
 import { useEditor, EditorContent, type Editor as TiptapEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Highlight from "@tiptap/extension-highlight"
+import Underline from "@tiptap/extension-underline"
 import {
   APP_PROJECT_SEARCH_FOCUS_EVENT,
   APP_SPELL_CHECK_FOCUS_EVENT,
@@ -20,7 +21,7 @@ import { useFlagRail } from "./hooks/useFlagRail"
 import { useTypingCaret } from "./hooks/useTypingCaret"
 import { useTypingState } from "./hooks/useTypingState"
 import MarqueeText from "../ui/MarqueeText"
-import "./TextEditor.css"
+import "./DraftingEditor.css"
 
 type FontSizeChangeDetail = {
   delta: number
@@ -146,7 +147,7 @@ function findTextQueryHit(root: Node, query: string, targetOccurrence: number): 
   return null
 }
 
-export default function TextEditor({
+export default function DraftingEditor({
   documentId,
   documentTitle,
   hideDocumentTitle = false,
@@ -175,6 +176,7 @@ export default function TextEditor({
       Highlight.configure({
         multicolor: true,
       }),
+      Underline,
     ],
     editorProps: {
       attributes: {
@@ -182,6 +184,66 @@ export default function TextEditor({
         spellcheck: "true",
         autocorrect: "on",
         autocapitalize: "sentences",
+      },
+      // Drafting is plain prose: strip Typewriter-style formatting (font /
+      // size / color via inline styles, highlight, font tags) on paste so the
+      // writer doesn't drag formatting in. First, promote any inline-styled
+      // bold / italic / underline up to standard <strong> / <em> / <u> tags
+      // so those structural marks survive the strip below — otherwise bold
+      // pasted from Google Docs (encoded as `<span style="font-weight:700">`)
+      // would lose the bold when the span gets unwrapped.
+      transformPastedHTML(html: string) {
+        if (!html || typeof document === "undefined") return html
+        const tmp = document.createElement("div")
+        tmp.innerHTML = html
+
+        const isBold = (style: string) => {
+          const m = style.match(/(?:^|;)\s*font-weight\s*:\s*([^;]+)/i)
+          if (!m) return false
+          const v = m[1].trim().toLowerCase()
+          return v === "bold" || v === "bolder" || /^[5-9]\d{2,}$/.test(v)
+        }
+        const isItalic = (style: string) => {
+          const m = style.match(/(?:^|;)\s*font-style\s*:\s*([^;]+)/i)
+          if (!m) return false
+          const v = m[1].trim().toLowerCase()
+          return v === "italic" || v === "oblique"
+        }
+        const isUnderline = (style: string) => {
+          const m = style.match(/(?:^|;)\s*text-decoration(?:-line)?\s*:\s*([^;]+)/i)
+          if (!m) return false
+          return m[1].toLowerCase().includes("underline")
+        }
+        for (const el of Array.from(tmp.querySelectorAll<HTMLElement>("[style]"))) {
+          const style = el.getAttribute("style") || ""
+          const wrappers: string[] = []
+          if (isBold(style))      wrappers.push("strong")
+          if (isItalic(style))    wrappers.push("em")
+          if (isUnderline(style)) wrappers.push("u")
+          if (wrappers.length === 0) continue
+          const root = document.createElement(wrappers[0])
+          let leaf: HTMLElement = root
+          for (let i = 1; i < wrappers.length; i++) {
+            const next = document.createElement(wrappers[i])
+            leaf.appendChild(next)
+            leaf = next
+          }
+          while (el.firstChild) leaf.appendChild(el.firstChild)
+          el.appendChild(root)
+        }
+
+        tmp.querySelectorAll("*").forEach((el) => {
+          el.removeAttribute("style")
+          el.removeAttribute("class")
+        })
+        const unwrap = (el: Element) => {
+          const parent = el.parentNode
+          if (!parent) return
+          while (el.firstChild) parent.insertBefore(el.firstChild, el)
+          parent.removeChild(el)
+        }
+        tmp.querySelectorAll("span, mark, font").forEach(unwrap)
+        return tmp.innerHTML
       },
     },
     content: content || DEFAULT_DOCUMENT_CONTENT,
@@ -524,9 +586,23 @@ export default function TextEditor({
     currentLineAnchor !== null &&
     !flaggedAnchors.has(currentLineAnchor)
 
+  // If the body's first block (e.g. opening paragraph or heading) is the same
+  // text as the tab title shown above, hide the body's copy so the user doesn't
+  // read it twice. This commonly happens when the document was authored in
+  // Typewriter mode, where the first line naturally serves as the title.
+  const hideFirstBlockAsDuplicate = useMemo(() => {
+    if (hideDocumentTitle) return false
+    const trimmedTitle = documentTitle.trim()
+    if (!trimmedTitle || !content || typeof window === "undefined") return false
+    const parsed = new DOMParser().parseFromString(content, "text/html")
+    const firstBlock = parsed.body.firstElementChild
+    const firstText = firstBlock?.textContent?.trim() ?? ""
+    return firstText === trimmedTitle
+  }, [content, documentTitle, hideDocumentTitle])
+
   return (
     <div
-      className="editor-container"
+      className={`editor-container${hideFirstBlockAsDuplicate ? " editor-container--hide-first-block" : ""}`}
       ref={editorSurfaceRef}
       style={{ fontSize: `${fontSize}px`, "--editor-body-font": fontFamily } as CSSProperties}
       onMouseMove={(event) => {

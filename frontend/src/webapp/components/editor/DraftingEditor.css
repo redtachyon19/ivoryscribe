@@ -6,7 +6,9 @@
   margin: 0 auto;
   padding: 0 var(--page-content-gutter);
   font-size: 38px;
-  line-height: 1.75;
+  /* Match Typewriter's Google-Docs-style line spacing so the two views render
+     paragraph breaks consistently. */
+  line-height: 1.15;
   font-family: var(--editor-body-font, var(--app-body-font));
   color: var(--editor-text, #ffffff);
 }
@@ -75,6 +77,12 @@
   word-break: break-word;
   font-family: var(--editor-body-font, var(--app-body-font));
   caret-color: transparent;
+  /* Match Google Docs' rendering — greyscale antialiasing + ligatures/kerning
+     make strokes thicker/crisper on HiDPI than the browser default. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
 }
 
 .ProseMirror[data-empty="true"]::before {
@@ -85,12 +93,86 @@
   pointer-events: none;
 }
 
-.ProseMirror p {
-  margin: 0;
+/* Hide the body's first block when it duplicates the tab title shown above
+   (set by DraftingEditor when titles match). The block stays in the document
+   model — only its rendering is suppressed — so toggling back to Typewriter
+   mode shows the original content unchanged. */
+.editor-container--hide-first-block .ProseMirror > :first-child {
+  display: none;
 }
 
-.ProseMirror p + p {
-  margin-top: 0.55em;
+/* Drafting mode is plain prose. Visually strip every Typewriter-applied
+   formatting (font-family / size / color via textStyle, highlight, indents,
+   text-align). The underlying marks/attributes stay in the document model so
+   switching back to Typewriter restores everything. Bold / italic / underline
+   are left alone — those are structural marks the writer expects in either
+   mode (Cmd+B / Cmd+I / Cmd+U keep working). */
+
+/* Catch-all: any element carrying an inline style attribute (most Typewriter
+   formatting flows through here). [style] is a low-specificity selector but
+   the !important values still override the inline declarations. */
+.editor-container .ProseMirror [style] {
+  font-size: inherit !important;
+  font-family: inherit !important;
+  color: inherit !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  text-align: inherit !important;
+}
+
+/* Belt-and-suspenders: span/mark/font wrappers regardless of style attribute,
+   in case TipTap parsing strips the style but keeps the wrapper. */
+.editor-container .ProseMirror span,
+.editor-container .ProseMirror mark,
+.editor-container .ProseMirror font {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  color: inherit !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Block-level indents / alignment (ParaIndent extension uses inline margins,
+   TextAlign uses inline text-align — both already handled above; this rule
+   covers any class-based variant). */
+.editor-container .ProseMirror p,
+.editor-container .ProseMirror h1,
+.editor-container .ProseMirror h2,
+.editor-container .ProseMirror h3,
+.editor-container .ProseMirror h4,
+.editor-container .ProseMirror h5,
+.editor-container .ProseMirror h6,
+.editor-container .ProseMirror blockquote,
+.editor-container .ProseMirror ul,
+.editor-container .ProseMirror ol,
+.editor-container .ProseMirror li {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  text-align: inherit !important;
+}
+
+/* Collapse consecutive empty paragraphs (Typewriter's Cmd+Enter inserts a
+   stack of these to push content onto the next page; in Drafting they read as
+   a wall of blank lines). The first empty paragraph stays so a freshly
+   pressed Enter still has somewhere visible for the cursor to live. */
+.editor-container .ProseMirror p:empty + p:empty {
+  display: none;
+}
+
+/* Paragraph spacing — Enter creates a new paragraph with a generous gap that
+   scales with the editor's font size. Shift+Enter inserts a <br> that stays
+   at the line-height with no extra spacing. */
+.ProseMirror p {
+  margin-top: 0;
+  margin-bottom: 1.25em;
+}
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+.ProseMirror br {
+  margin: 0;
 }
 
 .ProseMirror ::spelling-error {

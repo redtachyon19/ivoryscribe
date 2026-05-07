@@ -104,10 +104,11 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
 
     const markdownIdSet = new Set(getProjectMarkdownIds(project))
     const pinboardIdSet = new Set(project.pinboardIds ?? [])
+    const typewriterIdSet = new Set(project.typewriterIds ?? [])
     const nextResults: FindReplaceResult[] = []
 
     for (const tab of projectTabs) {
-      if (nextResults.length >= FIND_REPLACE_RESULT_LIMIT || pinboardIdSet.has(tab.id)) {
+      if (nextResults.length >= FIND_REPLACE_RESULT_LIMIT || pinboardIdSet.has(tab.id) || typewriterIdSet.has(tab.id)) {
         continue
       }
 

@@ -1,7 +1,8 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
-import TextEditor from "../components/editor/TextEditor.tsx"
+import DraftingEditor from "../components/editor/DraftingEditor.tsx"
 import MarkdownEditor from "../components/editor/MarkdownEditor"
 import PinboardEditor from "../components/editor/PinboardEditor"
+import TypewriterEditor from "../components/editor/TypewriterEditor"
 import ProjectExportModal from "../components/export/ProjectExportModal"
 import AppShell from "../components/layout/AppShell"
 import Modal from "../components/ui/Modal"
@@ -70,6 +71,30 @@ async function removeNativeSpellCheckWord(word: string) {
   } catch {
     return false
   }
+}
+
+const VIEW_MODE_STORAGE_KEY = "ivoryscribe:tab-view-mode"
+type TabViewMode = "drafting" | "typewriter"
+
+function loadViewModeMap(): Record<string, TabViewMode> {
+  if (typeof window === "undefined") return {}
+  try {
+    const raw = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const out: Record<string, TabViewMode> = {}
+    for (const [k, v] of Object.entries(parsed)) {
+      if (v === "drafting" || v === "typewriter") out[k] = v
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function saveViewModeMap(map: Record<string, TabViewMode>) {
+  if (typeof window === "undefined") return
+  try { window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, JSON.stringify(map)) } catch { /* ignore */ }
 }
 
 function loadSpellCheckDictionary() {
@@ -311,6 +336,11 @@ export default function Editor({
   const [includedTabsById, setIncludedTabsById] = useState<Record<string, boolean>>({})
   const [dashboardSection, setDashboardSection] = useState<"library" | "recent" | "archive" | "trash">("library")
 
+  // Per-tab view mode (drafting vs typewriter). Persisted per-device, so two
+  // collaborators on the same project can each have their own preferred view.
+  const [viewModeByTabId, setViewModeByTabId] = useState<Record<string, TabViewMode>>(() => loadViewModeMap())
+  useEffect(() => { saveViewModeMap(viewModeByTabId) }, [viewModeByTabId])
+
   const { canGoBack, canGoForward, goBack, goForward } = useNavigationHistory({
     view,
     activeId: project?.activeId ?? null,
@@ -383,21 +413,38 @@ export default function Editor({
     () => project ? collectTabSequence(project.tabs) : [],
     [project],
   )
+  // Document type now collapses Drafting and Typewriter into a single "prose"
+  // type; the actual view is selected separately via `activeViewMode` and is
+  // user-toggleable per tab. Pinboard and Markdown remain their own types.
   const activeDocumentType = useMemo(() => {
-    if (!project?.activeId) {
-      return "text" as const
-    }
-
-    if ((project.pinboardIds ?? []).includes(project.activeId)) {
-      return "pinboard" as const
-    }
-
-    if (getProjectMarkdownIds(project).includes(project.activeId)) {
-      return "markdown" as const
-    }
-
-    return "text" as const
+    if (!project?.activeId) return "prose" as const
+    if ((project.pinboardIds ?? []).includes(project.activeId)) return "pinboard" as const
+    if (getProjectMarkdownIds(project).includes(project.activeId)) return "markdown" as const
+    return "prose" as const
   }, [project])
+
+  // Resolves the view mode for the active prose tab. Order of precedence:
+  //   1) explicit user choice in `viewModeByTabId` (localStorage)
+  //   2) backward-compat fallback: tabs in `project.typewriterIds` default to
+  //      typewriter view when the user hasn't set anything yet
+  //   3) "drafting"
+  const activeViewMode: TabViewMode = useMemo(() => {
+    const id = project?.activeId
+    if (!id) return "drafting"
+    const stored = viewModeByTabId[id]
+    if (stored) return stored
+    if ((project?.typewriterIds ?? []).includes(id)) return "typewriter"
+    return "drafting"
+  }, [project, viewModeByTabId])
+
+  const handleToggleViewMode = () => {
+    const id = project?.activeId
+    if (!id) return
+    setViewModeByTabId((current) => ({
+      ...current,
+      [id]: activeViewMode === "drafting" ? "typewriter" : "drafting",
+    }))
+  }
 
   const currentCountLabel = selectedWordCount === null
     ? `${activeDocumentWordCount.toLocaleString()} ${activeDocumentWordCount === 1 ? "word" : "words"}`
@@ -517,7 +564,7 @@ export default function Editor({
       const nextDocumentType: SpellCheckDocumentType | null =
         activeDocumentType === "markdown"
           ? "markdown"
-          : activeDocumentType === "text"
+          : activeDocumentType === "prose"
             ? "text"
             : null
 
@@ -787,6 +834,9 @@ export default function Editor({
       tuskAiActivated={tuskAiActivated}
       isStartingTuskCheckout={isStartingTuskCheckout}
       onStartTuskCheckout={onStartTuskCheckout}
+      viewToggleAvailable={view === "editor" && activeDocumentType === "prose" && !!project?.activeId}
+      viewMode={activeViewMode}
+      onToggleViewMode={handleToggleViewMode}
     >
       {view === "projects" ? (
             dashboardSection === "recent" ? (
@@ -914,6 +964,30 @@ export default function Editor({
                     })
                   }}
                 />
+              ) : activeDocumentType === "prose" && activeViewMode === "typewriter" ? (
+                <TypewriterEditor
+                  documentId={project.activeId}
+                  content={activeContent}
+                  onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {
+                    setSelectedWordCount(nextSelectionCount)
+                  }}
+                  onTypingStateChange={onEditorTypingStateChange}
+                  onContentChange={(nextContent) => {
+                    onProjectChange((currentProject) => {
+                      if (!currentProject.activeId) {
+                        return currentProject
+                      }
+
+                      return {
+                        ...currentProject,
+                        contentById: {
+                          ...currentProject.contentById,
+                          [currentProject.activeId]: nextContent,
+                        },
+                      }
+                    })
+                  }}
+                />
               ) : activeDocumentType === "markdown" ? (
                 <MarkdownEditor
                   documentId={project.activeId}
@@ -940,7 +1014,7 @@ export default function Editor({
                   }}
                 />
               ) : (
-                <TextEditor
+                <DraftingEditor
                   documentId={project.activeId}
                   documentTitle={activeDocumentTitle}
                   editorFontSize={editorFontSize}

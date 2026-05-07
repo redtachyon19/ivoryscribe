@@ -158,7 +158,9 @@ export function useTypingCaret({
 
       const left = coords.left - surfaceRect.left
       const top = coords.top - surfaceRect.top
-      const height = Math.max(coords.bottom - coords.top, 26)
+      // Track the actual line height reported by ProseMirror; clamp only to
+       // a tiny minimum to guard against zero-height edge cases.
+      const height = Math.max(coords.bottom - coords.top, 12)
 
       caretMotion.targetLeft = left
       caretMotion.targetTop = top
@@ -190,6 +192,18 @@ export function useTypingCaret({
     const onEditorBlur = () => hideCaret()
     const onWindowResize = () => scheduleCaretUpdate()
     const onWindowScroll = () => scheduleCaretUpdate()
+    // After a page break is applied the block moves to the next page, but the
+    // caret RAF has already fired (before the page-break RAF) and set the
+    // spring target to the old in-margin coordinates.  Cancel that spring
+    // animation and schedule a fresh position read so the typing indicator
+    // jumps to the correct page instead of drifting into the gap.
+    const onPageBreak = () => {
+      if (followFrameId) {
+        window.cancelAnimationFrame(followFrameId)
+        followFrameId = 0
+      }
+      scheduleCaretUpdate()
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) {
         return
@@ -211,6 +225,7 @@ export function useTypingCaret({
 
     window.addEventListener("resize", onWindowResize)
     window.addEventListener("scroll", onWindowScroll, true)
+    window.addEventListener("tw:pagebreak", onPageBreak)
 
     const editorDom = getEditorView()?.dom ?? null
     editorDom?.addEventListener("keydown", onKeyDown)
@@ -233,6 +248,7 @@ export function useTypingCaret({
       editor.off("blur", onEditorBlur)
       window.removeEventListener("resize", onWindowResize)
       window.removeEventListener("scroll", onWindowScroll, true)
+      window.removeEventListener("tw:pagebreak", onPageBreak)
       editorDom?.removeEventListener("keydown", onKeyDown)
     }
   }, [editor, editorSurfaceRef, markUiTypingActivity])

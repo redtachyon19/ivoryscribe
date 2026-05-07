@@ -61,6 +61,63 @@
   outline: none;
 }
 
+/* ── Drafting/Typewriter view toggle (sliding-pill segmented control) ──
+   Mirrors the global settings sidebar: an absolutely-positioned indicator
+   slides between the two pills with the same easing/timing, instead of
+   recolouring per-option backgrounds. */
+.editor-workspace__view-toggle {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: stretch;
+  height: 28px;
+  padding: 2px;
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1b1b1b) 90%, transparent);
+  -webkit-app-region: no-drag;
+}
+
+.editor-workspace__view-toggle-indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
+  pointer-events: none;
+  transition: left 240ms cubic-bezier(0.2, 0.85, 0.2, 1),
+              width 240ms cubic-bezier(0.2, 0.85, 0.2, 1),
+              opacity 160ms ease;
+}
+
+.editor-workspace__view-toggle-pill {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-family: var(--app-ui-font, system-ui, sans-serif);
+  font-size: 12px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+.editor-workspace__view-toggle-pill:hover {
+  color: var(--menu-button, #ededed);
+}
+.editor-workspace__view-toggle-pill:focus-visible {
+  outline: none;
+  color: var(--menu-button, #ededed);
+}
+.editor-workspace__view-toggle-pill--active {
+  color: var(--menu-button, #ededed);
+}
+
 /* ── Document Path ── */
 
 .editor-workspace__doc-path {
