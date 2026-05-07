@@ -7,6 +7,8 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   close: () => electron.ipcRenderer.send("window:close"),
   isMaximized: () => electron.ipcRenderer.invoke("window:isMaximized"),
   isFullScreen: () => electron.ipcRenderer.invoke("window:isFullScreen"),
+  addSpellCheckerWord: (word) => electron.ipcRenderer.invoke("spellcheck:add-word", word),
+  removeSpellCheckerWord: (word) => electron.ipcRenderer.invoke("spellcheck:remove-word", word),
   updateMenu: (items) => electron.ipcRenderer.send("menu:update", items),
   onMenuCommand: (callback) => {
     const handler = (_event, commandId) => callback(commandId);

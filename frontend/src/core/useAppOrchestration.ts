@@ -141,6 +141,10 @@ export function useAppOrchestration() {
       return false
     }
 
+    if ((activeProject.typewriterIds ?? []).includes(activeProject.activeId)) {
+      return false
+    }
+
     return getProjectMarkdownIds(activeProject).includes(activeProject.activeId)
   }, [activeProject])
   const projectVersionsForLibraryByProjectId = useMemo(() => {

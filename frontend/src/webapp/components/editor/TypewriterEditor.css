@@ -1,0 +1,853 @@
+/* ================================================================
+   TypewriterEditor — Phase 2 styles
+   8.5in × 11in page layout with rulers, multi-page, floating toolbar
+   ================================================================ */
+
+/* ── Outer wrapper (toolbar anchor, clips scroll) ── */
+.tw-outer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-bg);
+}
+
+/* ── Scroll container ── */
+/* Pin the page+ruler to a fixed viewport-x. The page must NOT move when
+   either rail collapses. The right rail collapse already preserves position
+   (only the editor-center's right edge expands, not the left). For the left
+   rail, the editor-center's left edge shifts by `(leftPanel + 8)px` when it
+   collapses — we cancel that shift with a positive margin-left of the same
+   amount. AppShell exposes `--rail-left-natural-w` (always = leftPanel + 8)
+   and `--rail-left-w` (= leftPanel + 8 when open, 0 when collapsed), so the
+   difference is exactly the compensation we need. The -8px baseline aligns
+   the ruler-dim button under the topbar's back-arrow when the rail is open.
+   The margin-left transition matches AppShell's grid-template-columns 180ms
+   ease so they stay in lockstep throughout the animation. */
+.tw-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-left: 0;
+  padding-bottom: 0;
+}
+.tw-scroll > * {
+  margin-left: -8px;
+  transition: margin-left 180ms ease;
+}
+.editor-workspace__body--collapsed-left .tw-scroll > * {
+  /* Add the rail's natural width back so content's viewport-x stays put when
+     editor-center shifts left by (leftPanel + 8) during the rail collapse. */
+  margin-left: calc(var(--rail-left-natural-w, 0px) - 8px);
+}
+
+/* ── Bottom spacer (so toolbar never covers last line) ── */
+.tw-scroll-spacer {
+  flex-shrink: 0;
+  height: 100px;
+  width: 1px;
+}
+
+/* ─────────────────── Ruler row ─────────────────── */
+.tw-ruler-row {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* Spacer that occupies the y-ruler's column above the page so the
+   horizontal ruler aligns with the page edge (matches y-ruler 36px +
+   margin-right 20px = 56px). */
+.tw-corner-spacer {
+  width: 56px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* Filled block behind the corner button — covers the y-ruler's column
+   so it is not visible behind/around the button when scrolled. Sized to
+   span the corner-spacer width (56px) and extend down past the button's
+   bottom edge so no V-ruler peek-through remains. */
+.tw-corner-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 56px;
+  height: 38px;
+  background: var(--menu-bg);
+  pointer-events: none;
+}
+
+/* ─────────────────── Corner toggle button ─────────────────── */
+/* Styled to match the global settings button (28×28 rounded square with
+   subtle border + bg, 360° hover spin). */
+.tw-corner-btn {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 6;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1b1b1b) 90%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  box-shadow: none;
+  overflow: visible;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.tw-corner-btn:hover,
+.tw-corner-btn:focus-visible {
+  color: var(--menu-button, #ededed);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
+  outline: none;
+  box-shadow: none;
+}
+
+/* Two icon layers — only one visible at a time, spin-swap on click */
+.tw-corner-btn__icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: rotate(90deg) scale(0.6);
+  transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tw-corner-btn__icon svg { display: block; }
+.tw-corner-btn__icon--visible {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
+/* Hover: spin the currently visible icon once (matches settings button) */
+.tw-corner-btn:hover .tw-corner-btn__icon--visible,
+.tw-corner-btn:focus-visible .tw-corner-btn__icon--visible {
+  animation: tw-corner-btn-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
+  transform-origin: 50% 50%;
+}
+@keyframes tw-corner-btn-spin {
+  from { transform: rotate(0deg) scale(1); }
+  to   { transform: rotate(360deg) scale(1); }
+}
+
+/* Horizontal ruler */
+.tw-ruler-x {
+  position: relative;
+  height: 32px;
+  flex-shrink: 0;
+  background: var(--menu-bg);
+  border-bottom: 1px solid var(--menu-border);
+  overflow: hidden;
+  transition: opacity 300ms ease;
+}
+/* Fade ruler while typing or when hidden — corner button stays visible */
+.tw-ruler-x--typing,
+.tw-ruler-x--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ─────────────────── Body row ─────────────────── */
+.tw-body-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  /* matches the y-ruler's margin-right so the gap between H ruler/page
+     equals the gap between V ruler/page */
+  padding: 20px 0 0;
+  flex-shrink: 0;
+}
+
+/* Vertical ruler — container only. Bg + right-border are drawn per page
+   by `.tw-ruler-y-rail` so the inter-page gap regions stay empty. */
+.tw-ruler-y {
+  position: relative;
+  width: 36px;
+  flex-shrink: 0;
+  margin-right: 20px;
+  overflow: hidden;
+  transition: opacity 300ms ease;
+}
+.tw-ruler-y--typing { opacity: 0; pointer-events: none; }
+.tw-ruler-y--hidden { opacity: 0; pointer-events: none; }
+
+/* Per-page rail: provides the V ruler bg + right border for one page.
+   Absent in the gap between pages, so the gap renders empty. */
+.tw-ruler-y-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--menu-bg);
+  border-right: 1px solid var(--menu-border);
+  pointer-events: none;
+}
+
+/* ─────────────────── Ruler ticks ─────────────────── */
+/* All ticks use the same colour/weight as the ruler border line */
+.tw-ruler__tick {
+  position: absolute;
+  background: color-mix(in srgb, var(--menu-border) 70%, transparent);
+}
+
+/* Horizontal tick (x ruler) — anchored to the bottom edge */
+.tw-ruler__tick--x {
+  top: auto;
+  bottom: 0;
+  width: 1px;
+}
+.tw-ruler__tick--x.tw-ruler__tick--major { height: 12px; }
+.tw-ruler__tick--x.tw-ruler__tick--minor { height: 6px; }
+
+/* Vertical tick (y ruler) — anchored to the right edge */
+.tw-ruler__tick--y {
+  left: auto;
+  right: 0;
+  height: 1px;
+}
+.tw-ruler__tick--y.tw-ruler__tick--major { width: 12px; }
+.tw-ruler__tick--y.tw-ruler__tick--minor { width: 6px; }
+
+/* Ruler labels — centered on their tick */
+.tw-ruler__label {
+  position: absolute;
+  /* x-axis: sit just above the bottom tick line */
+  bottom: 14px;
+  left: 0;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-family: var(--app-ui-font, system-ui, sans-serif);
+  color: color-mix(in srgb, var(--menu-button) 50%, transparent);
+  pointer-events: none;
+  white-space: nowrap;
+  line-height: 1;
+}
+/* y-axis: centered vertically on the tick, positioned left of the tick */
+.tw-ruler__label--y {
+  bottom: auto;
+  left: auto;
+  right: 15px;
+  top: 0;
+  transform: translateY(-50%);
+}
+
+/* ─────────────────── Ruler drag handles ─────────────────── */
+.tw-ruler__handle {
+  position: absolute;
+  background: color-mix(in srgb, var(--menu-button, #ededed) 30%, transparent);
+  z-index: 5;
+  transition: background-color 120ms ease;
+}
+.tw-ruler__handle:hover { background: var(--app-accent, #7ea8ff); }
+
+/* Horizontal handle (left/right margins) */
+.tw-ruler__handle--x {
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  cursor: ew-resize;
+  transform: translateX(-1px);
+}
+
+/* Vertical handle (top/bottom margins) */
+.tw-ruler__handle--y {
+  left: 0;
+  right: 0;
+  height: 3px;
+  cursor: ns-resize;
+  transform: translateY(-1px);
+}
+
+/* ─────────────────── Pages stack ─────────────────── */
+.tw-pages-stack {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Individual page card — uniform 1 px border on all 4 sides, no rounding */
+.tw-page-card {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background: var(--app-bg);
+  border-radius: 0;
+  border: 1px solid var(--menu-border);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+/* Page-break spacer (injected as a widget decoration to push lines past the
+   bottom margin onto the next page). Enforced as block + full width so no
+   parent style can collapse its height. */
+.tw-editor-surf .ProseMirror .tw-page-spacer {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none;
+  user-select: none;
+  background: transparent;
+}
+
+/* ─────────────────── Editor overlay ─────────────────── */
+.tw-editor-surf {
+  position: absolute;
+  z-index: 2;
+  /* left, top, width driven by inline style from margins */
+}
+
+/* Format painter armed: show a copy cursor over the editable area so the user
+   knows the next selection will receive the captured formatting. */
+.tw-editor-surf--paint-armed,
+.tw-editor-surf--paint-armed .ProseMirror,
+.tw-editor-surf--paint-armed .ProseMirror * { cursor: copy !important; }
+
+.tw-editor-surf .ProseMirror {
+  outline: none;
+  min-height: 200px;
+  color: var(--editor-text);
+  font-family: "Georgia", "Times New Roman", serif;
+  /* 11pt at 96 DPI ≈ 14.667px — kept in pt so it stays in lockstep with the
+     user-facing point values in the toolbar. */
+  font-size: 11pt;
+  line-height: 1.15;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  caret-color: transparent; /* hidden — we use the custom animated caret */
+  /* Match Google Docs' rendering: greyscale antialiasing makes strokes appear
+     thicker/crisper on HiDPI than the browser default subpixel mode. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* Paragraph spacing — Enter creates a new paragraph with a generous gap that
+   scales with the editor's font size. Shift+Enter still inserts a <br> with
+   no extra margin so it stays at the line-height. */
+.tw-editor-surf .ProseMirror p {
+  margin-top: 0;
+  margin-bottom: 1.25em;
+}
+.tw-editor-surf .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+/* Hard breaks (<br> from Shift+Enter) — explicit zero margin in case any
+   global rule tries to add one. */
+.tw-editor-surf .ProseMirror br {
+  margin: 0;
+}
+.tw-editor-surf .ProseMirror h1 { font-size: 2em;   font-weight: 700; margin: 12pt 0 4pt; }
+.tw-editor-surf .ProseMirror h2 { font-size: 1.5em; font-weight: 700; margin: 12pt 0 4pt; }
+.tw-editor-surf .ProseMirror h3 { font-size: 1.2em; font-weight: 600; margin: 12pt 0 4pt; }
+.tw-editor-surf .ProseMirror h4,
+.tw-editor-surf .ProseMirror h5,
+.tw-editor-surf .ProseMirror h6 { font-weight: 600; margin: 12pt 0 4pt; }
+.tw-editor-surf .ProseMirror ul,
+.tw-editor-surf .ProseMirror ol { padding-left: 1.5em; margin: 0 0 8pt; }
+.tw-editor-surf .ProseMirror blockquote {
+  border-left: 3px solid rgba(26,24,20,0.25);
+  padding-left: 1em;
+  color: rgba(26,24,20,0.65);
+  margin: 0 0 8pt;
+}
+
+/* Placeholder */
+.tw-editor-surf .ProseMirror p.is-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--editor-placeholder);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}
+
+/* ─────────────────── Typing caret ─────────────────── */
+.typing-caret {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  border-radius: 1px;
+  pointer-events: none;
+  will-change: transform;
+  z-index: 10;
+  transition: height 60ms ease;
+}
+.typing-caret--hidden   { opacity: 0; }
+.typing-caret--typing   { opacity: 1; }
+
+/* ─────────────────── Floating toolbar (matches pinboard toolbar) ─────────────────── */
+/* Pinned to the viewport via `position: fixed` so it doesn't drift when either
+   rail toggles (which would otherwise resize `.tw-outer` and shift its 50%
+   point). Anchored on the page card's center: the page sits at viewport-x =
+   leftPanel + 56 (vert-ruler width 36 + margin-right 20), with width 816 →
+   page-center = leftPanel + 464. AppShell exposes `--rail-left-natural-w` =
+   `leftPanel + 8` (always the natural rail width, even when collapsed), so
+   page-center = `var(--rail-left-natural-w) + 456px`. */
+.tw-toolbar {
+  position: fixed;
+  bottom: 56px;
+  left: calc(var(--rail-left-natural-w, 0px) + 456px);
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--menu-dropdown-bg, #1a1a1a);
+  border: 1px solid var(--menu-border, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tw-toolbar--dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+}
+
+/* Hidden state — fades out and stops accepting input. The toolcase button
+   stays visible so the user can bring the toolbar back. Opacity-only so the
+   transform stays consistent whether the toolbar is centered or dragged. */
+.tw-toolbar {
+  transition: opacity 220ms ease;
+}
+.tw-toolbar--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ─────────────────── Toolbar toggle (top-right of document, under settings) ─────────────────── */
+/* Mirrors the corner ruler-dimension toggle: same modal-X-style button shape,
+   two-icon spin-swap. Anchored to the top-right of the editor body so it sits
+   just below the global settings button. The editor-center column already
+   adds padding-top: var(--editor-topbar-height), so `.tw-outer`'s top is at
+   viewport-y 46. Settings (top: 56, border-box height 30) ends at viewport-y
+   86 → flush position would be 40; add 6px breathing room → top: 46. */
+.tw-toolcase-btn {
+  position: absolute;
+  top: 46px;
+  right: 14px;
+  z-index: 41;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #1b1b1b) 90%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  box-shadow: none;
+  overflow: visible;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.tw-toolcase-btn:hover,
+.tw-toolcase-btn:focus-visible {
+  color: var(--menu-button, #ededed);
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
+  outline: none;
+  box-shadow: none;
+}
+
+/* Two icon layers — only one visible at a time, spin-swap on click */
+.tw-toolcase-btn__icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: rotate(90deg) scale(0.6);
+  transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tw-toolcase-btn__icon svg { display: block; }
+.tw-toolcase-btn__icon--visible {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
+/* Hover: spin the currently visible icon once (matches corner button) */
+.tw-toolcase-btn:hover .tw-toolcase-btn__icon--visible,
+.tw-toolcase-btn:focus-visible .tw-toolcase-btn__icon--visible {
+  animation: tw-toolcase-btn-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
+  transform-origin: 50% 50%;
+}
+@keyframes tw-toolcase-btn-spin {
+  from { transform: rotate(0deg) scale(1); }
+  to   { transform: rotate(360deg) scale(1); }
+}
+
+/* Drag grip */
+.tw-toolbar__grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 24px;
+  cursor: grab;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 50%, transparent);
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+.tw-toolbar--dragging .tw-toolbar__grip { cursor: grabbing; }
+.tw-toolbar__grip:hover {
+  background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06));
+  color: var(--menu-button, #ededed);
+}
+
+/* Separator */
+.tw-toolbar__sep {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: var(--menu-border, rgba(255, 255, 255, 0.08));
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* Icon buttons */
+.tw-toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--menu-button, #ededed);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.tw-toolbar__btn:hover {
+  background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06));
+}
+.tw-toolbar__btn--active {
+  background: var(--app-accent, #7ea8ff);
+  color: #fff;
+  border-color: var(--app-accent, #7ea8ff);
+}
+.tw-toolbar__btn--active:hover {
+  background: color-mix(in srgb, var(--app-accent, #7ea8ff) 85%, #fff);
+}
+
+/* Font family — custom dropdown matching the global settings font picker */
+.tw-toolbar__font-combo {
+  position: relative;
+  flex-shrink: 0;
+}
+.tw-toolbar__font-trigger {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--menu-button, #ededed);
+  font-size: 13px;
+  font-family: var(--app-ui-font);
+  outline: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 170px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.tw-toolbar__font-trigger:hover { background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06)); }
+.tw-toolbar__font-trigger:focus-visible {
+  border-color: var(--menu-border, rgba(255, 255, 255, 0.08));
+}
+.tw-toolbar__font-trigger-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+.tw-toolbar__font-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  min-width: 180px;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 96%, transparent);
+  border: 1px solid var(--menu-dropdown-border, var(--menu-border, #2f2f2f));
+  border-radius: 8px;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--app-bg, #0f0f0f) 72%, #000000);
+}
+.tw-toolbar__font-menu li { display: block; }
+.tw-toolbar__font-menu-item {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--menu-button, #e9e9e9);
+  font-size: 15px;
+  text-align: left;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+.tw-toolbar__font-menu-item:hover,
+.tw-toolbar__font-menu-item:focus-visible,
+.tw-toolbar__font-menu-item--active {
+  background: var(--menu-button-hover-bg, #232323);
+  outline: none;
+}
+
+/* Font size combo — single text field that opens a preset menu on focus/click.
+   Matches the compact pinboard toolbar look. */
+.tw-toolbar__size-combo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  border-radius: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+  flex-shrink: 0;
+}
+.tw-toolbar__size-combo:hover { background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06)); }
+.tw-toolbar__size-combo:focus-within {
+  background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06));
+  border-color: var(--menu-border, rgba(255, 255, 255, 0.08));
+}
+
+.tw-toolbar__size-input {
+  width: 44px;
+  height: auto;
+  padding: 0 6px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--menu-button, #ededed);
+  font-size: 13px;
+  line-height: 1.2;
+  font-family: var(--app-ui-font);
+  outline: none;
+  text-align: center;
+  box-sizing: border-box;
+  -moz-appearance: textfield;
+  cursor: text;
+}
+.tw-toolbar__size-input::-webkit-inner-spin-button,
+.tw-toolbar__size-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Popup menu of preset sizes */
+.tw-toolbar__size-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  min-width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--menu-dropdown-bg, #1a1a1a);
+  border: 1px solid var(--menu-dropdown-border, var(--menu-border, rgba(255, 255, 255, 0.08)));
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.tw-toolbar__size-menu li { display: block; }
+.tw-toolbar__size-menu-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--menu-button, #ededed);
+  text-align: center;
+  font-size: 13px;
+  font-family: var(--app-ui-font);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.tw-toolbar__size-menu-item:hover,
+.tw-toolbar__size-menu-item:focus-visible {
+  background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06));
+  outline: none;
+}
+.tw-toolbar__size-menu-item--active {
+  background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06));
+}
+
+/* ─── Generic toolbar submenu (alignment, columns) ───
+   Trigger button + popup menu rendered above the toolbar. Hover on the
+   container reveals the menu — `pointer-events` stay live on both the button
+   and the menu so the cursor can move between them without closing. */
+.tw-toolbar__submenu-combo {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.tw-toolbar__submenu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--menu-dropdown-bg, #1a1a1a);
+  border: 1px solid var(--menu-dropdown-border, var(--menu-border, rgba(255, 255, 255, 0.08)));
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+/* Invisible bridge spanning the 6px gap between the trigger and the menu so
+   the cursor can travel up without leaving the combo's hit area (which would
+   otherwise fire onMouseLeave and close the menu). The bridge sits below the
+   submenu and extends a bit past its sides to forgive diagonal cursor paths. */
+.tw-toolbar__submenu::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: -16px;
+  right: -16px;
+  height: 8px;
+}
+.tw-toolbar__submenu li { display: inline-flex; }
+.tw-toolbar__submenu-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--menu-button, #ededed);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.tw-toolbar__submenu-item:hover,
+.tw-toolbar__submenu-item:focus-visible {
+  background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06));
+  outline: none;
+}
+.tw-toolbar__submenu-item--active {
+  background: var(--app-accent, #7ea8ff);
+  color: #fff;
+  border-color: var(--app-accent, #7ea8ff);
+}
+
+/* ─── Multi-column wrapper (set via the columns extension) ───
+   The inline style on the rendered <div> drives `column-count` and
+   `column-gap`; this rule just keeps the children laying out cleanly inside
+   the column flow. Page-break logic still operates per-line, so very long
+   column blocks may overflow gracefully onto the next page. */
+.tw-editor-surf .ProseMirror .tw-columns > * {
+  break-inside: avoid;
+}
+
+/* Color picker */
+.tw-toolbar__color-wrap {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.tw-toolbar__color-wrap:hover { background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06)); }
+
+.tw-toolbar__color-icon {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: "Georgia", serif;
+  pointer-events: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  line-height: 1;
+}
+
+.tw-toolbar__color-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+/* Highlighter swatch — same wrap as text color, but a marker icon tinted
+   with the current highlight colour (or the last-picked color when no
+   highlight is active in the selection). The active class lights up the
+   wrap when the cursor sits inside a highlighted run, signalling that
+   Cmd+Shift+H will toggle it off. */
+.tw-toolbar__highlight-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  line-height: 1;
+}
+.tw-toolbar__highlight-icon svg { display: block; }
+.tw-toolbar__color-wrap--active {
+  background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.08));
+}

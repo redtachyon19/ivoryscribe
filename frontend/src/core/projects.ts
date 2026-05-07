@@ -15,6 +15,7 @@ export type Project = {
   markdownIds?: string[]
   markdownEditorEnabled?: boolean
   pinboardIds?: string[]
+  typewriterIds?: string[]
   color: string
   wallpaperEmojis: string
   folderId: string | null
@@ -118,6 +119,8 @@ export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTa
   const nextContentById = { ...project.contentById }
   const nextPinboardIds = collectValidUniqueIds(tabIds, project.pinboardIds)
   const pinboardIdSet = new Set(nextPinboardIds)
+  const nextTypewriterIds = collectValidUniqueIds(tabIds, project.typewriterIds)
+  const typewriterIdSet = new Set(nextTypewriterIds)
   const nextMarkdownIds = collectValidUniqueIds(
     tabIds,
     getProjectMarkdownIds({
@@ -125,7 +128,7 @@ export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTa
       markdownIds: project.markdownIds,
       markdownEditorEnabled: project.markdownEditorEnabled,
     }),
-  ).filter((id) => !pinboardIdSet.has(id))
+  ).filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id))
 
   for (const id of tabIds) {
     if (!(id in nextContentById)) {
@@ -140,6 +143,7 @@ export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTa
     tabs: nextTabs,
     activeId: nextActiveId,
     pinboardIds: nextPinboardIds,
+    typewriterIds: nextTypewriterIds,
     markdownIds: nextMarkdownIds,
     contentById: nextContentById,
   }
@@ -157,6 +161,7 @@ export function createProject(name: string, kind: ProjectKind): Project {
     kind,
     markdownIds: [],
     pinboardIds: [],
+    typewriterIds: [],
     color,
     wallpaperEmojis: "",
     folderId: null,
@@ -229,6 +234,8 @@ export function parseProjectFromDocument(documentRecord: { title: string; conten
     const tabIds = collectTabIds(parsedContent.tabs)
     const normalizedPinboardIds = collectValidUniqueIds(tabIds, parsedContent.pinboardIds)
     const pinboardIdSet = new Set(normalizedPinboardIds)
+    const normalizedTypewriterIds = collectValidUniqueIds(tabIds, (parsedContent as { typewriterIds?: string[] }).typewriterIds)
+    const typewriterIdSet = new Set(normalizedTypewriterIds)
     const normalizedMarkdownIds = collectValidUniqueIds(
       tabIds,
       getProjectMarkdownIds({
@@ -236,7 +243,7 @@ export function parseProjectFromDocument(documentRecord: { title: string; conten
         markdownIds: parsedContent.markdownIds,
         markdownEditorEnabled: parsedContent.markdownEditorEnabled,
       }),
-    ).filter((id) => !pinboardIdSet.has(id))
+    ).filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id))
 
     const normalizedName = /^Blog\s+\d+$/i.test(parsedContent.name)
       ? parsedContent.name.replace(/^Blog/i, "Book")
@@ -249,6 +256,7 @@ export function parseProjectFromDocument(documentRecord: { title: string; conten
       kind: "Book",
       name: normalizedName,
       pinboardIds: normalizedPinboardIds,
+      typewriterIds: normalizedTypewriterIds,
       markdownIds: normalizedMarkdownIds,
     } satisfies Project
   } catch {
