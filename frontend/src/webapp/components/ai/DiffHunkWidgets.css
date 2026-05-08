@@ -1,0 +1,86 @@
+.diff-hunk-widgets {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  width: 56px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.diff-hunk-widgets__widget {
+  position: absolute;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--app-surface, #ffffff);
+  border: 1px solid var(--app-border, #e5e7eb);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  pointer-events: auto;
+  transform: translateY(-2px);
+}
+
+.diff-hunk-widgets__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.diff-hunk-widgets__btn--accept {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.diff-hunk-widgets__btn--accept:hover {
+  background: #15803d;
+}
+
+.diff-hunk-widgets__btn--reject {
+  background: #ffffff;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.diff-hunk-widgets__btn--reject:hover {
+  background: #fee2e2;
+}
+
+/* Inline diff styling — applied to ProseMirror DOM regardless of which
+ * editor variant is active. We need higher specificity than DraftingEditor's
+ * "strip mark formatting" rule (`.editor-container .ProseMirror mark`),
+ * which uses 2 classes + 1 type = (0,2,1). Adding the [data-diff-add]
+ * attribute selector lifts our specificity to (0,3,1) and wins. */
+
+.editor-container .ProseMirror mark[data-diff-add],
+mark[data-diff-add],
+mark.diff-add,
+.diff-add {
+  background: rgba(34, 197, 94, 0.22) !important;
+  background-color: rgba(34, 197, 94, 0.22) !important;
+  color: #16a34a !important;
+  text-decoration: none !important;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.editor-container .ProseMirror s[data-diff-remove],
+s[data-diff-remove],
+s.diff-remove,
+.diff-remove {
+  background: rgba(239, 68, 68, 0.22) !important;
+  background-color: rgba(239, 68, 68, 0.22) !important;
+  color: #dc2626 !important;
+  text-decoration: line-through !important;
+  text-decoration-thickness: 2px !important;
+  padding: 0 2px;
+  border-radius: 2px;
+}

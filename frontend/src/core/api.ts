@@ -55,7 +55,7 @@ export type DocumentRecord = {
   updatedAt: string
 }
 
-export type TuskAiProvider = "gpt" | "claude" | "grok"
+export type TuskAiProvider = "auto" | "gpt" | "claude" | "grok"
 
 export type TuskAiProjectContext = {
   name: string
@@ -78,17 +78,34 @@ export type TuskAiEdit = {
   after: string
 }
 
+export type TuskAiContextMatch = {
+  tabId: string
+  tabTitle: string
+  relevanceScore: number
+}
+
 export type TuskAiChatResponse = {
+  mode: "edit"
   provider: TuskAiProvider
+  providerUsed: TuskAiProvider
+  fellBackFrom: TuskAiProvider | null
   model: string | null
   usedFallback: boolean
   providerNote: string | null
-  contextMatches: Array<{
-    tabId: string
-    tabTitle: string
-    relevanceScore: number
-  }>
+  contextMatches: TuskAiContextMatch[]
   edits: TuskAiEdit[]
+}
+
+export type TuskAiChatReplyResponse = {
+  mode: "chat"
+  provider: TuskAiProvider
+  providerUsed: TuskAiProvider
+  fellBackFrom: TuskAiProvider | null
+  model: string | null
+  providerNote: string | null
+  error: string | null
+  reply: string | null
+  contextMatches: TuskAiContextMatch[]
 }
 
 export type BillingStatusResponse = {
@@ -463,7 +480,25 @@ export async function requestTuskAiEdits(
     "/api/ai/chat",
     {
       method: "POST",
-      body: JSON.stringify(input),
+      body: JSON.stringify({ ...input, mode: "edit" }),
+    },
+    token,
+  )
+}
+
+export async function requestTuskAiChat(
+  token: string,
+  input: {
+    provider: TuskAiProvider
+    message: string
+    project: TuskAiProjectContext
+  },
+) {
+  return request<TuskAiChatReplyResponse>(
+    "/api/ai/chat",
+    {
+      method: "POST",
+      body: JSON.stringify({ ...input, mode: "chat" }),
     },
     token,
   )

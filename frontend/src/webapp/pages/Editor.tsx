@@ -1,8 +1,12 @@
-import { Suspense, lazy, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react"
+import type { Editor as TiptapEditor } from "@tiptap/react"
 import DraftingEditor from "../components/editor/DraftingEditor.tsx"
 import MarkdownEditor from "../components/editor/MarkdownEditor"
 import PinboardEditor from "../components/editor/PinboardEditor"
 import TypewriterEditor from "../components/editor/TypewriterEditor"
+import DiffHunkWidgets from "../components/ai/DiffHunkWidgets"
+import { buildDiff, renderDiffHtml, type HunkState } from "../components/ai/diffBuilder"
+import type { ProposedEdit } from "../components/ai/proposedEditsTypes"
 import ProjectExportModal from "../components/export/ProjectExportModal"
 import AppShell from "../components/layout/AppShell"
 import Modal from "../components/ui/Modal"
@@ -340,6 +344,154 @@ export default function Editor({
   // collaborators on the same project can each have their own preferred view.
   const [viewModeByTabId, setViewModeByTabId] = useState<Record<string, TabViewMode>>(() => loadViewModeMap())
   useEffect(() => { saveViewModeMap(viewModeByTabId) }, [viewModeByTabId])
+
+  // ── AI proposed-edit review state ────────────────────────────────────────
+  const [proposedEdits, setProposedEdits] = useState<ProposedEdit[]>([])
+  const [tiptapEditor, setTiptapEditor] = useState<TiptapEditor | null>(null)
+  const editorStageRef = useRef<HTMLDivElement | null>(null)
+
+  const currentEdit = useMemo(
+    () => proposedEdits.find((edit) => edit.state === "pending") ?? null,
+    [proposedEdits],
+  )
+
+  const isEditOnActiveTab = Boolean(
+    currentEdit && project && currentEdit.tabId === project.activeId,
+  )
+
+  // When a new edit becomes current, switch to its tab.
+  useEffect(() => {
+    if (!currentEdit || !project) return
+    if (currentEdit.tabId === project.activeId) return
+    onProjectChange((p) => ({ ...p, activeId: currentEdit.tabId }))
+  }, [currentEdit?.id])
+
+  const pendingHunkCount = useMemo(() => {
+    let count = 0
+    for (const edit of proposedEdits) {
+      if (edit.state !== "pending" || !edit.hunks) continue
+      for (const hunk of edit.hunks) {
+        if (hunk.state === "pending") count += 1
+      }
+    }
+    return count
+  }, [proposedEdits])
+
+  const handleEditorReady = useCallback((instance: TiptapEditor | null) => {
+    setTiptapEditor(instance)
+  }, [])
+
+  const handleProposedEdits = useCallback((edits: ProposedEdit[]) => {
+    const usable: ProposedEdit[] = []
+    let dropped = 0
+    let hunkCount = 0
+    const tabIds = new Set<string>()
+    for (const edit of edits) {
+      const { blocks, hunks } = buildDiff(edit.before, edit.after)
+      if (blocks.length === 0 || hunks.length === 0) {
+        dropped += 1
+        console.warn("[tuskai] dropping empty-diff edit", {
+          tabId: edit.tabId,
+          tabTitle: edit.tabTitle,
+          beforeSample: (edit.before ?? "").slice(0, 160),
+          afterSample: (edit.after ?? "").slice(0, 160),
+        })
+        continue
+      }
+      usable.push({ ...edit, blocks, hunks })
+      hunkCount += hunks.length
+      tabIds.add(edit.tabId)
+    }
+    setProposedEdits(usable)
+    return { applied: usable.length, dropped, hunkCount, tabCount: tabIds.size }
+  }, [])
+
+  // Compute the diff HTML for the active edit on every render — pure
+  // function of (blocks, hunkStates). When a hunk's state changes, this
+  // recomputes and the editor's content useEffect re-syncs the doc.
+  const currentEditDiffContent = useMemo(() => {
+    if (!currentEdit?.blocks || !currentEdit.hunks) return null
+    const states = new Map<string, HunkState>()
+    for (const hunk of currentEdit.hunks) states.set(hunk.id, hunk.state)
+    return renderDiffHtml(currentEdit.blocks, states)
+  }, [currentEdit])
+
+  const editorContentForActiveTab = isEditOnActiveTab && currentEditDiffContent
+    ? currentEditDiffContent
+    : activeContent
+
+  const handleHunkDecision = useCallback(
+    (hunkId: string, decision: "accepted" | "rejected") => {
+      if (!currentEdit) return
+      const target = proposedEdits.find((edit) => edit.id === currentEdit.id)
+      if (!target?.blocks || !target.hunks) return
+
+      const nextHunks = target.hunks.map((hunk) =>
+        hunk.id === hunkId ? { ...hunk, state: decision } : hunk,
+      )
+      const allResolved = nextHunks.every((hunk) => hunk.state !== "pending")
+
+      if (allResolved) {
+        const states = new Map<string, HunkState>()
+        for (const hunk of nextHunks) states.set(hunk.id, hunk.state)
+        const finalHtml = renderDiffHtml(target.blocks, states)
+        console.log("[tuskai] applying final edit", {
+          tabId: target.tabId,
+          tabTitle: target.tabTitle,
+          finalLen: finalHtml.length,
+        })
+        onProjectChange((p) => ({
+          ...p,
+          contentById: { ...p.contentById, [target.tabId]: finalHtml },
+        }))
+      }
+
+      setProposedEdits((current) =>
+        current.map((edit) => {
+          if (edit.id !== target.id) return edit
+          return {
+            ...edit,
+            hunks: nextHunks,
+            ...(allResolved ? { state: "accepted" as const } : {}),
+          }
+        }),
+      )
+    },
+    [currentEdit, proposedEdits, onProjectChange],
+  )
+
+  const handleAcceptAllPendingHunks = useCallback(() => {
+    if (!currentEdit) return
+    const target = proposedEdits.find((edit) => edit.id === currentEdit.id)
+    if (!target?.blocks || !target.hunks) return
+
+    const nextHunks = target.hunks.map((hunk) =>
+      hunk.state === "pending" ? { ...hunk, state: "accepted" as const } : hunk,
+    )
+    const states = new Map<string, HunkState>()
+    for (const hunk of nextHunks) states.set(hunk.id, hunk.state)
+    const finalHtml = renderDiffHtml(target.blocks, states)
+    console.log("[tuskai] accept-all final edit", {
+      tabId: target.tabId,
+      tabTitle: target.tabTitle,
+      finalLen: finalHtml.length,
+    })
+    onProjectChange((p) => ({
+      ...p,
+      contentById: { ...p.contentById, [target.tabId]: finalHtml },
+    }))
+    setProposedEdits((current) =>
+      current.map((edit) =>
+        edit.id === target.id
+          ? { ...edit, hunks: nextHunks, state: "accepted" as const }
+          : edit,
+      ),
+    )
+  }, [currentEdit, proposedEdits, onProjectChange])
+
+  const handleRejectAllProposedEdits = useCallback(() => {
+    setProposedEdits([])
+  }, [])
 
   const { canGoBack, canGoForward, goBack, goForward } = useNavigationHistory({
     view,
@@ -834,6 +986,10 @@ export default function Editor({
       tuskAiActivated={tuskAiActivated}
       isStartingTuskCheckout={isStartingTuskCheckout}
       onStartTuskCheckout={onStartTuskCheckout}
+      pendingHunkCount={pendingHunkCount}
+      onProposedEdits={handleProposedEdits}
+      onAcceptAllPendingHunks={handleAcceptAllPendingHunks}
+      onRejectAllProposedEdits={handleRejectAllProposedEdits}
       viewToggleAvailable={view === "editor" && activeDocumentType === "prose" && !!project?.activeId}
       viewMode={activeViewMode}
       onToggleViewMode={handleToggleViewMode}
@@ -965,29 +1121,47 @@ export default function Editor({
                   }}
                 />
               ) : activeDocumentType === "prose" && activeViewMode === "typewriter" ? (
-                <TypewriterEditor
-                  documentId={project.activeId}
-                  content={activeContent}
-                  onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {
-                    setSelectedWordCount(nextSelectionCount)
-                  }}
-                  onTypingStateChange={onEditorTypingStateChange}
-                  onContentChange={(nextContent) => {
-                    onProjectChange((currentProject) => {
-                      if (!currentProject.activeId) {
-                        return currentProject
-                      }
+                <div ref={editorStageRef} className="editor-workspace__editor-stage">
+                  <TypewriterEditor
+                    key={isEditOnActiveTab ? `diff-${currentEdit?.id ?? ""}` : `regular-${project.activeId}`}
+                    documentId={project.activeId}
+                    content={editorContentForActiveTab}
+                    readOnly={isEditOnActiveTab}
+                    onEditorReady={handleEditorReady}
+                    onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {
+                      setSelectedWordCount(nextSelectionCount)
+                    }}
+                    onTypingStateChange={onEditorTypingStateChange}
+                    onContentChange={(nextContent) => {
+                      if (isEditOnActiveTab) return
+                      onProjectChange((currentProject) => {
+                        if (!currentProject.activeId) {
+                          return currentProject
+                        }
 
-                      return {
-                        ...currentProject,
-                        contentById: {
-                          ...currentProject.contentById,
-                          [currentProject.activeId]: nextContent,
-                        },
-                      }
-                    })
-                  }}
-                />
+                        return {
+                          ...currentProject,
+                          contentById: {
+                            ...currentProject.contentById,
+                            [currentProject.activeId]: nextContent,
+                          },
+                        }
+                      })
+                    }}
+                  />
+                  {isEditOnActiveTab ? (
+                    <DiffHunkWidgets
+                      editor={tiptapEditor}
+                      containerRef={editorStageRef}
+                      onAcceptHunk={(hunkId) => {
+                        handleHunkDecision(hunkId, "accepted")
+                      }}
+                      onRejectHunk={(hunkId) => {
+                        handleHunkDecision(hunkId, "rejected")
+                      }}
+                    />
+                  ) : null}
+                </div>
               ) : activeDocumentType === "markdown" ? (
                 <MarkdownEditor
                   documentId={project.activeId}
@@ -1014,48 +1188,66 @@ export default function Editor({
                   }}
                 />
               ) : (
-                <DraftingEditor
-                  documentId={project.activeId}
-                  documentTitle={activeDocumentTitle}
-                  editorFontSize={editorFontSize}
-                  content={activeContent}
-                  flagsEnabled={flagsEnabled}
-                  onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {
-                    setSelectedWordCount(nextSelectionCount)
-                  }}
-                  onTypingStateChange={onEditorTypingStateChange}
-                  onDocumentTitleChange={(nextTitle) => {
-                    onProjectChange((currentProject) => {
-                      if (!currentProject.activeId) {
-                        return currentProject
-                      }
+                <div ref={editorStageRef} className="editor-workspace__editor-stage">
+                  <DraftingEditor
+                    key={isEditOnActiveTab ? `diff-${currentEdit?.id ?? ""}` : `regular-${project.activeId}`}
+                    documentId={project.activeId}
+                    documentTitle={activeDocumentTitle}
+                    editorFontSize={editorFontSize}
+                    content={editorContentForActiveTab}
+                    flagsEnabled={flagsEnabled}
+                    readOnly={isEditOnActiveTab}
+                    onEditorReady={handleEditorReady}
+                    onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {
+                      setSelectedWordCount(nextSelectionCount)
+                    }}
+                    onTypingStateChange={onEditorTypingStateChange}
+                    onDocumentTitleChange={(nextTitle) => {
+                      onProjectChange((currentProject) => {
+                        if (!currentProject.activeId) {
+                          return currentProject
+                        }
 
-                      const trimmed = nextTitle.trim()
-                      const fallbackTitle = getNextEntryName(currentProject.tabs, getProjectEntryTerms(currentProject.kind).singular)
-                      const resolvedTitle = trimmed || fallbackTitle
+                        const trimmed = nextTitle.trim()
+                        const fallbackTitle = getNextEntryName(currentProject.tabs, getProjectEntryTerms(currentProject.kind).singular)
+                        const resolvedTitle = trimmed || fallbackTitle
 
-                      return {
-                        ...currentProject,
-                        tabs: renameTabTitle(currentProject.tabs, currentProject.activeId, resolvedTitle),
-                      }
-                    })
-                  }}
-                  onContentChange={(nextContent) => {
-                    onProjectChange((currentProject) => {
-                      if (!currentProject.activeId) {
-                        return currentProject
-                      }
+                        return {
+                          ...currentProject,
+                          tabs: renameTabTitle(currentProject.tabs, currentProject.activeId, resolvedTitle),
+                        }
+                      })
+                    }}
+                    onContentChange={(nextContent) => {
+                      if (isEditOnActiveTab) return
+                      onProjectChange((currentProject) => {
+                        if (!currentProject.activeId) {
+                          return currentProject
+                        }
 
-                      return {
-                        ...currentProject,
-                        contentById: {
-                          ...currentProject.contentById,
-                          [currentProject.activeId]: nextContent,
-                        },
-                      }
-                    })
-                  }}
-                />
+                        return {
+                          ...currentProject,
+                          contentById: {
+                            ...currentProject.contentById,
+                            [currentProject.activeId]: nextContent,
+                          },
+                        }
+                      })
+                    }}
+                  />
+                  {isEditOnActiveTab ? (
+                    <DiffHunkWidgets
+                      editor={tiptapEditor}
+                      containerRef={editorStageRef}
+                      onAcceptHunk={(hunkId) => {
+                        handleHunkDecision(hunkId, "accepted")
+                      }}
+                      onRejectHunk={(hunkId) => {
+                        handleHunkDecision(hunkId, "rejected")
+                      }}
+                    />
+                  ) : null}
+                </div>
               )}
             </>
           ) : null}
