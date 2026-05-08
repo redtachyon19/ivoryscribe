@@ -5,7 +5,7 @@ import {
   useState,
   type CSSProperties,
 } from "react"
-import { useEditor, EditorContent, Extension } from "@tiptap/react"
+import { useEditor, EditorContent, Extension, type Editor as TiptapEditor } from "@tiptap/react"
 import { Node as TipTapNode } from "@tiptap/core"
 import { Plugin, PluginKey } from "@tiptap/pm/state"
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
@@ -16,6 +16,7 @@ import { TextStyle } from "@tiptap/extension-text-style"
 import FontFamily from "@tiptap/extension-font-family"
 import Color from "@tiptap/extension-color"
 import Underline from "@tiptap/extension-underline"
+import { DiffAddMark, DiffRemoveMark } from "../ai/diffMarks"
 import { Bold, Italic, Underline as UnderlineIcon, AlignLeft, AlignCenter, AlignRight, ChevronDown, Columns2, Columns3, Columns4, GripVertical, Highlighter, PaintRoller, RulerDimensionLine, ToolCase, X } from "lucide-react"
 import { FONT_OPTIONS as APP_FONT_OPTIONS } from "../../../core/appearance"
 import { useTypingCaret } from "./hooks/useTypingCaret"
@@ -606,6 +607,8 @@ type TypewriterEditorProps = {
   onContentChange: (nextContent: string) => void
   onWordCountChange?: (payload: { documentWordCount: number; selectedWordCount: number | null }) => void
   onTypingStateChange?: (isTyping: boolean) => void
+  onEditorReady?: (editor: TiptapEditor | null) => void
+  readOnly?: boolean
 }
 
 /* ── Component ── */
@@ -615,6 +618,8 @@ export default function TypewriterEditor({
   onContentChange,
   onWordCountChange,
   onTypingStateChange,
+  onEditorReady,
+  readOnly = false,
 }: TypewriterEditorProps) {
   /* ── Margins ── */
   const [margins, setMargins] = useState<Margins>(() => loadMargins(documentId))
@@ -738,6 +743,8 @@ export default function TypewriterEditor({
       ParaIndentExtension,
       ColumnsExtension,
       PageBreakExtension,
+      DiffAddMark,
+      DiffRemoveMark,
     ],
     editorProps: {
       attributes: {
@@ -786,6 +793,34 @@ export default function TypewriterEditor({
     if (editor.getHTML() === next) return
     editor.commands.setContent(next, { emitUpdate: false })
   }, [editor, content, documentId])
+
+  /* ── Read-only toggle (used during AI diff review) ── */
+  useEffect(() => {
+    if (!editor) return
+    if ((editor as { isDestroyed?: boolean }).isDestroyed) return
+    try {
+      editor.setEditable(!readOnly)
+    } catch {
+      /* editor may have been torn down between render and effect */
+    }
+  }, [editor, readOnly])
+
+  /* ── Expose editor instance to parent (for diff command dispatching) ── */
+  useEffect(() => {
+    if (!onEditorReady) return
+    try {
+      onEditorReady(editor)
+    } catch {
+      /* parent handler unmounted */
+    }
+    return () => {
+      try {
+        onEditorReady(null)
+      } catch {
+        /* parent handler unmounted */
+      }
+    }
+  }, [editor, onEditorReady])
 
   /* ── Load margins on document switch ── */
   useEffect(() => {
@@ -962,7 +997,14 @@ export default function TypewriterEditor({
   /* ── Cmd/Ctrl+Enter: jump cursor to the next page ── */
   useEffect(() => {
     if (!editor) return
-    const dom = editor.view.dom as HTMLElement
+    // The view may not be mounted on the first render; defer side-effect
+    // setup until the editor proxy is replaced with a real EditorView.
+    let dom: HTMLElement
+    try {
+      dom = editor.view.dom as HTMLElement
+    } catch {
+      return
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const isModEnter =
@@ -1181,7 +1223,12 @@ export default function TypewriterEditor({
      non-empty selection inside the editor. Then disarm. */
   useEffect(() => {
     if (!editor || !paintFormat) return
-    const dom = editor.view.dom
+    let dom: HTMLElement
+    try {
+      dom = editor.view.dom as HTMLElement
+    } catch {
+      return
+    }
 
     const handleMouseUp = () => {
       // Defer one tick so ProseMirror's selection state has settled.

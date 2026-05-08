@@ -3,6 +3,7 @@ import { useEditor, EditorContent, type Editor as TiptapEditor } from "@tiptap/r
 import StarterKit from "@tiptap/starter-kit"
 import Highlight from "@tiptap/extension-highlight"
 import Underline from "@tiptap/extension-underline"
+import { DiffAddMark, DiffRemoveMark } from "../ai/diffMarks"
 import {
   APP_PROJECT_SEARCH_FOCUS_EVENT,
   APP_SPELL_CHECK_FOCUS_EVENT,
@@ -58,6 +59,8 @@ type EditorProps = {
   onContentChange: (nextContent: string) => void
   onWordCountChange?: (payload: { documentWordCount: number; selectedWordCount: number | null }) => void
   onTypingStateChange?: (isTyping: boolean) => void
+  onEditorReady?: (editor: TiptapEditor | null) => void
+  readOnly?: boolean
 }
 
 type TextWordHit = {
@@ -158,6 +161,8 @@ export default function DraftingEditor({
   onContentChange,
   onWordCountChange,
   onTypingStateChange,
+  onEditorReady,
+  readOnly = false,
 }: EditorProps) {
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
   const titleEditableRef = useRef<HTMLDivElement | null>(null)
@@ -177,6 +182,8 @@ export default function DraftingEditor({
         multicolor: true,
       }),
       Underline,
+      DiffAddMark,
+      DiffRemoveMark,
     ],
     editorProps: {
       attributes: {
@@ -343,6 +350,32 @@ export default function DraftingEditor({
     syncEmptyState(editor)
     emitWordCounts(editor)
   }, [editor, content, documentId])
+
+  useEffect(() => {
+    if (!editor) return
+    if ((editor as { isDestroyed?: boolean }).isDestroyed) return
+    try {
+      editor.setEditable(!readOnly)
+    } catch {
+      /* editor torn down between render and effect */
+    }
+  }, [editor, readOnly])
+
+  useEffect(() => {
+    if (!onEditorReady) return
+    try {
+      onEditorReady(editor)
+    } catch {
+      /* parent unmounted */
+    }
+    return () => {
+      try {
+        onEditorReady(null)
+      } catch {
+        /* parent unmounted */
+      }
+    }
+  }, [editor, onEditorReady])
 
   useEffect(() => {
     if (!editor) {

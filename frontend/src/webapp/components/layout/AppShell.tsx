@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { Archive, ArrowLeft, ArrowRight, BookCopy, BookText, Copy, ExternalLink, Folder, Pencil, PanelLeft, PanelRight, Settings, Settings2, Trash2, UserRoundPlus } from "lucide-react"
 import NavigationPanel from "../navigation/NavigationPanel"
 import TuskAiTab from "../ai/TuskAiTab"
+import type { ProposedEdit } from "../ai/proposedEditsTypes"
 import MarqueeText from "../ui/MarqueeText"
 import Modal from "../ui/Modal"
 import Button from "../ui/Button"
@@ -51,6 +52,10 @@ export type AppShellProps = {
   tuskAiActivated: boolean
   isStartingTuskCheckout: boolean
   onStartTuskCheckout: () => void
+  pendingHunkCount: number
+  onProposedEdits: (edits: ProposedEdit[]) => { applied: number; dropped: number; hunkCount: number; tabCount: number }
+  onAcceptAllPendingHunks: () => void
+  onRejectAllProposedEdits: () => void
   /** When true, the topbar shows a Drafting/Typewriter view toggle. */
   viewToggleAvailable?: boolean
   /** Current view mode for the active prose tab. */
@@ -94,6 +99,10 @@ export default function AppShell({
   tuskAiActivated,
   isStartingTuskCheckout,
   onStartTuskCheckout,
+  pendingHunkCount,
+  onProposedEdits,
+  onAcceptAllPendingHunks,
+  onRejectAllProposedEdits,
   viewToggleAvailable = false,
   viewMode = "drafting",
   onToggleViewMode,
@@ -178,6 +187,7 @@ export default function AppShell({
   const [shareProjectId, setShareProjectId] = useState<string | null>(null)
   const shareDocumentId = shareProjectId ? (projectDocumentMap[shareProjectId] ?? null) : null
   const shareProject = shareProjectId ? projects.find((p) => p.id === shareProjectId) ?? null : null
+
 
   const handleProjectSegmentContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
@@ -708,21 +718,10 @@ export default function AppShell({
               isUnlocking={isStartingTuskCheckout}
               onUnlock={onStartTuskCheckout}
               project={project}
-              onApplyEdit={(tabId, nextContent) => {
-                onProjectChange((currentProject) => {
-                  if (!(tabId in currentProject.contentById)) {
-                    return currentProject
-                  }
-
-                  return {
-                    ...currentProject,
-                    contentById: {
-                      ...currentProject.contentById,
-                      [tabId]: nextContent,
-                    },
-                  }
-                })
-              }}
+              pendingHunkCount={pendingHunkCount}
+              onProposedEdits={onProposedEdits}
+              onAcceptAll={onAcceptAllPendingHunks}
+              onRejectAll={onRejectAllProposedEdits}
             />
           ) : null}
         </aside>

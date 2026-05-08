@@ -310,6 +310,26 @@ async function callOpenAi(prompt, apiKey, modelName) {
   return contentText;
 }
 
+class ProviderModerationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ProviderModerationError";
+  }
+}
+
+const CLAUDE_REFUSAL_PATTERNS = [
+  /i can(?:'|no)t (?:help|assist|create|write|generate)/i,
+  /i (?:won't|will not) (?:help|assist|create|write|generate)/i,
+  /i'?m (?:not able|unable) to (?:help|assist|create|write|generate)/i,
+  /against (?:my|anthropic'?s) (?:guidelines|policies|policy)/i,
+  /i must decline/i,
+];
+
+function looksLikeClaudeRefusal(text) {
+  const sample = String(text).slice(0, 600);
+  return CLAUDE_REFUSAL_PATTERNS.some((pattern) => pattern.test(sample));
+}
+
 async function callAnthropic(prompt, apiKey, modelName) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -327,10 +347,17 @@ async function callAnthropic(prompt, apiKey, modelName) {
 
   if (!response.ok) {
     const details = await response.text();
+    if (response.status === 400 && /policy|moderation|content/i.test(details)) {
+      throw new ProviderModerationError(`Anthropic refused (${response.status}): ${details.slice(0, 240)}`);
+    }
     throw new Error(`Anthropic request failed (${response.status}): ${details.slice(0, 240)}`);
   }
 
   const payload = await response.json();
+  if (payload?.stop_reason === "refusal") {
+    throw new ProviderModerationError("Anthropic returned stop_reason=refusal");
+  }
+
   const text = (Array.isArray(payload?.content) ? payload.content : [])
     .map((part) => (typeof part?.text === "string" ? part.text : ""))
     .join("\n")
@@ -338,6 +365,10 @@ async function callAnthropic(prompt, apiKey, modelName) {
 
   if (!text) {
     throw new Error("Anthropic response did not include text content");
+  }
+
+  if (looksLikeClaudeRefusal(text)) {
+    throw new ProviderModerationError("Anthropic response matched refusal patterns");
   }
 
   return text;
@@ -376,101 +407,188 @@ async function callXAi(prompt, apiKey, modelName) {
   return text;
 }
 
-async function generateModelEdits({ provider, userMessage, project, selectedTabs }) {
-  const availableTabsById = new Map(selectedTabs.map((tab) => [tab.tabId, tab]));
-
-  const openAiKey = process.env.OPENAI_API_KEY;
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  const xAiKey = process.env.XAI_API_KEY;
-
-  const providerConfig =
-    provider === "claude"
-      ? {
-          modelName: process.env.ANTHROPIC_MODEL ?? "claude-3-5-sonnet-latest",
-          hasKey: Boolean(anthropicKey),
-          call: () => callAnthropic,
-        }
-      : provider === "grok"
-        ? {
-            modelName: process.env.XAI_MODEL ?? "grok-3-beta",
-            hasKey: Boolean(xAiKey),
-            call: () => callXAi,
-          }
-        : {
-            modelName: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
-            hasKey: Boolean(openAiKey),
-            call: () => callOpenAi,
-          };
-
-  if (!providerConfig.hasKey) {
+function resolveProviderConfig(provider) {
+  if (provider === "claude") {
     return {
-      usedFallback: true,
-      providerNote: `No API key configured for provider ${provider}.`,
-      edits: selectedTabs.slice(0, 2).map((tab) => buildFallbackEdit(tab, userMessage, project.name)),
+      provider: "claude",
+      modelName: process.env.ANTHROPIC_MODEL ?? "claude-opus-4-7",
+      apiKey: process.env.ANTHROPIC_API_KEY ?? "",
+      call: callAnthropic,
     };
   }
+  if (provider === "grok") {
+    return {
+      provider: "grok",
+      modelName: process.env.XAI_MODEL ?? "grok-4-fast-reasoning",
+      apiKey: process.env.XAI_API_KEY ?? "",
+      call: callXAi,
+    };
+  }
+  return {
+    provider: "gpt",
+    modelName: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+    apiKey: process.env.OPENAI_API_KEY ?? "",
+    call: callOpenAi,
+  };
+}
 
+async function callWithModerationFallback(initialProvider, prompt) {
+  const primary = resolveProviderConfig(initialProvider);
+  if (!primary.apiKey) {
+    const error = new Error(`No API key configured for provider ${initialProvider}.`);
+    error.code = "NO_API_KEY";
+    throw error;
+  }
+
+  try {
+    const text = await primary.call(prompt, primary.apiKey, primary.modelName);
+    return { text, provider: primary.provider, modelName: primary.modelName, fellBackFrom: null };
+  } catch (error) {
+    const isClaudeRefusal = initialProvider === "claude" && error instanceof ProviderModerationError;
+    if (!isClaudeRefusal) {
+      throw error;
+    }
+
+    const grok = resolveProviderConfig("grok");
+    if (!grok.apiKey) {
+      const wrapped = new Error(
+        "Claude refused due to content moderation, and no XAI_API_KEY is configured for fallback.",
+      );
+      wrapped.cause = error;
+      throw wrapped;
+    }
+
+    const text = await grok.call(prompt, grok.apiKey, grok.modelName);
+    return {
+      text,
+      provider: grok.provider,
+      modelName: grok.modelName,
+      fellBackFrom: "claude",
+    };
+  }
+}
+
+async function generateModelEdits({ provider, userMessage, project, selectedTabs }) {
+  const availableTabsById = new Map(selectedTabs.map((tab) => [tab.tabId, tab]));
   const prompt = buildInstructionPrompt({
     provider,
-    modelName: providerConfig.modelName,
+    modelName: resolveProviderConfig(provider).modelName,
     userMessage,
     project,
     selectedTabs,
   });
 
+  let result;
   try {
-    let rawText;
-
-    if (provider === "claude") {
-      rawText = await callAnthropic(prompt, anthropicKey, providerConfig.modelName);
-    } else if (provider === "grok") {
-      rawText = await callXAi(prompt, xAiKey, providerConfig.modelName);
-    } else {
-      rawText = await callOpenAi(prompt, openAiKey, providerConfig.modelName);
-    }
-
-    const parsed = parseJsonFromText(rawText);
-    const edits = normalizeModelEdits(parsed, availableTabsById);
-
-    if (edits.length === 0) {
-      return {
-        usedFallback: true,
-        providerNote: "Model returned no valid edits; using local fallback revisions.",
-        edits: selectedTabs.slice(0, 2).map((tab) => buildFallbackEdit(tab, userMessage, project.name)),
-      };
-    }
-
-    return {
-      usedFallback: false,
-      providerNote: null,
-      modelName: providerConfig.modelName,
-      edits,
-    };
+    result = await callWithModerationFallback(provider, prompt);
   } catch (error) {
     return {
       usedFallback: true,
       providerNote: error instanceof Error ? error.message : "Provider request failed; using fallback edits.",
+      modelName: null,
+      providerUsed: provider,
+      fellBackFrom: null,
       edits: selectedTabs.slice(0, 2).map((tab) => buildFallbackEdit(tab, userMessage, project.name)),
+    };
+  }
+
+  const parsed = parseJsonFromText(result.text);
+  const edits = normalizeModelEdits(parsed, availableTabsById);
+
+  if (edits.length === 0) {
+    return {
+      usedFallback: true,
+      providerNote: "Model returned no valid edits; using local fallback revisions.",
+      modelName: result.modelName,
+      providerUsed: result.provider,
+      fellBackFrom: result.fellBackFrom,
+      edits: selectedTabs.slice(0, 2).map((tab) => buildFallbackEdit(tab, userMessage, project.name)),
+    };
+  }
+
+  return {
+    usedFallback: false,
+    providerNote: result.fellBackFrom
+      ? `Switched from ${result.fellBackFrom} to ${result.provider} (content moderation).`
+      : null,
+    modelName: result.modelName,
+    providerUsed: result.provider,
+    fellBackFrom: result.fellBackFrom,
+    edits,
+  };
+}
+
+function buildChatPrompt({ userMessage, project, selectedTabs }) {
+  let usedChars = 0;
+  const tabContext = [];
+
+  for (const tab of selectedTabs) {
+    if (usedChars >= MAX_TOTAL_CONTEXT_CHARS) {
+      break;
+    }
+    const excerpt = tab.fullContent.slice(0, MAX_CONTEXT_CHARS_PER_TAB);
+    usedChars += excerpt.length;
+    tabContext.push({ tabId: tab.tabId, tabTitle: tab.tabTitle, content: excerpt });
+  }
+
+  return `You are Tusk AI, an editorial assistant for long-form fiction writing.
+Reply conversationally to the user. Reference specific chapters/tabs by title when relevant.
+Walk through your reasoning briefly before giving your answer so the writer can follow your thinking.
+Do not output JSON or edit blocks here — that's a separate mode.
+
+User message:
+${userMessage}
+
+Project:
+- Name: ${project.name}
+- Kind: ${project.kind}
+- Active tab id: ${project.activeId ?? "none"}
+
+Relevant tabs (excerpts):
+${JSON.stringify(tabContext, null, 2)}`;
+}
+
+async function generateModelChat({ provider, userMessage, project, selectedTabs }) {
+  const prompt = buildChatPrompt({ userMessage, project, selectedTabs });
+
+  try {
+    const result = await callWithModerationFallback(provider, prompt);
+    return {
+      reply: result.text,
+      modelName: result.modelName,
+      providerUsed: result.provider,
+      fellBackFrom: result.fellBackFrom,
+      providerNote: result.fellBackFrom
+        ? `Switched from ${result.fellBackFrom} to ${result.provider} (content moderation).`
+        : null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      reply: null,
+      modelName: null,
+      providerUsed: provider,
+      fellBackFrom: null,
+      providerNote: null,
+      error: error instanceof Error ? error.message : "Provider request failed.",
     };
   }
 }
 
 router.post("/chat", async (req, res) => {
   try {
-    if (!req.user?.tuskAiActivated) {
-      return res.status(402).json({
-        message: "Tusk AI is not active for this account",
-        code: "TUSK_AI_NOT_ACTIVE",
-      });
-    }
-
-    const provider = req.body?.provider;
+    const requestedProvider = req.body?.provider;
     const userMessage = req.body?.message;
     const project = req.body?.project;
+    const mode = req.body?.mode === "chat" ? "chat" : "edit";
 
-    if (!["gpt", "claude", "grok"].includes(provider)) {
+    if (!["auto", "gpt", "claude", "grok"].includes(requestedProvider)) {
       return res.status(400).json({ message: "Invalid provider" });
     }
+
+    // "auto" routes through Claude first; the existing moderation-fallback
+    // path automatically swaps to Grok if Claude refuses (e.g., adult content).
+    const provider = requestedProvider === "auto" ? "claude" : requestedProvider;
 
     if (typeof userMessage !== "string" || !userMessage.trim()) {
       return res.status(400).json({ message: "Message is required" });
@@ -495,9 +613,38 @@ router.post("/chat", async (req, res) => {
     };
 
     const selectedTabs = selectRelevantTabs(sanitizedProject, userMessage);
+
+    if (mode === "chat") {
+      const chatResult = await generateModelChat({
+        provider,
+        userMessage,
+        project: sanitizedProject,
+        selectedTabs,
+      });
+
+      return res.status(200).json({
+        mode: "chat",
+        provider: requestedProvider,
+        providerUsed: chatResult.providerUsed,
+        fellBackFrom: chatResult.fellBackFrom,
+        model: chatResult.modelName ?? null,
+        providerNote: chatResult.providerNote,
+        error: chatResult.error,
+        reply: chatResult.reply,
+        contextMatches: selectedTabs.map((tab) => ({
+          tabId: tab.tabId,
+          tabTitle: tab.tabTitle,
+          relevanceScore: tab.score,
+        })),
+      });
+    }
+
     if (selectedTabs.length === 0) {
       return res.status(200).json({
-        provider,
+        mode: "edit",
+        provider: requestedProvider,
+        providerUsed: provider,
+        fellBackFrom: null,
         usedFallback: true,
         contextMatches: [],
         edits: [],
@@ -512,7 +659,10 @@ router.post("/chat", async (req, res) => {
     });
 
     return res.status(200).json({
-      provider,
+      mode: "edit",
+      provider: requestedProvider,
+      providerUsed: generated.providerUsed,
+      fellBackFrom: generated.fellBackFrom,
       model: generated.modelName ?? null,
       usedFallback: generated.usedFallback,
       providerNote: generated.providerNote,
@@ -525,7 +675,7 @@ router.post("/chat", async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({
-      message: "Failed to generate Tusk AI edits",
+      message: "Failed to generate Tusk AI response",
       details: error instanceof Error ? error.message : "Unexpected error",
     });
   }
