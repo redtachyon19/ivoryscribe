@@ -53,6 +53,7 @@ export type AppShellProps = {
   isStartingTuskCheckout: boolean
   onStartTuskCheckout: () => void
   pendingHunkCount: number
+  pendingEditTabIds: Set<string>
   onProposedEdits: (edits: ProposedEdit[]) => { applied: number; dropped: number; hunkCount: number; tabCount: number }
   onAcceptAllPendingHunks: () => void
   onRejectAllProposedEdits: () => void
@@ -100,6 +101,7 @@ export default function AppShell({
   isStartingTuskCheckout,
   onStartTuskCheckout,
   pendingHunkCount,
+  pendingEditTabIds,
   onProposedEdits,
   onAcceptAllPendingHunks,
   onRejectAllProposedEdits,
@@ -680,6 +682,7 @@ export default function AppShell({
           onToggleWordStats={onToggleWordStats}
           sessionToken={sessionToken}
           projectDocumentMap={projectDocumentMap}
+          pendingEditTabIds={pendingEditTabIds}
         />
 
         <div

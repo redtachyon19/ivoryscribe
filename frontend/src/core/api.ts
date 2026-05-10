@@ -76,6 +76,7 @@ export type TuskAiEdit = {
   summary: string
   before: string
   after: string
+  isNew?: boolean
 }
 
 export type TuskAiContextMatch = {

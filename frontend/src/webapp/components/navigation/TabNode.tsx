@@ -12,6 +12,7 @@ export type TabNodeProps = {
   dropTarget: DropTarget
   editingId: string | null
   editingTitle: string
+  pendingEditTabIds?: Set<string>
   onSelect: (id: string) => void
   onOpenInNewTab?: (id: string) => void
   onDragStart: (event: DragEvent<HTMLButtonElement>, id: string) => void
@@ -38,6 +39,7 @@ export default function TabNode({
   dropTarget,
   editingId,
   editingTitle,
+  pendingEditTabIds,
   onSelect,
   onOpenInNewTab,
   onDragStart,
@@ -66,6 +68,7 @@ export default function TabNode({
   const isDropInside = dropTarget?.targetId === tab.id && dropTarget.mode === "inside"
   const hasChildren = tab.children.length > 0
   const isExpanded = expandedById[tab.id] !== false
+  const hasPendingEdit = pendingEditTabIds?.has(tab.id) ?? false
 
   useEffect(() => {
     const viewport = marqueeViewportRef.current
@@ -120,7 +123,7 @@ export default function TabNode({
           onRowRef(tab.id, element)
         }}
         data-selectable-id={tab.id}
-        className={`doc-tabs__row ${isActive ? "doc-tabs__row--active" : ""} ${isMarqueeSelected ? "doc-tabs__row--marquee-selected" : ""}`.trim()}
+        className={`doc-tabs__row ${isActive ? "doc-tabs__row--active" : ""} ${isMarqueeSelected ? "doc-tabs__row--marquee-selected" : ""} ${hasPendingEdit ? "doc-tabs__row--pending-edit" : ""}`.trim()}
         onDragOver={(event) => {
           event.preventDefault()
           event.stopPropagation()
@@ -259,6 +262,7 @@ export default function TabNode({
               dropTarget={dropTarget}
               editingId={editingId}
               editingTitle={editingTitle}
+              pendingEditTabIds={pendingEditTabIds}
               onSelect={onSelect}
               onOpenInNewTab={onOpenInNewTab}
               onDragStart={onDragStart}
