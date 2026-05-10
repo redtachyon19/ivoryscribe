@@ -123,6 +123,7 @@ export default function TuskAiTab({
           before: edit.before,
           after: edit.after,
           state: "pending",
+          isNew: edit.isNew ?? false,
         }))
 
         const modelLabel = response.model
@@ -142,7 +143,11 @@ export default function TuskAiTab({
             ? "Error — model returned an edit but no actual changes were detected."
             : "Error — model returned no edits for this request."
         } else {
-          summary = `Proposed ${hunkCount} change${hunkCount === 1 ? "" : "s"} across ${tabCount} tab${tabCount === 1 ? "" : "s"}. Review them in the editor →`
+          const newChapterCount = newEdits.filter((edit) => edit.isNew).length
+          const newChapterNote = newChapterCount > 0
+            ? ` (${newChapterCount} new ${newChapterCount === 1 ? "chapter" : "chapters"})`
+            : ""
+          summary = `Proposed ${hunkCount} change${hunkCount === 1 ? "" : "s"} across ${tabCount} tab${tabCount === 1 ? "" : "s"}${newChapterNote}. Review them in the editor →`
         }
 
         setMessages((current) => [

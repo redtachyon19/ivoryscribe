@@ -67,6 +67,7 @@ export type NavigationPanelProps = {
   onToggleWordStats: () => void
   sessionToken: string
   projectDocumentMap: Record<string, string>
+  pendingEditTabIds?: Set<string>
 }
 
 export default function NavigationPanel({
@@ -93,6 +94,7 @@ export default function NavigationPanel({
   onToggleWordStats,
   sessionToken,
   projectDocumentMap,
+  pendingEditTabIds,
 }: NavigationPanelProps) {
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
   const [createMoreMenu, setCreateMoreMenu] = useState<{ x: number; y: number } | null>(null)
@@ -321,6 +323,7 @@ export default function NavigationPanel({
                 projectKind={project.kind}
                 activeId={project.activeId}
                 isVisible={isOpen && sidebarSlide === 2}
+                pendingEditTabIds={pendingEditTabIds}
                 onTabsChange={(updater) => {
                   onProjectChange((currentProject) => normalizeProjectAfterTabs(currentProject, updater(currentProject.tabs)))
                 }}

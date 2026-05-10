@@ -10,4 +10,5 @@ export type ProposedEdit = {
   state: "pending" | "accepted" | "rejected"
   blocks?: DiffBlock[]
   hunks?: DiffHunk[]
+  isNew?: boolean
 }

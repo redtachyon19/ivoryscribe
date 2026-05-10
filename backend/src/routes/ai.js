@@ -2,8 +2,12 @@ import { Router } from "express";
 
 const router = Router();
 
-const MAX_CONTEXT_CHARS_PER_TAB = 11_000;
-const MAX_TOTAL_CONTEXT_CHARS = 80_000;
+// Per-tab and total budgets for the project context sent to the model.
+// With Claude Opus 4.7's 200k-token window, ~250k chars (~62k tokens) fits
+// comfortably with room for system prompt + response. Most novels at the
+// chapter level fit fully under these caps.
+const MAX_CONTEXT_CHARS_PER_TAB = 30_000;
+const MAX_TOTAL_CONTEXT_CHARS = 250_000;
 
 function stripHtml(value) {
   return String(value)
@@ -92,6 +96,25 @@ function selectRelevantTabs(project, userMessage) {
   return ranked.slice(0, Math.min(3, ranked.length));
 }
 
+/**
+ * Returns ALL tabs in the project in document order, each with its content.
+ * Used to give the model full-document context so it can reason about
+ * cross-chapter continuity and propose multi-tab edits.
+ */
+function gatherProjectContext(project) {
+  const flatTabs = flattenTabs(project.tabs ?? []);
+  return flatTabs.map((tab) => {
+    const fullContent = String(project.contentById?.[tab.id] ?? "");
+    const plainContent = stripHtml(fullContent);
+    return {
+      tabId: tab.id,
+      tabTitle: tab.title,
+      fullContent,
+      plainContent,
+    };
+  });
+}
+
 function extractCharacterCandidates(input) {
   const names = new Set();
   const phraseMatches = String(input).matchAll(/\bcharacter\s+([A-Z][a-zA-Z'-]+)/g);
@@ -176,25 +199,50 @@ function parseJsonFromText(value) {
   }
 }
 
+function makeNewTabId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `ai-new-${crypto.randomUUID()}`;
+  }
+  return `ai-new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function normalizeModelEdits(raw, availableTabsById) {
   const edits = Array.isArray(raw?.edits) ? raw.edits : [];
 
   return edits
     .map((edit, index) => {
-      const tabId = typeof edit?.tabId === "string" ? edit.tabId : null;
-      if (!tabId) {
-        return null;
+      const after = typeof edit?.after === "string" ? edit.after : null;
+      if (!after) return null;
+
+      // New-tab proposal: model returns isNew:true with a title and after
+      // content, no existing tabId required.
+      if (edit?.isNew === true) {
+        const title =
+          typeof edit?.title === "string" && edit.title.trim()
+            ? edit.title.trim()
+            : "Untitled Chapter";
+        const newTabId = makeNewTabId();
+        return {
+          id: typeof edit?.id === "string" ? edit.id : `${newTabId}-model-${index}`,
+          tabId: newTabId,
+          tabTitle: title,
+          summary:
+            typeof edit?.summary === "string" && edit.summary.trim()
+              ? edit.summary.trim()
+              : `New chapter: ${title}`,
+          before: "",
+          after,
+          isNew: true,
+        };
       }
+
+      const tabId = typeof edit?.tabId === "string" ? edit.tabId : null;
+      if (!tabId) return null;
 
       const tab = availableTabsById.get(tabId);
-      if (!tab) {
-        return null;
-      }
+      if (!tab) return null;
 
-      const after = typeof edit?.after === "string" ? edit.after : null;
-      if (!after || after === tab.fullContent) {
-        return null;
-      }
+      if (after === tab.fullContent) return null;
 
       return {
         id: typeof edit?.id === "string" ? edit.id : `${tabId}-model-${index}`,
@@ -206,69 +254,112 @@ function normalizeModelEdits(raw, availableTabsById) {
             : `Proposed revision for ${tab.tabTitle}`,
         before: tab.fullContent,
         after,
+        isNew: false,
       };
     })
     .filter(Boolean);
 }
 
-function buildInstructionPrompt({ provider, modelName, userMessage, project, selectedTabs }) {
+function buildInstructionPrompt({ provider, modelName, userMessage, project, contextTabs, scoredTabIds }) {
+  // Allocate context budget greedily, prioritizing relevance-scored tabs so
+  // they get full content first; the rest get whatever budget remains
+  // (truncated as needed). All tabs are still listed so the model knows the
+  // full document structure even if some are abbreviated.
+  const orderedForBudget = [...contextTabs].sort((a, b) => {
+    const aRanked = scoredTabIds.has(a.tabId) ? 1 : 0;
+    const bRanked = scoredTabIds.has(b.tabId) ? 1 : 0;
+    return bRanked - aRanked;
+  });
+
   let usedChars = 0;
-  const tabContext = [];
-
-  for (const tab of selectedTabs) {
+  const allocatedById = new Map();
+  for (const tab of orderedForBudget) {
     if (usedChars >= MAX_TOTAL_CONTEXT_CHARS) {
-      break;
+      allocatedById.set(tab.tabId, { content: "", truncated: true });
+      continue;
     }
-
-    const excerpt = tab.fullContent.slice(0, MAX_CONTEXT_CHARS_PER_TAB);
+    const remainingBudget = MAX_TOTAL_CONTEXT_CHARS - usedChars;
+    const cap = Math.min(MAX_CONTEXT_CHARS_PER_TAB, remainingBudget);
+    const excerpt = tab.fullContent.slice(0, cap);
     usedChars += excerpt.length;
-    tabContext.push({
+    const truncated = excerpt.length < tab.fullContent.length;
+    allocatedById.set(tab.tabId, { content: excerpt, truncated });
+  }
+
+  // Now emit tabs in document order so the model navigates the book
+  // sequentially.
+  const tabContext = contextTabs.map((tab) => {
+    const allocated = allocatedById.get(tab.tabId);
+    return {
       tabId: tab.tabId,
       tabTitle: tab.tabTitle,
-      content: excerpt,
-    });
-  }
+      content: allocated?.content ?? "",
+      ...(allocated?.truncated ? { truncated: true } : {}),
+    };
+  });
 
   return `You are Tusk AI, an editorial assistant for long-form fiction writing.
 Provider selected: ${provider}
 Model name hint: ${modelName}
 
+You have FULL ACCESS to the writer's entire project below. Tabs are listed in
+document order (chapters / scenes / notes). Read across the whole book to
+understand character arcs, plot threads, tone, and continuity before deciding
+what to edit. You can — and SHOULD — edit multiple tabs in one response when
+the request requires it (e.g. "make Maya's arc more pessimistic across all
+chapters" should produce edits for every chapter Maya appears in).
+
+You can also CREATE NEW CHAPTERS / TABS when the request asks for them
+(e.g. "write a new chapter where Maya confronts her father" or "add an
+epilogue"). New chapters use \`isNew: true\` instead of a \`tabId\`, with
+a \`title\` for the new chapter.
+
 Task:
 - Read the user request.
-- Use project-wide story context to preserve characterization, tone, timeline continuity, and cross-chapter references.
-- Propose substantial edits where needed, not only minor wording tweaks.
-- Return edits as complete replacement text for each edited tab.
-- Do not invent new tab IDs. Use only provided tab IDs.
+- Use the full document context to make decisions.
+- If the request spans multiple chapters, return edits for ALL of them.
+- If the request asks for a new chapter, return it with isNew:true.
+- For each edited tab, return the COMPLETE replacement content.
+- For new chapters, return the FULL content of the new chapter.
+- Do not invent IDs for existing tabs — only use IDs listed below.
+- Preserve format style (HTML stays HTML, markdown stays markdown).
 
 User request:
 ${userMessage}
 
-Project context:
+Project metadata:
 - Project name: ${project.name}
 - Project kind: ${project.kind}
-- Active tab id: ${project.activeId ?? "none"}
+- Active tab id (the one the writer was last looking at): ${project.activeId ?? "none"}
 
-Tabs available for editing:
+All tabs in the project (document order):
 ${JSON.stringify(tabContext, null, 2)}
 
 Output requirements:
-- Return strict JSON only.
+- Return strict JSON only. No prose outside JSON.
 - Schema:
 {
   "edits": [
+    // Edit an existing tab:
     {
-      "id": "optional-string",
-      "tabId": "exact-tab-id",
-      "summary": "short summary of change",
+      "tabId": "exact-existing-tab-id",
+      "summary": "short summary of what changed",
       "after": "full revised content for that tab"
+    },
+    // OR create a new chapter / tab:
+    {
+      "isNew": true,
+      "title": "Chapter 5: The Confrontation",
+      "summary": "short summary of what this new chapter contains",
+      "after": "full content of the new chapter"
     }
   ]
 }
 
 Important:
-- Include only tabs that should change.
-- Preserve existing format style for each tab (HTML stays HTML, markdown stays markdown).
-- Avoid any prose outside JSON.`;
+- Include only items that should change or be added.
+- Multi-tab edits and new-chapter creation are both encouraged when the request implies them.
+- Use existing tab IDs as listed above. For new chapters, use isNew:true (no tabId).`;
 }
 
 async function callOpenAi(prompt, apiKey, modelName) {
@@ -468,14 +559,15 @@ async function callWithModerationFallback(initialProvider, prompt) {
   }
 }
 
-async function generateModelEdits({ provider, userMessage, project, selectedTabs }) {
-  const availableTabsById = new Map(selectedTabs.map((tab) => [tab.tabId, tab]));
+async function generateModelEdits({ provider, userMessage, project, contextTabs, scoredTabIds, fallbackTabsForLocal }) {
+  const availableTabsById = new Map(contextTabs.map((tab) => [tab.tabId, tab]));
   const prompt = buildInstructionPrompt({
     provider,
     modelName: resolveProviderConfig(provider).modelName,
     userMessage,
     project,
-    selectedTabs,
+    contextTabs,
+    scoredTabIds,
   });
 
   let result;
@@ -488,7 +580,7 @@ async function generateModelEdits({ provider, userMessage, project, selectedTabs
       modelName: null,
       providerUsed: provider,
       fellBackFrom: null,
-      edits: selectedTabs.slice(0, 2).map((tab) => buildFallbackEdit(tab, userMessage, project.name)),
+      edits: fallbackTabsForLocal.slice(0, 2).map((tab) => buildFallbackEdit(tab, userMessage, project.name)),
     };
   }
 
@@ -502,7 +594,7 @@ async function generateModelEdits({ provider, userMessage, project, selectedTabs
       modelName: result.modelName,
       providerUsed: result.provider,
       fellBackFrom: result.fellBackFrom,
-      edits: selectedTabs.slice(0, 2).map((tab) => buildFallbackEdit(tab, userMessage, project.name)),
+      edits: fallbackTabsForLocal.slice(0, 2).map((tab) => buildFallbackEdit(tab, userMessage, project.name)),
     };
   }
 
@@ -518,22 +610,39 @@ async function generateModelEdits({ provider, userMessage, project, selectedTabs
   };
 }
 
-function buildChatPrompt({ userMessage, project, selectedTabs }) {
-  let usedChars = 0;
-  const tabContext = [];
+function buildChatPrompt({ userMessage, project, contextTabs, scoredTabIds }) {
+  // Same budgeting strategy as the edit prompt: prioritize relevance-scored
+  // tabs for full content, then everything else gets whatever budget remains.
+  const orderedForBudget = [...contextTabs].sort((a, b) => {
+    const aRanked = scoredTabIds.has(a.tabId) ? 1 : 0;
+    const bRanked = scoredTabIds.has(b.tabId) ? 1 : 0;
+    return bRanked - aRanked;
+  });
 
-  for (const tab of selectedTabs) {
+  let usedChars = 0;
+  const allocatedById = new Map();
+  for (const tab of orderedForBudget) {
     if (usedChars >= MAX_TOTAL_CONTEXT_CHARS) {
-      break;
+      allocatedById.set(tab.tabId, "");
+      continue;
     }
-    const excerpt = tab.fullContent.slice(0, MAX_CONTEXT_CHARS_PER_TAB);
+    const remainingBudget = MAX_TOTAL_CONTEXT_CHARS - usedChars;
+    const cap = Math.min(MAX_CONTEXT_CHARS_PER_TAB, remainingBudget);
+    const excerpt = tab.fullContent.slice(0, cap);
     usedChars += excerpt.length;
-    tabContext.push({ tabId: tab.tabId, tabTitle: tab.tabTitle, content: excerpt });
+    allocatedById.set(tab.tabId, excerpt);
   }
 
+  const tabContext = contextTabs.map((tab) => ({
+    tabId: tab.tabId,
+    tabTitle: tab.tabTitle,
+    content: allocatedById.get(tab.tabId) ?? "",
+  }));
+
   return `You are Tusk AI, an editorial assistant for long-form fiction writing.
-Reply conversationally to the user. Reference specific chapters/tabs by title when relevant.
-Walk through your reasoning briefly before giving your answer so the writer can follow your thinking.
+You have FULL ACCESS to the writer's entire project below (all tabs in document order).
+Reply conversationally. Reference specific chapters/tabs by title when relevant.
+Walk through your reasoning briefly before giving your answer.
 Do not output JSON or edit blocks here — that's a separate mode.
 
 User message:
@@ -544,12 +653,12 @@ Project:
 - Kind: ${project.kind}
 - Active tab id: ${project.activeId ?? "none"}
 
-Relevant tabs (excerpts):
+All tabs in the project (document order):
 ${JSON.stringify(tabContext, null, 2)}`;
 }
 
-async function generateModelChat({ provider, userMessage, project, selectedTabs }) {
-  const prompt = buildChatPrompt({ userMessage, project, selectedTabs });
+async function generateModelChat({ provider, userMessage, project, contextTabs, scoredTabIds }) {
+  const prompt = buildChatPrompt({ userMessage, project, contextTabs, scoredTabIds });
 
   try {
     const result = await callWithModerationFallback(provider, prompt);
@@ -612,14 +721,22 @@ router.post("/chat", async (req, res) => {
       contentById: projectContentById,
     };
 
-    const selectedTabs = selectRelevantTabs(sanitizedProject, userMessage);
+    // Full project context — every tab the model can read or edit.
+    const contextTabs = gatherProjectContext(sanitizedProject);
+    // Relevance scoring is now informational (returned to the client as
+    // contextMatches) and used to prioritize budget allocation in the
+    // prompt. The model still sees ALL tabs so it can reason across the
+    // entire document.
+    const scoredTabs = selectRelevantTabs(sanitizedProject, userMessage);
+    const scoredTabIds = new Set(scoredTabs.map((tab) => tab.tabId));
 
     if (mode === "chat") {
       const chatResult = await generateModelChat({
         provider,
         userMessage,
         project: sanitizedProject,
-        selectedTabs,
+        contextTabs,
+        scoredTabIds,
       });
 
       return res.status(200).json({
@@ -631,7 +748,7 @@ router.post("/chat", async (req, res) => {
         providerNote: chatResult.providerNote,
         error: chatResult.error,
         reply: chatResult.reply,
-        contextMatches: selectedTabs.map((tab) => ({
+        contextMatches: scoredTabs.map((tab) => ({
           tabId: tab.tabId,
           tabTitle: tab.tabTitle,
           relevanceScore: tab.score,
@@ -639,7 +756,7 @@ router.post("/chat", async (req, res) => {
       });
     }
 
-    if (selectedTabs.length === 0) {
+    if (contextTabs.length === 0) {
       return res.status(200).json({
         mode: "edit",
         provider: requestedProvider,
@@ -655,7 +772,9 @@ router.post("/chat", async (req, res) => {
       provider,
       userMessage,
       project: sanitizedProject,
-      selectedTabs,
+      contextTabs,
+      scoredTabIds,
+      fallbackTabsForLocal: scoredTabs.length > 0 ? scoredTabs : contextTabs,
     });
 
     return res.status(200).json({
@@ -666,7 +785,7 @@ router.post("/chat", async (req, res) => {
       model: generated.modelName ?? null,
       usedFallback: generated.usedFallback,
       providerNote: generated.providerNote,
-      contextMatches: selectedTabs.map((tab) => ({
+      contextMatches: scoredTabs.map((tab) => ({
         tabId: tab.tabId,
         tabTitle: tab.tabTitle,
         relevanceScore: tab.score,

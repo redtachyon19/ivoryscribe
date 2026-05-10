@@ -26,6 +26,7 @@ type DocumentTabsProps = {
   projectKind: ProjectKind
   activeId: string | null
   isVisible?: boolean
+  pendingEditTabIds?: Set<string>
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
   onSelect: (id: string) => void
   onCreateEntry: () => void
@@ -45,6 +46,7 @@ export default function DocumentTabsPanel({
   projectKind,
   activeId,
   isVisible = true,
+  pendingEditTabIds,
   onTabsChange,
   onSelect,
   onCreateEntry,
@@ -441,6 +443,7 @@ export default function DocumentTabsPanel({
               dropTarget={dropTarget}
               editingId={editingId}
               editingTitle={editingTitle}
+              pendingEditTabIds={pendingEditTabIds}
               onSelect={onSelect}
               onOpenInNewTab={onOpenTabInNewTab}
               onDragStart={(event, id) => {
