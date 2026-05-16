@@ -1,5 +1,5 @@
 import { useState, type DragEvent, type Dispatch, type SetStateAction } from "react"
-import type { Project } from "../../../core/projects"
+import type { Project } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
 
 type SectionTarget = "library" | "archive" | "trash" | null

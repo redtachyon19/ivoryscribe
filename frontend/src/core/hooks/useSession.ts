@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { getSessionFromStorage, setSessionInStorage, type UserSession } from "./session"
+import { getSessionFromStorage, setSessionInStorage, type UserSession } from "../state/session"
 import {
   updateAccountProfile,
   requestPasswordResetLink,
@@ -8,7 +8,7 @@ import {
   confirmAccountEmailChange as apiConfirmAccountEmailChange,
   requestAccountDeletion as apiRequestAccountDeletion,
   confirmAccountDeletionCode,
-} from "./api"
+} from "../api"
 
 export function useSession(options?: {
   onLogin?: () => void

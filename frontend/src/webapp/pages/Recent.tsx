@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Archive, BookCopy, Clock, Trash2 } from "lucide-react"
-import type { Project } from "../../core/projects"
-import { duplicateProject } from "../../core/libraryUtils"
+import type { Project } from "../../core/utils/projects"
+import { duplicateProject } from "../../core/utils/libraryUtils"
 import ProjectCard from "../components/library/ProjectCard"
 
 import { useViewMode, useSortMode, applySortMode, ViewToggle, ProjectListView } from "../components/library/useViewMode"

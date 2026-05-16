@@ -1,4 +1,4 @@
-import { appMenu, type MenuItem } from "../../../core/menu"
+import { appMenu, type MenuItem } from "../../../core/utils/menu"
 import {
   BookText,
   Bold,
@@ -16,7 +16,7 @@ import {
   Clipboard,
   X,
 } from "lucide-react"
-import { useMenuState } from "../../../core/useMenuState"
+import { useMenuState } from "../../../core/hooks/useMenuState"
 import "./WebMenu.css"
 
 const menuIcons: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }>> = {

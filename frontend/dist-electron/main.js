@@ -1,4 +1,5 @@
-import { app, ipcMain, BrowserWindow, Menu, shell } from "electron";
+import { app, ipcMain, shell, BrowserWindow, Menu, dialog } from "electron";
+import { promises } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
@@ -55,6 +56,8 @@ function applyNativeMenu(rendererItems) {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 function createWindow() {
+  const preloadPath = path.join(__dirname$1, "preload.cjs");
+  console.log("[ivoryscribe] preload path:", preloadPath);
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -66,10 +69,14 @@ function createWindow() {
     transparent: isMac,
     vibrancy: isMac ? "sidebar" : void 0,
     webPreferences: {
-      preload: path.join(__dirname$1, "preload.mjs"),
+      preload: preloadPath,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: false
     }
+  });
+  mainWindow.webContents.on("preload-error", (_event, preload, error) => {
+    console.error("[ivoryscribe] PRELOAD ERROR:", preload, error);
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
@@ -137,6 +144,77 @@ ipcMain.handle("spellcheck:remove-word", (_event, word) => {
 });
 ipcMain.on("menu:update", (_event, items) => {
   applyNativeMenu(items);
+});
+ipcMain.handle("dialog:selectDirectory", async (_event, opts = {}) => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: opts.title ?? "Select folder",
+    defaultPath: opts.defaultPath,
+    properties: ["openDirectory", "createDirectory"]
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+ipcMain.handle("fs:getDefaultRoot", async () => {
+  const docs = app.getPath("documents");
+  const root = path.join(docs, "Ivoryscribe");
+  await promises.mkdir(root, { recursive: true });
+  return root;
+});
+ipcMain.handle("fs:readFile", async (_event, filePath) => {
+  return await promises.readFile(filePath, "utf8");
+});
+ipcMain.handle("fs:writeFile", async (_event, filePath, contents) => {
+  await promises.mkdir(path.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  await promises.writeFile(tmp, contents, "utf8");
+  await promises.rename(tmp, filePath);
+});
+ipcMain.handle("fs:listDirectory", async (_event, dirPath) => {
+  const entries = await promises.readdir(dirPath, { withFileTypes: true });
+  const out = [];
+  for (const ent of entries) {
+    if (ent.name.startsWith(".")) continue;
+    const full = path.join(dirPath, ent.name);
+    try {
+      const stat = await promises.stat(full);
+      out.push({
+        name: ent.name,
+        path: full,
+        kind: ent.isDirectory() ? "directory" : "file",
+        size: stat.size,
+        modifiedAt: stat.mtimeMs
+      });
+    } catch {
+    }
+  }
+  return out;
+});
+ipcMain.handle("fs:mkdir", async (_event, dirPath) => {
+  await promises.mkdir(dirPath, { recursive: true });
+});
+ipcMain.handle("fs:rename", async (_event, oldPath, newPath) => {
+  await promises.rename(oldPath, newPath);
+});
+ipcMain.handle("fs:trash", async (_event, targetPath) => {
+  await shell.trashItem(targetPath);
+});
+ipcMain.handle("fs:exists", async (_event, targetPath) => {
+  try {
+    await promises.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+});
+ipcMain.handle("fs:stat", async (_event, targetPath) => {
+  const s = await promises.stat(targetPath);
+  return {
+    size: s.size,
+    modifiedAt: s.mtimeMs,
+    isDirectory: s.isDirectory(),
+    isFile: s.isFile()
+  };
 });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

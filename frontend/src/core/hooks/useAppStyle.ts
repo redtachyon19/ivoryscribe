@@ -13,7 +13,7 @@ import {
   pickReadableTextColor,
   withEmojiFontFallback,
   type Palette,
-} from "./appearance"
+} from "../utils/appearance"
 import {
   APP_COLOR_PALETTE_CHANGE_EVENT,
   EDITOR_FONT_FAMILY_CHANGE_EVENT,
@@ -21,7 +21,7 @@ import {
   EDITOR_FONT_SIZE_SET_EVENT,
   requestEditorFontFamilyChange,
   requestEditorFontSizeSet,
-} from "./editorEvents"
+} from "../events/editorEvents"
 
 export function useAppStyle() {
   const [displayFont, setDisplayFont] = useState<string>(DEFAULT_DISPLAY_FONT)

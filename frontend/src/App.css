@@ -331,3 +331,82 @@
   font-size: 18px;
   color: var(--menu-button, #ededed);
 }
+
+.legacy-mode-back {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
+  appearance: none;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-family: var(--app-body-font);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.legacy-mode-back:hover {
+  background: rgba(0, 0, 0, 0.85);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+/* ── Auth overlay (Electron sign-in prompt for share) ─────────────────── */
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-overlay__backdrop {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.auth-overlay__panel {
+  position: relative;
+  max-width: 480px;
+  max-height: 90vh;
+  width: 92%;
+  overflow: auto;
+  border-radius: 14px;
+  background: var(--surface-1, rgba(20, 20, 22, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+
+.auth-overlay__close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--menu-button, #ededed);
+  font-size: 20px;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.auth-overlay__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+}

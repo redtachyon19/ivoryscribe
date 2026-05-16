@@ -268,22 +268,67 @@ export function useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef
     }
   }, [editor, editorSurfaceRef, activeDocumentKey, flaggedAnchorsByDocument])
 
+  /* ── Flag create / remove ──
+       Bundling these here means the consumer (DraftingEditor) just renders
+       <FlagRail onCreateFlag={...} onRemoveFlag={...} /> with these callbacks
+       and doesn't have to know about flaggedAnchorsByDocument or
+       highlightRangesByDocument internals. */
+  const handleCreateFlag = (anchor: number) => {
+    const highlightedRange = highlightSelectionIfPresent()
+
+    setFlaggedAnchorsByDocument((current) => {
+      const existing = current[activeDocumentKey] ?? []
+      if (existing.includes(anchor)) return current
+      return { ...current, [activeDocumentKey]: [...existing, anchor] }
+    })
+
+    if (highlightedRange) {
+      setHighlightRangesByDocument((current) => {
+        const existing = current[activeDocumentKey] ?? {}
+        return {
+          ...current,
+          [activeDocumentKey]: { ...existing, [anchor]: highlightedRange },
+        }
+      })
+    }
+  }
+
+  const handleRemoveFlag = (anchor: number) => {
+    removeHighlightForAnchor(anchor)
+
+    setFlaggedAnchorsByDocument((current) => {
+      const existing = current[activeDocumentKey] ?? []
+      const next = existing.filter((value) => value !== anchor)
+      if (next.length === existing.length) return current
+      return { ...current, [activeDocumentKey]: next }
+    })
+
+    setHighlightRangesByDocument((current) => {
+      const existing = current[activeDocumentKey]
+      if (!existing || !existing[anchor]) return current
+      const next = { ...existing }
+      delete next[anchor]
+      return { ...current, [activeDocumentKey]: next }
+    })
+  }
+
+  const clearHoverState = () => {
+    setHoverLineTop(null)
+    setHoverLineAnchor(null)
+  }
+
   return {
     activeDocumentKey,
     flaggedAnchors,
     flaggedAnchorsByDocument,
-    highlightRangesByDocument,
     flaggedLineTops,
     hoverLineTop,
     hoverLineAnchor,
     isFlagRailHovered,
-    setFlaggedAnchorsByDocument,
-    setHighlightRangesByDocument,
     setIsFlagRailHovered,
-    setHoverLineTop,
-    setHoverLineAnchor,
+    clearHoverState,
     updateHoverLineFromPointer,
-    highlightSelectionIfPresent,
-    removeHighlightForAnchor,
+    handleCreateFlag,
+    handleRemoveFlag,
   }
 }

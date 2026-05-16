@@ -1,5 +1,5 @@
-import type { DocumentTab } from "../../../core/projects"
-import type { DropMode } from "../editor/hooks/useListDrag"
+import type { DocumentTab } from "../../../core/utils/projects"
+import type { DropMode } from "../shared/hooks/useListDrag"
 
 // Guards against dropping a node inside its own subtree.
 export function containsId(node: DocumentTab, targetId: string): boolean {

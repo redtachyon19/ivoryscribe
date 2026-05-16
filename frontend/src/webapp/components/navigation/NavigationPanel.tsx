@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type Dispatch, type MouseEvent, type 
 import { ArrowLeft, BookPlus, FilePlus2, FileText, FolderPlus, ListPlus, PanelLeft, Presentation } from "lucide-react"
 import DocumentTabsPanel from "./DocumentTabsPanel"
 import ProjectBrowserPanel from "./ProjectBrowserPanel"
-import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../../core/projects"
+import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
 import { deepCloneTab, findNode, insertRelative } from "./tabTreeUtils"

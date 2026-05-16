@@ -1,6 +1,6 @@
 import { CheckCheck, ChevronLeft, ChevronRight, Ellipsis, Languages, X } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
-import type { SpellCheckDocumentType, SpellCheckIssue } from "./spellcheck.ts"
+import type { SpellCheckDocumentType, SpellCheckIssue } from "../utils/spellChecker"
 import "./SpellCheckModal.css"
 
 type SpellCheckModalProps = {

@@ -3,8 +3,8 @@ import {
   APP_PROJECT_SEARCH_EVENT,
   requestAppProjectSearch,
   requestAppProjectSearchFocus,
-} from "./editorEvents"
-import { collectTabSequence, getProjectMarkdownIds, type Project } from "./projects"
+} from "../events/editorEvents"
+import { collectTabSequence, getProjectMarkdownIds, type Project } from "../utils/projects"
 
 const FIND_REPLACE_RESULT_LIMIT = 200
 

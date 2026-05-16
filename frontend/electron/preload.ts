@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
+import path from "node:path"
 
 contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
@@ -15,9 +16,39 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("menu:command", handler)
     return () => { ipcRenderer.removeListener("menu:command", handler) }
   },
+
+  fs: {
+    selectDirectory: (opts?: { defaultPath?: string; title?: string }) =>
+      ipcRenderer.invoke("dialog:selectDirectory", opts ?? {}),
+    getDefaultRoot: () =>
+      ipcRenderer.invoke("fs:getDefaultRoot"),
+    readFile: (filePath: string) =>
+      ipcRenderer.invoke("fs:readFile", filePath),
+    writeFile: (filePath: string, contents: string) =>
+      ipcRenderer.invoke("fs:writeFile", filePath, contents),
+    listDirectory: (dirPath: string) =>
+      ipcRenderer.invoke("fs:listDirectory", dirPath),
+    mkdir: (dirPath: string) =>
+      ipcRenderer.invoke("fs:mkdir", dirPath),
+    rename: (oldPath: string, newPath: string) =>
+      ipcRenderer.invoke("fs:rename", oldPath, newPath),
+    trash: (targetPath: string) =>
+      ipcRenderer.invoke("fs:trash", targetPath),
+    exists: (targetPath: string) =>
+      ipcRenderer.invoke("fs:exists", targetPath),
+    stat: (targetPath: string) =>
+      ipcRenderer.invoke("fs:stat", targetPath),
+  },
+
+  path: {
+    join: (...parts: string[]) => path.join(...parts),
+    basename: (p: string, ext?: string) => path.basename(p, ext),
+    dirname: (p: string) => path.dirname(p),
+    extname: (p: string) => path.extname(p),
+    sep: path.sep,
+  },
 })
 
-// Add electron-mac class on html element so CSS can target it for transparency
 if (process.platform === "darwin") {
   document.addEventListener("DOMContentLoaded", () => {
     document.documentElement.classList.add("electron-mac")

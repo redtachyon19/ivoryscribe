@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from "react"
 import { BookText } from "lucide-react"
-import { collectTabIds, getProjectEntryTerms, type Project } from "../../../core/projects"
-import { extractEmojiTokens } from "../../../core/libraryUtils"
+import { collectTabIds, getProjectEntryTerms, type Project } from "../../../core/utils/projects"
+import { extractEmojiTokens } from "../../../core/utils/libraryUtils"
 
 function hexToRgba(hex: string, alpha: number) {
   const normalized = hex.replace("#", "")

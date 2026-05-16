@@ -12,75 +12,47 @@ import {
   getSharedWithMe,
   updateDocument,
   updatePreferences,
-} from "./api"
-import {
-  clampFontSize,
-  DEFAULT_BODY_FONT,
-  DEFAULT_CUSTOM_ACCENT,
-  DEFAULT_CUSTOM_BACKGROUND,
-  DEFAULT_DISPLAY_FONT,
-  DEFAULT_UI_FONT,
-  getInitialPalette,
-  PALETTE_OPTIONS,
-  type Palette,
-} from "./appearance"
-import { requestEditorFontFamilyChange } from "./editorEvents"
+} from "../api"
+import type { Palette } from "../utils/appearance"
+import { applyPreferences, type PreferencesPayload } from "../utils/preferences"
 import {
   createProject,
   extractCounterFromNames,
   parseProjectFromDocument,
   type Project,
-} from "./projects"
-import { setSessionInStorage, type UserSession } from "./session"
+} from "../utils/projects"
+import type { UserSession } from "../state/session"
 import {
   parseProjectVersion,
   PROJECT_RECORD_TYPE,
   sortProjectVersionsDesc,
   type ProjectVersion,
-} from "./versioning"
-import type { ProjectFolder } from "../webapp/pages/Library"
+} from "../state/versioning"
+import type { ProjectFolder } from "../../webapp/pages/Library"
 
-type PreferencesPayload = {
-  theme?: {
-    palette?: string
-    customPaletteBackground?: string
-    customPaletteAccent?: string
-  }
-  editorSettings?: {
-    displayFont?: string
-    bodyFont?: string
-    uiFont?: string
-    selectedFont?: string
-    fontSize?: number
-    isWordCountEnabled?: boolean
-  }
-  uiSettings?: {
-    folders?: ProjectFolder[]
-    activeProjectId?: string | null
-    menuBarEnabled?: boolean
-    flagsEnabled?: boolean
-    translucentNavPanel?: boolean
-    view?: "projects" | "editor"
-    bookCounter?: number
-  }
-}
-
-type UseWorkspaceHydrationParams = {
-  session: UserSession | null
-  setSession: Dispatch<SetStateAction<UserSession | null>>
+export type WorkspaceMutators = {
+  // Auth
   setIsAuthBootstrapping: Dispatch<SetStateAction<boolean>>
   setAuthLoadError: Dispatch<SetStateAction<string>>
-  // Shared state lifted to App
-  isWorkspaceHydrated: boolean
+  /** Called when the cloud rejects the stored token (401). Orchestrator
+   *  clears the session and persisted storage. */
+  onAuthFailure: (message: string) => void
+
+  // Hydration progress
   setIsWorkspaceHydrated: Dispatch<SetStateAction<boolean>>
-  projectDocumentMap: Record<string, string>
-  setProjectDocumentMap: Dispatch<SetStateAction<Record<string, string>>>
-  // Hydration distribution targets
+
+  // Workspace data
   setProjects: Dispatch<SetStateAction<Project[]>>
+  setProjectDocumentMap: Dispatch<SetStateAction<Record<string, string>>>
   setProjectVersionsByProjectId: Dispatch<SetStateAction<Record<string, ProjectVersion[]>>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
   setView: Dispatch<SetStateAction<"projects" | "editor">>
+  setBookCounter: Dispatch<SetStateAction<number>>
+  setPendingShareRequests: Dispatch<SetStateAction<PendingShareRequest[]>>
+  setTuskAiBilling: Dispatch<SetStateAction<BillingStatusResponse>>
+
+  // Preferences
   setIsMenuBarEnabled: Dispatch<SetStateAction<boolean>>
   setIsFlagsEnabled: Dispatch<SetStateAction<boolean>>
   setIsTranslucentNavPanel: Dispatch<SetStateAction<boolean>>
@@ -92,10 +64,14 @@ type UseWorkspaceHydrationParams = {
   setUiFont: Dispatch<SetStateAction<string>>
   setFontSize: Dispatch<SetStateAction<number>>
   setIsWordCountEnabled: Dispatch<SetStateAction<boolean>>
-  setBookCounter: Dispatch<SetStateAction<number>>
-  setTuskAiBilling: Dispatch<SetStateAction<BillingStatusResponse>>
-  setPendingShareRequests: Dispatch<SetStateAction<PendingShareRequest[]>>
-  // Sync state reads
+}
+
+type UseWorkspaceHydrationParams = {
+  session: UserSession | null
+  mutators: WorkspaceMutators
+  isWorkspaceHydrated: boolean
+  projectDocumentMap: Record<string, string>
+  // Sync state reads (current values driving the debounced sync effect)
   projects: Project[]
   activeProjectId: string | null
   palette: Palette
@@ -117,32 +93,9 @@ type UseWorkspaceHydrationParams = {
 export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
   const {
     session,
-    setSession,
-    setIsAuthBootstrapping,
-    setAuthLoadError,
+    mutators,
     isWorkspaceHydrated,
-    setIsWorkspaceHydrated,
     projectDocumentMap,
-    setProjectDocumentMap,
-    setProjects,
-    setProjectVersionsByProjectId,
-    setFolders,
-    setActiveProjectId,
-    setView,
-    setIsMenuBarEnabled,
-    setIsFlagsEnabled,
-    setIsTranslucentNavPanel,
-    setPalette,
-    setCustomPaletteBackground,
-    setCustomPaletteAccent,
-    setDisplayFont,
-    setBodyFont,
-    setUiFont,
-    setFontSize,
-    setIsWordCountEnabled,
-    setBookCounter,
-    setTuskAiBilling,
-    setPendingShareRequests,
     projects,
     activeProjectId,
     palette,
@@ -160,6 +113,33 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     view,
     bookCounter,
   } = params
+
+  const {
+    setIsAuthBootstrapping,
+    setAuthLoadError,
+    onAuthFailure,
+    setIsWorkspaceHydrated,
+    setProjects,
+    setProjectDocumentMap,
+    setProjectVersionsByProjectId,
+    setFolders,
+    setActiveProjectId,
+    setView,
+    setBookCounter,
+    setPendingShareRequests,
+    setTuskAiBilling,
+    setIsMenuBarEnabled,
+    setIsFlagsEnabled,
+    setIsTranslucentNavPanel,
+    setPalette,
+    setCustomPaletteBackground,
+    setCustomPaletteAccent,
+    setDisplayFont,
+    setBodyFont,
+    setUiFont,
+    setFontSize,
+    setIsWordCountEnabled,
+  } = mutators
 
   const saveTimeoutRef = useRef<number | null>(null)
   const isSyncingRef = useRef(false)
@@ -260,9 +240,11 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     }
 
     const projectList = nextProjects.length ? nextProjects : [createProject("Book 1", "Book")]
-    const uiSettings = (preferences.uiSettings ?? {}) as PreferencesPayload["uiSettings"]
-    const themeSettings = (preferences.theme ?? {}) as PreferencesPayload["theme"]
-    const editorSettings = (preferences.editorSettings ?? {}) as PreferencesPayload["editorSettings"]
+    const uiSettings = (preferences.uiSettings ?? {}) as PreferencesPayload["uiSettings"] & {
+      folders?: ProjectFolder[]
+      activeProjectId?: string | null
+      bookCounter?: number
+    }
 
     setProjects(projectList)
     setProjectDocumentMap(nextDocumentMap)
@@ -278,30 +260,12 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
     // Always land in library on login/refresh, regardless of previously saved view.
     setView("projects")
-    setIsMenuBarEnabled(Boolean(uiSettings?.menuBarEnabled))
-    setIsFlagsEnabled(Boolean(uiSettings?.flagsEnabled))
-    setIsTranslucentNavPanel(uiSettings?.translucentNavPanel !== false)
 
-    const loadedPalette =
-      typeof themeSettings?.palette === "string" &&
-      PALETTE_OPTIONS.some((option) => option.value === themeSettings.palette)
-        ? (themeSettings.palette as Palette)
-        : getInitialPalette()
-    setPalette(loadedPalette)
-    setCustomPaletteBackground(themeSettings?.customPaletteBackground ?? DEFAULT_CUSTOM_BACKGROUND)
-    setCustomPaletteAccent(themeSettings?.customPaletteAccent ?? DEFAULT_CUSTOM_ACCENT)
-
-    const nextBodyFont = editorSettings?.bodyFont ?? editorSettings?.selectedFont ?? DEFAULT_BODY_FONT
-    const nextDisplayFont = editorSettings?.displayFont ?? DEFAULT_DISPLAY_FONT
-    const nextUiFont = editorSettings?.uiFont ?? DEFAULT_UI_FONT
-
-    setDisplayFont(nextDisplayFont)
-    setBodyFont(nextBodyFont)
-    setUiFont(nextUiFont)
-    setFontSize(clampFontSize(typeof editorSettings?.fontSize === "number" ? editorSettings.fontSize : 32))
-    setIsWordCountEnabled(Boolean(editorSettings?.isWordCountEnabled))
-
-    requestEditorFontFamilyChange(nextBodyFont)
+    applyPreferences(preferences, {
+      setPalette, setCustomPaletteBackground, setCustomPaletteAccent,
+      setDisplayFont, setBodyFont, setUiFont, setFontSize, setIsWordCountEnabled,
+      setIsMenuBarEnabled, setIsFlagsEnabled, setIsTranslucentNavPanel,
+    })
 
     setBookCounter(typeof uiSettings?.bookCounter === "number" ? uiSettings.bookCounter : extractCounterFromNames(projectList, "Book"))
   }
@@ -324,9 +288,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
         const message = error instanceof Error ? error.message : "Workspace load failed"
 
         if (message.includes("[401]") || message.toLowerCase().includes("unauthorized")) {
-          setSession(null)
-          setSessionInStorage(null)
-          setAuthLoadError("Your session expired. Please log in again.")
+          onAuthFailure("Your session expired. Please log in again.")
         } else {
           const fallbackProject = createProject("Book 1", "Book")
           setProjects([fallbackProject])

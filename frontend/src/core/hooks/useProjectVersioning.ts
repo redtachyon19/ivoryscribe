@@ -1,7 +1,7 @@
 import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useRef, useState } from "react"
-import { type DocumentRecord, createDocument, getDocuments, updateDocument } from "./api"
-import { buildDuplicateProjectName, createId, normalizeProjectAfterTabs, type Project } from "./projects"
-import type { UserSession } from "./session"
+import { type DocumentRecord, createDocument, getDocuments, updateDocument } from "../api"
+import { type Project } from "../utils/projects"
+import type { UserSession } from "../state/session"
 import {
   AUTOSAVE_VERSION_INTERVAL_MS,
   PROJECT_RECORD_TYPE,
@@ -11,13 +11,12 @@ import {
   getNextManualVersionDefinition,
   parseProjectVersion,
   planAutosaveVersion,
-  restoreProjectFromVersion,
   serializeProjectSnapshot,
   sortProjectVersionsDesc,
   type ProjectVersion,
   type ProjectVersionDefinition,
-} from "./versioning"
-import { APP_SAVE_PROJECT_EVENT, APP_SAVE_PROJECT_VERSION_EVENT } from "./editorEvents"
+} from "../state/versioning"
+import { APP_SAVE_PROJECT_EVENT, APP_SAVE_PROJECT_VERSION_EVENT } from "../events/editorEvents"
 
 type VersionActionMessage = {
   type: "ivory:version-action"
@@ -30,14 +29,17 @@ type UseProjectVersioningParams = {
   sessionRef: MutableRefObject<UserSession | null>
   session: UserSession | null
   projects: Project[]
-  setProjects: Dispatch<SetStateAction<Project[]>>
   projectDocumentMapRef: MutableRefObject<Record<string, string>>
   setProjectDocumentMap: Dispatch<SetStateAction<Record<string, string>>>
-  setActiveProjectId: Dispatch<SetStateAction<string | null>>
-  setView: Dispatch<SetStateAction<"projects" | "editor">>
   isWorkspaceHydrated: boolean
   activeProjectRef: MutableRefObject<Project | null>
   viewRef: MutableRefObject<"projects" | "editor">
+  /** Orchestrator-owned: apply a restored snapshot into projects[]. Returns
+   *  true if the target project still exists. */
+  onRestoreVersion: (projectId: string, snapshot: Project) => boolean
+  /** Orchestrator-owned: insert a duplicated snapshot as a new project. Returns
+   *  the new project id on success. */
+  onDuplicateVersion: (snapshot: Project) => string | null
 }
 
 export function useProjectVersioning(params: UseProjectVersioningParams) {
@@ -45,14 +47,13 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
     sessionRef,
     session,
     projects,
-    setProjects,
     projectDocumentMapRef,
     setProjectDocumentMap,
-    setActiveProjectId,
-    setView,
     isWorkspaceHydrated,
     activeProjectRef,
     viewRef,
+    onRestoreVersion,
+    onDuplicateVersion,
   } = params
 
   const [projectVersionsByProjectId, setProjectVersionsByProjectId] = useState<Record<string, ProjectVersion[]>>({})
@@ -154,25 +155,7 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
       return false
     }
 
-    let restored = false
-    setProjects((current) =>
-      current.map((project) => {
-        if (project.id !== projectId) {
-          return project
-        }
-
-        restored = true
-        return restoreProjectFromVersion(project, selectedVersion.snapshot)
-      }),
-    )
-
-    if (!restored) {
-      return false
-    }
-
-    setActiveProjectId(projectId)
-    setView("editor")
-    return true
+    return onRestoreVersion(projectId, selectedVersion.snapshot)
   }
 
   const duplicateVersionIntoLibrary = (projectId: string, versionId: string) => {
@@ -181,34 +164,7 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
       return false
     }
 
-    const duplicatedSnapshot = JSON.parse(JSON.stringify(selectedVersion.snapshot)) as Project
-    let duplicatedProjectId: string | null = null
-
-    setProjects((current) => {
-      const duplicateName = buildDuplicateProjectName(
-        duplicatedSnapshot.name,
-        current.map((project) => project.name),
-      )
-      const duplicatedProjectBase: Project = {
-        ...duplicatedSnapshot,
-        id: createId(),
-        createdAt: new Date().toISOString(),
-        name: duplicateName,
-        folderId: null,
-        rootPosition: "top",
-      }
-      const duplicatedProject = normalizeProjectAfterTabs(duplicatedProjectBase, duplicatedProjectBase.tabs)
-      duplicatedProjectId = duplicatedProject.id
-      return [duplicatedProject, ...current]
-    })
-
-    if (!duplicatedProjectId) {
-      return false
-    }
-
-    setActiveProjectId(duplicatedProjectId)
-    setView("projects")
-    return true
+    return onDuplicateVersion(selectedVersion.snapshot) !== null
   }
 
   // Save project + save version event listeners

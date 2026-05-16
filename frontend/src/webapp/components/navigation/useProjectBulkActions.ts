@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react"
-import type { Project } from "../../../core/projects"
-import { duplicateProject } from "../../../core/libraryUtils"
+import type { Project } from "../../../core/utils/projects"
+import { duplicateProject } from "../../../core/utils/libraryUtils"
 
 type UseProjectBulkActionsOptions = {
   selectedProjectIds: string[]

@@ -5,7 +5,7 @@ import {
   requestTuskAiEdits,
   type TuskAiProvider,
 } from "../../../core/api"
-import type { Project } from "../../../core/projects"
+import type { Project } from "../../../core/utils/projects"
 import type { ProposedEdit } from "./proposedEditsTypes"
 import "./TuskAiTab.css"
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
-import { ChevronDown, Send, UserCheck, UserX, UserRoundPlus, Crown, Users } from "lucide-react"
+import { ChevronDown, Cloud, Send, UserCheck, UserX, UserRoundPlus, Crown, Users, LogIn } from "lucide-react"
 import Modal from "../ui/Modal"
 import {
   createShare,
@@ -13,7 +13,10 @@ import "./ShareDialog.css"
 
 type SharePanelProps = {
   sessionToken: string
-  documentId: string
+  /** Cloud Document.id for the project. Null when the project lives only on
+   *  the user's disk and hasn't been uploaded yet — we show an upload CTA in
+   *  that case. */
+  documentId: string | null
   /** When true, the panel loads shares immediately on mount. Defaults to true. */
   autoLoad?: boolean
   /** Whether the current user owns this project. If false, shows read-only collaborator view. */
@@ -24,6 +27,11 @@ type SharePanelProps = {
   ownerEmail?: string
   /** Called after ownership is successfully transferred so the dialog can close. */
   onClose?: () => void
+  /** Upload the local file to the cloud and return its new Document.id. The
+   *  orchestrator handles stamping cloud-id into the file and updating the
+   *  projectDocumentMap so this panel re-renders with the new id. Returns
+   *  null if the user needs to sign in first. */
+  onEnableCloudSharing?: () => Promise<string | null>
 }
 
 function PermissionMenu({
@@ -121,6 +129,7 @@ export function SharePanel({
   userEmail = "",
   ownerEmail = "",
   onClose,
+  onEnableCloudSharing,
 }: SharePanelProps) {
   const [email, setEmail] = useState("")
   const [permission, setPermission] = useState<"view" | "edit">("edit")
@@ -128,6 +137,7 @@ export function SharePanel({
   const [isLoading, setIsLoading] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [isTransferring, setIsTransferring] = useState(false)
+  const [isEnablingCloud, setIsEnablingCloud] = useState(false)
   const [transferTarget, setTransferTarget] = useState<{ shareId: string; email: string } | null>(null)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -154,6 +164,58 @@ export function SharePanel({
       loadShares()
     }
   }, [autoLoad, loadShares])
+
+  const handleEnableCloudSharing = async () => {
+    if (!onEnableCloudSharing) return
+    setIsEnablingCloud(true)
+    setError("")
+    try {
+      const result = await onEnableCloudSharing()
+      // null result = user needs to sign in; the orchestrator opened an auth
+      // overlay, so we just bail. The dialog re-renders with documentId once
+      // the user signs in and clicks share again.
+      if (!result) {
+        setError("Sign in to upload this document to the cloud.")
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to enable cloud sharing")
+    } finally {
+      setIsEnablingCloud(false)
+    }
+  }
+
+  // ── Not-yet-shared local project: show upload-to-cloud CTA ─────────────
+  if (!documentId) {
+    const needsLogin = !sessionToken
+    return (
+      <div className="share-dialog__enable-cloud">
+        <div className="share-dialog__enable-cloud-icon">
+          <Cloud size={36} strokeWidth={1.6} aria-hidden="true" />
+        </div>
+        <h4 className="share-dialog__enable-cloud-title">
+          {needsLogin ? "Sign in to share" : "Enable cloud sharing"}
+        </h4>
+        <p className="share-dialog__enable-cloud-body">
+          {needsLogin
+            ? "Sharing requires an account so collaborators can find and open the document. Sign in to upload this file and invite people."
+            : "This document is stored locally on your computer. Uploading a copy to the cloud lets you invite collaborators. Edits stay in sync between your disk and the cloud."}
+        </p>
+        <button
+          type="button"
+          className="share-dialog__enable-cloud-btn"
+          onClick={handleEnableCloudSharing}
+          disabled={isEnablingCloud || !onEnableCloudSharing}
+        >
+          {needsLogin ? (
+            <><LogIn size={14} strokeWidth={2} /> {isEnablingCloud ? "Opening sign in…" : "Sign in to share"}</>
+          ) : (
+            <><Cloud size={14} strokeWidth={2} /> {isEnablingCloud ? "Uploading…" : "Enable cloud sharing"}</>
+          )}
+        </button>
+        {error ? <p className="share-dialog__error">{error}</p> : null}
+      </div>
+    )
+  }
 
   const handleSendInvite = async () => {
     const trimmedEmail = email.trim().toLowerCase()
@@ -379,11 +441,12 @@ type ShareDialogProps = {
   isOpen: boolean
   onClose: () => void
   sessionToken: string
-  documentId: string
+  documentId: string | null
   projectName: string
   isOwner?: boolean
   userEmail?: string
   ownerEmail?: string
+  onEnableCloudSharing?: () => Promise<string | null>
 }
 
 export default function ShareDialog({
@@ -395,6 +458,7 @@ export default function ShareDialog({
   isOwner = true,
   userEmail = "",
   ownerEmail = "",
+  onEnableCloudSharing,
 }: ShareDialogProps) {
   const [viewportEl, setViewportEl] = useState<HTMLSpanElement | null>(null)
   const marqueeTextRef = useRef<HTMLSpanElement | null>(null)
@@ -483,6 +547,7 @@ export default function ShareDialog({
         userEmail={userEmail}
         ownerEmail={ownerEmail}
         onClose={onClose}
+        onEnableCloudSharing={onEnableCloudSharing}
       />
     </Modal>
   )

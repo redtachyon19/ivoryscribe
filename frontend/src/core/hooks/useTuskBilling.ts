@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
-import { type BillingStatusResponse, confirmTuskAiCheckoutSession, createTuskAiCheckoutSession, getBillingStatus } from "./api"
-import type { UserSession } from "./session"
+import { type BillingStatusResponse, confirmTuskAiCheckoutSession, createTuskAiCheckoutSession, getBillingStatus } from "../api"
+import type { UserSession } from "../state/session"
 
 const INITIAL_BILLING: BillingStatusResponse = { tuskAiActivated: false, tuskAiActivatedAt: null, purchase: null }
 
