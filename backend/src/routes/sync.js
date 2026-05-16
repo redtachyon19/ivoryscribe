@@ -1,3 +1,8 @@
+// DEPRECATED: legacy bulk-upsert endpoint. The current frontend syncs via
+// /documents, /shares, and the Electron local file watcher and never calls
+// /sync. Kept for backward compatibility with older clients still installed
+// in the wild. Re-evaluate for removal after 2026-11-15.
+
 import { Router } from "express";
 import { Document, Preference } from "../models/index.js";
 

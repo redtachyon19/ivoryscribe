@@ -11,7 +11,7 @@ import {
   requestAppColorPaletteChange,
   requestEditorFontFamilyChange,
   requestEditorFontSizeChange,
-} from "./editorEvents"
+} from "../events/editorEvents"
 import { FONT_OPTIONS, PALETTE_OPTIONS } from "./appearance"
 
 export type MenuItem = {

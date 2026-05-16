@@ -1,6 +1,6 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react"
-import type { Project } from "../../../core/projects"
-import { splitGraphemes } from "../../../core/libraryUtils"
+import type { Project } from "../../../core/utils/projects"
+import { splitGraphemes } from "../../../core/utils/libraryUtils"
 
 type UseProjectTrashOptions = {
   projects: Project[]

@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
-import type { MenuItem } from "../../../core/menu"
+import type { MenuItem } from "../../../core/utils/menu"
 import WebMenu from "./WebMenu"
 
 type AppLayoutProps = {

@@ -515,3 +515,58 @@
 .share-dialog__transfer-confirm-btn--confirm:hover:not(:disabled) {
   background: color-mix(in srgb, #f5c842 26%, transparent);
 }
+
+/* ── Enable-cloud-sharing CTA (local-only project, not yet uploaded) ── */
+.share-dialog__enable-cloud {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 28px 24px 8px;
+}
+
+.share-dialog__enable-cloud-icon {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 80%, transparent);
+  opacity: 0.85;
+}
+
+.share-dialog__enable-cloud-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--menu-button, #ededed);
+}
+
+.share-dialog__enable-cloud-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 65%, transparent);
+  max-width: 380px;
+}
+
+.share-dialog__enable-cloud-btn {
+  appearance: none;
+  background: color-mix(in srgb, #7ea8ff 18%, transparent);
+  color: color-mix(in srgb, #7ea8ff 95%, var(--menu-button, #ededed));
+  border: 1px solid color-mix(in srgb, #7ea8ff 35%, transparent);
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.share-dialog__enable-cloud-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, #7ea8ff 28%, transparent);
+}
+
+.share-dialog__enable-cloud-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

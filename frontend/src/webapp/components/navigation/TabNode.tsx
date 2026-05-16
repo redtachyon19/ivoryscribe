@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react"
 import { ChevronDown, CornerDownRight } from "lucide-react"
-import type { DocumentTab } from "../../../core/projects"
-import { getDropMode, type DropMode, type DropTarget } from "../editor/hooks/useListDrag"
+import type { DocumentTab } from "../../../core/utils/projects"
+import { getDropMode, type DropMode, type DropTarget } from "../shared/hooks/useListDrag"
 
 export type TabNodeProps = {
   tab: DocumentTab

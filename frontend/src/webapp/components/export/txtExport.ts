@@ -1,6 +1,8 @@
 import JSZip from "jszip"
-import { collectTabSequence, type Project } from "../../../core/projects"
+import { plainTextFromHtml } from "../../../core/utils/markdown"
+import { collectTabSequence, type Project } from "../../../core/utils/projects"
 import { resolveExportPlan, type ExportMode } from "./exportSelection"
+import { downloadBlob, sanitizeZipEntryName, slugifyFileName } from "./exportUtils"
 
 export type TxtExportMode = ExportMode
 
@@ -9,58 +11,8 @@ type ExportProjectAsTxtOptions = {
   selectedTabIds?: string[]
 }
 
-function normalizeLineEndings(value: string) {
-  return value.replace(/\r\n?/g, "\n")
-}
-
-function plainTextFromHtml(value: string) {
-  if (typeof DOMParser === "undefined") {
-    return normalizeLineEndings(value.replace(/<[^>]*>/g, " "))
-  }
-
-  const normalized = value
-    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-    .replace(/<\/(p|div|h[1-6]|li|blockquote|pre)>/gi, "\n")
-
-  const document = new DOMParser().parseFromString(normalized, "text/html")
-  const text = document.body.textContent ?? ""
-  return normalizeLineEndings(text)
-}
-
 function getTabPlainText(value: string) {
   return plainTextFromHtml(value).trim()
-}
-
-function slugifyFileName(value: string) {
-  const trimmed = value.trim().toLowerCase()
-  const slug = trimmed
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-
-  return slug || "project"
-}
-
-function sanitizeZipEntryName(value: string) {
-  const trimmed = value.trim()
-  const sanitized = trimmed.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim()
-  return sanitized || "project"
-}
-
-function downloadBlob(blob: Blob, fileName: string) {
-  const objectUrl = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = objectUrl
-  link.download = fileName
-
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-
-  window.setTimeout(() => {
-    URL.revokeObjectURL(objectUrl)
-  }, 0)
 }
 
 function buildProjectText(project: Project, sequence: Array<{ id: string; title: string }>) {

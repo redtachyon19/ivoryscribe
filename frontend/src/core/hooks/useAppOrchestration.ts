@@ -8,22 +8,27 @@ import {
   FONT_OPTIONS,
   PALETTE_OPTIONS,
   getInitialPalette,
-} from "./appearance"
-import { requestAppColorPaletteChange, requestExportProject } from "./editorEvents"
-import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "./menu"
-import { exportProjectAsPdf } from "../webapp/components/export/pdfExport"
-import { createProject, generateUntitledName, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, type Project } from "./projects"
-import { buildVersionHistoryPageHtml, buildVersionPreviewHtml, getInitialManualVersionDefinition, mapVersionsForSettings, resolveThemeForPalette, serializeProjectSnapshot, type VersionSettingsEntry } from "./versioning"
+} from "../utils/appearance"
+import { requestAppColorPaletteChange, requestExportProject } from "../events/editorEvents"
+import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "../utils/menu"
+import { exportProjectAsPdf } from "../../webapp/components/export/pdfExport"
+import { buildDuplicateProjectName, createLocalId } from "../utils/libraryUtils"
+import { createProject, createId, generateUntitledName, normalizeProjectAfterTabs, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, type Project } from "../utils/projects"
+import { buildVersionHistoryPageHtml, buildVersionPreviewHtml, getInitialManualVersionDefinition, mapVersionsForSettings, resolveThemeForPalette, restoreProjectFromVersion, serializeProjectSnapshot, type VersionSettingsEntry } from "../state/versioning"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
 import { useAppStyle } from "./useAppStyle"
 import { useProjectVersioning } from "./useProjectVersioning"
-import { useWorkspaceHydration } from "./useWorkspaceHydration"
+import { useWorkspaceHydration, type WorkspaceMutators } from "./useWorkspaceHydration"
+import { setSessionInStorage } from "../state/session"
+import { useLocalRoot } from "../electron/localWorkspace"
+import { useLocalFilesystemSync } from "../localFiles"
+import { uploadLocalFileAsCloudDocument } from "../localFiles/cloudOverlay"
+import { useCloudPreferenceSync } from "./useCloudPreferenceSync"
 
 import { useTuskBilling } from "./useTuskBilling"
-import { getPendingShareRequests, respondToShareRequest, type PendingShareRequest } from "./api"
-import { createLocalId } from "./libraryUtils"
-import type { ProjectFolder } from "../webapp/pages/Library"
+import { getPendingShareRequests, respondToShareRequest, type PendingShareRequest } from "../api"
+import type { ProjectFolder } from "../../webapp/pages/Library"
 
 export function useAppOrchestration() {
   // ── local state ──────────────────────────────────────────────
@@ -47,10 +52,23 @@ export function useAppOrchestration() {
   // refs for cross-hook callbacks (set after hooks are created)
   const billingResetRef = useRef<() => void>(() => {})
   const versioningResetRef = useRef<(v: Record<string, never>) => void>(() => {})
+  // Tracks whether we're in Electron local-file mode. Logout reads this to
+  // decide whether to clear projects[] / folders[] (cloud mode = clear all;
+  // local mode = keep them, since the disk is the source of truth and
+  // clearing would make useLocalFilesystemSync trash every file).
+  const isLocalModeRef = useRef(false)
 
   // ── composed hooks ───────────────────────────────────────────
   const { currentPathname, requestedProjectId, requestedTabId, checkoutResult, passwordResetToken, navigateTo, navigateReplace } = useRouting()
   const style = useAppStyle()
+
+  // Decide local-vs-cloud mode BEFORE any data-loading hooks fire so cloud
+  // hydration is guaranteed never to touch projects[] in local mode. Calling
+  // useLocalRoot here is safe — it has no dependencies on session.
+  const isElectron = typeof window !== "undefined" && Boolean(window.electronAPI)
+  const localRoot = useLocalRoot()
+  const isLocalMode = isElectron && Boolean(localRoot.root)
+  isLocalModeRef.current = isLocalMode
 
   const {
     session, isAuthBootstrapping, authLoadError, sessionRef,
@@ -62,23 +80,86 @@ export function useAppOrchestration() {
     onLogin: () => { setIsSettingsOpen(false); navigateReplace("/app"); setView("projects") },
     onLogout: () => {
       setIsSettingsOpen(false)
-      setIsWorkspaceHydrated(false)
-      setProjects([])
+      // In local mode, the disk is the source of truth — clearing projects[]
+      // or folders[] would have useLocalFilesystemSync diff it against the
+      // previous state and trash every file on disk. Keep them. We only
+      // forget the cloud-side mappings (cloud-id, shares, billing) and the
+      // synced UI customization (palette, fonts, toggles) — those belong to
+      // the account.
+      if (!isLocalModeRef.current) {
+        setIsWorkspaceHydrated(false)
+        setProjects([])
+        setFolders([])
+        setActiveProjectId(null)
+      } else {
+        // Reset palette + fonts + UI toggles to defaults so the next person
+        // who signs in on this machine doesn't inherit the previous account's
+        // theme. Local files stay.
+        style.setPalette(getInitialPalette())
+        style.setCustomPaletteBackground(DEFAULT_CUSTOM_BACKGROUND)
+        style.setCustomPaletteAccent(DEFAULT_CUSTOM_ACCENT)
+        style.applyDisplayFont(DEFAULT_DISPLAY_FONT)
+        style.applyBodyFont(DEFAULT_BODY_FONT)
+        style.applyUiFont(DEFAULT_UI_FONT)
+        style.applyFontSize(32)
+        style.setIsWordCountEnabled(false)
+        setIsMenuBarEnabled(false)
+        setIsFlagsEnabled(false)
+        setIsTranslucentNavPanel(true)
+      }
       versioningResetRef.current({})
-      setFolders([])
       setProjectDocumentMap({})
       setPendingShareRequests([])
       billingResetRef.current()
-      setActiveProjectId(null)
       setView("projects")
     },
   })
 
+  const handleRestoreVersion = (projectId: string, snapshot: Project): boolean => {
+    let found = false
+    setProjects((current) =>
+      current.map((project) => {
+        if (project.id !== projectId) return project
+        found = true
+        return restoreProjectFromVersion(project, snapshot)
+      }),
+    )
+    if (!found) return false
+    setActiveProjectId(projectId)
+    setView("editor")
+    return true
+  }
+
+  const handleDuplicateVersion = (snapshot: Project): string | null => {
+    const duplicated = JSON.parse(JSON.stringify(snapshot)) as Project
+    const newId = createId()
+    setProjects((current) => {
+      const duplicateName = buildDuplicateProjectName(
+        duplicated.name,
+        current.map((p) => p.name),
+      )
+      const base: Project = {
+        ...duplicated,
+        id: newId,
+        createdAt: new Date().toISOString(),
+        name: duplicateName,
+        folderId: null,
+        rootPosition: "top",
+      }
+      return [normalizeProjectAfterTabs(base, base.tabs), ...current]
+    })
+    setActiveProjectId(newId)
+    setView("projects")
+    return newId
+  }
+
   const versioning = useProjectVersioning({
-    sessionRef, session, projects, setProjects,
+    sessionRef, session, projects,
     projectDocumentMapRef, setProjectDocumentMap,
-    setActiveProjectId, setView, isWorkspaceHydrated,
+    isWorkspaceHydrated,
     activeProjectRef, viewRef,
+    onRestoreVersion: handleRestoreVersion,
+    onDuplicateVersion: handleDuplicateVersion,
   })
 
   const billing = useTuskBilling({
@@ -89,18 +170,47 @@ export function useAppOrchestration() {
   billingResetRef.current = billing.reset
   versioningResetRef.current = versioning.setProjectVersionsByProjectId as (v: Record<string, never>) => void
 
-  const { sharedDocumentIdsRef, shareIdByProjectIdRef, ownerEmailByProjectIdRef, permanentlyDeleteProjects } = useWorkspaceHydration({
-    session, setSession, setIsAuthBootstrapping, setAuthLoadError,
-    isWorkspaceHydrated, setIsWorkspaceHydrated, projectDocumentMap, setProjectDocumentMap,
-    setProjects, setProjectVersionsByProjectId: versioning.setProjectVersionsByProjectId,
-    setFolders, setActiveProjectId, setView, setIsMenuBarEnabled, setIsFlagsEnabled, setIsTranslucentNavPanel,
-    setPalette: style.setPalette, setCustomPaletteBackground: style.setCustomPaletteBackground,
-    setCustomPaletteAccent: style.setCustomPaletteAccent,
-    setDisplayFont: style.setDisplayFont, setBodyFont: style.setBodyFont,
-    setUiFont: style.setUiFont, setFontSize: style.setFontSize,
-    setIsWordCountEnabled: style.setIsWordCountEnabled,
-    setBookCounter, setTuskAiBilling: billing.setTuskAiBilling,
+  // Electron+local mode: the user's filesystem is the source of truth for
+  // In local mode, the disk is the source of truth — block cloud hydration
+  // from ever pulling `projects[]` from /api/sync, which would otherwise
+  // replace the user's local files with whatever was on the server (or wipe
+  // them if the server is empty). Passing null `session` makes every
+  // useWorkspaceHydration effect bail out at its `if (!session)` guard.
+  const workspaceMutators: WorkspaceMutators = useMemo(() => ({
+    setIsAuthBootstrapping, setAuthLoadError,
+    onAuthFailure: (message) => {
+      setSession(null)
+      setSessionInStorage(null)
+      setAuthLoadError(message)
+    },
+    setIsWorkspaceHydrated,
+    setProjects, setProjectDocumentMap,
+    setProjectVersionsByProjectId: versioning.setProjectVersionsByProjectId,
+    setFolders, setActiveProjectId, setView, setBookCounter,
     setPendingShareRequests,
+    setTuskAiBilling: billing.setTuskAiBilling,
+    setIsMenuBarEnabled, setIsFlagsEnabled, setIsTranslucentNavPanel,
+    setPalette: style.setPalette,
+    setCustomPaletteBackground: style.setCustomPaletteBackground,
+    setCustomPaletteAccent: style.setCustomPaletteAccent,
+    setDisplayFont: style.setDisplayFont,
+    setBodyFont: style.setBodyFont,
+    setUiFont: style.setUiFont,
+    setFontSize: style.setFontSize,
+    setIsWordCountEnabled: style.setIsWordCountEnabled,
+  }), [
+    setIsAuthBootstrapping, setAuthLoadError, setSession,
+    setIsWorkspaceHydrated, versioning.setProjectVersionsByProjectId,
+    billing.setTuskAiBilling,
+    style.setPalette, style.setCustomPaletteBackground, style.setCustomPaletteAccent,
+    style.setDisplayFont, style.setBodyFont, style.setUiFont,
+    style.setFontSize, style.setIsWordCountEnabled,
+  ])
+
+  const { sharedDocumentIdsRef, shareIdByProjectIdRef, ownerEmailByProjectIdRef, permanentlyDeleteProjects } = useWorkspaceHydration({
+    session: isLocalMode ? null : session,
+    mutators: workspaceMutators,
+    isWorkspaceHydrated, projectDocumentMap,
     projects, activeProjectId, palette: style.palette,
     customPaletteBackground: style.customPaletteBackground, customPaletteAccent: style.customPaletteAccent,
     displayFont: style.displayFont, bodyFont: style.bodyFont, uiFont: style.uiFont,
@@ -108,9 +218,96 @@ export function useAppOrchestration() {
     folders, isMenuBarEnabled, isFlagsEnabled, isTranslucentNavPanel, view, bookCounter,
   })
 
+  // In local mode, useWorkspaceHydration is gated off (it would overwrite
+  // local files). That gate also disables preference sync — this hook
+  // restores it without touching projects[] or folders[].
+  useCloudPreferenceSync({
+    session: isLocalMode ? session : null,
+    palette: style.palette,
+    customPaletteBackground: style.customPaletteBackground,
+    customPaletteAccent: style.customPaletteAccent,
+    displayFont: style.displayFont,
+    bodyFont: style.bodyFont,
+    uiFont: style.uiFont,
+    fontSize: style.fontSize,
+    isWordCountEnabled: style.isWordCountEnabled,
+    isMenuBarEnabled,
+    isFlagsEnabled,
+    isTranslucentNavPanel,
+    setPalette: style.setPalette,
+    setCustomPaletteBackground: style.setCustomPaletteBackground,
+    setCustomPaletteAccent: style.setCustomPaletteAccent,
+    setDisplayFont: style.setDisplayFont,
+    setBodyFont: style.setBodyFont,
+    setUiFont: style.setUiFont,
+    setFontSize: style.setFontSize,
+    setIsWordCountEnabled: style.setIsWordCountEnabled,
+    setIsMenuBarEnabled,
+    setIsFlagsEnabled,
+    setIsTranslucentNavPanel,
+  })
+
+  const { handle: localFsHandle } = useLocalFilesystemSync({
+    root: isLocalMode ? localRoot.root : null,
+    setProjects,
+    setFolders,
+    setActiveProjectId,
+    setIsWorkspaceHydrated,
+    setProjectDocumentMap,
+    projects,
+    folders,
+  })
+
+  // Track an auth overlay flag so share flows can request sign-in without
+  // navigating away (Electron local mode has no other login entry point).
+  const [isAuthOverlayOpen, setIsAuthOverlayOpen] = useState(false)
+  // Remember which project the user was trying to share when prompted to sign
+  // in; after a successful login we kick that share back off automatically.
+  const pendingShareProjectIdRef = useRef<string | null>(null)
+
+  /**
+   * Upload a local-only project to the cloud (if not already there), stamp
+   * the returned Document.id into the local file's `cloud-id` attribute, and
+   * return that id so the share dialog can proceed. No-ops with the existing
+   * id when the project is already shared.
+   */
+  const enableCloudSharing = async (projectId: string): Promise<string | null> => {
+    if (!session) {
+      pendingShareProjectIdRef.current = projectId
+      setIsAuthOverlayOpen(true)
+      return null
+    }
+    const existing = projectDocumentMap[projectId]
+    if (existing) return existing
+    if (!isLocalMode || !localFsHandle) {
+      // Cloud-mode projects without a documentId go through the legacy sync
+      // path — we shouldn't need to upload here.
+      return null
+    }
+    const filePath = localFsHandle.getFilePathForProject(projectId)
+    if (!filePath) return null
+    try {
+      const cloudId = await uploadLocalFileAsCloudDocument(session.token, filePath)
+      await localFsHandle.attachCloudIdToProject(projectId, cloudId)
+      setProjectDocumentMap((cur) => ({ ...cur, [projectId]: cloudId }))
+      return cloudId
+    } catch (e) {
+      console.error("[share] failed to enable cloud sharing", e)
+      return null
+    }
+  }
+
   // ── ref syncs ────────────────────────────────────────────────
   useEffect(() => { viewRef.current = view }, [view])
   useEffect(() => { projectDocumentMapRef.current = projectDocumentMap }, [projectDocumentMap])
+
+  // Auth overlay autocloses once the user signs in. The share button retry is
+  // manual — they see "Try again" in the dialog after we close.
+  useEffect(() => {
+    if (session && isAuthOverlayOpen) {
+      setIsAuthOverlayOpen(false)
+    }
+  }, [session, isAuthOverlayOpen])
 
   // ── derived data ─────────────────────────────────────────────
   const activeProject = useMemo(
@@ -310,8 +507,11 @@ export function useAppOrchestration() {
     onNavigateHome: () => navigateTo("/"),
   }
 
-  const editorProps = session ? {
-    sessionToken: session.token,
+  // Electron local mode doesn't require a session — the editor renders against
+  // local files. AI / share / cloud sync features no-op gracefully when
+  // sessionToken is empty.
+  const editorProps = (session || isLocalMode) ? {
+    sessionToken: session?.token ?? "",
     project: activeProject,
     tuskAiActivated: billing.tuskAiBilling.tuskAiActivated,
     isStartingTuskCheckout: billing.isStartingTuskCheckout,
@@ -369,7 +569,8 @@ export function useAppOrchestration() {
     activeProjectVersionsByProjectId: projectVersionsForLibraryByProjectId,
     projectDocumentMap,
     onPermanentlyDeleteProjects: permanentlyDeleteProjects,
-    userEmail: session.user.email,
+    onEnableCloudSharing: enableCloudSharing,
+    userEmail: session?.user.email ?? "",
     sharedProjectIds: new Set(shareIdByProjectIdRef.current.keys()),
     ownerEmailByProjectId: ownerEmailByProjectIdRef.current,
     pendingShareRequests,
@@ -388,7 +589,7 @@ export function useAppOrchestration() {
     },
   } : null
 
-  const settingsProps = session ? {
+  const settingsProps = (session || isLocalMode) ? {
     isOpen: isSettingsOpen,
     showProjectPreferences: view === "editor",
     menuBarEnabled: isMenuBarEnabled,
@@ -429,9 +630,9 @@ export function useAppOrchestration() {
     customPaletteAccent: style.customPaletteAccent,
     onCustomPaletteBackgroundChange: style.setCustomPaletteBackground,
     onCustomPaletteAccentChange: style.setCustomPaletteAccent,
-    accountFirstName: session.user.firstName ?? "",
-    accountLastName: session.user.lastName ?? "",
-    accountEmail: session.user.email ?? "",
+    accountFirstName: session?.user.firstName ?? "",
+    accountLastName: session?.user.lastName ?? "",
+    accountEmail: session?.user.email ?? "",
     activeProjectName: activeProject?.name ?? "",
     activeProjectColor: activeProject?.color ?? "#7ea8ff",
     activeProjectWallpaperEmojis: activeProject?.wallpaperEmojis ?? "",
@@ -452,8 +653,10 @@ export function useAppOrchestration() {
       if (!activeProject) return
       requestExportProject(format)
     },
-    sessionToken: session.token,
+    sessionToken: session?.token ?? "",
     documentId: activeProject ? projectDocumentMap[activeProject.id] : undefined,
+    localWorkspaceRoot: isLocalMode ? localRoot.root : null,
+    onChangeLocalWorkspace: isLocalMode ? localRoot.choose : undefined,
     onSaveAccountProfile: saveAccountProfile,
     onRequestAccountEmailChange: requestEmailChange,
     onVerifyCurrentAccountEmailChange: verifyCurrentEmailChange,
@@ -462,6 +665,7 @@ export function useAppOrchestration() {
     onRequestAccountDeletion: requestDeletion,
     onConfirmAccountDeletionCode: confirmDeletionCode,
     onSignOut: logout,
+    onRequestSignIn: () => setIsAuthOverlayOpen(true),
   } : null
 
   return {
@@ -470,6 +674,9 @@ export function useAppOrchestration() {
     // auth
     session,
     isAuthBootstrapping,
+    // auth overlay (Electron local-mode prompt to sign in for share)
+    isAuthOverlayOpen,
+    closeAuthOverlay: () => setIsAuthOverlayOpen(false),
     // style (for AppShell)
     style: { palette: style.palette, appStyleVariables: style.appStyleVariables },
     // view

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react"
-import useMarqueeSelection from "../editor/hooks/useMarqueeSelection"
+import useMarqueeSelection from "../shared/hooks/useMarqueeSelection"
 
 /**
  * Shared marquee selection setup used by navigation panel components.

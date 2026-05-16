@@ -1,4 +1,4 @@
-import { Lock, LockKeyhole, LockOpen, LogOut, Trash2, UserRound } from "lucide-react"
+import { LogIn, Lock, LockKeyhole, LockOpen, LogOut, Trash2, UserRound } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"
@@ -29,6 +29,10 @@ export type AccountSectionProps = {
   onClose: () => void
   sectionRef: (element: HTMLElement | null) => void
   onActionFeedbackVisibilityChange?: (visible: boolean) => void
+  /** Called when the user wants to sign in / create an account from this
+   *  section (only meaningful when accountEmail is empty). The orchestrator
+   *  wires this to the auth overlay. */
+  onRequestSignIn?: () => void
 }
 
 export default function AccountSettings({
@@ -46,6 +50,7 @@ export default function AccountSettings({
   onClose,
   sectionRef,
   onActionFeedbackVisibilityChange,
+  onRequestSignIn,
 }: AccountSectionProps) {
   const [accountFirstNameDraft, setAccountFirstNameDraft] = useState(accountFirstName)
   const [accountLastNameDraft, setAccountLastNameDraft] = useState(accountLastName)
@@ -355,6 +360,39 @@ export default function AccountSettings({
         message: error instanceof Error ? error.message : "Failed to confirm account deletion",
       }))
     }
+  }
+
+  // Not signed in: show a CTA pointing to the auth page instead of the
+  // editable account form. Local-mode users don't need an account to use the
+  // app; signing in is only required for sharing and AI features.
+  if (!accountEmail) {
+    return (
+      <section
+        className="global-settings__section"
+        data-settings-section="account"
+        ref={sectionRef}
+      >
+        <h3 className="global-settings__section-title">
+          <UserRound size={18} strokeWidth={2} aria-hidden={true} />
+          <span>Account Settings</span>
+        </h3>
+
+        <div className="global-settings__signed-out">
+          <p className="global-settings__signed-out-lede">
+            You're not signed in. Local files keep working without an account —
+            sign in only when you want to share documents or use Tusk AI.
+          </p>
+          <Button
+            variant="footer-primary"
+            onClick={() => onRequestSignIn?.()}
+            disabled={!onRequestSignIn}
+          >
+            <LogIn size={14} strokeWidth={2} aria-hidden={true} />
+            Sign in or create an account
+          </Button>
+        </div>
+      </section>
+    )
   }
 
   return (

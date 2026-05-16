@@ -1,5 +1,5 @@
-import { parseProjectFromDocument, normalizeProjectAfterTabs, collectTabTitles, findTabTitleById, type Project, type ProjectKind } from "./projects"
-import { withEmojiFontFallback } from "./appearance"
+import { parseProjectFromDocument, normalizeProjectAfterTabs, collectTabTitles, findTabTitleById, type Project, type ProjectKind } from "../utils/projects"
+import { withEmojiFontFallback } from "../utils/appearance"
 
 export const PROJECT_RECORD_TYPE = "ivory-project"
 export const PROJECT_VERSION_RECORD_TYPE = "ivory-project-version"

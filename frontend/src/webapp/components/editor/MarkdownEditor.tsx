@@ -7,8 +7,8 @@ import {
   type MarkdownEditorCommand,
   type ProjectSearchFocusDetail,
   type SpellCheckFocusDetail,
-} from "../../../core/editorEvents"
-import { countWords, normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../../core/markdown"
+} from "../../../core/events/editorEvents"
+import { countWords, normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../../core/utils/markdown"
 import "./MarkdownEditor.css"
 
 type MarkdownEditorProps = {

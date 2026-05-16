@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Archive, ArchiveRestore, Pencil, SquareArrowOutUpRight, Trash2 } from "lucide-react"
-import type { Project } from "../../core/projects"
+import type { Project } from "../../core/utils/projects"
 import ProjectCard from "../components/library/ProjectCard"
 
 import { useViewMode, useSortMode, applySortMode, ViewToggle, ProjectListView } from "../components/library/useViewMode"

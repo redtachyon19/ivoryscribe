@@ -10,6 +10,11 @@ type UseTypingCaretParams = {
 const CARET_FOLLOW_FACTOR = 0.22
 const CARET_FOLLOW_SNAP_DISTANCE = 0.35
 
+// How long after the last keystroke we keep the caret's `--typing` class on.
+// Kept in sync with TYPING_IDLE_MS in useTypingState.ts so chrome auto-hide
+// and the caret's typing-state visuals end on the same beat.
+const CARET_TYPING_IDLE_MS = 1200
+
 export function useTypingCaret({
   editor,
   editorSurfaceRef,
@@ -110,7 +115,7 @@ export function useTypingCaret({
 
       typingTimeoutId = window.setTimeout(() => {
         stopTypingState()
-      }, 450)
+      }, CARET_TYPING_IDLE_MS)
     }
 
     const hideCaret = () => {

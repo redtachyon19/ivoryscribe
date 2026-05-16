@@ -60,23 +60,24 @@ function closeActiveList(parts: string[], activeList: "ul" | "ol" | null) {
   return null
 }
 
-function normalizeLineEndings(value: string) {
+export function normalizeLineEndings(value: string) {
   return value.replace(/\r\n?/g, "\n")
 }
 
 const WORD_MATCHER = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu
 
-function plainTextFromHtml(value: string) {
+export function plainTextFromHtml(value: string) {
   if (typeof DOMParser === "undefined") {
-    return value
+    return normalizeLineEndings(value.replace(/<[^>]*>/g, " "))
   }
 
   const normalized = value
     .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-    .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|blockquote|pre)>/gi, "\n")
 
   const document = new DOMParser().parseFromString(normalized, "text/html")
-  return document.body.textContent ?? ""
+  const text = document.body.textContent ?? ""
+  return normalizeLineEndings(text)
 }
 
 function looksLikeHtml(value: string) {

@@ -17,6 +17,21 @@ export default defineConfig(({ command }) => {
               },
               preload: {
                 input: 'electron/preload.ts',
+                // Force CommonJS .cjs output. Package has "type": "module",
+                // which makes both .js and .mjs files ESM — and ESM can't use
+                // require(), which the preload needs for `electron` / `node:*`
+                // imports. .cjs extension forces CommonJS regardless of the
+                // package type field.
+                vite: {
+                  build: {
+                    rollupOptions: {
+                      output: {
+                        entryFileNames: 'preload.cjs',
+                        format: 'cjs',
+                      },
+                    },
+                  },
+                },
               },
             }),
           ]

@@ -21,20 +21,27 @@ import {
   requestAppSpellCheckFocus,
   type ExportProjectFormat,
   type SpellCheckFocusDetail,
-} from "../../core/editorEvents"
-import { countWordsFromContent } from "../../core/markdown"
+} from "../../core/events/editorEvents"
+import { countWordsFromContent } from "../../core/utils/markdown"
 import { exportProjectAsDocx } from "../components/export/docxExport"
 import { downloadProjectAsMarkdown } from "../components/export/markdownExport"
 import { exportProjectAsPdf } from "../components/export/pdfExport"
 import { exportProjectAsTxt } from "../components/export/txtExport"
-import { collectSpellCheckIssues, replaceSpellCheckIssue } from "../components/editor/spellcheck.ts"
-import FindReplaceModal from "../components/editor/FindReplaceModal"
-import { collectTabSequence, getProjectEntryTerms, getProjectMarkdownIds, type Project } from "../../core/projects"
+import { collectSpellCheckIssues, replaceSpellCheckIssue } from "../components/editor/utils/spellChecker"
+import {
+  SPELL_CHECK_DICTIONARY_STORAGE_KEY,
+  addNativeSpellCheckWord,
+  loadSpellCheckDictionary,
+  normalizeSpellCheckWord,
+  removeNativeSpellCheckWord,
+} from "../components/editor/utils/spellCheckDictionary"
+import FindReplaceModal from "../components/editor/modals/FindReplaceModal"
+import { collectTabSequence, getProjectEntryTerms, getProjectMarkdownIds, type Project } from "../../core/utils/projects"
 import type { ExportMode } from "../components/export/exportSelection"
-import type { SpellCheckDocumentType } from "../components/editor/spellcheck.ts"
-import { useNavigationHistory } from "../../core/useNavigationHistory"
-import { useFindReplaceModal } from "../../core/useFindReplaceModal"
-import type { VersionSettingsEntry } from "../../core/versioning"
+import type { SpellCheckDocumentType } from "../components/editor/utils/spellChecker"
+import { useNavigationHistory } from "../../core/hooks/useNavigationHistory"
+import { useFindReplaceModal } from "../../core/hooks/useFindReplaceModal"
+import type { VersionSettingsEntry } from "../../core/state/versioning"
 import Library, { type ProjectFolder } from "./Library"
 import type { PendingShareRequest } from "../../core/api"
 import { deleteDocument } from "../../core/api"
@@ -44,38 +51,7 @@ import TrashView from "./Trash"
 import "./Library.css"
 import "./Editor.css"
 
-const SpellCheckModal = lazy(() => import("../components/editor/SpellCheckModal"))
-const SPELL_CHECK_DICTIONARY_STORAGE_KEY = "ivoryscribe:spell-check-dictionary"
-
-function normalizeSpellCheckWord(value: string) {
-  return value.trim().replace(/’/g, "'").toLowerCase()
-}
-
-async function addNativeSpellCheckWord(word: string) {
-  const normalizedWord = normalizeSpellCheckWord(word)
-  if (!normalizedWord || typeof window === "undefined") {
-    return false
-  }
-
-  try {
-    return (await window.electronAPI?.addSpellCheckerWord?.(normalizedWord)) ?? false
-  } catch {
-    return false
-  }
-}
-
-async function removeNativeSpellCheckWord(word: string) {
-  const normalizedWord = normalizeSpellCheckWord(word)
-  if (!normalizedWord || typeof window === "undefined") {
-    return false
-  }
-
-  try {
-    return (await window.electronAPI?.removeSpellCheckerWord?.(normalizedWord)) ?? false
-  } catch {
-    return false
-  }
-}
+const SpellCheckModal = lazy(() => import("../components/editor/modals/SpellCheckModal"))
 
 const VIEW_MODE_STORAGE_KEY = "ivoryscribe:tab-view-mode"
 type TabViewMode = "drafting" | "typewriter"
@@ -99,33 +75,6 @@ function loadViewModeMap(): Record<string, TabViewMode> {
 function saveViewModeMap(map: Record<string, TabViewMode>) {
   if (typeof window === "undefined") return
   try { window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, JSON.stringify(map)) } catch { /* ignore */ }
-}
-
-function loadSpellCheckDictionary() {
-  if (typeof window === "undefined") {
-    return [] as string[]
-  }
-
-  try {
-    const raw = window.localStorage.getItem(SPELL_CHECK_DICTIONARY_STORAGE_KEY)
-    if (!raw) {
-      return []
-    }
-
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) {
-      return []
-    }
-
-    return Array.from(new Set(
-      parsed
-        .filter((entry): entry is string => typeof entry === "string")
-        .map((entry) => entry.trim().toLowerCase())
-        .filter((entry) => entry.length > 0),
-    ))
-  } catch {
-    return []
-  }
 }
 
 function findTabTitleById(tabs: Project["tabs"], targetId: string): string | null {
@@ -279,6 +228,10 @@ export type EditorProps = {
   onAcceptShareRequest: (shareId: string) => void
   onRejectShareRequest: (shareId: string) => void
   onRefreshPendingShareRequests: () => void
+  /** Local mode: upload the local file as a cloud Document and stamp it with
+   *  the returned cloud-id. Wired through to ShareDialog so the user can
+   *  enable cloud sharing for a previously local-only project. */
+  onEnableCloudSharing?: (projectId: string) => Promise<string | null>
 }
 
 export default function Editor({
@@ -324,6 +277,7 @@ export default function Editor({
   onAcceptShareRequest,
   onRejectShareRequest,
   onRefreshPendingShareRequests,
+  onEnableCloudSharing,
 }: EditorProps) {
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
   const [selectedWordCount, setSelectedWordCount] = useState<number | null>(null)
@@ -364,20 +318,6 @@ export default function Editor({
   }, [proposedEdits, project?.activeId])
 
   const isEditOnActiveTab = currentEdit !== null
-
-  // Diagnostic: log every time the diff state changes so we can see
-  // the full picture when reviewing multi-chapter edits.
-  useEffect(() => {
-    if (proposedEdits.length === 0) return
-    console.log("[tuskai] state snapshot", {
-      activeId: project?.activeId,
-      currentEdit: currentEdit ? { id: currentEdit.id, tabId: currentEdit.tabId, tabTitle: currentEdit.tabTitle } : null,
-      isEditOnActiveTab,
-      pendingEdits: proposedEdits
-        .filter((e) => e.state === "pending")
-        .map((e) => ({ id: e.id, tabId: e.tabId, tabTitle: e.tabTitle, pendingHunks: e.hunks?.filter((h) => h.state === "pending").length ?? 0 })),
-    })
-  }, [proposedEdits, project?.activeId, currentEdit, isEditOnActiveTab])
 
   const pendingHunkCount = useMemo(() => {
     let count = 0
@@ -444,11 +384,6 @@ export default function Editor({
           nextTabs = [...nextTabs, newTab]
           nextContentById = { ...nextContentById, [edit.tabId]: "" }
         }
-        if (newTabsToCreate.length > 0) {
-          console.log("[tuskai] created new tabs", {
-            ids: newTabsToCreate.map((edit) => ({ id: edit.tabId, title: edit.tabTitle })),
-          })
-        }
         // Land on a tab that actually has an edit so the user sees a diff
         // immediately. Prefer a brand-new chapter, otherwise the first edit
         // in document order.
@@ -503,13 +438,6 @@ export default function Editor({
         })
         return
       }
-      console.log("[tuskai] hunk decision", {
-        editId: target.id,
-        tabId: target.tabId,
-        tabTitle: target.tabTitle,
-        hunkId,
-        decision,
-      })
 
       const nextHunks = target.hunks.map((hunk) =>
         hunk.id === hunkId ? { ...hunk, state: decision } : hunk,
@@ -524,10 +452,6 @@ export default function Editor({
 
         if (target.isNew && allRejected) {
           // User rejected the entire new chapter — remove it from the project.
-          console.log("[tuskai] removing rejected new chapter", {
-            tabId: target.tabId,
-            tabTitle: target.tabTitle,
-          })
           onProjectChange((p) => {
             const nextContentById = { ...p.contentById }
             delete nextContentById[target.tabId]
@@ -539,12 +463,6 @@ export default function Editor({
             }
           })
         } else {
-          console.log("[tuskai] applying final edit", {
-            tabId: target.tabId,
-            tabTitle: target.tabTitle,
-            isNew: target.isNew ?? false,
-            finalLen: finalHtml.length,
-          })
           onProjectChange((p) => ({
             ...p,
             contentById: { ...p.contentById, [target.tabId]: finalHtml },
@@ -583,11 +501,6 @@ export default function Editor({
       for (const hunk of nextHunks) states.set(hunk.id, hunk.state)
       finalsByTabId.set(edit.tabId, renderDiffHtml(edit.blocks!, states))
     }
-
-    console.log("[tuskai] global accept all", {
-      editCount: pendingEdits.length,
-      tabIds: Array.from(finalsByTabId.keys()),
-    })
 
     onProjectChange((p) => {
       let nextContentById = p.contentById
@@ -1183,6 +1096,7 @@ export default function Editor({
                 userEmail={userEmail}
                 sharedProjectIds={sharedProjectIds}
                 ownerEmailByProjectId={ownerEmailByProjectId}
+                onEnableCloudSharing={onEnableCloudSharing}
               />
             )
           ) : project ? (

@@ -1,5 +1,5 @@
 import { useRef, useState, type Dispatch, type DragEvent, type SetStateAction } from "react"
-import type { Project } from "../../../core/projects"
+import type { Project } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
 
 type DropTarget =

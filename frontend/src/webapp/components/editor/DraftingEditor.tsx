@@ -4,41 +4,19 @@ import StarterKit from "@tiptap/starter-kit"
 import Highlight from "@tiptap/extension-highlight"
 import Underline from "@tiptap/extension-underline"
 import { DiffAddMark, DiffRemoveMark } from "../ai/diffMarks"
-import {
-  APP_PROJECT_SEARCH_FOCUS_EVENT,
-  APP_SPELL_CHECK_FOCUS_EVENT,
-  EDITOR_COMMAND_EVENT,
-  EDITOR_FONT_FAMILY_CHANGE_EVENT,
-  EDITOR_FONT_SIZE_CHANGE_EVENT,
-  EDITOR_FONT_SIZE_SET_EVENT,
-  type EditorCommand,
-  type ProjectSearchFocusDetail,
-  type SpellCheckFocusDetail,
-} from "../../../core/editorEvents"
-import { withEmojiFontFallback } from "../../../core/appearance"
-import { countWords } from "../../../core/markdown"
-import { FlagRail } from "./FlagRail"
+import { withEmojiFontFallback } from "../../../core/utils/appearance"
+import { FlagRail } from "./components/FlagRail"
+import { EditorDocumentTitle } from "./components/EditorDocumentTitle"
 import { useFlagRail } from "./hooks/useFlagRail"
 import { useTypingCaret } from "./hooks/useTypingCaret"
 import { useTypingState } from "./hooks/useTypingState"
-import MarqueeText from "../ui/MarqueeText"
+import { useEditorContentSync, useEditorReadOnly, useEditorReady } from "./hooks/useEditorLifecycle"
+import { useEditorFontEvents } from "./hooks/useEditorFontEvents"
+import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
+import { useEditorFocusJumps } from "./hooks/useEditorFocusJumps"
+import { normalizePastedFormatting } from "./utils/pasteNormalization"
+import { emitTipTapWordCounts } from "./utils/wordCount"
 import "./DraftingEditor.css"
-
-type FontSizeChangeDetail = {
-  delta: number
-}
-
-type FontSizeSetDetail = {
-  value: number
-}
-
-type FontFamilyChangeDetail = {
-  fontFamily: string
-}
-
-type EditorCommandDetail = {
-  command: EditorCommand
-}
 
 const MIN_FONT_SIZE = 10
 const MAX_FONT_SIZE = 84
@@ -46,7 +24,6 @@ const DEFAULT_FONT_SIZE = 32
 const DEFAULT_FONT_FAMILY = '"Times", "Times New Roman", serif'
 const DEFAULT_DOCUMENT_CONTENT = "<p></p>"
 const BODY_PLACEHOLDER = "Start your epic..."
-const SPELL_WORD_MATCHER = /[A-Za-z]+(?:['’][A-Za-z]+)*/g
 
 type EditorProps = {
   documentId: string | null
@@ -61,93 +38,6 @@ type EditorProps = {
   onTypingStateChange?: (isTyping: boolean) => void
   onEditorReady?: (editor: TiptapEditor | null) => void
   readOnly?: boolean
-}
-
-type TextWordHit = {
-  node: Text
-  start: number
-  end: number
-}
-
-function normalizeSpellWord(value: string) {
-  return value.replace(/’/g, "'").toLowerCase()
-}
-
-function findTextWordHit(root: Node, normalizedWord: string, targetOccurrence: number): TextWordHit | null {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  let currentNode = walker.nextNode()
-  let currentOccurrence = 0
-
-  while (currentNode) {
-    const textNode = currentNode as Text
-    const value = textNode.nodeValue ?? ""
-    const matcher = new RegExp(SPELL_WORD_MATCHER.source, SPELL_WORD_MATCHER.flags)
-    let next = matcher.exec(value)
-
-    while (next) {
-      const [word] = next
-      const normalizedCandidate = normalizeSpellWord(word)
-
-      if (normalizedCandidate === normalizedWord) {
-        if (currentOccurrence === targetOccurrence) {
-          const start = next.index
-          return {
-            node: textNode,
-            start,
-            end: start + word.length,
-          }
-        }
-
-        currentOccurrence += 1
-      }
-
-      next = matcher.exec(value)
-    }
-
-    currentNode = walker.nextNode()
-  }
-
-  return null
-}
-
-function findTextQueryHit(root: Node, query: string, targetOccurrence: number): TextWordHit | null {
-  const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) {
-    return null
-  }
-
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  let currentNode = walker.nextNode()
-  let currentOccurrence = 0
-
-  while (currentNode) {
-    const textNode = currentNode as Text
-    const value = textNode.nodeValue ?? ""
-    const lowerValue = value.toLowerCase()
-    let fromIndex = 0
-
-    while (fromIndex < lowerValue.length) {
-      const start = lowerValue.indexOf(normalizedQuery, fromIndex)
-      if (start === -1) {
-        break
-      }
-
-      if (currentOccurrence === targetOccurrence) {
-        return {
-          node: textNode,
-          start,
-          end: start + normalizedQuery.length,
-        }
-      }
-
-      currentOccurrence += 1
-      fromIndex = start + Math.max(1, normalizedQuery.length)
-    }
-
-    currentNode = walker.nextNode()
-  }
-
-  return null
 }
 
 export default function DraftingEditor({
@@ -165,22 +55,17 @@ export default function DraftingEditor({
   readOnly = false,
 }: EditorProps) {
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
-  const titleEditableRef = useRef<HTMLDivElement | null>(null)
-  const titleOverlayRef = useRef<HTMLDivElement | null>(null)
   const [fontSize, setFontSize] = useState(() =>
     Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, editorFontSize || DEFAULT_FONT_SIZE)),
   )
   const [fontFamily, setFontFamily] = useState(() => withEmojiFontFallback(DEFAULT_FONT_FAMILY))
-  const [titleDraft, setTitleDraft] = useState(documentTitle)
 
   const { isUiTyping, markUiTypingActivity } = useTypingState({ onTypingStateChange })
 
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Highlight.configure({
-        multicolor: true,
-      }),
+      Highlight.configure({ multicolor: true }),
       Underline,
       DiffAddMark,
       DiffRemoveMark,
@@ -192,73 +77,16 @@ export default function DraftingEditor({
         autocorrect: "on",
         autocapitalize: "sentences",
       },
-      // Drafting is plain prose: strip Typewriter-style formatting (font /
-      // size / color via inline styles, highlight, font tags) on paste so the
-      // writer doesn't drag formatting in. First, promote any inline-styled
-      // bold / italic / underline up to standard <strong> / <em> / <u> tags
-      // so those structural marks survive the strip below — otherwise bold
-      // pasted from Google Docs (encoded as `<span style="font-weight:700">`)
-      // would lose the bold when the span gets unwrapped.
-      transformPastedHTML(html: string) {
-        if (!html || typeof document === "undefined") return html
-        const tmp = document.createElement("div")
-        tmp.innerHTML = html
-
-        const isBold = (style: string) => {
-          const m = style.match(/(?:^|;)\s*font-weight\s*:\s*([^;]+)/i)
-          if (!m) return false
-          const v = m[1].trim().toLowerCase()
-          return v === "bold" || v === "bolder" || /^[5-9]\d{2,}$/.test(v)
-        }
-        const isItalic = (style: string) => {
-          const m = style.match(/(?:^|;)\s*font-style\s*:\s*([^;]+)/i)
-          if (!m) return false
-          const v = m[1].trim().toLowerCase()
-          return v === "italic" || v === "oblique"
-        }
-        const isUnderline = (style: string) => {
-          const m = style.match(/(?:^|;)\s*text-decoration(?:-line)?\s*:\s*([^;]+)/i)
-          if (!m) return false
-          return m[1].toLowerCase().includes("underline")
-        }
-        for (const el of Array.from(tmp.querySelectorAll<HTMLElement>("[style]"))) {
-          const style = el.getAttribute("style") || ""
-          const wrappers: string[] = []
-          if (isBold(style))      wrappers.push("strong")
-          if (isItalic(style))    wrappers.push("em")
-          if (isUnderline(style)) wrappers.push("u")
-          if (wrappers.length === 0) continue
-          const root = document.createElement(wrappers[0])
-          let leaf: HTMLElement = root
-          for (let i = 1; i < wrappers.length; i++) {
-            const next = document.createElement(wrappers[i])
-            leaf.appendChild(next)
-            leaf = next
-          }
-          while (el.firstChild) leaf.appendChild(el.firstChild)
-          el.appendChild(root)
-        }
-
-        tmp.querySelectorAll("*").forEach((el) => {
-          el.removeAttribute("style")
-          el.removeAttribute("class")
-        })
-        const unwrap = (el: Element) => {
-          const parent = el.parentNode
-          if (!parent) return
-          while (el.firstChild) parent.insertBefore(el.firstChild, el)
-          parent.removeChild(el)
-        }
-        tmp.querySelectorAll("span, mark, font").forEach(unwrap)
-        return tmp.innerHTML
-      },
+      // Drafting is plain prose: promote inline-styled bold/italic/underline
+      // to structural marks, then strip residual styles + unwrap font wrappers
+      // so the writer doesn't drag Google Docs / Word formatting in.
+      transformPastedHTML: (html: string) => normalizePastedFormatting(html, { stripInlineStyles: true }),
     },
     content: content || DEFAULT_DOCUMENT_CONTENT,
-    // Pushes updates up so App can persist text per tab/project.
     onUpdate: ({ editor: currentEditor }) => {
       syncEmptyState(currentEditor)
       onContentChange(currentEditor.getHTML())
-      emitWordCounts(currentEditor)
+      emitTipTapWordCounts(currentEditor, onWordCountChange)
     },
   })
 
@@ -270,359 +98,67 @@ export default function DraftingEditor({
     hoverLineTop,
     hoverLineAnchor,
     isFlagRailHovered,
-    setFlaggedAnchorsByDocument,
-    setHighlightRangesByDocument,
     setIsFlagRailHovered,
-    setHoverLineTop,
-    setHoverLineAnchor,
+    clearHoverState,
     updateHoverLineFromPointer,
-    highlightSelectionIfPresent,
-    removeHighlightForAnchor,
-  } = useFlagRail({
-    editor,
-    flagsEnabled,
-    documentId,
-    editorSurfaceRef,
-  })
+    handleCreateFlag,
+    handleRemoveFlag,
+  } = useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef })
 
-  const { caretRef } = useTypingCaret({
-    editor,
-    editorSurfaceRef,
-    markUiTypingActivity,
-  })
+  const { caretRef } = useTypingCaret({ editor, editorSurfaceRef, markUiTypingActivity })
 
-  const emitWordCounts = (currentEditor: TiptapEditor) => {
-    const documentWordCount = countWords(currentEditor.getText())
-    const { from, to } = currentEditor.state.selection
-    const selectedWordCount =
-      from === to ? null : countWords(currentEditor.state.doc.textBetween(from, to, " "))
-
-    onWordCountChange?.({
-      documentWordCount,
-      selectedWordCount,
-    })
-  }
-
+  /* ── Empty-state attribute on the editor DOM (drives the placeholder text) ── */
   const syncEmptyState = (currentEditor: TiptapEditor) => {
     try {
-      const editorView = currentEditor.view
-      const editorDom = editorView?.dom
-
-      if (!editorDom) {
-        return
-      }
-
+      const editorDom = currentEditor.view?.dom
+      if (!editorDom) return
       editorDom.setAttribute("data-empty", currentEditor.isEmpty ? "true" : "false")
     } catch {
       // TipTap can momentarily expose an editor instance before internals are fully ready.
     }
   }
 
-  useEffect(() => {
-    setTitleDraft(documentTitle)
-    if (titleEditableRef.current) {
-      titleEditableRef.current.textContent = documentTitle
-    }
-  }, [documentTitle, documentId])
+  /* ── Editor lifecycle ── */
+  useEditorContentSync(editor, content, documentId, DEFAULT_DOCUMENT_CONTENT, (currentEditor) => {
+    syncEmptyState(currentEditor)
+    emitTipTapWordCounts(currentEditor, onWordCountChange)
+  })
+  useEditorReadOnly(editor, readOnly)
+  useEditorReady(editor, onEditorReady)
 
-  useEffect(() => {
-    if (!editor) {
-      return
-    }
-
-    syncEmptyState(editor)
-    emitWordCounts(editor)
-  }, [editor])
-
-  useEffect(() => {
-    if (!editor) {
-      return
-    }
-
-    // Keep TipTap in sync when active tab/project changes.
-    const nextContent = content || DEFAULT_DOCUMENT_CONTENT
-    if (editor.getHTML() === nextContent) {
-      return
-    }
-
-    // Avoid re-triggering onUpdate during controlled content sync.
-    editor.commands.setContent(nextContent, { emitUpdate: false })
-    syncEmptyState(editor)
-    emitWordCounts(editor)
-  }, [editor, content, documentId])
-
+  /* ── Initial empty-state + word count ── */
   useEffect(() => {
     if (!editor) return
-    if ((editor as { isDestroyed?: boolean }).isDestroyed) return
-    try {
-      editor.setEditable(!readOnly)
-    } catch {
-      /* editor torn down between render and effect */
-    }
-  }, [editor, readOnly])
+    syncEmptyState(editor)
+    emitTipTapWordCounts(editor, onWordCountChange)
+  }, [editor])
 
+  /* ── Word count on selection change ── */
   useEffect(() => {
-    if (!onEditorReady) return
-    try {
-      onEditorReady(editor)
-    } catch {
-      /* parent unmounted */
-    }
-    return () => {
-      try {
-        onEditorReady(null)
-      } catch {
-        /* parent unmounted */
-      }
-    }
-  }, [editor, onEditorReady])
-
-  useEffect(() => {
-    if (!editor) {
-      return
-    }
-
-    const onSelectionUpdate = () => {
-      emitWordCounts(editor)
-    }
-
+    if (!editor) return
+    const onSelectionUpdate = () => emitTipTapWordCounts(editor, onWordCountChange)
     editor.on("selectionUpdate", onSelectionUpdate)
-    return () => {
-      editor.off("selectionUpdate", onSelectionUpdate)
-    }
+    return () => { editor.off("selectionUpdate", onSelectionUpdate) }
   }, [editor, onWordCountChange])
 
+  /* ── Font-size prop sync ── */
   useEffect(() => {
     setFontSize(Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, editorFontSize || DEFAULT_FONT_SIZE)))
   }, [editorFontSize])
 
+  /* ── Global menu wiring (font controls, command bus, search/spellcheck focus jumps) ── */
+  useEditorFontEvents({ setFontSize, setFontFamily, minFontSize: MIN_FONT_SIZE, maxFontSize: MAX_FONT_SIZE })
+  useEditorCommandBus(editor)
+  useEditorFocusJumps({ editor, documentId, documentType: "text" })
+
+  /* ── Recompute caret position when typography changes alter layout ── */
   useEffect(() => {
-    // Global menu controls dispatch these events from outside this component.
-    const onFontSizeChange = (event: Event) => {
-      const customEvent = event as CustomEvent<FontSizeChangeDetail>
-      const delta = customEvent.detail?.delta ?? 0
-
-      if (!delta) {
-        return
-      }
-
-      setFontSize((currentSize) => {
-        const nextSize = currentSize + delta
-        return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, nextSize))
-      })
-    }
-
-    const onFontSizeSet = (event: Event) => {
-      const customEvent = event as CustomEvent<FontSizeSetDetail>
-      const value = customEvent.detail?.value
-
-      if (typeof value !== "number" || Number.isNaN(value)) {
-        return
-      }
-
-      setFontSize(Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value)))
-    }
-
-    const onFontFamilyChange = (event: Event) => {
-      const customEvent = event as CustomEvent<FontFamilyChangeDetail>
-      const nextFontFamily = customEvent.detail?.fontFamily
-
-      if (!nextFontFamily) {
-        return
-      }
-
-      setFontFamily(withEmojiFontFallback(nextFontFamily))
-    }
-
-    const onEditorCommand = async (event: Event) => {
-      if (!editor) {
-        return
-      }
-
-      const customEvent = event as CustomEvent<EditorCommandDetail>
-      const command = customEvent.detail?.command
-      if (!command) {
-        return
-      }
-
-      editor.commands.focus()
-
-      if (command === "undo") {
-        editor.chain().focus().undo().run()
-        return
-      }
-
-      if (command === "redo") {
-        editor.chain().focus().redo().run()
-        return
-      }
-
-      if (command === "bold") {
-        editor.chain().focus().toggleBold().run()
-        return
-      }
-
-      if (command === "italic") {
-        editor.chain().focus().toggleItalic().run()
-        return
-      }
-
-      if (command === "underline") {
-        if (typeof document !== "undefined") {
-          document.execCommand("underline")
-        }
-        return
-      }
-
-      if (command === "copy") {
-        if (typeof document !== "undefined") {
-          document.execCommand("copy")
-        }
-        return
-      }
-
-      if (command === "cut") {
-        if (typeof document !== "undefined") {
-          document.execCommand("cut")
-        }
-        return
-      }
-
-      if (command === "select-all") {
-        editor.commands.selectAll()
-        return
-      }
-
-      if (command === "delete") {
-        editor.commands.deleteSelection()
-        return
-      }
-
-      if (command === "paste") {
-        if (typeof document !== "undefined") {
-          const pasted = document.execCommand("paste")
-          if (pasted) {
-            return
-          }
-        }
-
-        if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
-          try {
-            const text = await navigator.clipboard.readText()
-            if (text) {
-              editor.chain().focus().insertContent(text).run()
-            }
-          } catch {
-            // no-op when clipboard permission is unavailable
-          }
-        }
-      }
-    }
-
-    const onSpellCheckFocus = (event: Event) => {
-      if (!editor || !documentId) {
-        return
-      }
-
-      const customEvent = event as CustomEvent<SpellCheckFocusDetail>
-      const detail = customEvent.detail
-      if (!detail || detail.documentType !== "text" || detail.documentId !== documentId) {
-        return
-      }
-
-      const editorDom = editor.view.dom
-      const hit = findTextWordHit(editorDom, detail.normalizedWord, detail.occurrenceIndex)
-      if (!hit) {
-        return
-      }
-
-      editor.commands.focus()
-
-      const selection = window.getSelection()
-      if (!selection) {
-        return
-      }
-
-      const range = document.createRange()
-      range.setStart(hit.node, hit.start)
-      range.setEnd(hit.node, hit.end)
-      selection.removeAllRanges()
-      selection.addRange(range)
-
-      const anchor = hit.node.parentElement ?? editorDom
-      anchor.scrollIntoView({ behavior: "smooth", block: "center" })
-    }
-
-    const onProjectSearchFocus = (event: Event) => {
-      if (!editor || !documentId) {
-        return
-      }
-
-      const customEvent = event as CustomEvent<ProjectSearchFocusDetail>
-      const detail = customEvent.detail
-      if (!detail || detail.documentType !== "text" || detail.documentId !== documentId) {
-        return
-      }
-
-      const editorDom = editor.view.dom
-      const hit = findTextQueryHit(editorDom, detail.query, detail.occurrenceIndex)
-      if (!hit) {
-        return
-      }
-
-      editor.commands.focus()
-
-      const selection = window.getSelection()
-      if (!selection) {
-        return
-      }
-
-      const range = document.createRange()
-      range.setStart(hit.node, hit.start)
-      range.setEnd(hit.node, hit.end)
-      selection.removeAllRanges()
-      selection.addRange(range)
-
-      const anchor = hit.node.parentElement ?? editorDom
-      anchor.scrollIntoView({ behavior: "smooth", block: "center" })
-    }
-
-    window.addEventListener(EDITOR_FONT_SIZE_CHANGE_EVENT, onFontSizeChange as EventListener)
-    window.addEventListener(EDITOR_FONT_SIZE_SET_EVENT, onFontSizeSet as EventListener)
-    window.addEventListener(EDITOR_FONT_FAMILY_CHANGE_EVENT, onFontFamilyChange as EventListener)
-    window.addEventListener(EDITOR_COMMAND_EVENT, onEditorCommand as EventListener)
-    window.addEventListener(APP_SPELL_CHECK_FOCUS_EVENT, onSpellCheckFocus as EventListener)
-    window.addEventListener(APP_PROJECT_SEARCH_FOCUS_EVENT, onProjectSearchFocus as EventListener)
-
-    return () => {
-      window.removeEventListener(EDITOR_FONT_SIZE_CHANGE_EVENT, onFontSizeChange as EventListener)
-      window.removeEventListener(EDITOR_FONT_SIZE_SET_EVENT, onFontSizeSet as EventListener)
-      window.removeEventListener(EDITOR_FONT_FAMILY_CHANGE_EVENT, onFontFamilyChange as EventListener)
-      window.removeEventListener(EDITOR_COMMAND_EVENT, onEditorCommand as EventListener)
-      window.removeEventListener(APP_SPELL_CHECK_FOCUS_EVENT, onSpellCheckFocus as EventListener)
-      window.removeEventListener(APP_PROJECT_SEARCH_FOCUS_EVENT, onProjectSearchFocus as EventListener)
-    }
-  }, [editor, documentId])
-
-  useEffect(() => {
-    // Recompute caret position when typography changes alter layout.
     window.dispatchEvent(new Event("resize"))
   }, [fontSize, fontFamily])
 
-  const currentLineTop = hoverLineTop
-  const currentLineAnchor = hoverLineAnchor
-  const showFlagRailUi = flagsEnabled && (isFlagRailHovered || hoverLineTop !== null)
-  const shouldShowCreateFlag =
-    showFlagRailUi &&
-    !isUiTyping &&
-    currentLineTop !== null &&
-    currentLineAnchor !== null &&
-    !flaggedAnchors.has(currentLineAnchor)
-
-  // If the body's first block (e.g. opening paragraph or heading) is the same
-  // text as the tab title shown above, hide the body's copy so the user doesn't
-  // read it twice. This commonly happens when the document was authored in
-  // Typewriter mode, where the first line naturally serves as the title.
+  /* ── Hide the body's first block when it duplicates the tab title ──
+     Common when the document was authored in Typewriter mode, where the
+     first line naturally serves as the title. */
   const hideFirstBlockAsDuplicate = useMemo(() => {
     if (hideDocumentTitle) return false
     const trimmedTitle = documentTitle.trim()
@@ -633,111 +169,42 @@ export default function DraftingEditor({
     return firstText === trimmedTitle
   }, [content, documentTitle, hideDocumentTitle])
 
+  /* ── Derived flag-rail UI state ── */
+  const showFlagRailUi = flagsEnabled && (isFlagRailHovered || hoverLineTop !== null)
+  const shouldShowCreateFlag =
+    showFlagRailUi &&
+    !isUiTyping &&
+    hoverLineTop !== null &&
+    hoverLineAnchor !== null &&
+    !flaggedAnchors.has(hoverLineAnchor)
+
   return (
     <div
       className={`editor-container${hideFirstBlockAsDuplicate ? " editor-container--hide-first-block" : ""}`}
       ref={editorSurfaceRef}
       style={{ fontSize: `${fontSize}px`, "--editor-body-font": fontFamily } as CSSProperties}
       onMouseMove={(event) => {
-        if (!flagsEnabled) {
-          return
-        }
-
+        if (!flagsEnabled) return
         const foundLine = updateHoverLineFromPointer(event.clientY)
-        if (!foundLine) {
-          setHoverLineTop(null)
-          setHoverLineAnchor(null)
-        }
+        if (!foundLine) clearHoverState()
       }}
       onMouseLeave={() => {
-        if (!flagsEnabled) {
-          return
-        }
-
+        if (!flagsEnabled) return
         setIsFlagRailHovered(false)
-        setHoverLineTop(null)
-        setHoverLineAnchor(null)
+        clearHoverState()
       }}
     >
       {!hideDocumentTitle ? (
-        <div className="editor-document-title-wrap" data-marquee-parent>
-          <div
-            ref={titleEditableRef}
-            contentEditable
-            suppressContentEditableWarning
-            className="editor-document-title"
-            aria-label="Document title"
-            onFocus={() => {
-              if (titleOverlayRef.current) titleOverlayRef.current.style.visibility = "hidden"
-            }}
-            onInput={(event) => {
-              const text = event.currentTarget.textContent ?? ""
-              setTitleDraft(text)
-              markUiTypingActivity()
-            }}
-            onBlur={(event) => {
-              if (titleOverlayRef.current) titleOverlayRef.current.style.visibility = ""
-              const text = event.currentTarget.textContent?.trim() ?? ""
-              onDocumentTitleChange(text)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault()
-                const text = event.currentTarget.textContent?.trim() ?? ""
-                onDocumentTitleChange(text)
-                event.currentTarget.blur()
-                return
-              }
-
-              if (event.key === "Escape") {
-                event.preventDefault()
-                if (titleEditableRef.current) {
-                  titleEditableRef.current.textContent = documentTitle
-                }
-                setTitleDraft(documentTitle)
-                event.currentTarget.blur()
-                return
-              }
-
-              if (
-                !event.metaKey &&
-                !event.ctrlKey &&
-                !event.altKey &&
-                (event.key.length === 1 || event.key === "Backspace" || event.key === "Delete")
-              ) {
-                markUiTypingActivity()
-              }
-            }}
-            onPaste={(event) => {
-              event.preventDefault()
-              const text = event.clipboardData
-                .getData("text/plain")
-                .replace(/\r?\n|\r/g, " ")
-              const selection = window.getSelection()
-              if (!selection?.rangeCount) return
-              selection.deleteFromDocument()
-              const range = selection.getRangeAt(0)
-              const node = document.createTextNode(text)
-              range.insertNode(node)
-              range.setStartAfter(node)
-              range.collapse(true)
-              selection.removeAllRanges()
-              selection.addRange(range)
-              const fullText = event.currentTarget.textContent ?? ""
-              setTitleDraft(fullText)
-              markUiTypingActivity()
-            }}
-          />
-          <div
-            ref={titleOverlayRef}
-            className="editor-document-title-overlay"
-            aria-hidden="true"
-          >
-            <MarqueeText text={titleDraft} />
-          </div>
-        </div>
+        <EditorDocumentTitle
+          documentTitle={documentTitle}
+          documentId={documentId}
+          onChange={onDocumentTitleChange}
+          onTypingActivity={markUiTypingActivity}
+        />
       ) : null}
+
       <EditorContent editor={editor} />
+
       <FlagRail
         flagsEnabled={flagsEnabled}
         activeDocumentKey={activeDocumentKey}
@@ -746,77 +213,16 @@ export default function DraftingEditor({
         showFlagRailUi={showFlagRailUi}
         isUiTyping={isUiTyping}
         shouldShowCreateFlag={shouldShowCreateFlag}
-        currentLineTop={currentLineTop}
-        currentLineAnchor={currentLineAnchor}
+        currentLineTop={hoverLineTop}
+        currentLineAnchor={hoverLineAnchor}
         flaggedAnchors={flaggedAnchors}
         setIsFlagRailHovered={setIsFlagRailHovered}
-        clearHoverState={() => {
-          setHoverLineTop(null)
-          setHoverLineAnchor(null)
-        }}
+        clearHoverState={clearHoverState}
         updateHoverLineFromPointer={updateHoverLineFromPointer}
-        onRemoveFlag={(anchor) => {
-          removeHighlightForAnchor(anchor)
-
-          setFlaggedAnchorsByDocument((current) => {
-            const existing = current[activeDocumentKey] ?? []
-            const next = existing.filter((value) => value !== anchor)
-
-            if (next.length === existing.length) {
-              return current
-            }
-
-            return {
-              ...current,
-              [activeDocumentKey]: next,
-            }
-          })
-
-          setHighlightRangesByDocument((current) => {
-            const existing = current[activeDocumentKey]
-            if (!existing || !existing[anchor]) {
-              return current
-            }
-
-            const next = { ...existing }
-            delete next[anchor]
-
-            return {
-              ...current,
-              [activeDocumentKey]: next,
-            }
-          })
-        }}
-        onCreateFlag={(anchor) => {
-          const highlightedRange = highlightSelectionIfPresent()
-
-          setFlaggedAnchorsByDocument((current) => {
-            const existing = current[activeDocumentKey] ?? []
-            if (existing.includes(anchor)) {
-              return current
-            }
-
-            return {
-              ...current,
-              [activeDocumentKey]: [...existing, anchor],
-            }
-          })
-
-          if (highlightedRange) {
-            setHighlightRangesByDocument((current) => {
-              const existing = current[activeDocumentKey] ?? {}
-
-              return {
-                ...current,
-                [activeDocumentKey]: {
-                  ...existing,
-                  [anchor]: highlightedRange,
-                },
-              }
-            })
-          }
-        }}
+        onRemoveFlag={handleRemoveFlag}
+        onCreateFlag={handleCreateFlag}
       />
+
       <div className="typing-caret typing-caret--hidden" ref={caretRef} aria-hidden="true" />
     </div>
   )

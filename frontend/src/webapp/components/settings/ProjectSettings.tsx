@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Download, History, UserRoundPlus } from "lucide-react"
-import type { ProjectKind } from "../../../core/projects"
+import type { ProjectKind } from "../../../core/utils/projects"
+import { extractEmojiTokens } from "../../../core/utils/libraryUtils"
 import { SharePanel } from "./ShareDialog"
 import Button from "../ui/Button"
 import "./ProjectSettings.css"
@@ -34,37 +35,6 @@ type ProjectPreferencesFieldsProps = {
   onExportProject: (format: "pdf" | "docx" | "md" | "txt") => void
   sessionToken?: string
   documentId?: string
-}
-
-function splitGraphemes(value: string) {
-  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
-    const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" })
-    return Array.from(segmenter.segment(value), (segment) => segment.segment)
-  }
-
-  return Array.from(value)
-}
-
-function extractEmojiTokens(value: string, maxCount = 3) {
-  const emojiPattern = /\p{Extended_Pictographic}/u
-  const tokens: string[] = []
-
-  for (const grapheme of splitGraphemes(value)) {
-    if (!emojiPattern.test(grapheme)) {
-      continue
-    }
-
-    tokens.push(grapheme)
-    if (tokens.length >= maxCount) {
-      break
-    }
-  }
-
-  return tokens
-}
-
-function normalizeProjectEmojiWallpaper(value: string) {
-  return extractEmojiTokens(value, 3).join(" ")
 }
 
 function normalizeHexInput(value: string) {

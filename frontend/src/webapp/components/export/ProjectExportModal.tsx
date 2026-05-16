@@ -1,6 +1,6 @@
 import { Download, FileText, FileType2, FileType, Files } from "lucide-react"
 import { useEffect, useMemo, useState, type ComponentType } from "react"
-import type { ExportProjectFormat } from "../../../core/editorEvents"
+import type { ExportProjectFormat } from "../../../core/events/editorEvents"
 import type { ExportMode } from "./exportSelection"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"

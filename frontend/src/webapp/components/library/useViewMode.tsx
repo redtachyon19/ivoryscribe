@@ -5,7 +5,7 @@ import {
   ClockArrowDown, ClockArrowUp,
   LayoutGrid, List,
 } from "lucide-react"
-import { collectTabIds, type Project } from "../../../core/projects"
+import { collectTabIds, type Project } from "../../../core/utils/projects"
 
 export type ViewMode = "grid" | "list"
 

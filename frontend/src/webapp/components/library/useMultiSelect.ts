@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
-import type { Project } from "../../../core/projects"
+import type { Project } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
-import useMarqueeSelection from "../editor/hooks/useMarqueeSelection"
+import useMarqueeSelection from "../shared/hooks/useMarqueeSelection"
 import { handleSectionDragStart } from "./useSectionDrop"
 
 type MultiSelectDrag = {

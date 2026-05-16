@@ -1,9 +1,10 @@
-import { Palette, ScrollText, UserRound } from "lucide-react"
+import { HardDrive, Palette, ScrollText, UserRound } from "lucide-react"
 import { useEffect, useRef, useState, type ComponentType, type CSSProperties } from "react"
-import type { ProjectKind } from "../../../core/projects"
+import type { ProjectKind } from "../../../core/utils/projects"
 import AccountSettings from "./AccountSettings"
 import AppearanceSettings from "./AppearanceSettings"
 import ProjectSettings from "./ProjectSettings"
+import WorkspaceSettings from "./WorkspaceSettings"
 import Button from "../ui/Button"
 import "./GlobalSettings.css"
 
@@ -81,6 +82,15 @@ export type GlobalSettingsProps = {
   onRequestAccountDeletion: () => Promise<{ message: string; deletion: { userId: string; email: string } }> | { message: string; deletion: { userId: string; email: string } }
   onConfirmAccountDeletionCode: (input: { userId: string; code: string }) => Promise<void> | void
   onSignOut: () => void
+  /** Opens the auth overlay so the user can sign in or create an account
+   *  without leaving the settings panel. Used by AccountSettings when no
+   *  email is present. */
+  onRequestSignIn?: () => void
+  // Workspace (Electron local-file mode only). When `localWorkspaceRoot` is
+  // non-null we render a Workspace section that lets the user point Ivoryscribe
+  // at a different folder on disk.
+  localWorkspaceRoot?: string | null
+  onChangeLocalWorkspace?: () => Promise<string | null> | void
 }
 
 export default function GlobalSettings({
@@ -134,20 +144,31 @@ export default function GlobalSettings({
   onRequestAccountDeletion,
   onConfirmAccountDeletionCode,
   onSignOut,
+  onRequestSignIn,
+  localWorkspaceRoot,
+  onChangeLocalWorkspace,
 }: GlobalSettingsProps) {
-  type SectionId = "account" | "appearance" | "project-preferences"
-  const sectionIds: SectionId[] = showProjectPreferences ? ["account", "appearance", "project-preferences"] : ["account", "appearance"]
+  type SectionId = "account" | "appearance" | "workspace" | "project-preferences"
+  const showWorkspace = typeof localWorkspaceRoot === "string"
+  const sectionIds: SectionId[] = [
+    "account",
+    "appearance",
+    ...(showWorkspace ? (["workspace"] as SectionId[]) : []),
+    ...(showProjectPreferences ? (["project-preferences"] as SectionId[]) : []),
+  ]
 
   const contentRef = useRef<HTMLDivElement | null>(null)
   const sectionNavRef = useRef<HTMLElement | null>(null)
   const sectionRefs = useRef<Record<SectionId, HTMLElement | null>>({
     account: null,
     appearance: null,
+    workspace: null,
     "project-preferences": null,
   })
   const sectionNavItemRefs = useRef<Record<SectionId, HTMLButtonElement | null>>({
     account: null,
     appearance: null,
+    workspace: null,
     "project-preferences": null,
   })
   const scrollIntentSectionRef = useRef<SectionId | null>(null)
@@ -166,6 +187,10 @@ export default function GlobalSettings({
     { id: "account", label: "Account Settings", icon: UserRound },
     { id: "appearance", label: "Appearance", icon: Palette },
   ]
+
+  if (showWorkspace) {
+    sectionNavItems.push({ id: "workspace", label: "Workspace", icon: HardDrive })
+  }
 
   if (showProjectPreferences) {
     sectionNavItems.push({ id: "project-preferences", label: "Project Preferences", icon: ScrollText })
@@ -438,6 +463,7 @@ export default function GlobalSettings({
                     sectionRefs.current.account = element
                   }}
                   onActionFeedbackVisibilityChange={setIsActionFeedbackVisible}
+                  onRequestSignIn={onRequestSignIn}
                 />
 
                 <AppearanceSettings
@@ -471,6 +497,16 @@ export default function GlobalSettings({
                     sectionRefs.current.appearance = element
                   }}
                 />
+
+                {showWorkspace ? (
+                  <WorkspaceSettings
+                    rootPath={localWorkspaceRoot ?? null}
+                    onChangeLocalWorkspace={onChangeLocalWorkspace}
+                    sectionRef={(element) => {
+                      sectionRefs.current.workspace = element
+                    }}
+                  />
+                ) : null}
 
                 {showProjectPreferences ? (
                   <section

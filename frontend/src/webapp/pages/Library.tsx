@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetState
 import { Archive, BookCopy, BookOpenText, BookPlus, Folder, FolderPlus, LibraryBig as LibraryIcon, ScrollText, Trash2 } from "lucide-react"
 import Button from "../components/ui/Button"
 import Modal from "../components/ui/Modal"
-import { PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/editorEvents"
+import { PROJECTS_CREATE_BOOK_EVENT, PROJECTS_CREATE_FOLDER_EVENT } from "../../core/events/editorEvents"
 import { exportProjectAsPdf } from "../components/export/pdfExport"
 import { exportProjectAsDocx } from "../components/export/docxExport"
 import { downloadProjectAsMarkdown } from "../components/export/markdownExport"
 import { exportProjectAsTxt } from "../components/export/txtExport"
-import { collectTabIds, createProject, generateUntitledName, type Project } from "../../core/projects"
-import { createLocalId, duplicateProject } from "../../core/libraryUtils"
-import type { VersionSettingsEntry } from "../../core/versioning"
+import { collectTabIds, createProject, generateUntitledName, type Project } from "../../core/utils/projects"
+import { createLocalId, duplicateProject } from "../../core/utils/libraryUtils"
+import type { VersionSettingsEntry } from "../../core/state/versioning"
 import ProjectSettings from "../components/settings/ProjectSettings"
 import ProjectCard from "../components/library/ProjectCard"
 import { FolderDetailView } from "../components/library/ProjectFolder"
@@ -33,6 +33,9 @@ export type ProjectFolder = {
   id: string
   name: string
   description: string
+  /** Parent folder id, or null for top-level folders. Allows nested folders
+   *  to be hidden until the user navigates into their parent. */
+  parentFolderId?: string | null
 }
 
 export type LibraryProps = {
@@ -58,6 +61,10 @@ export type LibraryProps = {
   userEmail?: string
   sharedProjectIds?: Set<string>
   ownerEmailByProjectId?: Map<string, string>
+  /** Local mode: upload the local file as a cloud Document and return its id.
+   *  Returns null if the user needs to sign in (the orchestrator handles
+   *  showing the auth overlay). Returns the existing id if already shared. */
+  onEnableCloudSharing?: (projectId: string) => Promise<string | null>
 }
 
 export default function Library({
@@ -83,6 +90,7 @@ export default function Library({
   userEmail,
   sharedProjectIds,
   ownerEmailByProjectId,
+  onEnableCloudSharing,
 }: LibraryProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -95,6 +103,18 @@ export default function Library({
   const activeProjects = projects.filter((p) => !p.archivedAt && !p.deletedAt)
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null
   const folderProjects = openFolderId ? activeProjects.filter((p) => p.folderId === openFolderId) : []
+  // Top-level folders (no parent) for the root library view; sub-folders of
+  // the currently open folder for the folder-detail view. Folders that come
+  // from disk-walked subdirectories carry a parentFolderId so we can keep
+  // them hidden until the user navigates in.
+  const topLevelFolders = useMemo(
+    () => folders.filter((f) => !f.parentFolderId),
+    [folders],
+  )
+  const childFolders = useMemo(
+    () => (openFolderId ? folders.filter((f) => f.parentFolderId === openFolderId) : []),
+    [folders, openFolderId],
+  )
 
   const drag = useProjectDrag({ projects: activeProjects, folders, setProjects, setFolders })
   const settings = useProjectSettings({ projects, setProjects })
@@ -103,10 +123,11 @@ export default function Library({
   const shareDialogProject = shareDialogProjectId ? projects.find((p) => p.id === shareDialogProjectId) ?? null : null
   const shareDialogDocumentId = shareDialogProjectId ? (projectDocumentMap[shareDialogProjectId] ?? null) : null
 
+  // Open the share dialog regardless of whether the project has a cloud-id
+  // yet. The dialog handles the "not yet shared" case with an upload CTA that
+  // calls onEnableCloudSharing — which prompts sign-in if needed.
   const openShareDialog = (projectId: string) => {
-    if (projectDocumentMap[projectId]) {
-      setShareDialogProjectId(projectId)
-    }
+    setShareDialogProjectId(projectId)
   }
 
   const moveToTrash = (projectId: string) => {
@@ -267,8 +288,11 @@ export default function Library({
               <FolderDetailView
                 folder={openFolder}
                 folderProjects={folderProjects}
-                onBack={() => setOpenFolderId(null)}
+                subFolders={childFolders}
+                backLabel={openFolder.parentFolderId ? folders.find((f) => f.id === openFolder.parentFolderId)?.name ?? "Library" : "Library"}
+                onBack={() => setOpenFolderId(openFolder.parentFolderId ?? null)}
                 onCreateBook={() => createNewProject(openFolderId!)}
+                onOpenSubFolder={(id) => setOpenFolderId(id)}
                 renderProjectCard={renderProjectCard}
               />
             ) : (
@@ -295,11 +319,11 @@ export default function Library({
               />
             ) : null}
 
-            {/* Folders */}
+            {/* Folders — only top-level here; nested folders show inside their parent. */}
             {viewMode === "list" ? (
-              folders.length > 0 ? (
+              topLevelFolders.length > 0 ? (
                 <div className="project-hub__list-view" aria-label="Library folders list">
-                  {folders.map((folder) => (
+                  {topLevelFolders.map((folder) => (
                     <article
                       key={folder.id}
                       data-selectable-id={folder.id}
@@ -345,7 +369,7 @@ export default function Library({
               ) : null
             ) : (
               <ProjectFolderGrid
-                folders={folders}
+                folders={topLevelFolders}
                 projects={activeProjects}
                 onOpenFolder={setOpenFolderId}
                 onFolderDragStart={drag.handleFolderDragStart}
@@ -526,10 +550,13 @@ export default function Library({
                     multiSelect.clearSelection()
                   },
                   onShare: (ids) => {
-                    const shareableProjectId = [...ids].find((id) => !folderIdSet.has(id) && Boolean(projectDocumentMap[id]))
-                    if (shareableProjectId) {
-                      openShareDialog(shareableProjectId)
-                    }
+                    // Prefer projects that are already shared (have a cloud
+                    // documentId) so the dialog opens straight into the
+                    // collaborator list. Fall back to the first project — the
+                    // dialog itself handles the "upload first" CTA.
+                    const ranked = [...ids].filter((id) => !folderIdSet.has(id))
+                    const targetId = ranked.find((id) => Boolean(projectDocumentMap[id])) ?? ranked[0]
+                    if (targetId) openShareDialog(targetId)
                     multiSelect.clearSelection()
                   },
                   onArchive: (ids) => {
@@ -585,7 +612,7 @@ export default function Library({
         />
       ) : null}
 
-      {shareDialogProjectId && shareDialogDocumentId ? (
+      {shareDialogProjectId ? (
         <ShareDialog
           isOpen={true}
           onClose={() => setShareDialogProjectId(null)}
@@ -595,6 +622,7 @@ export default function Library({
           isOwner={!sharedProjectIds?.has(shareDialogProjectId)}
           userEmail={userEmail ?? ""}
           ownerEmail={ownerEmailByProjectId?.get(shareDialogProjectId) ?? ""}
+          onEnableCloudSharing={onEnableCloudSharing ? () => onEnableCloudSharing(shareDialogProjectId) : undefined}
         />
       ) : null}
     </>

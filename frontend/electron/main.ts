@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
 import type { MenuItemConstructorOptions } from "electron"
+import { promises as fsp } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -92,6 +93,9 @@ function applyNativeMenu(rendererItems: RendererMenuItem[]) {
 
 function createWindow() {
 
+  const preloadPath = path.join(__dirname, "preload.cjs")
+  console.log("[ivoryscribe] preload path:", preloadPath)
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -103,10 +107,15 @@ function createWindow() {
     transparent: isMac,
     vibrancy: isMac ? "sidebar" : undefined,
     webPreferences: {
-      preload: path.join(__dirname, "preload.mjs"),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
+  })
+
+  mainWindow.webContents.on("preload-error", (_event, preload, error) => {
+    console.error("[ivoryscribe] PRELOAD ERROR:", preload, error)
   })
 
   // Open external links in the default browser
@@ -193,6 +202,104 @@ ipcMain.handle("spellcheck:remove-word", (_event, word: unknown) => {
 // Menu update from renderer
 ipcMain.on("menu:update", (_event, items: RendererMenuItem[]) => {
   applyNativeMenu(items)
+})
+
+// ── Filesystem IPC ──
+// Local-file project storage lives entirely under a user-chosen root folder.
+// Every operation takes absolute paths produced by path.join via preload.
+
+ipcMain.handle("dialog:selectDirectory", async (_event, opts: { defaultPath?: string; title?: string } = {}) => {
+  if (!mainWindow) return null
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: opts.title ?? "Select folder",
+    defaultPath: opts.defaultPath,
+    properties: ["openDirectory", "createDirectory"],
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  return result.filePaths[0]
+})
+
+// Resolve (and create if missing) the per-platform default workspace folder
+// at ~/Documents/Ivoryscribe. Called on first launch so the user doesn't have
+// to deal with a picker just to get going.
+ipcMain.handle("fs:getDefaultRoot", async () => {
+  const docs = app.getPath("documents")
+  const root = path.join(docs, "Ivoryscribe")
+  await fsp.mkdir(root, { recursive: true })
+  return root
+})
+
+ipcMain.handle("fs:readFile", async (_event, filePath: string) => {
+  return await fsp.readFile(filePath, "utf8")
+})
+
+ipcMain.handle("fs:writeFile", async (_event, filePath: string, contents: string) => {
+  await fsp.mkdir(path.dirname(filePath), { recursive: true })
+  // Atomic write: tmp + rename so a crash mid-save can't truncate the file.
+  const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`
+  await fsp.writeFile(tmp, contents, "utf8")
+  await fsp.rename(tmp, filePath)
+})
+
+type FsEntry = {
+  name: string
+  path: string
+  kind: "file" | "directory"
+  size: number
+  modifiedAt: number
+}
+
+ipcMain.handle("fs:listDirectory", async (_event, dirPath: string): Promise<FsEntry[]> => {
+  const entries = await fsp.readdir(dirPath, { withFileTypes: true })
+  const out: FsEntry[] = []
+  for (const ent of entries) {
+    if (ent.name.startsWith(".")) continue
+    const full = path.join(dirPath, ent.name)
+    try {
+      const stat = await fsp.stat(full)
+      out.push({
+        name: ent.name,
+        path: full,
+        kind: ent.isDirectory() ? "directory" : "file",
+        size: stat.size,
+        modifiedAt: stat.mtimeMs,
+      })
+    } catch {
+      // Symlink target missing or permission error — skip.
+    }
+  }
+  return out
+})
+
+ipcMain.handle("fs:mkdir", async (_event, dirPath: string) => {
+  await fsp.mkdir(dirPath, { recursive: true })
+})
+
+ipcMain.handle("fs:rename", async (_event, oldPath: string, newPath: string) => {
+  await fsp.rename(oldPath, newPath)
+})
+
+ipcMain.handle("fs:trash", async (_event, targetPath: string) => {
+  await shell.trashItem(targetPath)
+})
+
+ipcMain.handle("fs:exists", async (_event, targetPath: string) => {
+  try {
+    await fsp.access(targetPath)
+    return true
+  } catch {
+    return false
+  }
+})
+
+ipcMain.handle("fs:stat", async (_event, targetPath: string) => {
+  const s = await fsp.stat(targetPath)
+  return {
+    size: s.size,
+    modifiedAt: s.mtimeMs,
+    isDirectory: s.isDirectory(),
+    isFile: s.isFile(),
+  }
 })
 
 app.on("window-all-closed", () => {

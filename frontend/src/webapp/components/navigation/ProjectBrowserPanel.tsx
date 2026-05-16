@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Archive, BookCopy, BookPlus, BookText, ChevronDown, Clock3, Folder, FolderPlus, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
-import { requestNavigateArchive, requestNavigateTrash, requestNavigateLibrary, requestNavigateRecent } from "../../../core/editorEvents"
-import type { Project } from "../../../core/projects"
-import { duplicateProject } from "../../../core/libraryUtils"
+import { requestNavigateArchive, requestNavigateTrash, requestNavigateLibrary, requestNavigateRecent } from "../../../core/events/editorEvents"
+import type { Project } from "../../../core/utils/projects"
+import { duplicateProject } from "../../../core/utils/libraryUtils"
 import { exportProjectAsPdf } from "../export/pdfExport"
 import type { ProjectFolder } from "../../pages/Library"
-import { useListDrag } from "../editor/hooks/useListDrag"
+import { useListDrag } from "../shared/hooks/useListDrag"
 import useSectionDrop from "../library/useSectionDrop"
 import useProjectSettings from "../library/useProjectSettings"
 import type { ContextMenuAction } from "../library/ProjectContextMenu"
@@ -122,16 +122,25 @@ export default function ProjectBrowserPanel({
     onOpenShareDialog: openShareDialog,
   })
 
-  // Build a flat ordering of visible item IDs for root list drag handlers
+  // Build a flat ordering of visible item IDs for root list drag handlers.
+  // Recurses through nested folders so drag targets match what the user sees.
   const visibleItemIds = useMemo(() => {
     const ids: string[] = []
-    for (const p of topRootProjects) ids.push(p.id)
+    const childrenByParent = new Map<string | null | undefined, ProjectFolder[]>()
     for (const f of folders) {
-      ids.push(f.id)
-      if (expandedFolders[f.id] !== false) {
-        for (const p of projects.filter((pr) => pr.folderId === f.id)) ids.push(p.id)
-      }
+      const key = f.parentFolderId ?? null
+      const list = childrenByParent.get(key) ?? []
+      list.push(f)
+      childrenByParent.set(key, list)
     }
+    const walk = (folder: ProjectFolder) => {
+      ids.push(folder.id)
+      if (expandedFolders[folder.id] === false) return
+      for (const child of childrenByParent.get(folder.id) ?? []) walk(child)
+      for (const p of projects.filter((pr) => pr.folderId === folder.id)) ids.push(p.id)
+    }
+    for (const p of topRootProjects) ids.push(p.id)
+    for (const f of (childrenByParent.get(null) ?? [])) walk(f)
     for (const p of bottomRootProjects) ids.push(p.id)
     return ids
   }, [projects, folders, expandedFolders, topRootProjects, bottomRootProjects])
@@ -392,11 +401,12 @@ export default function ProjectBrowserPanel({
     )
   }
 
-  const renderFolder = (folder: ProjectFolder) => {
+  const renderFolder = (folder: ProjectFolder, depth: number = 0) => {
     const isExpanded = isFolderExpanded(folder.id)
     const isEditing = editingFolderId === folder.id
     const folderProjects = projects.filter((p) => p.folderId === folder.id)
-    const hasProjects = folderProjects.length > 0
+    const subFolders = folders.filter((f) => f.parentFolderId === folder.id)
+    const hasChildren = folderProjects.length > 0 || subFolders.length > 0
     const isMarqueeSelected = liveSelectedIds.has(folder.id)
     const isDropBefore = drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "before"
     const isDropAfter = drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "after"
@@ -481,7 +491,7 @@ export default function ProjectBrowserPanel({
                 <MarqueeText text={folder.name} />
               </button>
 
-              {hasProjects ? (
+              {hasChildren ? (
                 <button
                   type="button"
                   className={`project-browser__collapse-btn ${isExpanded ? "project-browser__collapse-btn--open" : ""}`.trim()}
@@ -504,9 +514,10 @@ export default function ProjectBrowserPanel({
           className={`project-browser__drop-line project-browser__drop-line--bottom ${isDropAfter ? "project-browser__drop-line--visible" : ""}`.trim()}
         />
 
-        {hasProjects && isExpanded ? (
+        {hasChildren && isExpanded ? (
           <ul className="project-browser__list project-browser__list--nested">
-            {folderProjects.map((p) => renderProject(p, 1))}
+            {subFolders.map((sub) => renderFolder(sub, depth + 1))}
+            {folderProjects.map((p) => renderProject(p, depth + 1))}
           </ul>
         ) : null}
       </li>
@@ -616,7 +627,7 @@ export default function ProjectBrowserPanel({
           }}
         >
           {topRootProjects.map((p) => renderProject(p))}
-          {folders.map((f) => renderFolder(f))}
+          {folders.filter((f) => !f.parentFolderId).map((f) => renderFolder(f))}
           {bottomRootProjects.map((p) => renderProject(p))}
         </ul>
       </div>
