@@ -160,6 +160,57 @@ export default function ProjectBrowserPanel({
     )
   }, [setProjects])
 
+  /** True iff `candidateAncestorId` appears anywhere up `descendantId`'s
+   *  parent chain. Used to refuse cycle-creating folder drops. */
+  const isFolderDescendantOf = useCallback((descendantId: string, candidateAncestorId: string): boolean => {
+    if (descendantId === candidateAncestorId) return true
+    let cursor: string | null | undefined = descendantId
+    const seen = new Set<string>()
+    while (cursor) {
+      if (seen.has(cursor)) return false
+      seen.add(cursor)
+      if (cursor === candidateAncestorId) return true
+      const folder = folders.find((f) => f.id === cursor)
+      cursor = folder?.parentFolderId ?? null
+    }
+    return false
+  }, [folders])
+
+  /** Nest a folder into a new parent (or null = top-level). Cycle-safe. */
+  const moveFolderIntoFolder = useCallback((folderId: string, nextParentId: string | null) => {
+    if (folderId === nextParentId) return
+    if (nextParentId !== null && isFolderDescendantOf(nextParentId, folderId)) return
+    setFolders((current) => {
+      const idx = current.findIndex((f) => f.id === folderId)
+      if (idx === -1) return current
+      const currentParent = current[idx].parentFolderId ?? null
+      if (currentParent === nextParentId) return current
+      return current.map((f) => (f.id === folderId ? { ...f, parentFolderId: nextParentId } : f))
+    })
+  }, [isFolderDescendantOf, setFolders])
+
+  /** Reorder a folder relative to a sibling. Also adopts the target's parent
+   *  so dropping a folder among siblings moves it into their tier. */
+  const moveFolderRelativeToSibling = useCallback(
+    (folderId: string, targetFolderId: string, position: "before" | "after") => {
+      setFolders((current) => {
+        const fromIndex = current.findIndex((f) => f.id === folderId)
+        const targetIndex = current.findIndex((f) => f.id === targetFolderId)
+        if (fromIndex === -1 || targetIndex === -1 || fromIndex === targetIndex) return current
+        const targetParent = current[targetIndex].parentFolderId ?? null
+        const next = [...current]
+        const [dragged] = next.splice(fromIndex, 1)
+        const adopted = { ...dragged, parentFolderId: targetParent }
+        const adjusted = next.findIndex((f) => f.id === targetFolderId)
+        if (adjusted === -1) return current
+        const insertAt = position === "before" ? adjusted : adjusted + 1
+        next.splice(insertAt, 0, adopted)
+        return next
+      })
+    },
+    [setFolders],
+  )
+
   const commitProjectDrop = useCallback((targetId: string, mode: "before" | "after") => {
     if (!drag.draggingId) return
 
@@ -408,6 +459,11 @@ export default function ProjectBrowserPanel({
     const subFolders = folders.filter((f) => f.parentFolderId === folder.id)
     const hasChildren = folderProjects.length > 0 || subFolders.length > 0
     const isMarqueeSelected = liveSelectedIds.has(folder.id)
+
+    const draggingIsFolder = drag.draggingId !== null && folderIdSet.has(drag.draggingId)
+    const draggingFolderId = draggingIsFolder ? drag.draggingId : null
+    const isCycleTarget = draggingFolderId !== null && isFolderDescendantOf(folder.id, draggingFolderId)
+
     const isDropBefore = drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "before"
     const isDropAfter = drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "after"
     const isDropInside = (drag.dropTarget?.targetId === folder.id && drag.dropTarget.mode === "inside") || externalFolderDropId === folder.id
@@ -425,7 +481,19 @@ export default function ProjectBrowserPanel({
             event.preventDefault()
             event.stopPropagation()
             if (drag.draggingId) {
-              drag.setDropTarget({ targetId: folder.id, mode: "inside" })
+              if (draggingIsFolder) {
+                if (drag.draggingId === folder.id) return
+                if (isCycleTarget) return
+                // Folder-over-folder: top 22% = before, bottom 22% = after,
+                // middle = inside (nest).
+                const rect = event.currentTarget.getBoundingClientRect()
+                const ratio = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5
+                const mode: "before" | "after" | "inside" =
+                  ratio < 0.22 ? "before" : ratio > 0.78 ? "after" : "inside"
+                drag.setDropTarget({ targetId: folder.id, mode })
+              } else {
+                drag.setDropTarget({ targetId: folder.id, mode: "inside" })
+              }
             } else {
               setExternalFolderDropId(folder.id)
             }
@@ -439,7 +507,21 @@ export default function ProjectBrowserPanel({
             event.preventDefault()
             event.stopPropagation()
             if (drag.draggingId) {
-              commitProjectDrop(folder.id, "after")
+              if (draggingIsFolder) {
+                if (drag.draggingId === folder.id || isCycleTarget) {
+                  drag.handleDragEnd()
+                  return
+                }
+                const mode = drag.dropTarget?.targetId === folder.id ? drag.dropTarget.mode : "inside"
+                if (mode === "inside") {
+                  moveFolderIntoFolder(drag.draggingId, folder.id)
+                } else {
+                  moveFolderRelativeToSibling(drag.draggingId, folder.id, mode as "before" | "after")
+                }
+                drag.handleDragEnd()
+              } else {
+                commitProjectDrop(folder.id, "after")
+              }
             } else {
               const raw = event.dataTransfer.getData("text/plain")
               const projectIds = raw.split(",").filter((id) => id && !folderIdSet.has(id))
@@ -477,9 +559,13 @@ export default function ProjectBrowserPanel({
                 className="project-browser__label"
                 onClick={() => toggleFolder(folder.id)}
                 onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "move"
-                  event.dataTransfer.setData("text/plain", folder.id)
+                  // Drive both the native dataTransfer (so external/cross-pane
+                  // drops still receive the id) and useListDrag's internal
+                  // tracking (so dragover/drop handlers know what's being
+                  // dragged before dataTransfer is readable).
+                  drag.handleDragStart(event, folder.id, editingFolderId)
                 }}
+                onDragEnd={drag.handleDragEnd}
                 onContextMenu={(event) => {
                   event.preventDefault()
                   setContextMenu({ x: event.clientX, y: event.clientY, kind: "item", projectId: folder.id, isFolder: true })
@@ -622,6 +708,16 @@ export default function ProjectBrowserPanel({
           className="project-browser__list"
           onDragOver={rootListHandlers.onDragOver}
           onDrop={(event) => {
+            // If a folder was being dragged and it lands on the root list
+            // background (i.e. not on another folder/project row), un-nest
+            // it to the top-level. Folder-over-folder drops are handled by
+            // the folder row's own onDrop, which stops propagation.
+            if (drag.draggingId && folderIdSet.has(drag.draggingId)) {
+              event.preventDefault()
+              moveFolderIntoFolder(drag.draggingId, null)
+              drag.handleDragEnd()
+              return
+            }
             const result = rootListHandlers.onDrop(event)
             if (result) commitProjectDrop(result.targetId, result.mode as "before" | "after")
           }}

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 // Drafting). Long enough to absorb the natural pause between words / while
 // composing a sentence so the UI doesn't flicker on every comma. Kept in sync
 // with the caret typing class timeout in useTypingCaret.ts.
-const TYPING_IDLE_MS = 1200
+const TYPING_IDLE_MS = 5000
 
 type UseTypingStateParams = {
   onTypingStateChange?: (isTyping: boolean) => void

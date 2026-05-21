@@ -2,6 +2,7 @@ import { type DragEvent, type ReactNode } from "react"
 import { ArrowLeft, BookPlus, Folder } from "lucide-react"
 import type { ProjectFolder as ProjectFolderType } from "../../pages/Library"
 import type { Project } from "../../../core/utils/projects"
+import MarqueeText from "../ui/MarqueeText"
 
 type ProjectFolderGridProps = {
   folders: ProjectFolderType[]
@@ -70,7 +71,9 @@ export default function ProjectFolderGrid({
                 onBlur={() => onCommitFolderRename?.()}
               />
             ) : (
-              <strong>{folder.name}</strong>
+              <strong className="project-hub__folder-title" data-marquee-parent>
+                <MarqueeText text={folder.name} />
+              </strong>
             )}
             <span>{projects.filter((p) => p.folderId === folder.id).length} projects</span>
           </div>
@@ -93,6 +96,21 @@ type FolderDetailViewProps = {
   onCreateBook: () => void
   onOpenSubFolder?: (folderId: string) => void
   renderProjectCard: (project: Project) => ReactNode
+  /** Folder drag handlers (forwarded from useProjectDrag). When present,
+   *  subfolders become draggable + droppable, and the back button becomes a
+   *  drop target that un-nests the dragged folder one level up. */
+  onFolderDragStart?: (folderId: string, event: DragEvent<HTMLElement>) => void
+  onFolderDragEnd?: () => void
+  onFolderDragOver?: (folder: ProjectFolderType) => (event: DragEvent<HTMLElement>) => void
+  onFolderDrop?: (folder: ProjectFolderType) => (event: DragEvent<HTMLElement>) => void
+  getFolderDropClassName?: (folderId: string) => string
+  getFolderReorderClassName?: (folderId: string) => string
+  /** Called when the user drops a folder on the back button. Moves the
+   *  dragged folder so its new parent is this folder's parent (un-nest one
+   *  level). */
+  onUnnestFolderDrop?: (event: DragEvent<HTMLElement>) => void
+  onUnnestFolderDragOver?: (event: DragEvent<HTMLElement>) => void
+  isUnnestDropActive?: boolean
 }
 
 export function FolderDetailView({
@@ -104,6 +122,15 @@ export function FolderDetailView({
   onCreateBook,
   onOpenSubFolder,
   renderProjectCard,
+  onFolderDragStart,
+  onFolderDragEnd,
+  onFolderDragOver,
+  onFolderDrop,
+  getFolderDropClassName,
+  getFolderReorderClassName,
+  onUnnestFolderDrop,
+  onUnnestFolderDragOver,
+  isUnnestDropActive,
 }: FolderDetailViewProps) {
   const isEmpty = folderProjects.length === 0 && subFolders.length === 0
   return (
@@ -111,9 +138,11 @@ export function FolderDetailView({
       <div className="project-hub__folder-detail-header">
         <button
           type="button"
-          className="project-hub__folder-back"
+          className={`project-hub__folder-back ${isUnnestDropActive ? "project-hub__folder-back--drop-active" : ""}`.trim()}
           onClick={onBack}
           aria-label={`Back to ${backLabel}`}
+          onDragOver={onUnnestFolderDragOver}
+          onDrop={onUnnestFolderDrop}
         >
           <ArrowLeft size={16} aria-hidden={true} />
           {backLabel}
@@ -136,15 +165,22 @@ export function FolderDetailView({
           {subFolders.map((sub) => (
             <article
               key={sub.id}
-              className="project-hub__folder-card"
+              className={`project-hub__folder-card ${getFolderDropClassName?.(sub.id) ?? ""} ${getFolderReorderClassName?.(sub.id) ?? ""}`.trim()}
               role="button"
               tabIndex={0}
+              draggable={!!onFolderDragStart}
               onClick={() => onOpenSubFolder?.(sub.id)}
               onKeyDown={(e) => { if (e.key === "Enter") onOpenSubFolder?.(sub.id) }}
+              onDragStart={onFolderDragStart ? (e) => onFolderDragStart(sub.id, e) : undefined}
+              onDragEnd={onFolderDragEnd}
+              onDragOver={onFolderDragOver?.(sub)}
+              onDrop={onFolderDrop?.(sub)}
             >
               <Folder size={18} aria-hidden={true} />
               <div>
-                <strong>{sub.name}</strong>
+                <strong className="project-hub__folder-title" data-marquee-parent>
+                  <MarqueeText text={sub.name} />
+                </strong>
                 <span>Folder</span>
               </div>
             </article>
