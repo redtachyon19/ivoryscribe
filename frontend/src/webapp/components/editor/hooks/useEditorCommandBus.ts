@@ -1,18 +1,42 @@
 // Bridges global menu commands (Edit menu, Format menu) to a TipTap editor
-// instance via the EDITOR_COMMAND_EVENT bus. Each command name maps to a
-// chain operation, except for `underline`, `copy`, `cut`, `paste` which fall
-// back to `document.execCommand` so OS clipboard and native shortcuts behave
-// consistently.
+// instance via the EDITOR_COMMAND_EVENT bus.
 //
-// `paste` additionally tries `navigator.clipboard.readText()` as a fallback
-// for browsers where `execCommand("paste")` returns false (most modern
-// browsers).
+// Electron's native menu has accelerators (Cmd+A, Cmd+C, Cmd+V, …) that fire
+// regardless of which element has focus. Without the focus-aware routing
+// below, Cmd+A in a regular `<input>` would steal focus to TipTap and select
+// everything in the editor; Cmd+C in an input would copy the TipTap
+// selection instead of the input's. So every command first checks where
+// focus actually lives:
+//
+//   • TipTap surface OR nothing focused → run the editor command
+//   • Plain text field / textarea / contentEditable outside TipTap → route to
+//     the native equivalent (`input.select()`, `document.execCommand(...)`,
+//     etc.) so the OS shortcut behaves like it would in any other app
+//
+// `paste` falls back to `navigator.clipboard.readText()` when
+// `document.execCommand("paste")` returns false (most modern browsers).
 
 import { useEffect } from "react"
 import type { Editor as TiptapEditor } from "@tiptap/react"
 import { EDITOR_COMMAND_EVENT, type EditorCommand } from "../../../../core/events/editorEvents"
 
 type EditorCommandDetail = { command: EditorCommand }
+
+/** Native text-entry input types that should receive Cmd+A as "select the
+ *  field's text" rather than as the editor's select-all. */
+const TEXT_INPUT_TYPES = new Set(["text", "search", "url", "tel", "password", "email", "number", ""])
+
+/** True iff `el` is a regular text input / textarea / contentEditable that
+ *  lives OUTSIDE the TipTap editor surface — i.e. somewhere a user expects
+ *  native Cmd+A / copy / paste semantics. */
+function isNativeTextEntry(el: Element | null, editor: TiptapEditor | null): boolean {
+  if (!el || !(el instanceof HTMLElement)) return false
+  if (editor?.view?.dom && editor.view.dom.contains(el)) return false
+  if (el instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(el.type ?? "text")
+  if (el instanceof HTMLTextAreaElement) return true
+  if (el.isContentEditable) return true
+  return false
+}
 
 export function useEditorCommandBus(editor: TiptapEditor | null) {
   useEffect(() => {
@@ -22,6 +46,37 @@ export function useEditorCommandBus(editor: TiptapEditor | null) {
       const command = (event as CustomEvent<EditorCommandDetail>).detail?.command
       if (!command) return
 
+      // If the user is focused in a regular text field, defer to native
+      // behavior. Crucially this does NOT call `editor.commands.focus()` —
+      // that would yank focus away from the input before we could act on it.
+      const activeElement = typeof document !== "undefined" ? document.activeElement : null
+      if (isNativeTextEntry(activeElement, editor)) {
+        switch (command) {
+          case "select-all":
+            if (activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement) {
+              activeElement.select()
+            } else if (typeof document !== "undefined") {
+              document.execCommand("selectAll")
+            }
+            return
+          case "copy":
+          case "cut":
+          case "paste":
+          case "bold":
+          case "italic":
+          case "underline":
+          case "delete":
+            if (typeof document !== "undefined") document.execCommand(command)
+            return
+          case "undo":
+          case "redo":
+            if (typeof document !== "undefined") document.execCommand(command)
+            return
+        }
+        return
+      }
+
+      // Default path: act on the TipTap editor.
       editor.commands.focus()
 
       switch (command) {

@@ -294,6 +294,28 @@ export default function Library({
                 onCreateBook={() => createNewProject(openFolderId!)}
                 onOpenSubFolder={(id) => setOpenFolderId(id)}
                 renderProjectCard={renderProjectCard}
+                onFolderDragStart={drag.handleFolderDragStart}
+                onFolderDragEnd={drag.handleFolderDragEnd}
+                onFolderDragOver={drag.handleFolderItemDragOver}
+                onFolderDrop={multiSelect.handleMultiFolderDrop}
+                getFolderDropClassName={drag.getFolderDropClassName}
+                getFolderReorderClassName={drag.getFolderReorderClassName}
+                isUnnestDropActive={!!drag.draggingFolderId}
+                onUnnestFolderDragOver={(e) => {
+                  if (!drag.draggingFolderId) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onUnnestFolderDrop={(e) => {
+                  if (!drag.draggingFolderId) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  // Un-nest: move the dragged folder so its parent is this
+                  // folder's parent (one level up). Cycle-safe by construction
+                  // because we're moving UP the tree.
+                  drag.moveFolderIntoFolder(drag.draggingFolderId, openFolder.parentFolderId ?? null)
+                  drag.handleFolderDragEnd()
+                }}
               />
             ) : (
               <>

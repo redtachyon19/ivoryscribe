@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEven
 import { BookText } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type Project } from "../../../core/utils/projects"
 import { extractEmojiTokens } from "../../../core/utils/libraryUtils"
+import MarqueeText from "../ui/MarqueeText"
 
 function hexToRgba(hex: string, alpha: number) {
   const normalized = hex.replace("#", "")
@@ -321,7 +322,9 @@ export default function ProjectCard({
             />
           </div>
         ) : (
-          <strong>{project.name}</strong>
+          <strong className="project-card__title" data-marquee-parent>
+            <MarqueeText text={project.name} />
+          </strong>
         )}
         <span>{entryCount} {entryLabel} &middot; {formatRelativeTime(project.createdAt)}</span>
       </div>

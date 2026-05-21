@@ -7,13 +7,13 @@ type UseTypingCaretParams = {
   markUiTypingActivity: () => void
 }
 
-const CARET_FOLLOW_FACTOR = 0.22
-const CARET_FOLLOW_SNAP_DISTANCE = 0.35
+const CARET_FOLLOW_FACTOR = 0.12 //0.22
+const CARET_FOLLOW_SNAP_DISTANCE = 0.01 //0.35
 
 // How long after the last keystroke we keep the caret's `--typing` class on.
 // Kept in sync with TYPING_IDLE_MS in useTypingState.ts so chrome auto-hide
 // and the caret's typing-state visuals end on the same beat.
-const CARET_TYPING_IDLE_MS = 1200
+const CARET_TYPING_IDLE_MS = 2000 //2000
 
 export function useTypingCaret({
   editor,
