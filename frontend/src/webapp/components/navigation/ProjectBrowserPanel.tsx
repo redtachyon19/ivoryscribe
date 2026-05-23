@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Archive, BookCopy, BookPlus, BookText, ChevronDown, Clock3, Folder, FolderPlus, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
-import { requestNavigateArchive, requestNavigateTrash, requestNavigateLibrary, requestNavigateRecent } from "../../../core/events/editorEvents"
+import { Archive, BookCopy, BookPlus, BookText, ChevronDown, Cloud, Folder, FolderPlus, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
 import type { Project } from "../../../core/utils/projects"
+import type { LibrarySection } from "../library/useLibraryNavigation"
 import { duplicateProject } from "../../../core/utils/libraryUtils"
 import { exportProjectAsPdf } from "../export/pdfExport"
 import type { ProjectFolder } from "../../pages/Library"
@@ -24,7 +24,9 @@ type ProjectBrowserPanelProps = {
   projects: Project[]
   folders: ProjectFolder[]
   activeProjectId: string | null
-  isLibraryView: boolean
+  /** Active library section — single source of truth, owned by Editor.tsx. */
+  librarySection: LibrarySection
+  setLibrarySection: React.Dispatch<React.SetStateAction<LibrarySection>>
   onNavigateLibrary: () => void
   onOpenProject: (projectId: string) => void
   onOpenProjectInNewTab?: (projectId: string) => void
@@ -44,7 +46,8 @@ export default function ProjectBrowserPanel({
   projects,
   folders,
   activeProjectId,
-  isLibraryView,
+  librarySection,
+  setLibrarySection,
   onNavigateLibrary,
   onOpenProject,
   onOpenProjectInNewTab,
@@ -64,7 +67,6 @@ export default function ProjectBrowserPanel({
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [editingFolderName, setEditingFolderName] = useState("")
   const [pendingTrashFolderId, setPendingTrashFolderId] = useState<string | null>(null)
-  const [browserSection, setBrowserSection] = useState<"library" | "recent" | "archive" | "trash">("library")
   const [externalFolderDropId, setExternalFolderDropId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<BrowserContextMenuState | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
@@ -618,12 +620,11 @@ export default function ProjectBrowserPanel({
           <button
             type="button"
             role="tab"
-            aria-selected={browserSection === "library" && isLibraryView}
-            className={`project-browser__section-btn ${browserSection === "library" && isLibraryView ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("library")}`.trim()}
+            aria-selected={librarySection === "library"}
+            className={`project-browser__section-btn ${librarySection === "library" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("library")}`.trim()}
             onClick={() => {
-              setBrowserSection("library")
+              setLibrarySection("library")
               onNavigateLibrary()
-              requestNavigateLibrary()
             }}
             onDragOver={sectionDrop.handleSectionDragOver("library")}
             onDragLeave={sectionDrop.handleSectionDragLeave}
@@ -635,26 +636,24 @@ export default function ProjectBrowserPanel({
           <button
             type="button"
             role="tab"
-            aria-selected={browserSection === "recent"}
-            className={`project-browser__section-btn ${browserSection === "recent" ? "project-browser__section-btn--active" : ""}`.trim()}
+            aria-selected={librarySection === "cloud"}
+            className={`project-browser__section-btn ${librarySection === "cloud" ? "project-browser__section-btn--active" : ""}`.trim()}
             onClick={() => {
-              setBrowserSection("recent")
+              setLibrarySection("cloud")
               onNavigateLibrary()
-              requestNavigateRecent()
             }}
           >
-            <Clock3 size={14} strokeWidth={1.9} aria-hidden="true" />
-            <span>Recent</span>
+            <Cloud size={14} strokeWidth={1.9} aria-hidden="true" />
+            <span>Cloud</span>
           </button>
           <button
             type="button"
             role="tab"
-            aria-selected={browserSection === "archive"}
-            className={`project-browser__section-btn ${browserSection === "archive" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("archive")}`.trim()}
+            aria-selected={librarySection === "archive"}
+            className={`project-browser__section-btn ${librarySection === "archive" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("archive")}`.trim()}
             onClick={() => {
-              setBrowserSection("archive")
+              setLibrarySection("archive")
               onNavigateLibrary()
-              requestNavigateArchive()
             }}
             onDragOver={sectionDrop.handleSectionDragOver("archive")}
             onDragLeave={sectionDrop.handleSectionDragLeave}
@@ -666,12 +665,11 @@ export default function ProjectBrowserPanel({
           <button
             type="button"
             role="tab"
-            aria-selected={browserSection === "trash"}
-            className={`project-browser__section-btn ${browserSection === "trash" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("trash")}`.trim()}
+            aria-selected={librarySection === "trash"}
+            className={`project-browser__section-btn ${librarySection === "trash" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("trash")}`.trim()}
             onClick={() => {
-              setBrowserSection("trash")
+              setLibrarySection("trash")
               onNavigateLibrary()
-              requestNavigateTrash()
             }}
             onDragOver={sectionDrop.handleSectionDragOver("trash")}
             onDragLeave={sectionDrop.handleSectionDragLeave}

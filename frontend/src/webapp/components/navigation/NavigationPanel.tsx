@@ -4,6 +4,7 @@ import DocumentTabsPanel from "./DocumentTabsPanel"
 import ProjectBrowserPanel from "./ProjectBrowserPanel"
 import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
+import type { LibrarySection } from "../library/useLibraryNavigation"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
 import { deepCloneTab, findNode, insertRelative } from "./tabTreeUtils"
 
@@ -46,7 +47,8 @@ export type NavigationPanelProps = {
   project: Project | null
   projects: Project[]
   folders: ProjectFolder[]
-  view: "projects" | "editor"
+  librarySection: LibrarySection
+  setLibrarySection: Dispatch<SetStateAction<LibrarySection>>
   sidebarSlide: 1 | 2
   isOpen: boolean
   showWordCount: boolean
@@ -74,7 +76,8 @@ export default function NavigationPanel({
   project,
   projects,
   folders,
-  view,
+  librarySection,
+  setLibrarySection,
   sidebarSlide,
   isOpen,
   showWordCount,
@@ -301,7 +304,8 @@ export default function NavigationPanel({
               projects={projects.filter((p) => !p.archivedAt && !p.deletedAt)}
               folders={folders}
               activeProjectId={project?.id ?? null}
-              isLibraryView={view === "projects"}
+              librarySection={librarySection}
+              setLibrarySection={setLibrarySection}
               onNavigateLibrary={onReturnToDashboard}
               onOpenProject={onOpenProject}
               onOpenProjectInNewTab={onOpenProjectInNewTab}

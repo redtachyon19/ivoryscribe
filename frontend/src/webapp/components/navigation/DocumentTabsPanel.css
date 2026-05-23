@@ -253,7 +253,7 @@
 
 .doc-tabs__label:hover .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track,
 .doc-tabs__label:focus-visible .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track {
-  animation: doc-tabs-label-marquee 15s linear infinite;
+  animation: shared-marquee-scroll 15s linear infinite;
 }
 
 .doc-tabs__rename-input {
@@ -268,116 +268,6 @@
   border-radius: 6px;
   outline: none;
   caret-color: var(--app-accent, #9ab8ff);
-}
-
-.doc-tabs__delete-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 130;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(8, 8, 8, 0.48);
-  backdrop-filter: blur(2px);
-  pointer-events: auto;
-  animation: doc-tabs-delete-overlay-in 320ms ease-out;
-}
-
-.doc-tabs__delete-frame {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(560px, calc(100vw - 24px));
-  max-height: min(84vh, 720px);
-  z-index: 131;
-}
-
-.doc-tabs__delete-card {
-  width: 100%;
-  border: 1px solid var(--menu-dropdown-border, #2a2a2a);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 96%, transparent);
-  padding: 16px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
-  font-family: var(--app-ui-font);
-  animation: doc-tabs-delete-card-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-.doc-tabs__delete-floating-close {
-  position: absolute;
-  top: -36px;
-  right: -36px;
-  z-index: 132;
-  border: 0;
-  border-radius: 999px;
-  width: 36px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  background: transparent;
-  color: var(--menu-button, #ededed);
-  font-size: 16px;
-  font-family: var(--app-ui-font);
-  line-height: 1;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  box-shadow: none;
-  opacity: 0;
-  overflow: visible;
-  animation: doc-tabs-delete-close-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-.doc-tabs__delete-floating-close svg {
-  display: block;
-}
-
-.doc-tabs__delete-floating-close:hover,
-.doc-tabs__delete-floating-close:focus-visible {
-  background: var(--menu-button-hover-bg, #242424);
-  outline: none;
-  box-shadow: none;
-}
-
-.doc-tabs__delete-floating-close:hover svg,
-.doc-tabs__delete-floating-close:focus-visible svg {
-  animation: doc-tabs-toggle-x-spin-once 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
-  transform-origin: 50% 50%;
-}
-
-.doc-tabs__delete-floating-close-label {
-  position: absolute;
-  right: calc(100% + 8px);
-  top: 50%;
-  transform: translate3d(6px, -50%, 0);
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 140ms ease, transform 180ms ease;
-}
-
-.doc-tabs__delete-floating-close:hover .doc-tabs__delete-floating-close-label,
-.doc-tabs__delete-floating-close:focus-visible .doc-tabs__delete-floating-close-label {
-  opacity: 0.64;
-  transform: translate3d(0, -50%, 0);
-}
-
-.doc-tabs__delete-card h3 {
-  margin: 0;
-  font-family: var(--app-display-font);
-  color: var(--menu-button, #efefef);
-  font-size: 28px;
-  font-weight: 400;
-  line-height: 1.1;
-}
-
-.doc-tabs__delete-card p {
-  margin: 10px 0 0;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
-  font-size: 16px;
 }
 
 .doc-tabs__delete-subtree-note {
@@ -409,107 +299,10 @@
   margin-top: 4px;
 }
 
-.doc-tabs__delete-actions {
-  margin-top: 14px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.doc-tabs__delete-cancel,
-.doc-tabs__delete-confirm {
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
-  font-family: var(--app-ui-font);
-  font-size: 16px;
-  line-height: 1.2;
-  padding: 10px 12px;
-  cursor: pointer;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
-}
-
-.doc-tabs__delete-cancel:hover,
-.doc-tabs__delete-cancel:focus-visible {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
-  color: var(--menu-button, #ededed);
-  outline: none;
-}
-
-.doc-tabs__delete-confirm {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border-color: transparent;
-  color: #d38d8d;
-}
-
-.doc-tabs__delete-confirm svg {
-  display: block;
-}
-
-.doc-tabs__delete-confirm:hover,
-.doc-tabs__delete-confirm:focus-visible {
-  background: rgba(255, 123, 123, 0.18);
-  border-color: transparent;
-  color: #ff9f9f;
-  outline: none;
-}
-
-@keyframes doc-tabs-label-marquee {
-  from {
-    transform: translateX(0);
-  }
-
-  to {
-    transform: translateX(calc(-1 * var(--doc-tabs-marquee-distance, 0px)));
-  }
-}
-
-@keyframes doc-tabs-delete-overlay-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes doc-tabs-delete-card-in {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes doc-tabs-delete-close-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .doc-tabs__label:hover .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track,
   .doc-tabs__label:focus-visible .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track {
     animation: none;
   }
 
-  .doc-tabs__delete-modal,
-  .doc-tabs__delete-card,
-  .doc-tabs__delete-floating-close {
-    animation: none;
-  }
 }

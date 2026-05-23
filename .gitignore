@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-electron
 dist-ssr
 *.local
 
@@ -33,3 +34,9 @@ backend/.env
 # Local backend runtime data (SQLite/db artifacts)
 backend/data/*
 !backend/data/.gitkeep
+
+# Claude Code per-project state (permissions, preview launch config, etc.)
+.claude/
+
+# Scratch space for personal review notes
+red's reviews/

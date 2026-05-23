@@ -1694,7 +1694,6 @@
   background: color-mix(in srgb, var(--app-accent, #9ab8ff) 34%, var(--menu-button-hover-bg, #262626));
 }
 
-
 .auth-gateway__footer {
   --footer-title-size: 15px;
   border-top: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
@@ -1853,7 +1852,6 @@
   text-transform: lowercase;
 }
 
-
 @media (max-width: 680px) {
   .auth-gateway__header {
     padding-left: 16px;
@@ -1957,8 +1955,7 @@
     gap: 12px;
   }
 
-  .auth-gateway__library-create-row,
-  .auth-gateway__drive-folders {
+  .auth-gateway__library-create-row {
     grid-template-columns: 1fr;
   }
 
@@ -1977,25 +1974,9 @@
     gap: 2px;
   }
 
-  .auth-gateway__drive-body {
-    grid-template-columns: 1fr !important;
-    gap: 8px;
-  }
+  
 
-  .auth-gateway__drive-sidebar,
-  .auth-gateway__drive-resizer {
-    display: none;
-  }
-
-  .auth-gateway__drive-toolbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .auth-gateway__drive-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
-  }
+  
 
   .auth-gateway__library-create-card {
     min-height: 118px;
