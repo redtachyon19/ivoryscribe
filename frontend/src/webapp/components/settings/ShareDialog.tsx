@@ -505,7 +505,7 @@ export default function ShareDialog({
       className={`share-dialog__title-marquee ${marquee.isOverflowing ? "share-dialog__title-marquee--overflowing" : ""}`.trim()}
       style={
         marquee.isOverflowing
-          ? ({ "--share-dialog-marquee-distance": `${marquee.loopDistance}px` } as CSSProperties)
+          ? ({ "--marquee-distance": `${marquee.loopDistance}px` } as CSSProperties)
           : undefined
       }
     >

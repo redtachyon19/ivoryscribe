@@ -100,7 +100,6 @@
   transform-origin: 50% 50%;
 }
 
-.ui-modal__floating-close-label,
 .ui-modal__floating-close .ghost-btn__label {
   position: absolute;
   right: calc(100% + 8px);
@@ -112,8 +111,6 @@
   transition: opacity 140ms ease, transform 180ms ease;
 }
 
-.ui-modal__floating-close:hover .ui-modal__floating-close-label,
-.ui-modal__floating-close:focus-visible .ui-modal__floating-close-label,
 .ui-modal__floating-close:hover .ghost-btn__label,
 .ui-modal__floating-close:focus-visible .ghost-btn__label {
   opacity: 0.64;
@@ -180,59 +177,6 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 2px;
-}
-
-/* ── Buttons ── */
-
-.ui-modal__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
-  font-size: 16px;
-  font-family: var(--app-ui-font);
-  line-height: 1.2;
-  padding: 10px 12px;
-  cursor: pointer;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
-}
-
-.ui-modal__btn:hover,
-.ui-modal__btn:focus-visible {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
-  color: var(--menu-button, #ededed);
-  outline: none;
-}
-
-.ui-modal__btn--primary {
-  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 52%, #0f0f0f);
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, transparent);
-  color: var(--menu-button, #ededed);
-}
-
-.ui-modal__btn--primary:hover {
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 26%, transparent);
-  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 62%, #0f0f0f);
-}
-
-.ui-modal__btn--danger {
-  border-color: transparent;
-  color: #d38d8d;
-}
-
-.ui-modal__btn--danger:hover,
-.ui-modal__btn--danger:focus-visible {
-  background: rgba(255, 123, 123, 0.18);
-  border-color: transparent;
-  color: #ff9f9f;
-}
-
-.ui-modal__btn:disabled {
-  opacity: 0.58;
-  cursor: not-allowed;
 }
 
 /* ── Keyframes ── */

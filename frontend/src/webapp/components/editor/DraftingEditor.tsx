@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react"
-import { useEditor, EditorContent, type Editor as TiptapEditor } from "@tiptap/react"
+import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { EditorContent, type Editor as TiptapEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Highlight from "@tiptap/extension-highlight"
 import Underline from "@tiptap/extension-underline"
@@ -8,13 +8,10 @@ import { withEmojiFontFallback } from "../../../core/utils/appearance"
 import { FlagRail } from "./components/FlagRail"
 import { EditorDocumentTitle } from "./components/EditorDocumentTitle"
 import { useFlagRail } from "./hooks/useFlagRail"
-import { useTypingCaret } from "./hooks/useTypingCaret"
-import { useTypingState } from "./hooks/useTypingState"
-import { useEditorContentSync, useEditorReadOnly, useEditorReady } from "./hooks/useEditorLifecycle"
+import { useProseEditorBase } from "./hooks/useProseEditorBase"
 import { useEditorFontEvents } from "./hooks/useEditorFontEvents"
 import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
 import { useEditorFocusJumps } from "./hooks/useEditorFocusJumps"
-import { normalizePastedFormatting } from "./utils/pasteNormalization"
 import { emitTipTapWordCounts } from "./utils/wordCount"
 import "./DraftingEditor.css"
 
@@ -24,6 +21,17 @@ const DEFAULT_FONT_SIZE = 32
 const DEFAULT_FONT_FAMILY = '"Times", "Times New Roman", serif'
 const DEFAULT_DOCUMENT_CONTENT = "<p></p>"
 const BODY_PLACEHOLDER = "Start your epic..."
+
+/* ── Empty-state attribute on the editor DOM (drives the placeholder text) ── */
+function syncEmptyState(currentEditor: TiptapEditor) {
+  try {
+    const editorDom = currentEditor.view?.dom
+    if (!editorDom) return
+    editorDom.setAttribute("data-empty", currentEditor.isEmpty ? "true" : "false")
+  } catch {
+    // TipTap can momentarily expose an editor instance before internals are fully ready.
+  }
+}
 
 type EditorProps = {
   documentId: string | null
@@ -54,15 +62,17 @@ export default function DraftingEditor({
   onEditorReady,
   readOnly = false,
 }: EditorProps) {
-  const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
   const [fontSize, setFontSize] = useState(() =>
     Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, editorFontSize || DEFAULT_FONT_SIZE)),
   )
   const [fontFamily, setFontFamily] = useState(() => withEmojiFontFallback(DEFAULT_FONT_FAMILY))
 
-  const { isUiTyping, markUiTypingActivity } = useTypingState({ onTypingStateChange })
-
-  const editor = useEditor({
+  /* ── Shared prose-editor base (TipTap setup, typing state/caret, lifecycle) ── */
+  const { editor, editorSurfaceRef, caretRef, isUiTyping, markUiTypingActivity } = useProseEditorBase({
+    documentId,
+    content,
+    readOnly,
+    placeholder: BODY_PLACEHOLDER,
     extensions: [
       StarterKit,
       Highlight.configure({ multicolor: true }),
@@ -70,22 +80,15 @@ export default function DraftingEditor({
       DiffAddMark,
       DiffRemoveMark,
     ],
-    editorProps: {
-      attributes: {
-        "data-placeholder": BODY_PLACEHOLDER,
-        spellcheck: "true",
-        autocorrect: "on",
-        autocapitalize: "sentences",
-      },
-      // Drafting is plain prose: promote inline-styled bold/italic/underline
-      // to structural marks, then strip residual styles + unwrap font wrappers
-      // so the writer doesn't drag Google Docs / Word formatting in.
-      transformPastedHTML: (html: string) => normalizePastedFormatting(html, { stripInlineStyles: true }),
-    },
-    content: content || DEFAULT_DOCUMENT_CONTENT,
-    onUpdate: ({ editor: currentEditor }) => {
+    defaultContent: DEFAULT_DOCUMENT_CONTENT,
+    stripInlineStylesOnPaste: true,
+    onContentChange,
+    onWordCountChange,
+    onTypingStateChange,
+    onEditorReady,
+    onUpdateSideEffect: syncEmptyState,
+    onContentSync: (currentEditor) => {
       syncEmptyState(currentEditor)
-      onContentChange(currentEditor.getHTML())
       emitTipTapWordCounts(currentEditor, onWordCountChange)
     },
   })
@@ -105,41 +108,12 @@ export default function DraftingEditor({
     handleRemoveFlag,
   } = useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef })
 
-  const { caretRef } = useTypingCaret({ editor, editorSurfaceRef, markUiTypingActivity })
-
-  /* ── Empty-state attribute on the editor DOM (drives the placeholder text) ── */
-  const syncEmptyState = (currentEditor: TiptapEditor) => {
-    try {
-      const editorDom = currentEditor.view?.dom
-      if (!editorDom) return
-      editorDom.setAttribute("data-empty", currentEditor.isEmpty ? "true" : "false")
-    } catch {
-      // TipTap can momentarily expose an editor instance before internals are fully ready.
-    }
-  }
-
-  /* ── Editor lifecycle ── */
-  useEditorContentSync(editor, content, documentId, DEFAULT_DOCUMENT_CONTENT, (currentEditor) => {
-    syncEmptyState(currentEditor)
-    emitTipTapWordCounts(currentEditor, onWordCountChange)
-  })
-  useEditorReadOnly(editor, readOnly)
-  useEditorReady(editor, onEditorReady)
-
   /* ── Initial empty-state + word count ── */
   useEffect(() => {
     if (!editor) return
     syncEmptyState(editor)
     emitTipTapWordCounts(editor, onWordCountChange)
   }, [editor])
-
-  /* ── Word count on selection change ── */
-  useEffect(() => {
-    if (!editor) return
-    const onSelectionUpdate = () => emitTipTapWordCounts(editor, onWordCountChange)
-    editor.on("selectionUpdate", onSelectionUpdate)
-    return () => { editor.off("selectionUpdate", onSelectionUpdate) }
-  }, [editor, onWordCountChange])
 
   /* ── Font-size prop sync ── */
   useEffect(() => {

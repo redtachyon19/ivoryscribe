@@ -4,7 +4,7 @@ import {
   useState,
   type CSSProperties,
 } from "react"
-import { useEditor, EditorContent, type Editor as TiptapEditor } from "@tiptap/react"
+import { EditorContent, type Editor as TiptapEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Highlight from "@tiptap/extension-highlight"
 import TextAlign from "@tiptap/extension-text-align"
@@ -14,16 +14,12 @@ import Color from "@tiptap/extension-color"
 import Underline from "@tiptap/extension-underline"
 import { DiffAddMark, DiffRemoveMark } from "../ai/diffMarks"
 import { ToolCase, X } from "lucide-react"
-import { useTypingCaret } from "./hooks/useTypingCaret"
-import { useTypingState } from "./hooks/useTypingState"
+import { useProseEditorBase } from "./hooks/useProseEditorBase"
 import { useRulerDrag } from "./hooks/useRulerDrag"
 import { useFormatPainter } from "./hooks/useFormatPainter"
 import { useToolbarDrag } from "./hooks/useToolbarDrag"
-import { useEditorContentSync, useEditorReadOnly, useEditorReady } from "./hooks/useEditorLifecycle"
 import { TypewriterToolbar } from "./components/TypewriterToolbar"
 import { TypewriterRulerRow, TypewriterRulerY } from "./components/TypewriterRulers"
-import { normalizePastedFormatting } from "./utils/pasteNormalization"
-import { emitTipTapWordCounts } from "./utils/wordCount"
 import {
   PAGE_GAP_PX,
   PAGE_H_PX,
@@ -80,13 +76,9 @@ export default function TypewriterEditor({
   const outerRef      = useRef<HTMLDivElement | null>(null)
   const rulerXRef     = useRef<HTMLDivElement | null>(null)
   const rulerYRef     = useRef<HTMLDivElement | null>(null)
-  const editorSurfRef = useRef<HTMLDivElement | null>(null)
 
   /* ── Toolbar drag ── */
   const { toolbarRef, toolbarPos, isDragging: isDraggingToolbar, onGripMouseDown: handleToolbarGripDown } = useToolbarDrag()
-
-  /* ── Typing state ── */
-  const { isUiTyping, markUiTypingActivity } = useTypingState({ onTypingStateChange })
 
   /* ── Ruler visibility (persisted globally; default off) ── */
   const [showRulers, setShowRulers] = useState<boolean>(() => loadBoolPref(SHOW_RULERS_KEY))
@@ -100,8 +92,12 @@ export default function TypewriterEditor({
        highlights stay current. */
   const [, setEditorVer] = useState(0)
 
-  /* ── TipTap editor ── */
-  const editor = useEditor({
+  /* ── Shared prose-editor base (TipTap setup, typing state/caret, lifecycle) ── */
+  const { editor, editorSurfaceRef: editorSurfRef, caretRef, isUiTyping } = useProseEditorBase({
+    documentId,
+    content,
+    readOnly,
+    placeholder: "Start writing...",
     extensions: [
       StarterKit,
       Highlight.configure({ multicolor: true }),
@@ -117,30 +113,17 @@ export default function TypewriterEditor({
       DiffAddMark,
       DiffRemoveMark,
     ],
-    editorProps: {
-      attributes: {
-        "data-placeholder": "Start writing...",
-        spellcheck: "true",
-        autocorrect: "on",
-        autocapitalize: "sentences",
-        style: [
-          `font-family: ${DEFAULT_FONT_FAMILY}`,
-          `font-size: ${DEFAULT_FONT_SIZE_PX}px`,
-          `line-height: ${DEFAULT_LINE_HEIGHT}`,
-        ].join("; "),
-      },
-      transformPastedHTML: (html: string) => normalizePastedFormatting(html),
-    },
-    content: content || "<p></p>",
-    onUpdate: ({ editor: ed }) => {
-      onContentChange(ed.getHTML())
-      emitTipTapWordCounts(ed, onWordCountChange)
-      markUiTypingActivity()
-    },
+    editorStyle: [
+      `font-family: ${DEFAULT_FONT_FAMILY}`,
+      `font-size: ${DEFAULT_FONT_SIZE_PX}px`,
+      `line-height: ${DEFAULT_LINE_HEIGHT}`,
+    ].join("; "),
+    markTypingOnUpdate: true,
+    onContentChange,
+    onWordCountChange,
+    onTypingStateChange,
+    onEditorReady,
   })
-
-  /* ── Fancy spring-follow caret ── */
-  const { caretRef } = useTypingCaret({ editor, editorSurfaceRef: editorSurfRef, markUiTypingActivity })
 
   /* ── Bump version for toolbar active states ── */
   useEffect(() => {
@@ -150,10 +133,6 @@ export default function TypewriterEditor({
     editor.on("transaction", bump)
     return () => { editor.off("selectionUpdate", bump); editor.off("transaction", bump) }
   }, [editor])
-
-  useEditorContentSync(editor, content, documentId, "<p></p>")
-  useEditorReadOnly(editor, readOnly)
-  useEditorReady(editor, onEditorReady)
 
   /* ── Load margins on document switch ── */
   useEffect(() => {
@@ -165,14 +144,6 @@ export default function TypewriterEditor({
     saveMargins(documentId, margins)
     window.dispatchEvent(new Event("resize"))
   }, [documentId, margins])
-
-  /* ── Word count on selection change ── */
-  useEffect(() => {
-    if (!editor) return
-    const onSel = () => emitTipTapWordCounts(editor, onWordCountChange)
-    editor.on("selectionUpdate", onSel)
-    return () => { editor.off("selectionUpdate", onSel) }
-  }, [editor, onWordCountChange])
 
   /* ── Ruler drag ── */
   const {
@@ -216,7 +187,7 @@ export default function TypewriterEditor({
     ro.observe(el)
     update()
     return () => ro.disconnect()
-  }, [editor, mTopPx, mBottomPx])
+  }, [editor, mTopPx, mBottomPx, editorSurfRef])
 
   /* ── Cmd/Ctrl+Enter: jump cursor to the next page ── */
   useEffect(() => {
@@ -265,7 +236,7 @@ export default function TypewriterEditor({
 
     dom.addEventListener("keydown", handleKeyDown, true)
     return () => dom.removeEventListener("keydown", handleKeyDown, true)
-  }, [editor, mTopPx, mBottomPx])
+  }, [editor, mTopPx, mBottomPx, editorSurfRef])
 
   /* ── Page breaks: push overflowing lines to the next page (via PM decorations) ── */
   useEffect(() => {

@@ -64,16 +64,7 @@
 
 .share-dialog__title-label:hover .share-dialog__title-marquee--overflowing .share-dialog__title-marquee-track,
 .share-dialog__title-label:focus-visible .share-dialog__title-marquee--overflowing .share-dialog__title-marquee-track {
-  animation: share-dialog-title-marquee 15s linear infinite;
-}
-
-@keyframes share-dialog-title-marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(calc(-1 * var(--share-dialog-marquee-distance, 0px)));
-  }
+  animation: shared-marquee-scroll 15s linear infinite;
 }
 
 /* ── Form ── */

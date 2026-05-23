@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import { Archive, ArrowLeft, ArrowRight, BookCopy, BookText, Copy, ExternalLink, Folder, Pencil, PanelLeft, PanelRight, Settings, Settings2, Trash2, UserRoundPlus } from "lucide-react"
 import NavigationPanel from "../navigation/NavigationPanel"
+import type { LibrarySection } from "../library/useLibraryNavigation"
 import TuskAiTab from "../ai/TuskAiTab"
 import type { ProposedEdit } from "../ai/proposedEditsTypes"
 import MarqueeText from "../ui/MarqueeText"
@@ -43,6 +44,10 @@ export type AppShellProps = {
   onOpenProject: (projectId: string) => void
   onOpenProjectInNewTab?: (projectId: string) => void
   onReturnToDashboard: () => void
+  /** Active library section — single source of truth, owned by Editor.tsx.
+   *  Drives both LibraryRouter and the sidebar's highlighted tab. */
+  librarySection: LibrarySection
+  setLibrarySection: Dispatch<SetStateAction<LibrarySection>>
   onToggleWordStats: () => void
   sessionToken: string
   projectDocumentMap: Record<string, string>
@@ -91,6 +96,8 @@ export default function AppShell({
   onOpenProject,
   onOpenProjectInNewTab,
   onReturnToDashboard,
+  librarySection,
+  setLibrarySection,
   onToggleWordStats,
   sessionToken,
   projectDocumentMap,
@@ -661,7 +668,8 @@ export default function AppShell({
           project={project}
           projects={projects}
           folders={folders}
-          view={view}
+          librarySection={librarySection}
+          setLibrarySection={setLibrarySection}
           sidebarSlide={sidebarSlide}
           isOpen={isLeftRailOpen}
           showWordCount={showWordCount}

@@ -73,8 +73,8 @@ export default function DocumentTabsPanel({
     visible: false,
   })
   const { singular, plural } = getProjectEntryTerms(projectKind)
-  const deleteEntryNoun = "chapter"
-  const subEntryLabel = "sub chapters"
+  const deleteEntryNoun = singular.toLowerCase()
+  const subEntryLabel = `sub ${plural.toLowerCase()}`
   const tabIds = useMemo(() => collectTabIds(tabs), [tabs])
   const pendingDeleteNode = pendingDeleteId ? findNode(tabs, pendingDeleteId) : null
   const pendingDeleteDescendantTitles = pendingDeleteNode ? collectDescendantTitles(pendingDeleteNode) : []

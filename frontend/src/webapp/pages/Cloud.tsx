@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react"
-import { Archive, BookCopy, Clock, Trash2 } from "lucide-react"
+import { Archive, BookCopy, Cloud, Trash2 } from "lucide-react"
 import type { Project } from "../../core/utils/projects"
 import { duplicateProject } from "../../core/utils/libraryUtils"
 import ProjectCard from "../components/library/ProjectCard"
@@ -8,27 +8,31 @@ import { useViewMode, useSortMode, applySortMode, ViewToggle, ProjectListView } 
 import ProjectContextMenu, { buildProjectActions, type ProjectContextMenuState } from "../components/library/ProjectContextMenu"
 import useMultiSelect from "../components/library/useMultiSelect"
 
-type RecentViewProps = {
+type CloudViewProps = {
   projects: Project[]
   setProjects: Dispatch<SetStateAction<Project[]>>
+  projectDocumentMap: Record<string, string>
   onOpenProject: (projectId: string) => void
   onOpenProjectInNewTab: (projectId: string) => void
 }
 
-export default function RecentView({ projects, setProjects, onOpenProject, onOpenProjectInNewTab }: RecentViewProps) {
+export default function CloudView({ projects, setProjects, projectDocumentMap, onOpenProject, onOpenProjectInNewTab }: CloudViewProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const { viewMode, toggle: toggleView } = useViewMode()
   const { sortMode, cycleSortMode } = useSortMode("context-desc")
   const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
+  // A project is "in the cloud" iff a Document.id has been stamped onto it
+  // (see `enableCloudSharing` in useAppOrchestration). Local-only projects
+  // never appear in this map, so this filter is the cloud/local cut.
   const sorted = useMemo(
     () => applySortMode(
-      projects.filter((p) => !p.archivedAt && !p.deletedAt),
+      projects.filter((p) => !p.archivedAt && !p.deletedAt && Boolean(projectDocumentMap[p.id])),
       sortMode,
       (p) => p.createdAt,
     ),
-    [projects, sortMode],
+    [projects, projectDocumentMap, sortMode],
   )
 
   const trashProject = (projectId: string) => {
@@ -71,10 +75,10 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
 
         <div className="project-hub__folder-detail-header">
           <div className="project-hub__folder-detail-title">
-            <Clock size={20} aria-hidden={true} />
-            <h3>Recently Opened</h3>
+            <Cloud size={20} aria-hidden={true} />
+            <h3>Cloud</h3>
           </div>
-          <p className="project-hub__folder-detail-desc">Your projects, sorted by most recently opened</p>
+          <p className="project-hub__folder-detail-desc">Projects stored in the cloud — local-only projects are hidden</p>
           <p className="project-hub__folder-detail-count">{sorted.length} {sorted.length === 1 ? "project" : "projects"}</p>
         </div>
 
@@ -84,7 +88,7 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
           viewMode === "list" ? (
             <ProjectListView
               projects={sorted}
-              ariaLabel="Recent projects list"
+              ariaLabel="Cloud projects list"
               onOpenProject={onOpenProject}
               getDate={(p) => p.createdAt}
               onDragStart={multiSelect.handleMultiSectionDragStart}
@@ -116,7 +120,7 @@ export default function RecentView({ projects, setProjects, onOpenProject, onOpe
           </ul>
           )
         ) : (
-          <p className="project-hub__empty">No projects yet. Create one to begin writing.</p>
+          <p className="project-hub__empty">No cloud projects yet. Share a project to back it up here.</p>
         )}
         </div>
       </div>

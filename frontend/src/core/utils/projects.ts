@@ -31,12 +31,21 @@ type LegacyProjectSnapshot = Omit<Project, "kind"> & {
   kind: "Book" | "Blog"
 }
 
-export function getProjectEntryTerms(_kind: ProjectKind) {
-  return {
-    singular: "Chapter",
-    plural: "Chapters",
-    untitled: "Untitled Chapter",
-  }
+export type ProjectEntryTerms = {
+  singular: string
+  plural: string
+  untitled: string
+}
+
+// Single source of truth for the per-kind "entry" noun (a Book's entries are
+// Chapters). Keyed on `kind` so adding a ProjectKind forces a matching entry
+// here; callers must never hard-code these nouns.
+const ENTRY_TERMS_BY_KIND: Record<ProjectKind, ProjectEntryTerms> = {
+  Book: { singular: "Chapter", plural: "Chapters", untitled: "Untitled Chapter" },
+}
+
+export function getProjectEntryTerms(kind: ProjectKind): ProjectEntryTerms {
+  return ENTRY_TERMS_BY_KIND[kind]
 }
 
 // Default starter text used for any newly created document tab.
@@ -294,5 +303,77 @@ export function buildDuplicateProjectName(baseName: string, existingNames: strin
     }
 
     suffix += 1
+  }
+}
+
+export function findTabPathById(
+  tabs: Project["tabs"],
+  targetId: string,
+  ancestors: Array<{ id: string; title: string }> = [],
+): Array<{ id: string; title: string }> | null {
+  for (const tab of tabs) {
+    const nextAncestors = [...ancestors, { id: tab.id, title: tab.title }]
+    if (tab.id === targetId) {
+      return nextAncestors
+    }
+
+    const nestedPath = findTabPathById(tab.children, targetId, nextAncestors)
+    if (nestedPath) {
+      return nestedPath
+    }
+  }
+
+  return null
+}
+
+export function renameTabTitle(tabs: Project["tabs"], targetId: string, nextTitle: string): Project["tabs"] {
+  return tabs.map((tab) => {
+    if (tab.id === targetId) {
+      return {
+        ...tab,
+        title: nextTitle,
+      }
+    }
+
+    return {
+      ...tab,
+      children: renameTabTitle(tab.children, targetId, nextTitle),
+    }
+  })
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function collectEntryNumbers(tabs: Project["tabs"], singular: string): number[] {
+  const matcher = new RegExp(`^${escapeRegex(singular)}\\s+(\\d+)$`, "i")
+
+  return tabs.flatMap((tab) => {
+    const match = tab.title.match(matcher)
+    const current = match ? [Number.parseInt(match[1], 10)] : []
+    return [...current, ...collectEntryNumbers(tab.children, singular)]
+  })
+}
+
+export function getNextEntryName(tabs: Project["tabs"], singular: string): string {
+  const used = new Set(collectEntryNumbers(tabs, singular))
+  let candidate = 1
+
+  while (used.has(candidate)) {
+    candidate += 1
+  }
+
+  return `${singular} ${candidate}`
+}
+
+/** Returns `project` with the active tab's content replaced. Returns the same
+ *  project unchanged when there is no active tab. Consolidates the
+ *  contentById-spread updater the editor surfaces each previously inlined. */
+export function setActiveTabContent(project: Project, nextContent: string): Project {
+  if (!project.activeId) return project
+  return {
+    ...project,
+    contentById: { ...project.contentById, [project.activeId]: nextContent },
   }
 }

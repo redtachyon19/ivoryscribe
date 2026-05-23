@@ -205,7 +205,7 @@ export default function TabNode({
                 className={`doc-tabs__label-marquee ${marquee.isOverflowing ? "doc-tabs__label-marquee--overflowing" : ""}`.trim()}
                 style={
                   marquee.isOverflowing
-                    ? ({ "--doc-tabs-marquee-distance": `${marquee.loopDistance}px` } as CSSProperties)
+                    ? ({ "--marquee-distance": `${marquee.loopDistance}px` } as CSSProperties)
                     : undefined
                 }
               >
