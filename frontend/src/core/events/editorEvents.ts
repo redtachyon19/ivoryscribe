@@ -20,6 +20,7 @@ export type EditorCommand =
   | "redo"
   | "copy"
   | "paste"
+  | "paste-plain"
   | "cut"
   | "bold"
   | "italic"
@@ -53,6 +54,14 @@ export type SpellCheckFocusDetail =
     start: number
     end: number
   }
+  | {
+    documentId: string
+    documentType: "plaintext"
+    normalizedWord: string
+    occurrenceIndex: number
+    start: number
+    end: number
+  }
 
 export type ProjectSearchFocusDetail =
   | {
@@ -64,6 +73,26 @@ export type ProjectSearchFocusDetail =
   | {
     documentId: string
     documentType: "markdown"
+    query: string
+    occurrenceIndex: number
+    start: number
+    end: number
+  }
+  | {
+    documentId: string
+    documentType: "plaintext"
+    query: string
+    occurrenceIndex: number
+    start: number
+    end: number
+  }
+  | {
+    // PDFs are read-only and don't have character offsets that map
+    // cleanly across the text layer. `start` and `end` are reused
+    // here as the 1-indexed page number (start === end) the viewer
+    // should scroll to. See useFindReplaceModal's pdf branch.
+    documentId: string
+    documentType: "pdf"
     query: string
     occurrenceIndex: number
     start: number
@@ -190,8 +219,21 @@ export function requestAppSaveProjectVersion() {
   window.dispatchEvent(new Event(APP_SAVE_PROJECT_VERSION_EVENT))
 }
 
-export function requestCreateBookProject() {
-  window.dispatchEvent(new Event(PROJECTS_CREATE_BOOK_EVENT))
+// Renamed semantically — still uses the old PROJECTS_CREATE_BOOK_EVENT
+// constant for backward compat with any external dispatchers, but the
+// payload now carries the kind. Listeners default to "Book" when the
+// detail is missing.
+export type CreateProjectEventDetail = {
+  kind: import("../utils/projects").ProjectKind
+}
+
+export function requestCreateBookProject(
+  kind: import("../utils/projects").ProjectKind = "Book",
+) {
+  const event = new CustomEvent<CreateProjectEventDetail>(PROJECTS_CREATE_BOOK_EVENT, {
+    detail: { kind },
+  })
+  window.dispatchEvent(event)
 }
 
 export function requestCreateProjectFolder() {

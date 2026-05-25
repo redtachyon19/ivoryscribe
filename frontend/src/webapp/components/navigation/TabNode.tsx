@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from "react"
 import { ChevronDown, CornerDownRight } from "lucide-react"
-import type { DocumentTab } from "../../../core/utils/projects"
+import type { DocumentTab, Project } from "../../../core/utils/projects"
+import { iconForTabKind } from "../../../core/utils/projectIcons"
 import { getDropMode, type DropMode, type DropTarget } from "../shared/hooks/useListDrag"
 
 export type TabNodeProps = {
   tab: DocumentTab
+  /** The project this tab belongs to — used to resolve the per-tab
+   *  file-type icon (markdown, plaintext, PDF, pinboard, chapter). */
+  project: Project
   depth: number
   activeId: string | null
   draggingIds: Set<string>
@@ -32,6 +36,7 @@ export type TabNodeProps = {
 
 export default function TabNode({
   tab,
+  project,
   depth,
   activeId,
   draggingIds,
@@ -69,6 +74,7 @@ export default function TabNode({
   const hasChildren = tab.children.length > 0
   const isExpanded = expandedById[tab.id] !== false
   const hasPendingEdit = pendingEditTabIds?.has(tab.id) ?? false
+  const TabIcon = iconForTabKind(tab.id, project)
 
   useEffect(() => {
     const viewport = marqueeViewportRef.current
@@ -200,6 +206,10 @@ export default function TabNode({
                 </span>
               ) : null}
 
+              <span className="doc-tabs__type-icon" aria-hidden="true">
+                <TabIcon size={14} strokeWidth={1.9} />
+              </span>
+
               <span
                 ref={marqueeViewportRef}
                 className={`doc-tabs__label-marquee ${marquee.isOverflowing ? "doc-tabs__label-marquee--overflowing" : ""}`.trim()}
@@ -255,6 +265,7 @@ export default function TabNode({
             <TabNode
               key={child.id}
               tab={child}
+              project={project}
               depth={depth + 1}
               activeId={activeId}
               draggingIds={draggingIds}

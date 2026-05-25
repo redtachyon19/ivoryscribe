@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Archive, ArchiveRestore, Pencil, SquareArrowOutUpRight, Trash2 } from "lucide-react"
 import type { Project } from "../../core/utils/projects"
+import { openInNewItemLabel } from "../../core/electron/localWorkspace"
 import ProjectCard from "../components/library/ProjectCard"
 
 import { useViewMode, useSortMode, applySortMode, ViewToggle, ProjectListView } from "../components/library/useViewMode"
@@ -136,7 +137,7 @@ export default function ArchiveView({ projects, setProjects, onOpenProject, onOp
                   { label: `Trash ${multiSelect.selectedIds.size} items`, icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => { for (const id of multiSelect.selectedIds) trashProject(id); multiSelect.clearSelection() }, danger: true },
                 ]
               : [
-                  { label: "Open in New Tab", icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenProjectInNewTab(contextMenu.projectId) },
+                  { label: openInNewItemLabel(), icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenProjectInNewTab(contextMenu.projectId) },
                   { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => setEditingProjectId(contextMenu.projectId) },
                   { label: "Restore", icon: <ArchiveRestore size={14} strokeWidth={2} aria-hidden={true} />, action: () => restoreProject(contextMenu.projectId) },
                   { label: "Trash", icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => trashProject(contextMenu.projectId), danger: true },

@@ -1,0 +1,45 @@
+.plaintext-editor {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  margin: 0;
+  margin-top: 16vh;
+  padding: 0 max(150px, calc(var(--page-content-gutter, 24px) + 12px));
+  display: flex;
+  align-items: stretch;
+}
+
+.plaintext-editor__textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: min(72vh, 920px);
+  border: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: var(--editor-text, #f5f5f5);
+  padding: 18px 10px;
+  font-family: "IBM Plex Mono", "Menlo", "Consolas", "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji", monospace;
+  font-size: var(--plaintext-font-size, 18px);
+  line-height: 1.6;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.plaintext-editor__textarea::placeholder {
+  color: var(--editor-placeholder, rgba(215, 215, 215, 0.45));
+  opacity: 1;
+}
+
+.plaintext-editor__textarea::spelling-error {
+  text-decoration: underline wavy #e55353;
+  text-decoration-thickness: 1.5px;
+}
+
+.plaintext-editor__textarea::grammar-error {
+  text-decoration: underline wavy #e0a43a;
+  text-decoration-thickness: 1.5px;
+}

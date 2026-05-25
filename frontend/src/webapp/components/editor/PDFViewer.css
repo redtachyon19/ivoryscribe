@@ -1,0 +1,149 @@
+/* PDFViewer — pages rendered ourselves via pdf.js, themed top to bottom
+   with the app palette. No PDFium chrome, no hardcoded grey: every pixel
+   between/around pages tracks `--app-bg`. */
+
+.pdf-viewer {
+  /* Fill the editor center edge-to-edge, below the topbar. The
+     editor-center is `position: relative` with `padding-top: <topbar
+     height>` so we anchor here with `inset` to claim everything below. */
+  position: absolute;
+  inset: var(--editor-topbar-height, 46px) 0 0 0;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background: var(--app-bg, #111);
+  /* The container drives both axes of scrolling. When the user zooms in
+     past the container width, horizontal scroll appears so they can pan
+     across the page rather than have it squeezed to fit. */
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.pdf-viewer__pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Generous gap between pages — reads as the dark page background. */
+  gap: 18px;
+  /* Horizontal gutter scales with viewport so wide screens get room
+     around the page edges, narrow ones don't waste pixels. */
+  padding: 24px clamp(24px, 6vw, 120px) 48px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Each page is a relatively-positioned wrapper holding the canvas and
+   an absolutely-positioned text layer overlay. The two have identical
+   dimensions so the invisible selectable text aligns with the visible
+   glyphs to within rounding error. */
+.pdf-viewer__page-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  /* Default background = white (the paper colour the rasterised
+     pages normally use). When "Match PDF to Color Palette" is on,
+     the viewer adds the data-match-palette attribute on the pages
+     container and we switch this to --app-bg so the brief moment
+     between re-rasterise calls doesn't flash white-on-dark. */
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--menu-border, #2b2b2b) 60%, transparent),
+    0 8px 24px rgba(0, 0, 0, 0.55);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.pdf-viewer__pages[data-match-palette="on"] .pdf-viewer__page-wrapper {
+  background: var(--app-bg, #111);
+}
+
+/* Brief flash when find/replace navigates to this page. Fades out
+   after ~600ms so the user can see which page contains the match
+   without the highlight lingering. */
+@keyframes pdf-viewer-page-flash {
+  0%   { box-shadow: 0 0 0 2px color-mix(in srgb, var(--menu-accent, #7ea8ff) 80%, transparent), 0 8px 24px rgba(0, 0, 0, 0.55); }
+  100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--menu-border, #2b2b2b) 60%, transparent), 0 8px 24px rgba(0, 0, 0, 0.55); }
+}
+.pdf-viewer__page-wrapper--flash {
+  animation: pdf-viewer-page-flash 800ms ease-out;
+}
+
+.pdf-viewer__page {
+  display: block;
+  /* `height: auto` is the safety net — the JS only sets `style.width`
+     on the canvas so the browser computes height from the bitmap's
+     intrinsic aspect ratio. Don't add a `max-width: 100%`: a
+     width-clamp without a matching height-clamp is exactly what was
+     squeezing pages at high zoom. */
+  height: auto;
+}
+
+/* Text layer: invisible, selectable spans positioned over the canvas.
+   Users can highlight + Cmd-C to copy. Editing is impossible because
+   each span is a `<span>`, not a contenteditable. PDF.js writes the
+   spans during TextLayer.render() with `position: absolute` and
+   pixel-perfect transforms; we only need to handle visibility +
+   selection styling here. */
+.pdf-viewer__text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 1;
+  line-height: 1;
+  /* Make sure mouse events reach the text spans inside, not the
+     canvas behind. */
+  pointer-events: none;
+  user-select: text;
+}
+
+.pdf-viewer__text-layer > span,
+.pdf-viewer__text-layer > br {
+  position: absolute;
+  white-space: pre;
+  /* Glyphs are transparent — the canvas is what the user sees.
+     We just need the spans positioned where the visual text sits
+     so selection geometry lines up. */
+  color: transparent;
+  cursor: text;
+  transform-origin: 0% 0%;
+  pointer-events: auto;
+}
+
+/* Selection highlight — light overlay on top of the canvas. */
+.pdf-viewer__text-layer ::selection {
+  background: color-mix(in srgb, var(--menu-accent, #7ea8ff) 50%, transparent);
+  color: transparent;
+}
+.pdf-viewer__text-layer ::-moz-selection {
+  background: color-mix(in srgb, var(--menu-accent, #7ea8ff) 50%, transparent);
+  color: transparent;
+}
+
+.pdf-viewer__loading,
+.pdf-viewer--error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: color-mix(in srgb, var(--editor-text, #f5f5f5) 70%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+}
+
+.pdf-viewer--error {
+  position: absolute;
+  inset: var(--editor-topbar-height, 46px) 0 0 0;
+  background: var(--app-bg, #111);
+  color: color-mix(in srgb, #e55353 80%, transparent);
+}
+
+.pdf-viewer__path {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--editor-text, #f5f5f5) 45%, transparent);
+  font-family: "IBM Plex Mono", Menlo, monospace;
+  word-break: break-all;
+  max-width: 80ch;
+  text-align: center;
+  margin-top: 4px;
+}

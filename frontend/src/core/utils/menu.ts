@@ -74,6 +74,14 @@ const editMenuItem: MenuItem = {
       },
     },
     {
+      label: "Paste Without Formatting",
+      icon: "paste",
+      shortcut: "⇧⌘P",
+      action: () => {
+        requestEditorCommand("paste-plain")
+      },
+    },
+    {
       label: "Cut",
       icon: "cut",
       shortcut: "⌘X",
@@ -304,7 +312,25 @@ export const projectWorkspaceMenu: MenuItem[] = [
             label: "Book",
             icon: "book",
             action: () => {
-              requestCreateBookProject()
+              requestCreateBookProject("Book")
+            },
+          },
+          {
+            label: "Presentation",
+            action: () => {
+              requestCreateBookProject("Presentation")
+            },
+          },
+          {
+            label: "Markdown",
+            action: () => {
+              requestCreateBookProject("Markdown")
+            },
+          },
+          {
+            label: "Plain Text",
+            action: () => {
+              requestCreateBookProject("PlainText")
             },
           },
         ],

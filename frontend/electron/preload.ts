@@ -24,6 +24,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("fs:getDefaultRoot"),
     readFile: (filePath: string) =>
       ipcRenderer.invoke("fs:readFile", filePath),
+    // Binary read for PDFs / other non-utf-8 files. The renderer receives
+    // a Uint8Array via Electron's structured-clone IPC.
+    readFileBinary: (filePath: string) =>
+      ipcRenderer.invoke("fs:readFileBinary", filePath) as Promise<Uint8Array>,
     writeFile: (filePath: string, contents: string) =>
       ipcRenderer.invoke("fs:writeFile", filePath, contents),
     listDirectory: (dirPath: string) =>
@@ -34,6 +38,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("fs:rename", oldPath, newPath),
     trash: (targetPath: string) =>
       ipcRenderer.invoke("fs:trash", targetPath),
+    showItemInFolder: (targetPath: string) =>
+      ipcRenderer.send("fs:showItemInFolder", targetPath),
     exists: (targetPath: string) =>
       ipcRenderer.invoke("fs:exists", targetPath),
     stat: (targetPath: string) =>
@@ -46,6 +52,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     dirname: (p: string) => path.dirname(p),
     extname: (p: string) => path.extname(p),
     sep: path.sep,
+  },
+
+  clipboard: {
+    readText: () => ipcRenderer.invoke("clipboard:readText") as Promise<string>,
   },
 })
 

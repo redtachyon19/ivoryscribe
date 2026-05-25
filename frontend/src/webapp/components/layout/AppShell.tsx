@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
-import { Archive, ArrowLeft, ArrowRight, BookCopy, BookText, Copy, ExternalLink, Folder, Pencil, PanelLeft, PanelRight, Settings, Settings2, Trash2, UserRoundPlus } from "lucide-react"
+import { Archive, ArrowLeft, ArrowRight, BookCopy, Copy, ExternalLink, Folder, Pencil, PanelLeft, PanelRight, Settings, Settings2, Trash2, UserRoundPlus } from "lucide-react"
+import { iconForProjectKind } from "../../../core/utils/projectIcons"
 import NavigationPanel from "../navigation/NavigationPanel"
 import type { LibrarySection } from "../library/useLibraryNavigation"
 import TuskAiTab from "../ai/TuskAiTab"
@@ -13,6 +14,7 @@ import type { ContextMenuAction } from "../library/ProjectContextMenu"
 import { createId, type Project } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
 import { duplicateProject } from "../../../core/utils/libraryUtils"
+import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
 import { deepCloneTab, findNode, insertRelative } from "../navigation/tabTreeUtils"
 import "../../pages/Editor.css"
 
@@ -39,7 +41,7 @@ export type AppShellProps = {
   isWordStatsOpen: boolean
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
-  onCreateProject: () => void
+  onCreateProject: (kind: import("../../../core/utils/projects").ProjectKind) => void
   onCreateFolder: () => void
   onOpenProject: (projectId: string) => void
   onOpenProjectInNewTab?: (projectId: string) => void
@@ -51,6 +53,10 @@ export type AppShellProps = {
   onToggleWordStats: () => void
   sessionToken: string
   projectDocumentMap: Record<string, string>
+  /** Local-mode + Electron only: copies the project's on-disk path. */
+  onCopyProjectPath?: (projectId: string) => void
+  /** Local-mode + Electron only: reveals the project file in Finder/Explorer. */
+  onShowProjectInFinder?: (projectId: string) => void
   sharedProjectIds?: Set<string>
   ownerEmailByProjectId?: Map<string, string>
   userEmail?: string
@@ -68,6 +74,12 @@ export type AppShellProps = {
   viewMode?: "drafting" | "typewriter"
   /** Flips the active prose tab between Drafting and Typewriter. */
   onToggleViewMode?: () => void
+  /** When true, the topbar shows an Editor/Both/Preview toggle for Markdown tabs. */
+  markdownViewToggleAvailable?: boolean
+  /** Current view mode for the active Markdown tab. */
+  markdownViewMode?: "editor" | "both" | "preview"
+  /** Sets the active Markdown tab's view mode. */
+  onSetMarkdownViewMode?: (mode: "editor" | "both" | "preview") => void
   children: ReactNode
 }
 
@@ -101,6 +113,8 @@ export default function AppShell({
   onToggleWordStats,
   sessionToken,
   projectDocumentMap,
+  onCopyProjectPath,
+  onShowProjectInFinder,
   sharedProjectIds,
   ownerEmailByProjectId,
   userEmail = "",
@@ -115,6 +129,9 @@ export default function AppShell({
   viewToggleAvailable = false,
   viewMode = "drafting",
   onToggleViewMode,
+  markdownViewToggleAvailable = false,
+  markdownViewMode = "both",
+  onSetMarkdownViewMode,
   children,
 }: AppShellProps) {
   const [isLeftRailOpen, setIsLeftRailOpen] = useState(true)
@@ -160,6 +177,42 @@ export default function AppShell({
     ro.observe(parent)
     return () => ro.disconnect()
   }, [viewMode, viewToggleAvailable])
+
+  /* ── Markdown Editor/Both/Preview sliding-pill indicator ──
+     Same pattern as the prose toggle above — separate refs since the two
+     toggles are mutually exclusive in the UI (prose vs markdown tabs) but
+     each owns its own indicator geometry. */
+  const markdownViewToggleRefs = useRef<{
+    editor: HTMLButtonElement | null
+    both: HTMLButtonElement | null
+    preview: HTMLButtonElement | null
+  }>({ editor: null, both: null, preview: null })
+  const [markdownViewIndicatorStyle, setMarkdownViewIndicatorStyle] = useState<{ left: number; width: number; visible: boolean }>({
+    left: 0, width: 0, visible: false,
+  })
+  useEffect(() => {
+    if (!markdownViewToggleAvailable) {
+      setMarkdownViewIndicatorStyle((c) => (c.visible ? { left: 0, width: 0, visible: false } : c))
+      return
+    }
+    const active = markdownViewToggleRefs.current[markdownViewMode]
+    if (!active) return
+    const parent = active.parentElement
+    if (!parent) return
+    const sync = () => {
+      const parentRect = parent.getBoundingClientRect()
+      const itemRect = active.getBoundingClientRect()
+      const left = itemRect.left - parentRect.left
+      const width = itemRect.width
+      setMarkdownViewIndicatorStyle((c) =>
+        c.left === left && c.width === width && c.visible ? c : { left, width, visible: true },
+      )
+    }
+    sync()
+    const ro = new ResizeObserver(sync)
+    ro.observe(parent)
+    return () => ro.disconnect()
+  }, [markdownViewMode, markdownViewToggleAvailable])
 
   type TopbarContextMenu = { x: number; y: number } & (
     | { kind: "folder" }
@@ -220,7 +273,7 @@ export default function AppShell({
       const folder = folders.find((f) => f.name === activeFolderName)
       return [
         {
-          label: "Open in New Tab",
+          label: openInNewItemLabel(),
           icon: <ExternalLink size={14} strokeWidth={2} aria-hidden={true} />,
           action: () => { window.open(new URL("/app", window.location.origin).toString(), "_blank"); closeTopbarMenu() },
         },
@@ -259,7 +312,7 @@ export default function AppShell({
       const actions: ContextMenuAction[] = []
       if (onOpenProjectInNewTab && project) {
         actions.push({
-          label: "Open in New Tab",
+          label: openInNewItemLabel(),
           icon: <ExternalLink size={14} strokeWidth={2} aria-hidden={true} />,
           action: () => { onOpenProjectInNewTab(project.id); closeTopbarMenu() },
         })
@@ -321,7 +374,7 @@ export default function AppShell({
         const tabNode = findNode(project.tabs, tabId)
         actions.push(
           {
-            label: "Open in New Tab",
+            label: openInNewItemLabel(),
             icon: <ExternalLink size={14} strokeWidth={2} aria-hidden={true} />,
             action: () => {
               const url = new URL("/app", window.location.origin)
@@ -529,7 +582,10 @@ export default function AppShell({
                 onContextMenu={handleProjectSegmentContextMenu}
                 aria-label="Open library"
               >
-                <BookText size={14} aria-hidden={true} />
+                {(() => {
+                  const Icon = iconForProjectKind(project.kind)
+                  return <Icon size={14} aria-hidden={true} />
+                })()}
                 <MarqueeText text={project.name} />
               </button>
             )}
@@ -628,6 +684,51 @@ export default function AppShell({
               Typewriter
             </button>
           </div>
+        ) : markdownViewToggleAvailable ? (
+          <div className="editor-workspace__view-toggle" role="tablist" aria-label="Markdown view mode">
+            <span
+              className="editor-workspace__view-toggle-indicator"
+              style={{
+                left: `${markdownViewIndicatorStyle.left}px`,
+                width: `${markdownViewIndicatorStyle.width}px`,
+                opacity: markdownViewIndicatorStyle.visible ? 1 : 0,
+              }}
+              aria-hidden={true}
+            />
+            <button
+              ref={(el) => { markdownViewToggleRefs.current.editor = el }}
+              type="button"
+              role="tab"
+              aria-selected={markdownViewMode === "editor"}
+              className={`editor-workspace__view-toggle-pill${markdownViewMode === "editor" ? " editor-workspace__view-toggle-pill--active" : ""}`}
+              onClick={() => { if (markdownViewMode !== "editor") onSetMarkdownViewMode?.("editor") }}
+              title="Editor only"
+            >
+              Editor
+            </button>
+            <button
+              ref={(el) => { markdownViewToggleRefs.current.both = el }}
+              type="button"
+              role="tab"
+              aria-selected={markdownViewMode === "both"}
+              className={`editor-workspace__view-toggle-pill${markdownViewMode === "both" ? " editor-workspace__view-toggle-pill--active" : ""}`}
+              onClick={() => { if (markdownViewMode !== "both") onSetMarkdownViewMode?.("both") }}
+              title="Editor and preview"
+            >
+              Both
+            </button>
+            <button
+              ref={(el) => { markdownViewToggleRefs.current.preview = el }}
+              type="button"
+              role="tab"
+              aria-selected={markdownViewMode === "preview"}
+              className={`editor-workspace__view-toggle-pill${markdownViewMode === "preview" ? " editor-workspace__view-toggle-pill--active" : ""}`}
+              onClick={() => { if (markdownViewMode !== "preview") onSetMarkdownViewMode?.("preview") }}
+              title="Preview only"
+            >
+              Preview
+            </button>
+          </div>
         ) : null}
 
         <button
@@ -690,6 +791,8 @@ export default function AppShell({
           onToggleWordStats={onToggleWordStats}
           sessionToken={sessionToken}
           projectDocumentMap={projectDocumentMap}
+          onCopyProjectPath={onCopyProjectPath}
+          onShowProjectInFinder={onShowProjectInFinder}
           pendingEditTabIds={pendingEditTabIds}
         />
 

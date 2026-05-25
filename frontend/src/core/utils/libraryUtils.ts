@@ -71,6 +71,8 @@ export function duplicateProject<T extends {
   markdownIds?: string[]
   markdownEditorEnabled?: boolean
   typewriterIds?: string[]
+  plaintextIds?: string[]
+  pdfIds?: string[]
 }>(
   projects: T[],
   projectId: string,
@@ -96,14 +98,21 @@ export function duplicateProject<T extends {
       .filter((nextId): nextId is string => Boolean(nextId))
   const nextPinboardIds = remapIds(source.pinboardIds)
   const nextTypewriterIds = remapIds(source.typewriterIds)
+  const pinboardIdSet = new Set(nextPinboardIds)
+  const typewriterIdSet = new Set(nextTypewriterIds)
+  const nextPdfIds = remapIds(source.pdfIds)
+    .filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id))
+  const pdfIdSet = new Set(nextPdfIds)
+  const nextPlaintextIds = remapIds(source.plaintextIds)
+    .filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id) && !pdfIdSet.has(id))
+  const plaintextIdSet = new Set(nextPlaintextIds)
   const sourceMarkdownIds = Array.isArray(source.markdownIds)
     ? source.markdownIds
     : source.markdownEditorEnabled
       ? [...tabIdMap.keys()]
       : []
-  const pinboardIdSet = new Set(nextPinboardIds)
-  const typewriterIdSet = new Set(nextTypewriterIds)
-  const nextMarkdownIds = remapIds(sourceMarkdownIds).filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id))
+  const nextMarkdownIds = remapIds(sourceMarkdownIds)
+    .filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id) && !pdfIdSet.has(id) && !plaintextIdSet.has(id))
 
   const dup = {
     ...source,
@@ -115,6 +124,8 @@ export function duplicateProject<T extends {
     contentById: nextContentById,
     pinboardIds: nextPinboardIds,
     typewriterIds: nextTypewriterIds,
+    plaintextIds: nextPlaintextIds,
+    pdfIds: nextPdfIds,
     markdownIds: nextMarkdownIds,
     markdownEditorEnabled: undefined,
   } as T

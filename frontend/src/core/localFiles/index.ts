@@ -2,8 +2,17 @@
 
 export * from "./types"
 export { serializeTuskBook, parseTuskBook } from "./codecBook"
-export { serializeTuskPinboard, parseTuskPinboard } from "./codecPinboard"
-export { serializeTuskSlideshow, parseTuskSlideshow } from "./codecSlideshow"
-export { bookFileToProject, projectToBookFile, createNewBookFile } from "./bridge"
-export { createNewPinboardFile, createNewSlideshowFile } from "./factories"
+export { serializeTuskPresentation, parseTuskPresentation } from "./codecPresentation"
+export { parsePlainDocFile, serializePlainDocFile } from "./codecPlainDoc"
+export {
+  bookFileToProject,
+  projectToBookFile,
+  createNewBookFile,
+  presentationFileToProject,
+  projectToPresentationFile,
+  createNewPresentationFile,
+  plainDocFileToProject,
+  projectToPlainDocString,
+  pdfFileToProject,
+} from "./bridge"
 export { useLocalFilesystemSync } from "./useLocalFilesystemSync"

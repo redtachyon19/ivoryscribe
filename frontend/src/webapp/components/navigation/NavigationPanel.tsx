@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState, type Dispatch, type MouseEvent, type SetStateAction } from "react"
-import { ArrowLeft, BookPlus, FilePlus2, FileText, FolderPlus, ListPlus, PanelLeft, Presentation } from "lucide-react"
+import { ArrowLeft, BookPlus, FileCode, FilePlus2, FileType, FolderPlus, ListPlus, PanelLeft, Presentation } from "lucide-react"
 import DocumentTabsPanel from "./DocumentTabsPanel"
 import ProjectBrowserPanel from "./ProjectBrowserPanel"
-import { getProjectEntryTerms, normalizeProjectAfterTabs, type Project } from "../../../core/utils/projects"
+import { getProjectEntryTerms, isSingleDocumentKind, normalizeProjectAfterTabs, type Project, type ProjectKind } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
 import type { LibrarySection } from "../library/useLibraryNavigation"
-import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
+import ProjectContextMenu, { buildCreateProjectActions, type ContextMenuAction } from "../library/ProjectContextMenu"
 import { deepCloneTab, findNode, insertRelative } from "./tabTreeUtils"
 
 
@@ -60,7 +60,9 @@ export type NavigationPanelProps = {
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   onSetSidebarSlide: (slide: 1 | 2) => void
   onClose: () => void
-  onCreateProject: () => void
+  /** Create a new top-level project of the given kind. Called by the kind
+   *  picker menu below. */
+  onCreateProject: (kind: ProjectKind) => void
   onCreateFolder: () => void
   onOpenProject: (projectId: string) => void
   onOpenProjectInNewTab?: (projectId: string) => void
@@ -69,6 +71,8 @@ export type NavigationPanelProps = {
   onToggleWordStats: () => void
   sessionToken: string
   projectDocumentMap: Record<string, string>
+  onCopyProjectPath?: (projectId: string) => void
+  onShowProjectInFinder?: (projectId: string) => void
   pendingEditTabIds?: Set<string>
 }
 
@@ -97,25 +101,42 @@ export default function NavigationPanel({
   onToggleWordStats,
   sessionToken,
   projectDocumentMap,
+  onCopyProjectPath,
+  onShowProjectInFinder,
   pendingEditTabIds,
 }: NavigationPanelProps) {
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
+  const projectKind = project?.kind ?? "Book"
+  const isSingleDoc = isSingleDocumentKind(projectKind)
   const [createMoreMenu, setCreateMoreMenu] = useState<{ x: number; y: number } | null>(null)
+  const [createProjectMenu, setCreateProjectMenu] = useState<{ x: number; y: number } | null>(null)
   const closeCreateMoreMenu = useCallback(() => {
     setCreateMoreMenu(null)
+  }, [])
+  const closeCreateProjectMenu = useCallback(() => {
+    setCreateProjectMenu(null)
   }, [])
 
   useEffect(() => {
     closeCreateMoreMenu()
-  }, [closeCreateMoreMenu, isOpen, project?.id, sidebarSlide])
+    closeCreateProjectMenu()
+  }, [closeCreateMoreMenu, closeCreateProjectMenu, isOpen, project?.id, sidebarSlide])
 
-  const handleCreateProject = () => {
-    onCreateProject()
+  const handleOpenCreateProjectMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    const buttonRect = event.currentTarget.getBoundingClientRect()
+    setCreateProjectMenu({ x: buttonRect.left, y: buttonRect.bottom + 6 })
   }
 
   const handleCreateFolder = () => {
     onCreateFolder()
   }
+
+  // ── Inside-Book entry creation ──────────────────────────────────────────
+  //
+  // After the file-type overhaul a Book holds chapters plus embedded
+  // markdown / plain-text tabs. Presentations hold only pinboards; their
+  // entry creator is `handleCreateSlide` below. Single-document kinds
+  // (.md / .txt) have no create-entry path at all.
 
   const handleCreateEntry = () => {
     onProjectChange((currentProject) => {
@@ -134,10 +155,13 @@ export default function NavigationPanel({
     })
   }
 
-  const handleCreatePinboard = () => {
+  /** Append a new slide (= pinboard) to the active Presentation. The button
+   *  label is "Create Pinboard" per spec, but the tab is labelled
+   *  "Slide N" (its entry-term singular) so it reads naturally in the list. */
+  const handleCreateSlide = () => {
     onProjectChange((currentProject) => {
       const nextId = createId()
-      const nextTitle = getNextEntryName(currentProject.tabs, "Pinboard")
+      const nextTitle = getNextEntryName(currentProject.tabs, getProjectEntryTerms(currentProject.kind).singular)
 
       return {
         ...currentProject,
@@ -155,12 +179,30 @@ export default function NavigationPanel({
   const handleCreateMarkdown = () => {
     onProjectChange((currentProject) => {
       const nextId = createId()
-      const nextTitle = getNextEntryName(currentProject.tabs, "Markdown")
+      const nextTitle = getNextEntryName(currentProject.tabs, "Document")
 
       return {
         ...currentProject,
         activeId: nextId,
         markdownIds: [...(currentProject.markdownIds ?? []), nextId],
+        tabs: [...currentProject.tabs, { id: nextId, title: nextTitle, children: [] }],
+        contentById: {
+          ...currentProject.contentById,
+          [nextId]: "",
+        },
+      }
+    })
+  }
+
+  const handleCreatePlainText = () => {
+    onProjectChange((currentProject) => {
+      const nextId = createId()
+      const nextTitle = getNextEntryName(currentProject.tabs, "Document")
+
+      return {
+        ...currentProject,
+        activeId: nextId,
+        plaintextIds: [...(currentProject.plaintextIds ?? []), nextId],
         tabs: [...currentProject.tabs, { id: nextId, title: nextTitle, children: [] }],
         contentById: {
           ...currentProject.contentById,
@@ -211,18 +253,25 @@ export default function NavigationPanel({
     })
   }
 
+  // "Create More" lives only inside Books. Per spec: Markdown + Plain Text;
+  // no more standalone Pinboard creation inside a Book (Presentations own
+  // those now).
   const createMoreActions: ContextMenuAction[] = [
     {
-      label: "Create Pinboard",
-      icon: <Presentation size={14} strokeWidth={2} aria-hidden={true} />,
-      action: handleCreatePinboard,
-    },
-    {
       label: "Create Markdown",
-      icon: <FileText size={14} strokeWidth={2} aria-hidden={true} />,
+      icon: <FileCode size={14} strokeWidth={2} aria-hidden={true} />,
       action: handleCreateMarkdown,
     },
+    {
+      label: "Create Plain Text",
+      icon: <FileType size={14} strokeWidth={2} aria-hidden={true} />,
+      action: handleCreatePlainText,
+    },
   ]
+
+  // Library-level "Create Project" picker — shared builder so the same
+  // menu shape appears at every create entry point.
+  const createProjectActions = buildCreateProjectActions(onCreateProject)
 
   return (
     <div className="editor-workspace__left-rail-container">
@@ -245,7 +294,8 @@ export default function NavigationPanel({
               type="button"
               className="editor-workspace__rail-create"
               aria-label="Create Project"
-              onClick={handleCreateProject}
+              aria-expanded={Boolean(createProjectMenu)}
+              onClick={handleOpenCreateProjectMenu}
             >
               <BookPlus size={14} aria-hidden={true} />
               <span>Create Project</span>
@@ -261,7 +311,12 @@ export default function NavigationPanel({
             </button>
           </div>
 
-          {/* Slide 2 header: Document Tabs */}
+          {/* Slide 2 header: Document Tabs.
+             Header buttons are kind-gated:
+             • Book         → Create Chapter + Create More (md / txt)
+             • Presentation → Create Pinboard (= add slide)
+             • Markdown/PlainText (single-doc) → nothing — there is exactly
+               one tab and the user is always on it. */}
           <div className={`editor-workspace__rail-header-layer ${sidebarSlide === 2 ? "editor-workspace__rail-header-layer--active" : ""}`.trim()}>
             <button
               type="button"
@@ -272,25 +327,39 @@ export default function NavigationPanel({
               <ArrowLeft size={14} aria-hidden={true} />
               <span>Back to Projects</span>
             </button>
-            <button
-              type="button"
-              className="editor-workspace__rail-create"
-              aria-label={`Create ${entryTerms.singular}`}
-              onClick={handleCreateEntry}
-            >
-              <FilePlus2 size={14} aria-hidden={true} />
-              <span>Create {entryTerms.singular}</span>
-            </button>
-            <button
-              type="button"
-              className="editor-workspace__rail-create editor-workspace__rail-create-pinboard"
-              aria-label="Create More"
-              aria-expanded={Boolean(createMoreMenu)}
-              onClick={handleOpenCreateMoreMenu}
-            >
-              <ListPlus size={14} aria-hidden={true} />
-              <span>Create More</span>
-            </button>
+            {projectKind === "Book" ? (
+              <>
+                <button
+                  type="button"
+                  className="editor-workspace__rail-create"
+                  aria-label={`Create ${entryTerms.singular}`}
+                  onClick={handleCreateEntry}
+                >
+                  <FilePlus2 size={14} aria-hidden={true} />
+                  <span>Create {entryTerms.singular}</span>
+                </button>
+                <button
+                  type="button"
+                  className="editor-workspace__rail-create editor-workspace__rail-create-pinboard"
+                  aria-label="Create More"
+                  aria-expanded={Boolean(createMoreMenu)}
+                  onClick={handleOpenCreateMoreMenu}
+                >
+                  <ListPlus size={14} aria-hidden={true} />
+                  <span>Create More</span>
+                </button>
+              </>
+            ) : projectKind === "Presentation" ? (
+              <button
+                type="button"
+                className="editor-workspace__rail-create"
+                aria-label="Create Pinboard"
+                onClick={handleCreateSlide}
+              >
+                <Presentation size={14} aria-hidden={true} />
+                <span>Create Pinboard</span>
+              </button>
+            ) : null /* single-document kinds: no create buttons */}
           </div>
         </div>
 
@@ -313,18 +382,23 @@ export default function NavigationPanel({
               setProjects={setProjects}
               sessionToken={sessionToken}
               projectDocumentMap={projectDocumentMap}
-              onCreateProject={handleCreateProject}
+              onCopyProjectPath={onCopyProjectPath}
+              onShowProjectInFinder={onShowProjectInFinder}
+              onCreateProject={onCreateProject}
               onCreateFolder={handleCreateFolder}
             />
           </div>
 
-          {/* Slide 2: Document Tabs */}
+          {/* Slide 2: Document Tabs (suppressed for single-document kinds).
+              Single-doc projects (Markdown/PlainText) keep one synthetic tab
+              that the editor still reads from — we just hide the list UI. */}
           <div className="editor-workspace__rail-slide">
-            {project ? (
+            {project && !isSingleDoc ? (
               <DocumentTabsPanel
                 projectName={project.name}
                 tabs={project.tabs}
                 projectKind={project.kind}
+                project={project}
                 activeId={project.activeId}
                 isVisible={isOpen && sidebarSlide === 2}
                 pendingEditTabIds={pendingEditTabIds}
@@ -337,12 +411,18 @@ export default function NavigationPanel({
                     activeId: id,
                   }))
                 }}
-                onCreateEntry={handleCreateEntry}
-                onCreatePinboard={handleCreatePinboard}
+                onCreateEntry={project.kind === "Presentation" ? handleCreateSlide : handleCreateEntry}
                 onCreateMarkdown={handleCreateMarkdown}
+                onCreatePlainText={handleCreatePlainText}
                 onOpenTabInNewTab={handleOpenTabInNewTab}
                 onDuplicateTab={handleDuplicateTab}
               />
+            ) : project && isSingleDoc ? (
+              // Single-doc project: show just the project name so the user
+              // knows what's open without a tab tree.
+              <div className="editor-workspace__rail-slide-single-doc" aria-label="Open document">
+                <p className="doc-tabs__project-name" style={{ padding: "0 14px" }}>{project.name}</p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -368,6 +448,15 @@ export default function NavigationPanel({
           y={createMoreMenu.y}
           actions={createMoreActions}
           onClose={closeCreateMoreMenu}
+        />
+      ) : null}
+
+      {createProjectMenu && sidebarSlide === 1 ? (
+        <ProjectContextMenu
+          x={createProjectMenu.x}
+          y={createProjectMenu.y}
+          actions={createProjectActions}
+          onClose={closeCreateProjectMenu}
         />
       ) : null}
     </div>

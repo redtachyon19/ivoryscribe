@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import { Pencil, Shredder, SquareArrowOutUpRight, Trash2, Undo2 } from "lucide-react"
 import type { Project } from "../../core/utils/projects"
+import { openInNewItemLabel } from "../../core/electron/localWorkspace"
 import ProjectCard from "../components/library/ProjectCard"
 
 import { useViewMode, useSortMode, applySortMode, ViewToggle, ProjectListView } from "../components/library/useViewMode"
@@ -185,7 +186,7 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
                   { label: `Shred ${multiSelect.selectedIds.size} items`, icon: <Shredder size={14} strokeWidth={2} aria-hidden={true} />, action: () => openMultiShredConfirmation(multiSelect.selectedIds), danger: true },
                 ]
               : [
-                  { label: "Open in New Tab", icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenProjectInNewTab(contextMenu.projectId) },
+                  { label: openInNewItemLabel(), icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenProjectInNewTab(contextMenu.projectId) },
                   { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => setEditingProjectId(contextMenu.projectId) },
                   { label: "Restore", icon: <Undo2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => restoreProject(contextMenu.projectId) },
                   { label: "Shred", icon: <Shredder size={14} strokeWidth={2} aria-hidden={true} />, action: () => openShredConfirmation(contextMenu.projectId), danger: true },

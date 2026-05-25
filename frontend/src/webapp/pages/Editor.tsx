@@ -7,6 +7,7 @@ import { useNavigationHistory } from "../../core/hooks/useNavigationHistory"
 import { useFindReplaceModal } from "../../core/hooks/useFindReplaceModal"
 import { useLibraryNavigation } from "../components/library/useLibraryNavigation"
 import { useTabViewMode } from "../components/editor/hooks/useTabViewMode"
+import { useTabMarkdownViewMode } from "../components/editor/hooks/useTabMarkdownViewMode"
 import { useDocumentStats } from "../components/editor/hooks/useDocumentStats"
 import { useProjectExport } from "../components/editor/hooks/useProjectExport"
 import { useProposedEditReview } from "../components/editor/hooks/useProposedEditReview"
@@ -31,6 +32,14 @@ export type EditorProps = {
   tuskAiActivated: boolean
   isStartingTuskCheckout: boolean
   activeContent: string
+  /** Current workspace root from settings. Read-only kinds (PDFs) store
+   *  paths relative to this and resolve to absolute at render time, so
+   *  the path always reflects the chosen workspace and never a cached
+   *  absolute string. Null in cloud / web mode. */
+  workspaceRoot?: string | null
+  /** Settings toggle: PDFViewer rasterises pages with the app palette
+   *  background + text colour when true. Forwarded as-is. */
+  matchPdfToPalette?: boolean
   editorFontSize: number
   menuBarEnabled: boolean
   translucentNavPanel: boolean
@@ -43,7 +52,7 @@ export type EditorProps = {
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   onOpenProject: (projectId: string) => void
-  onCreateProject: () => void
+  onCreateProject: (kind: import("../../core/utils/projects").ProjectKind) => void
   onCreateFolder: () => void
   onReturnToDashboard: () => void
   onStartTuskCheckout: () => void
@@ -73,6 +82,15 @@ export type EditorProps = {
    *  the returned cloud-id. Wired through to ShareDialog so the user can
    *  enable cloud sharing for a previously local-only project. */
   onEnableCloudSharing?: (projectId: string) => Promise<string | null>
+  /** Promote a local project to cloud: upload + trash local file.
+   *  Returns the new cloud doc id, or null if it failed / cancelled. */
+  onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
+  /** Copy the project's absolute on-disk path to the clipboard. Only
+   *  defined for local projects in Electron. */
+  onCopyProjectPath?: (projectId: string) => void
+  /** Reveal the project's on-disk file in the OS file manager. Only
+   *  defined for local projects in Electron. */
+  onShowProjectInFinder?: (projectId: string) => void
 }
 
 /**
@@ -87,6 +105,8 @@ export default function Editor({
   tuskAiActivated,
   isStartingTuskCheckout,
   activeContent,
+  workspaceRoot,
+  matchPdfToPalette,
   editorFontSize,
   menuBarEnabled,
   translucentNavPanel,
@@ -125,6 +145,9 @@ export default function Editor({
   onRejectShareRequest,
   onRefreshPendingShareRequests,
   onEnableCloudSharing,
+  onMoveProjectToCloud,
+  onCopyProjectPath,
+  onShowProjectInFinder,
 }: EditorProps) {
   const entryTerms = project
     ? getProjectEntryTerms(project.kind)
@@ -133,6 +156,7 @@ export default function Editor({
   /* ── Editing concerns, each owned by a focused hook ── */
   const library = useLibraryNavigation()
   const viewModeState = useTabViewMode(project)
+  const markdownViewModeState = useTabMarkdownViewMode(project)
   const documentStats = useDocumentStats(project, activeContent)
   const proposedEditReview = useProposedEditReview({ project, activeContent, onProjectChange })
 
@@ -146,12 +170,16 @@ export default function Editor({
   const activeTabId = project?.activeId ?? null
   const projectPinboardIds = project?.pinboardIds
   const projectMarkdownIds = project?.markdownIds
+  const projectPlaintextIds = project?.plaintextIds
+  const projectPdfIds = project?.pdfIds
   const projectMarkdownEditorEnabled = project?.markdownEditorEnabled
   const untitledLabel = entryTerms.untitled
 
-  const activeDocumentType = useMemo<"prose" | "pinboard" | "markdown">(() => {
+  const activeDocumentType = useMemo<"prose" | "pinboard" | "markdown" | "plaintext" | "pdf">(() => {
     if (!activeTabId || !projectTabs) return "prose"
     if ((projectPinboardIds ?? []).includes(activeTabId)) return "pinboard"
+    if ((projectPdfIds ?? []).includes(activeTabId)) return "pdf"
+    if ((projectPlaintextIds ?? []).includes(activeTabId)) return "plaintext"
     const markdownIds = getProjectMarkdownIds({
       tabs: projectTabs,
       markdownIds: projectMarkdownIds,
@@ -159,7 +187,7 @@ export default function Editor({
     })
     if (markdownIds.includes(activeTabId)) return "markdown"
     return "prose"
-  }, [activeTabId, projectTabs, projectPinboardIds, projectMarkdownIds, projectMarkdownEditorEnabled])
+  }, [activeTabId, projectTabs, projectPinboardIds, projectPdfIds, projectPlaintextIds, projectMarkdownIds, projectMarkdownEditorEnabled])
 
   const activeTabPath = useMemo(() => {
     if (!activeTabId || !projectTabs) {
@@ -236,6 +264,8 @@ export default function Editor({
       onToggleWordStats={documentStats.toggleWordStats}
       sessionToken={sessionToken}
       projectDocumentMap={projectDocumentMap}
+      onCopyProjectPath={onCopyProjectPath}
+      onShowProjectInFinder={onShowProjectInFinder}
       sharedProjectIds={sharedProjectIds}
       ownerEmailByProjectId={ownerEmailByProjectId}
       userEmail={userEmail}
@@ -250,6 +280,9 @@ export default function Editor({
       viewToggleAvailable={view === "editor" && activeDocumentType === "prose" && !!project?.activeId}
       viewMode={viewModeState.activeViewMode}
       onToggleViewMode={viewModeState.toggleViewMode}
+      markdownViewToggleAvailable={view === "editor" && activeDocumentType === "markdown" && !!project?.activeId}
+      markdownViewMode={markdownViewModeState.activeMarkdownViewMode}
+      onSetMarkdownViewMode={markdownViewModeState.setMarkdownViewMode}
     >
       {view === "projects" ? (
         <LibraryRouter
@@ -278,14 +311,21 @@ export default function Editor({
           sharedProjectIds={sharedProjectIds}
           ownerEmailByProjectId={ownerEmailByProjectId}
           onEnableCloudSharing={onEnableCloudSharing}
+          onMoveProjectToCloud={onMoveProjectToCloud}
+          onCopyProjectPath={onCopyProjectPath}
+          onShowProjectInFinder={onShowProjectInFinder}
         />
       ) : project ? (
         <EditorWorkspace
           project={project}
           activeContent={activeContent}
+          workspaceRoot={workspaceRoot}
+          matchPdfToPalette={matchPdfToPalette}
           editorFontSize={editorFontSize}
           flagsEnabled={flagsEnabled}
           activeViewMode={viewModeState.activeViewMode}
+          activeMarkdownViewMode={markdownViewModeState.activeMarkdownViewMode}
+          onSetMarkdownViewMode={markdownViewModeState.setMarkdownViewMode}
           activeDocumentType={activeDocumentType}
           activeDocumentTitle={activeDocumentTitle}
           exportTabs={exportTabs}

@@ -37,6 +37,9 @@ type LibraryRouterProps = {
   sharedProjectIds?: Set<string>
   ownerEmailByProjectId?: Map<string, string>
   onEnableCloudSharing?: (projectId: string) => Promise<string | null>
+  onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
+  onCopyProjectPath?: (projectId: string) => void
+  onShowProjectInFinder?: (projectId: string) => void
 }
 
 export default function LibraryRouter({
@@ -65,6 +68,9 @@ export default function LibraryRouter({
   sharedProjectIds,
   ownerEmailByProjectId,
   onEnableCloudSharing,
+  onMoveProjectToCloud,
+  onCopyProjectPath,
+  onShowProjectInFinder,
 }: LibraryRouterProps) {
   if (librarySection === "cloud") {
     return (
@@ -126,6 +132,9 @@ export default function LibraryRouter({
       sharedProjectIds={sharedProjectIds}
       ownerEmailByProjectId={ownerEmailByProjectId}
       onEnableCloudSharing={onEnableCloudSharing}
+      onMoveProjectToCloud={onMoveProjectToCloud}
+      onCopyProjectPath={onCopyProjectPath}
+      onShowProjectInFinder={onShowProjectInFinder}
     />
   )
 }

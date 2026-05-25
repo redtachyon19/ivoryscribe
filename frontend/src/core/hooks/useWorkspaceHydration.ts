@@ -205,7 +205,10 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
         continue
       }
 
-      nextProjects.push(project)
+      // Tag projects loaded from the cloud API as `source: "cloud"`
+      // so the UI and save paths know there is no local file behind
+      // this project — no path resolution, no local autosave.
+      nextProjects.push({ ...project, source: "cloud" })
       nextDocumentMap[project.id] = documentRecord.id
     }
 
@@ -224,7 +227,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
         // Skip if the user already owns a project with the same ID
         if (ownedProjectIds.has(sharedProject.id)) continue
 
-        nextProjects.push(sharedProject)
+        nextProjects.push({ ...sharedProject, source: "cloud" })
         nextDocumentMap[sharedProject.id] = entry.document.id
         nextSharedDocumentIds.add(entry.document.id)
         shareIdByProjectIdRef.current.set(sharedProject.id, entry.shareId)
@@ -342,7 +345,10 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           if (doc.metadata?.recordType !== PROJECT_RECORD_TYPE) continue
           const project = parseProjectFromDocument(doc)
           if (!project) continue
-          remoteProjectUpdates.set(project.id, { project, documentId: doc.id })
+          remoteProjectUpdates.set(project.id, {
+            project: { ...project, source: "cloud" },
+            documentId: doc.id,
+          })
         }
 
         // Parse shared documents (recipient side)
@@ -352,7 +358,10 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           if (!sharedProject) continue
           nextSharedDocumentIds.add(entry.document.id)
           // Shared entries take precedence (they're the canonical source for shared projects)
-          remoteProjectUpdates.set(sharedProject.id, { project: sharedProject, documentId: entry.document.id })
+          remoteProjectUpdates.set(sharedProject.id, {
+            project: { ...sharedProject, source: "cloud" },
+            documentId: entry.document.id,
+          })
           shareIdByProjectIdRef.current.set(sharedProject.id, entry.shareId)
           ownerEmailByProjectIdRef.current.set(sharedProject.id, entry.owner.email)
         }
@@ -545,7 +554,10 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
             const sharedProject = parseProjectFromDocument(entry.document)
             if (!sharedProject) continue
             nextSharedDocumentIds.add(entry.document.id)
-            sharedProjectUpdates.set(sharedProject.id, { project: sharedProject, documentId: entry.document.id })
+            sharedProjectUpdates.set(sharedProject.id, {
+              project: { ...sharedProject, source: "cloud" },
+              documentId: entry.document.id,
+            })
             shareIdByProjectIdRef.current.set(sharedProject.id, entry.shareId)
             ownerEmailByProjectIdRef.current.set(sharedProject.id, entry.owner.email)
           }

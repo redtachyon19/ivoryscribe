@@ -20,7 +20,7 @@ import {
   removeNativeSpellCheckWord,
 } from "../utils/spellCheckDictionary"
 
-type ActiveDocumentType = "prose" | "pinboard" | "markdown"
+type ActiveDocumentType = "prose" | "pinboard" | "markdown" | "plaintext" | "pdf"
 
 type UseSpellCheckOrchestrationArgs = {
   view: "projects" | "editor"
@@ -137,9 +137,11 @@ export function useSpellCheckOrchestration({
       const nextDocumentType: SpellCheckDocumentType | null =
         activeDocumentType === "markdown"
           ? "markdown"
-          : activeDocumentType === "prose"
-            ? "text"
-            : null
+          : activeDocumentType === "plaintext"
+            ? "plaintext"
+            : activeDocumentType === "prose"
+              ? "text"
+              : null
 
       if (
         spellCheckIgnoredWords.length > 0
@@ -199,6 +201,20 @@ export function useSpellCheckOrchestration({
       const detail: SpellCheckFocusDetail = {
         documentId: spellCheckDocumentId,
         documentType: "markdown",
+        normalizedWord: spellCheckIssue.focusTarget.normalizedWord,
+        occurrenceIndex: spellCheckIssue.focusTarget.occurrenceIndex,
+        start: spellCheckIssue.focusTarget.start,
+        end: spellCheckIssue.focusTarget.end,
+      }
+
+      requestAppSpellCheckFocus(detail)
+      return
+    }
+
+    if (spellCheckIssue.focusTarget.documentType === "plaintext") {
+      const detail: SpellCheckFocusDetail = {
+        documentId: spellCheckDocumentId,
+        documentType: "plaintext",
         normalizedWord: spellCheckIssue.focusTarget.normalizedWord,
         occurrenceIndex: spellCheckIssue.focusTarget.occurrenceIndex,
         start: spellCheckIssue.focusTarget.start,

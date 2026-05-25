@@ -27,6 +27,8 @@ export type AppearanceSectionProps = {
   fontOptions: FontOption[]
   customPaletteBackground: string
   customPaletteAccent: string
+  matchPdfToPalette: boolean
+  onMatchPdfToPaletteChange: (enabled: boolean) => void
   onMenuBarEnabledChange: (enabled: boolean) => void
   onFlagsEnabledChange: (enabled: boolean) => void
   onTranslucentNavPanelChange: (enabled: boolean) => void
@@ -73,6 +75,8 @@ export default function AppearanceSettings({
   fontOptions,
   customPaletteBackground,
   customPaletteAccent,
+  matchPdfToPalette,
+  onMatchPdfToPaletteChange,
   onMenuBarEnabledChange,
   onFlagsEnabledChange,
   onTranslucentNavPanelChange,
@@ -456,6 +460,21 @@ export default function AppearanceSettings({
           </label>
         </>
       ) : null}
+
+      <label className="global-settings__field global-settings__field--toggle" htmlFor="settings-match-pdf-toggle">
+        <span>Match PDF to Color Palette</span>
+        <span className="global-settings__switch" aria-hidden="true">
+          <input
+            id="settings-match-pdf-toggle"
+            type="checkbox"
+            checked={matchPdfToPalette}
+            onChange={(event) => {
+              onMatchPdfToPaletteChange(event.target.checked)
+            }}
+          />
+          <span className="global-settings__switch-track" />
+        </span>
+      </label>
 
       <label className="global-settings__field global-settings__field--toggle" htmlFor="settings-menu-bar-toggle-appearance">
         <span>Menu Bar Visibility</span>

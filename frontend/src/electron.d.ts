@@ -33,11 +33,16 @@ declare global {
         selectDirectory: (opts?: { defaultPath?: string; title?: string }) => Promise<string | null>
         getDefaultRoot: () => Promise<string>
         readFile: (filePath: string) => Promise<string>
+        /** Binary read for non-utf-8 files (PDFs, images). */
+        readFileBinary: (filePath: string) => Promise<Uint8Array>
         writeFile: (filePath: string, contents: string) => Promise<void>
         listDirectory: (dirPath: string) => Promise<FsEntry[]>
         mkdir: (dirPath: string) => Promise<void>
         rename: (oldPath: string, newPath: string) => Promise<void>
         trash: (targetPath: string) => Promise<void>
+        /** Reveal a file or directory in the OS file manager (Finder on
+         *  macOS, File Explorer on Windows, Files on Linux). */
+        showItemInFolder: (targetPath: string) => void
         exists: (targetPath: string) => Promise<boolean>
         stat: (targetPath: string) => Promise<FsStat>
       }
@@ -48,6 +53,13 @@ declare global {
         dirname: (p: string) => string
         extname: (p: string) => string
         sep: string
+      }
+
+      clipboard?: {
+        /** Read plain-text from the system clipboard via Electron's main
+         *  process. Reliable even when `navigator.clipboard.readText()`
+         *  is blocked by missing user-activation. */
+        readText: () => Promise<string>
       }
     }
   }

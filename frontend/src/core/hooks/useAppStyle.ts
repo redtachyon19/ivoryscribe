@@ -32,6 +32,10 @@ export function useAppStyle() {
   const [palette, setPalette] = useState<Palette>(() => getInitialPalette())
   const [customPaletteBackground, setCustomPaletteBackground] = useState(DEFAULT_CUSTOM_BACKGROUND)
   const [customPaletteAccent, setCustomPaletteAccent] = useState(DEFAULT_CUSTOM_ACCENT)
+  /** When true, the PDF viewer renders pages with the app's palette
+   *  background and text colour instead of the document's own. Default
+   *  off (PDFs render with their original colours). */
+  const [matchPdfToPalette, setMatchPdfToPalette] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -195,6 +199,8 @@ export function useAppStyle() {
     setFontSize,
     isWordCountEnabled,
     setIsWordCountEnabled,
+    matchPdfToPalette,
+    setMatchPdfToPalette,
     applyDisplayFont,
     applyBodyFont,
     applyUiFont,

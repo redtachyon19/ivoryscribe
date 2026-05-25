@@ -57,7 +57,10 @@ export type TuskAiProvider = "auto" | "gpt" | "claude" | "grok"
 
 export type TuskAiProjectContext = {
   name: string
-  kind: "Book"
+  // Widened with the file-type overhaul. The AI provider is told the kind so
+  // it can adjust its prompts for a Presentation / Markdown / PlainText
+  // document instead of always treating the context as a Book.
+  kind: "Book" | "Presentation" | "Markdown" | "PlainText" | "PDF"
   activeId: string | null
   tabs: Array<{
     id: string
