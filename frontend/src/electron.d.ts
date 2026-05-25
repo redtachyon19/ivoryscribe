@@ -28,6 +28,11 @@ declare global {
       removeSpellCheckerWord?: (word: string) => Promise<boolean>
       updateMenu: (items: unknown) => void
       onMenuCommand: (callback: (commandId: string) => void) => () => void
+      /** Subscribe to OS-driven file-open events (Finder double-click on a
+       *  .tusk/.tusks, second-instance launch with file args, or cold-start
+       *  argv on Win/Linux). Returns an unsubscribe function. Main buffers
+       *  paths until the renderer subscribes, then flushes. */
+      onOpenPath?: (callback: (filePath: string) => void) => () => void
 
       fs: {
         selectDirectory: (opts?: { defaultPath?: string; title?: string }) => Promise<string | null>

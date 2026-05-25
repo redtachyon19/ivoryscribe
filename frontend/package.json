@@ -71,9 +71,68 @@
     "directories": {
       "output": "release"
     },
+    "afterSign": "scripts/after-sign.mjs",
+    "fileAssociations": [
+      {
+        "ext": "tusk",
+        "name": "Ivoryscribe Book",
+        "description": "Ivoryscribe book document",
+        "role": "Editor",
+        "rank": "Owner",
+        "isPackage": false
+      },
+      {
+        "ext": "tusks",
+        "name": "Ivoryscribe Presentation",
+        "description": "Ivoryscribe presentation document",
+        "role": "Editor",
+        "rank": "Owner",
+        "isPackage": false
+      },
+      {
+        "ext": "md",
+        "name": "Markdown Document",
+        "description": "Markdown document",
+        "role": "Editor",
+        "rank": "Owner",
+        "isPackage": false,
+        "mimeType": "text/markdown"
+      },
+      {
+        "ext": "txt",
+        "name": "Plain Text Document",
+        "description": "Plain text document",
+        "role": "Editor",
+        "rank": "Owner",
+        "isPackage": false,
+        "mimeType": "text/plain"
+      }
+    ],
     "mac": {
       "target": "dmg",
-      "icon": "public/icon.png"
+      "icon": "public/icon.png",
+      "extendInfo": {
+        "UTExportedTypeDeclarations": [
+          {
+            "UTTypeIdentifier": "com.ivoryscribe.tusk",
+            "UTTypeDescription": "Ivoryscribe Book",
+            "UTTypeConformsTo": ["public.data", "public.content"],
+            "UTTypeTagSpecification": {
+              "public.filename-extension": ["tusk"],
+              "public.mime-type": ["application/vnd.ivoryscribe.book+xml"]
+            }
+          },
+          {
+            "UTTypeIdentifier": "com.ivoryscribe.tusks",
+            "UTTypeDescription": "Ivoryscribe Presentation",
+            "UTTypeConformsTo": ["public.data", "public.content"],
+            "UTTypeTagSpecification": {
+              "public.filename-extension": ["tusks"],
+              "public.mime-type": ["application/vnd.ivoryscribe.presentation+xml"]
+            }
+          }
+        ]
+      }
     },
     "win": {
       "target": "nsis",

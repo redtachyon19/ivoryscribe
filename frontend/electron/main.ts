@@ -17,6 +17,49 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
 const isMac = process.platform === "darwin"
 
+// ── File-association open queue ───────────────────────────────
+// Paths handed to us by the OS (Finder double-click on macOS, command-line
+// args on Win/Linux, `second-instance` events) before the renderer is ready
+// must be buffered. We flush them once the window finishes loading. After
+// that we just send live.
+const OPEN_PATH_CHANNEL = "app:open-path"
+// Must stay in sync with kindForExtension in core/localFiles/types.ts. Any
+// extension we let through here gets handed to openExternalFile, which uses
+// kindForExtension to dispatch to the right codec.
+const SUPPORTED_OPEN_EXTENSIONS = new Set([".tusk", ".tusks", ".md", ".txt"])
+const pendingOpenPaths: string[] = []
+let isRendererReady = false
+
+function hasSupportedExtension(filePath: string): boolean {
+  return SUPPORTED_OPEN_EXTENSIONS.has(path.extname(filePath).toLowerCase())
+}
+
+function enqueueOpenPath(filePath: string) {
+  if (!filePath || !hasSupportedExtension(filePath)) return
+  if (isRendererReady && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(OPEN_PATH_CHANNEL, filePath)
+    // Bring the window to the front so a Finder double-click on an already-
+    // running app doesn't silently load behind whatever the user was doing.
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  } else {
+    pendingOpenPaths.push(filePath)
+  }
+}
+
+function flushPendingOpenPaths() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  for (const p of pendingOpenPaths) mainWindow.webContents.send(OPEN_PATH_CHANNEL, p)
+  pendingOpenPaths.length = 0
+}
+
+// Pull supported file paths out of an argv array. Skips electron-runtime
+// flags and the executable path itself. Used for Windows/Linux startup and
+// the `second-instance` event payload.
+function collectPathsFromArgv(argv: string[]): string[] {
+  return argv.slice(1).filter((arg) => !arg.startsWith("-") && hasSupportedExtension(arg))
+}
+
 // ── Helpers shared by main + child windows ──
 
 function makeBrowserWindowOptions(): Electron.BrowserWindowConstructorOptions {
@@ -153,6 +196,21 @@ function createWindow() {
 
   mainWindow.webContents.on("preload-error", (_event, preload, error) => {
     console.error("[ivoryscribe] PRELOAD ERROR:", preload, error)
+  })
+
+  // Mark the renderer ready *after* the first paint and flush any paths the
+  // OS handed us during startup (e.g. a Finder double-click that launched
+  // the app cold).
+  mainWindow.webContents.once("did-finish-load", () => {
+    isRendererReady = true
+    flushPendingOpenPaths()
+  })
+
+  // If the window is closed and recreated (macOS dock activate path), reset
+  // the readiness flag so we re-buffer until the next did-finish-load.
+  mainWindow.on("closed", () => {
+    isRendererReady = false
+    mainWindow = null
   })
 
   if (VITE_DEV_SERVER_URL) {
@@ -378,8 +436,40 @@ app.on("activate", () => {
   }
 })
 
-void app.whenReady().then(() => {
-  createWindow()
-  // Set a minimal default menu; the renderer will send the full menu once loaded
-  applyNativeMenu([])
-})
+// ── File-association lifecycle ────────────────────────────────
+// Single-instance lock: a Finder double-click on a second .tusk file must
+// route to the running app (via `second-instance`) instead of spawning a
+// duplicate that would race the filesystem watcher and clobber state.
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on("second-instance", (_event, argv) => {
+    // Foreground the existing window, then queue any file paths the new
+    // invocation was started with.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+    for (const p of collectPathsFromArgv(argv)) enqueueOpenPath(p)
+  })
+
+  // macOS: Finder double-clicks dispatch `open-file` to the running app
+  // (warm start) OR to the launching app before `ready` (cold start). Both
+  // funnel through enqueueOpenPath, which buffers until the renderer is up.
+  app.on("open-file", (event, filePath) => {
+    event.preventDefault()
+    enqueueOpenPath(filePath)
+  })
+
+  // Cold-start argv on Windows/Linux (macOS uses open-file for this).
+  if (!isMac) {
+    for (const p of collectPathsFromArgv(process.argv)) enqueueOpenPath(p)
+  }
+
+  void app.whenReady().then(() => {
+    createWindow()
+    // Set a minimal default menu; the renderer will send the full menu once loaded
+    applyNativeMenu([])
+  })
+}

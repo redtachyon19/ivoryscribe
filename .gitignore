@@ -13,6 +13,16 @@ dist-electron
 dist-ssr
 *.local
 
+# electron-builder output — DMG + unpacked .app bundle. Huge (~150MB+)
+# and reproducible from source via `npm run package:mac`. GitHub rejects
+# pushes containing files >100MB, which the Electron Framework binary
+# alone trips. Never commit.
+frontend/release/
+
+# quicklook helper build output — compiled .appex bundle assembled by
+# quicklook/build.sh. Reproducible from Swift source. Don't commit.
+quicklook/build/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
