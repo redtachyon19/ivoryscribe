@@ -26,10 +26,14 @@
 
 - fonts loading is still not etnreily resove
 
-
 - delete the scrolling effect
 
 - open folders in new windows
+
+
+- glitch regarding opening  absolute paths, they appear in the side bar for a short moment and should never do so
+
+- opening those absolute paths should also open in a new window
 
 resolved
 - allow opening in a new tab on electron local app (done)

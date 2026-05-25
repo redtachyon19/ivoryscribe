@@ -16,6 +16,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("menu:command", handler)
     return () => { ipcRenderer.removeListener("menu:command", handler) }
   },
+  // Fired when the OS hands us a file to open — Finder double-click on a
+  // .tusk/.tusks (macOS open-file), a second-instance launch with file
+  // args, or a cold-start argv path on Win/Linux. The main process buffers
+  // until the renderer subscribes via this listener.
+  onOpenPath: (callback: (filePath: string) => void) => {
+    const handler = (_event: unknown, filePath: string) => callback(filePath)
+    ipcRenderer.on("app:open-path", handler)
+    return () => { ipcRenderer.removeListener("app:open-path", handler) }
+  },
 
   fs: {
     selectDirectory: (opts?: { defaultPath?: string; title?: string }) =>

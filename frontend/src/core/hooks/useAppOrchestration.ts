@@ -426,6 +426,32 @@ export function useAppOrchestration() {
     }
   }, [currentPathname, isWorkspaceHydrated, projects, requestedProjectId, requestedTabId])
 
+  // ── OS file-open handler (Finder double-click on .tusk/.tusks) ─────────
+  // electron/main.ts buffers paths from `open-file` / `second-instance` /
+  // cold-start argv until the renderer subscribes via onOpenPath. We hand
+  // each one to the local-FS hook's `openExternalFile`, which loads the
+  // file in place (no copy into the workspace) and gives us back a project
+  // id we can navigate to. Local mode only — in cloud mode we have no
+  // backing autosave, so we'd be silently losing edits.
+  useEffect(() => {
+    if (!isElectron) return
+    if (!isLocalMode) return
+    if (!localFsHandle) return
+    const subscribe = window.electronAPI?.onOpenPath
+    if (!subscribe) return
+    const unsubscribe = subscribe(async (filePath: string) => {
+      try {
+        const projectId = await localFsHandle.openExternalFile(filePath)
+        if (!projectId) return
+        setActiveProjectId(projectId)
+        setView("editor")
+      } catch (err) {
+        console.error("[orchestration] openExternalFile failed for", filePath, err)
+      }
+    })
+    return unsubscribe
+  }, [isElectron, isLocalMode, localFsHandle])
+
   // ── share request handlers ────────────────────────────────────
   const handleAcceptShareRequest = async (shareId: string) => {
     if (!session) return
