@@ -20,6 +20,8 @@ import { useRouting } from "./useRouting"
 import { useAppStyle } from "./useAppStyle"
 import { useProjectVersioning } from "./useProjectVersioning"
 import { useWorkspaceHydration, type WorkspaceMutators } from "./useWorkspaceHydration"
+import { useCloudProjectsInLocalMode } from "./useCloudProjectsInLocalMode"
+import { useDualStateMigration } from "./useDualStateMigration"
 import { setSessionInStorage } from "../state/session"
 import { useLocalRoot } from "../electron/localWorkspace"
 import { useLocalFilesystemSync } from "../localFiles"
@@ -253,9 +255,41 @@ export function useAppOrchestration() {
     setFolders,
     setActiveProjectId,
     setIsWorkspaceHydrated,
-    setProjectDocumentMap,
+    // setProjectDocumentMap intentionally NOT passed — only the cloud
+    // hook writes that map in the new model. Local files don't carry
+    // cloud-ids anymore.
     projects,
     folders,
+  })
+
+  // In local mode, also pull the user's cloud Documents into the
+  // Library when they're signed in — so the same project list shows
+  // both their on-disk files and their cloud-only projects. The two
+  // never collide (a project is one or the other, never both); this
+  // hook merges by `source: "cloud"` and the local filesystem sync
+  // ignores everything that isn't `source: "local"`. Edits to cloud
+  // projects autosave back to the API; local projects autosave to
+  // disk via useLocalFilesystemSync above.
+  const cloudInLocal = useCloudProjectsInLocalMode({
+    session: isLocalMode ? session : null,
+    isLocalMode,
+    projects,
+    setProjects,
+    setProjectDocumentMap,
+  })
+
+  // One-time per-session migration: retire any legacy dual-state
+  // projects (local file with embedded cloud-id) by trashing the
+  // local copy now that the cloud fetch above has confirmed the
+  // cloud Document is reachable. Idempotent within a session — only
+  // re-runs when the workspace re-hydrates (e.g. user changes root).
+  useDualStateMigration({
+    isLocalMode,
+    isWorkspaceHydrated,
+    projects,
+    projectDocumentMap,
+    localFsHandle: localFsHandle ?? null,
+    setProjects,
   })
 
   // Track an auth overlay flag so share flows can request sign-in without
@@ -271,30 +305,53 @@ export function useAppOrchestration() {
    * return that id so the share dialog can proceed. No-ops with the existing
    * id when the project is already shared.
    */
-  const enableCloudSharing = async (projectId: string): Promise<string | null> => {
+  /** Promote a local project to cloud: upload its current content to
+   *  the cloud as a new Document, flip `source` to `"cloud"`, register
+   *  the doc id, then trash the local file. Atomic from the user's
+   *  POV — if the upload fails the file is left alone. */
+  const moveLocalProjectToCloud = async (projectId: string): Promise<string | null> => {
     if (!session) {
       pendingShareProjectIdRef.current = projectId
       setIsAuthOverlayOpen(true)
       return null
     }
-    const existing = projectDocumentMap[projectId]
-    if (existing) return existing
-    if (!isLocalMode || !localFsHandle) {
-      // Cloud-mode projects without a documentId go through the legacy sync
-      // path — we shouldn't need to upload here.
-      return null
-    }
+    if (!isLocalMode || !localFsHandle) return null
     const filePath = localFsHandle.getFilePathForProject(projectId)
     if (!filePath) return null
+
+    let cloudId: string
     try {
-      const cloudId = await uploadLocalFileAsCloudDocument(session.token, filePath)
-      await localFsHandle.attachCloudIdToProject(projectId, cloudId)
-      setProjectDocumentMap((cur) => ({ ...cur, [projectId]: cloudId }))
-      return cloudId
-    } catch (e) {
-      console.error("[share] failed to enable cloud sharing", e)
+      // Existing util — reads the file, uploads to cloud as a new
+      // Document, returns the doc id. Doesn't touch the local file.
+      cloudId = await uploadLocalFileAsCloudDocument(session.token, filePath)
+    } catch (err) {
+      console.error("[moveToCloud] upload failed; local file left intact:", err)
       return null
     }
+
+    // Now flip state to cloud BEFORE trashing the file: the local-sync
+    // diff sees source: "cloud" and skips any disk write that might
+    // otherwise race with our trash. Then we trash. Then we remove
+    // the local entry (the cloud fetch will repopulate it cleanly).
+    setProjectDocumentMap((cur) => ({ ...cur, [projectId]: cloudId }))
+    setProjects((cur) => cur.map((p) => p.id === projectId ? { ...p, source: "cloud" } : p))
+    try {
+      await localFsHandle.promoteLocalProjectToCloud(projectId)
+    } catch (err) {
+      console.error("[moveToCloud] trash step failed:", err)
+    }
+    return cloudId
+  }
+
+  /** Called by ShareDialog when the user wants to share a local
+   *  project. In the new model that's the same operation as "Move to
+   *  Cloud": upload the file, register the cloud doc id, flip
+   *  `source` to `"cloud"`, trash the local file. Once it's cloud,
+   *  the existing share flow takes over. */
+  const enableCloudSharing = async (projectId: string): Promise<string | null> => {
+    const existing = projectDocumentMap[projectId]
+    if (existing) return existing
+    return moveLocalProjectToCloud(projectId)
   }
 
   // ── ref syncs ────────────────────────────────────────────────
@@ -516,6 +573,13 @@ export function useAppOrchestration() {
     tuskAiActivated: billing.tuskAiBilling.tuskAiActivated,
     isStartingTuskCheckout: billing.isStartingTuskCheckout,
     activeContent,
+    // The current workspace folder the user has chosen in settings.
+    // Read-only kinds (PDFs) store their path RELATIVE to this root and
+    // resolve to an absolute path at render time, so changing the
+    // workspace in settings automatically reroots every PDF without
+    // anyone having to write or invalidate a cached absolute path.
+    workspaceRoot: isLocalMode ? localRoot.root : null,
+    matchPdfToPalette: style.matchPdfToPalette,
     editorFontSize: style.fontSize,
     menuBarEnabled: isMenuBarEnabled,
     translucentNavPanel: isTranslucentNavPanel,
@@ -528,9 +592,9 @@ export function useAppOrchestration() {
     setProjects,
     setFolders,
     onOpenProject: (projectId: string) => { setActiveProjectId(projectId); setView("editor") },
-    onCreateProject: () => {
-      const nextName = generateUntitledName(projects, "Book")
-      const nextProject = createProject(nextName, "Book")
+    onCreateProject: (kind: import("../utils/projects").ProjectKind) => {
+      const nextName = generateUntitledName(projects, kind)
+      const nextProject = createProject(nextName, kind)
       setProjects((cur) => [{ ...nextProject, folderId: null, rootPosition: "top" }, ...cur])
       setActiveProjectId(nextProject.id)
       if (sessionRef.current && isWorkspaceHydrated) {
@@ -570,9 +634,35 @@ export function useAppOrchestration() {
     projectDocumentMap,
     onPermanentlyDeleteProjects: permanentlyDeleteProjects,
     onEnableCloudSharing: enableCloudSharing,
+    onMoveProjectToCloud: moveLocalProjectToCloud,
+    // Local-only context-menu actions. Both no-op (and are exposed as
+    // undefined) when there is no on-disk file backing the project — i.e.
+    // pure cloud mode, or before workspace hydration.
+    onCopyProjectPath: localFsHandle ? (projectId: string) => {
+      const filePath = localFsHandle.getFilePathForProject(projectId)
+      if (!filePath) return
+      void navigator.clipboard.writeText(filePath)
+    } : undefined,
+    onShowProjectInFinder: (localFsHandle && window.electronAPI?.fs.showItemInFolder) ? (projectId: string) => {
+      const filePath = localFsHandle.getFilePathForProject(projectId)
+      if (!filePath) return
+      window.electronAPI?.fs.showItemInFolder(filePath)
+    } : undefined,
     userEmail: session?.user.email ?? "",
-    sharedProjectIds: new Set(shareIdByProjectIdRef.current.keys()),
-    ownerEmailByProjectId: ownerEmailByProjectIdRef.current,
+    // Merge share metadata from both sources:
+    //  • useWorkspaceHydration owns cloud mode (it's gated off in
+    //    local mode, so its refs are empty there).
+    //  • useCloudProjectsInLocalMode owns local mode's cloud
+    //    projects, including any that are shared.
+    // Locally-only projects never appear in either set.
+    sharedProjectIds: new Set([
+      ...shareIdByProjectIdRef.current.keys(),
+      ...cloudInLocal.sharedProjectIds,
+    ]),
+    ownerEmailByProjectId: new Map([
+      ...ownerEmailByProjectIdRef.current,
+      ...cloudInLocal.ownerEmailByProjectId,
+    ]),
     pendingShareRequests,
     onAcceptShareRequest: handleAcceptShareRequest,
     onRejectShareRequest: handleRejectShareRequest,
@@ -582,7 +672,7 @@ export function useAppOrchestration() {
       const proj = projects.find((p) => p.id === projectId)
       const projectName = proj?.name ?? "Project"
       const theme = resolveThemeForPalette(style.palette, { customPaletteBackground: style.customPaletteBackground, customPaletteAccent: style.customPaletteAccent })
-      const html = buildVersionHistoryPageHtml({ versions, projectName, projectId, bodyFont: style.bodyFont, uiFont: style.uiFont, displayFont: style.displayFont, ...theme })
+      const html = buildVersionHistoryPageHtml({ versions, projectName, projectId, bodyFont: style.bodyFont, uiFont: style.uiFont, displayFont: style.displayFont, ...theme, isElectron: !!window.electronAPI })
       const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
       window.open(blobUrl, "_blank")
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)
@@ -630,6 +720,8 @@ export function useAppOrchestration() {
     customPaletteAccent: style.customPaletteAccent,
     onCustomPaletteBackgroundChange: style.setCustomPaletteBackground,
     onCustomPaletteAccentChange: style.setCustomPaletteAccent,
+    matchPdfToPalette: style.matchPdfToPalette,
+    onMatchPdfToPaletteChange: style.setMatchPdfToPalette,
     accountFirstName: session?.user.firstName ?? "",
     accountLastName: session?.user.lastName ?? "",
     accountEmail: session?.user.email ?? "",
@@ -644,7 +736,7 @@ export function useAppOrchestration() {
       if (!activeProject) return
       const versions = versioning.projectVersionsByProjectId[activeProject.id] ?? []
       const theme = resolveThemeForPalette(style.palette, { customPaletteBackground: style.customPaletteBackground, customPaletteAccent: style.customPaletteAccent })
-      const html = buildVersionHistoryPageHtml({ versions, projectName: activeProject.name, projectId: activeProject.id, bodyFont: style.bodyFont, uiFont: style.uiFont, displayFont: style.displayFont, ...theme })
+      const html = buildVersionHistoryPageHtml({ versions, projectName: activeProject.name, projectId: activeProject.id, bodyFont: style.bodyFont, uiFont: style.uiFont, displayFont: style.displayFont, ...theme, isElectron: !!window.electronAPI })
       const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
       window.open(blobUrl, "_blank")
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)

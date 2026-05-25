@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
-import { Copy, ExternalLink, FilePlus2, FileText, Pencil, Presentation, Trash2 } from "lucide-react"
-import { collectTabIds, getProjectEntryTerms, type DocumentTab, type ProjectKind } from "../../../core/utils/projects"
+import { Copy, ExternalLink, FileCode, FilePlus2, FileType, Pencil, Presentation, Trash2 } from "lucide-react"
+import { collectTabIds, getProjectEntryTerms, type DocumentTab, type Project, type ProjectKind } from "../../../core/utils/projects"
+import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
 import { useListDrag, type DropMode } from "../shared/hooks/useListDrag"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
 import Button from "../ui/Button"
@@ -24,14 +25,20 @@ type DocumentTabsProps = {
   projectName: string
   tabs: DocumentTab[]
   projectKind: ProjectKind
+  /** Full project, used to resolve per-tab file-type icons (markdown vs.
+   *  plaintext vs. PDF vs. pinboard vs. prose chapter). */
+  project: Project
   activeId: string | null
   isVisible?: boolean
   pendingEditTabIds?: Set<string>
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
   onSelect: (id: string) => void
+  /** Create the project's primary entry: a Chapter in a Book, a Pinboard
+   *  (slide) in a Presentation. Caller is responsible for the actual call —
+   *  this panel just exposes the action via the context menu. */
   onCreateEntry: () => void
-  onCreatePinboard: () => void
   onCreateMarkdown: () => void
+  onCreatePlainText: () => void
   onOpenTabInNewTab?: (tabId: string) => void
   onDuplicateTab?: (tabId: string) => void
 }
@@ -44,14 +51,15 @@ export default function DocumentTabsPanel({
   projectName,
   tabs,
   projectKind,
+  project,
   activeId,
   isVisible = true,
   pendingEditTabIds,
   onTabsChange,
   onSelect,
   onCreateEntry,
-  onCreatePinboard,
   onCreateMarkdown,
+  onCreatePlainText,
   onOpenTabInNewTab,
   onDuplicateTab,
 }: DocumentTabsProps) {
@@ -402,6 +410,10 @@ export default function DocumentTabsPanel({
 
       <header className="doc-tabs__header">
         <p className="doc-tabs__project-name" data-marquee-parent><MarqueeText text={projectName} /></p>
+        {/* Phase 7: per-kind plural heading. Books say "Chapters", Presentations
+            "Slides". Single-document kinds never reach this component (the
+            list is suppressed entirely by NavigationPanel). */}
+        <p className="doc-tabs__entry-heading" aria-hidden="true">{plural}</p>
       </header>
 
       <div
@@ -436,6 +448,7 @@ export default function DocumentTabsPanel({
             <TabNode
               key={tab.id}
               tab={tab}
+              project={project}
               depth={0}
               activeId={activeId}
               draggingIds={draggingIds}
@@ -523,23 +536,39 @@ export default function DocumentTabsPanel({
           onClose={closeContextMenu}
           actions={(() => {
             if (contextMenu.kind === "background") {
-              return [
-                {
-                  label: `Create ${singular}`,
-                  icon: <FilePlus2 size={15} strokeWidth={1.9} aria-hidden="true" />,
-                  action: onCreateEntry,
-                },
-                {
-                  label: "Create Pinboard",
-                  icon: <Presentation size={15} strokeWidth={1.9} aria-hidden="true" />,
-                  action: onCreatePinboard,
-                },
-                {
-                  label: "Create Markdown",
-                  icon: <FileText size={15} strokeWidth={1.9} aria-hidden="true" />,
-                  action: onCreateMarkdown,
-                },
-              ]
+              // Background create options follow the slide-2 header rules:
+              //   • Book: Create Chapter / Markdown / Plain Text
+              //   • Presentation: Create Pinboard
+              //   • single-doc: unreachable (panel is hidden)
+              if (projectKind === "Book") {
+                return [
+                  {
+                    label: `Create ${singular}`,
+                    icon: <FilePlus2 size={15} strokeWidth={1.9} aria-hidden="true" />,
+                    action: onCreateEntry,
+                  },
+                  {
+                    label: "Create Markdown",
+                    icon: <FileCode size={15} strokeWidth={1.9} aria-hidden="true" />,
+                    action: onCreateMarkdown,
+                  },
+                  {
+                    label: "Create Plain Text",
+                    icon: <FileType size={15} strokeWidth={1.9} aria-hidden="true" />,
+                    action: onCreatePlainText,
+                  },
+                ]
+              }
+              if (projectKind === "Presentation") {
+                return [
+                  {
+                    label: "Create Pinboard",
+                    icon: <Presentation size={15} strokeWidth={1.9} aria-hidden="true" />,
+                    action: onCreateEntry,
+                  },
+                ]
+              }
+              return []
             }
 
             const contextMenuSelectedIds = contextMenu.selectedTabIds ?? []
@@ -567,7 +596,7 @@ export default function DocumentTabsPanel({
             if (!tab) return []
             const actions: ContextMenuAction[] = [
               ...(onOpenTabInNewTab ? [{
-                label: "Open in New Tab",
+                label: openInNewItemLabel(),
                 icon: <ExternalLink size={15} strokeWidth={1.9} aria-hidden="true" />,
                 action: () => {
                   onOpenTabInNewTab(contextMenu.tabId)

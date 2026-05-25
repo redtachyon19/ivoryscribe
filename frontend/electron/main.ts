@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron"
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron"
 import type { MenuItemConstructorOptions } from "electron"
 import { promises as fsp } from "node:fs"
 import path from "node:path"
@@ -16,6 +16,61 @@ let mainWindow: BrowserWindow | null = null
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
 const isMac = process.platform === "darwin"
+
+// ── Helpers shared by main + child windows ──
+
+function makeBrowserWindowOptions(): Electron.BrowserWindowConstructorOptions {
+  const preloadPath = path.join(__dirname, "preload.cjs")
+  return {
+    width: 1280,
+    height: 820,
+    minWidth: 800,
+    minHeight: 600,
+    titleBarStyle: isMac ? "hiddenInset" : "hidden",
+    trafficLightPosition: isMac ? { x: 16, y: 14 } : undefined,
+    frame: isMac,
+    transparent: isMac,
+    vibrancy: isMac ? "sidebar" : undefined,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  }
+}
+
+// "Open in new window" URLs come from window.open() in the renderer. We want
+// to spawn a real Electron BrowserWindow for our own app URLs (dev server +
+// blob previews) and shell out to the system browser for everything else.
+function isInternalUrl(url: string): boolean {
+  if (url.startsWith("blob:") || url.startsWith("file:") || url.startsWith("about:")) {
+    return true
+  }
+  try {
+    const parsed = new URL(url)
+    if (VITE_DEV_SERVER_URL) {
+      const dev = new URL(VITE_DEV_SERVER_URL)
+      if (parsed.origin === dev.origin) return true
+    }
+  } catch {
+    // Malformed URL — treat as external.
+  }
+  return false
+}
+
+function configureWebContents(webContents: Electron.WebContents) {
+  webContents.setWindowOpenHandler(({ url }) => {
+    if (isInternalUrl(url)) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: makeBrowserWindowOptions(),
+      }
+    }
+    void shell.openExternal(url)
+    return { action: "deny" }
+  })
+}
 
 // ── Native menu helpers ──
 
@@ -60,8 +115,10 @@ function buildNativeMenu(items: RendererMenuItem[], sendCommand: (id: string) =>
 }
 
 function applyNativeMenu(rendererItems: RendererMenuItem[]) {
+  // Route menu commands to whichever window is focused (fall back to main).
   const sendCommand = (id: string) => {
-    mainWindow?.webContents.send("menu:command", id)
+    const target = BrowserWindow.getFocusedWindow() ?? mainWindow
+    target?.webContents.send("menu:command", id)
   }
 
   const appMenuItems = buildNativeMenu(rendererItems, sendCommand)
@@ -92,36 +149,10 @@ function applyNativeMenu(rendererItems: RendererMenuItem[]) {
 // ── Window creation ──
 
 function createWindow() {
-
-  const preloadPath = path.join(__dirname, "preload.cjs")
-  console.log("[ivoryscribe] preload path:", preloadPath)
-
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 800,
-    minHeight: 600,
-    titleBarStyle: isMac ? "hiddenInset" : "hidden",
-    trafficLightPosition: isMac ? { x: 16, y: 14 } : undefined,
-    frame: isMac,
-    transparent: isMac,
-    vibrancy: isMac ? "sidebar" : undefined,
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  })
+  mainWindow = new BrowserWindow(makeBrowserWindowOptions())
 
   mainWindow.webContents.on("preload-error", (_event, preload, error) => {
     console.error("[ivoryscribe] PRELOAD ERROR:", preload, error)
-  })
-
-  // Open external links in the default browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
-    return { action: "deny" }
   })
 
   if (VITE_DEV_SERVER_URL) {
@@ -131,32 +162,36 @@ function createWindow() {
   }
 }
 
-// Window control IPC handlers
-ipcMain.on("window:minimize", () => {
-  mainWindow?.minimize()
+// Window control IPC handlers. We resolve the target from `event.sender` so
+// that secondary windows (spawned via window.open) control themselves rather
+// than the main window.
+ipcMain.on("window:minimize", (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.minimize()
 })
 
-ipcMain.on("window:maximize", () => {
-  if (mainWindow?.isMaximized()) {
-    mainWindow.unmaximize()
+ipcMain.on("window:maximize", (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return
+  if (win.isMaximized()) {
+    win.unmaximize()
   } else {
-    mainWindow?.maximize()
+    win.maximize()
   }
 })
 
-ipcMain.on("window:close", () => {
-  mainWindow?.close()
+ipcMain.on("window:close", (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.close()
 })
 
-ipcMain.handle("window:isMaximized", () => {
-  return mainWindow?.isMaximized() ?? false
+ipcMain.handle("window:isMaximized", (event) => {
+  return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false
 })
 
-ipcMain.handle("window:isFullScreen", () => {
-  return mainWindow?.isFullScreen() ?? false
+ipcMain.handle("window:isFullScreen", (event) => {
+  return BrowserWindow.fromWebContents(event.sender)?.isFullScreen() ?? false
 })
 
-ipcMain.handle("spellcheck:add-word", (_event, word: unknown) => {
+ipcMain.handle("spellcheck:add-word", (event, word: unknown) => {
   if (typeof word !== "string") {
     return false
   }
@@ -167,13 +202,13 @@ ipcMain.handle("spellcheck:add-word", (_event, word: unknown) => {
   }
 
   try {
-    return mainWindow?.webContents.session.addWordToSpellCheckerDictionary(normalizedWord) ?? false
+    return event.sender.session.addWordToSpellCheckerDictionary(normalizedWord)
   } catch {
     return false
   }
 })
 
-ipcMain.handle("spellcheck:remove-word", (_event, word: unknown) => {
+ipcMain.handle("spellcheck:remove-word", (event, word: unknown) => {
   if (typeof word !== "string") {
     return false
   }
@@ -183,10 +218,7 @@ ipcMain.handle("spellcheck:remove-word", (_event, word: unknown) => {
     return false
   }
 
-  const session = mainWindow?.webContents.session
-  if (!session) {
-    return false
-  }
+  const session = event.sender.session
 
   if (typeof session.removeWordFromSpellCheckerDictionary !== "function") {
     return false
@@ -208,9 +240,10 @@ ipcMain.on("menu:update", (_event, items: RendererMenuItem[]) => {
 // Local-file project storage lives entirely under a user-chosen root folder.
 // Every operation takes absolute paths produced by path.join via preload.
 
-ipcMain.handle("dialog:selectDirectory", async (_event, opts: { defaultPath?: string; title?: string } = {}) => {
-  if (!mainWindow) return null
-  const result = await dialog.showOpenDialog(mainWindow, {
+ipcMain.handle("dialog:selectDirectory", async (event, opts: { defaultPath?: string; title?: string } = {}) => {
+  const parent = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+  if (!parent) return null
+  const result = await dialog.showOpenDialog(parent, {
     title: opts.title ?? "Select folder",
     defaultPath: opts.defaultPath,
     properties: ["openDirectory", "createDirectory"],
@@ -231,6 +264,14 @@ ipcMain.handle("fs:getDefaultRoot", async () => {
 
 ipcMain.handle("fs:readFile", async (_event, filePath: string) => {
   return await fsp.readFile(filePath, "utf8")
+})
+
+// Binary read for files where utf-8 would corrupt the bytes (PDFs, images,
+// etc.). Returns a Buffer; Electron IPC structured-clones it into a
+// Uint8Array on the renderer side. Keep this separate from `fs:readFile` so
+// existing utf-8 call sites don't accidentally get a Buffer back.
+ipcMain.handle("fs:readFileBinary", async (_event, filePath: string) => {
+  return await fsp.readFile(filePath)
 })
 
 ipcMain.handle("fs:writeFile", async (_event, filePath: string, contents: string) => {
@@ -283,6 +324,21 @@ ipcMain.handle("fs:trash", async (_event, targetPath: string) => {
   await shell.trashItem(targetPath)
 })
 
+// Reveal a file or directory in the OS file manager (Finder/Explorer/Files).
+ipcMain.on("fs:showItemInFolder", (_event, targetPath: string) => {
+  shell.showItemInFolder(targetPath)
+})
+
+// Read plain text from the system clipboard via Electron's main-process
+// clipboard module. The renderer's `navigator.clipboard.readText()` can be
+// blocked by missing user-activation in callback contexts (e.g. when a
+// menu accelerator fires), so we expose a guaranteed-to-work path here.
+ipcMain.handle("clipboard:readText", () => {
+  return clipboard.readText()
+})
+
+
+
 ipcMain.handle("fs:exists", async (_event, targetPath: string) => {
   try {
     await fsp.access(targetPath)
@@ -300,6 +356,13 @@ ipcMain.handle("fs:stat", async (_event, targetPath: string) => {
     isDirectory: s.isDirectory(),
     isFile: s.isFile(),
   }
+})
+
+// Install the window-open handler on every webContents (main window + any
+// child windows opened via window.open). Without this, secondary windows
+// wouldn't be able to spawn further windows themselves.
+app.on("web-contents-created", (_event, webContents) => {
+  configureWebContents(webContents)
 })
 
 app.on("window-all-closed", () => {

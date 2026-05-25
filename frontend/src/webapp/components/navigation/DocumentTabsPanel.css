@@ -16,9 +16,22 @@
 
 .doc-tabs__header {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   justify-content: flex-start;
   margin: 10px 0 4px;
+}
+
+/* Phase-7 section label ("Chapters" / "Slides"). Quiet — it's a label,
+   not a header — and sits just under the project name. */
+.doc-tabs__entry-heading {
+  margin: 2px 0 6px;
+  padding: 0 8px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 50%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .doc-tabs__project-name {
@@ -203,6 +216,17 @@
   white-space: nowrap;
   opacity: 0.75;
   transition: opacity 320ms ease-in-out;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-tabs__type-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
 }
 
 .doc-tabs__row:hover .doc-tabs__label,
@@ -232,7 +256,8 @@
 
 .doc-tabs__label-marquee {
   display: block;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
 }
 

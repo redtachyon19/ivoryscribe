@@ -5,7 +5,9 @@
 import { Suspense, lazy, type Dispatch, type SetStateAction } from "react"
 import DraftingEditor from "./DraftingEditor"
 import MarkdownEditor from "./MarkdownEditor"
+import PDFViewer from "./PDFViewer"
 import PinboardEditor from "./PinboardEditor"
+import PlainTextEditor from "./PlainTextEditor"
 import TypewriterEditor from "./TypewriterEditor"
 import DiffHunkWidgets from "../ai/DiffHunkWidgets"
 import ProjectExportModal from "../export/ProjectExportModal"
@@ -18,6 +20,7 @@ import {
   type Project,
 } from "../../../core/utils/projects"
 import type { TabViewMode } from "./utils/viewModePrefs"
+import type { MarkdownTabViewMode } from "./utils/markdownViewModePrefs"
 import type { useFindReplaceModal } from "../../../core/hooks/useFindReplaceModal"
 import type { useSpellCheckOrchestration } from "./hooks/useSpellCheckOrchestration"
 import type { useProjectExport } from "./hooks/useProjectExport"
@@ -31,7 +34,15 @@ type EditorWorkspaceProps = {
   editorFontSize: number
   flagsEnabled: boolean
   activeViewMode: TabViewMode
-  activeDocumentType: "prose" | "pinboard" | "markdown"
+  activeMarkdownViewMode: MarkdownTabViewMode
+  onSetMarkdownViewMode: (mode: MarkdownTabViewMode) => void
+  activeDocumentType: "prose" | "pinboard" | "markdown" | "plaintext" | "pdf"
+  /** Workspace root from settings. PDFViewer joins this with the
+   *  project's relative path at render time. Null in cloud mode. */
+  workspaceRoot?: string | null
+  /** When true, the PDFViewer rasterises pages with the app palette's
+   *  background and text colour instead of the document's own. */
+  matchPdfToPalette?: boolean
   activeDocumentTitle: string
   exportTabs: Array<{ id: string; title: string }>
   onProjectChange: (updater: (project: Project) => Project) => void
@@ -49,7 +60,11 @@ export default function EditorWorkspace({
   editorFontSize,
   flagsEnabled,
   activeViewMode,
+  activeMarkdownViewMode,
+  onSetMarkdownViewMode,
   activeDocumentType,
+  workspaceRoot,
+  matchPdfToPalette,
   activeDocumentTitle,
   exportTabs,
   onProjectChange,
@@ -169,6 +184,8 @@ export default function EditorWorkspace({
           documentId={project.activeId}
           content={activeContent}
           editorFontSize={editorFontSize}
+          viewMode={activeMarkdownViewMode}
+          onViewModeChange={onSetMarkdownViewMode}
           onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {
             setSelectedWordCount(nextSelectionCount)
           }}
@@ -176,6 +193,32 @@ export default function EditorWorkspace({
           onContentChange={(nextContent) => {
             onProjectChange((currentProject) => setActiveTabContent(currentProject, nextContent))
           }}
+        />
+      ) : activeDocumentType === "plaintext" ? (
+        <PlainTextEditor
+          documentId={project.activeId}
+          content={activeContent}
+          editorFontSize={editorFontSize}
+          onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {
+            setSelectedWordCount(nextSelectionCount)
+          }}
+          onTypingStateChange={onEditorTypingStateChange}
+          onContentChange={(nextContent) => {
+            onProjectChange((currentProject) => setActiveTabContent(currentProject, nextContent))
+          }}
+        />
+      ) : activeDocumentType === "pdf" ? (
+        // `activeContent` for a PDF is a path RELATIVE to the workspace
+        // root, set by `pdfFileToProject` during hydrate. The viewer
+        // resolves it to absolute on every render against the current
+        // `workspaceRoot` setting — so we never read from a stale
+        // absolute path, and switching workspace in settings reroots
+        // every PDF automatically.
+        <PDFViewer
+          workspaceRoot={workspaceRoot ?? null}
+          relativePath={activeContent}
+          projectId={project.id}
+          matchPalette={matchPdfToPalette}
         />
       ) : (
         <div ref={editorStageRef} className="editor-workspace__editor-stage">

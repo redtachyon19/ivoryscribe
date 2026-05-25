@@ -47,6 +47,8 @@ export type GlobalSettingsProps = {
   customPaletteAccent: string
   onCustomPaletteBackgroundChange: (color: string) => void
   onCustomPaletteAccentChange: (color: string) => void
+  matchPdfToPalette: boolean
+  onMatchPdfToPaletteChange: (enabled: boolean) => void
   accountFirstName: string
   accountLastName: string
   accountEmail: string
@@ -122,6 +124,8 @@ export default function GlobalSettings({
   customPaletteAccent,
   onCustomPaletteBackgroundChange,
   onCustomPaletteAccentChange,
+  matchPdfToPalette,
+  onMatchPdfToPaletteChange,
   accountFirstName,
   accountLastName,
   accountEmail,
@@ -493,6 +497,8 @@ export default function GlobalSettings({
                   onPaletteChange={onPaletteChange}
                   onCustomPaletteBackgroundChange={onCustomPaletteBackgroundChange}
                   onCustomPaletteAccentChange={onCustomPaletteAccentChange}
+                  matchPdfToPalette={matchPdfToPalette}
+                  onMatchPdfToPaletteChange={onMatchPdfToPaletteChange}
                   sectionRef={(element) => {
                     sectionRefs.current.appearance = element
                   }}

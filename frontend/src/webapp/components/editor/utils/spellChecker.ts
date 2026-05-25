@@ -1,6 +1,6 @@
 import englishWords from "an-array-of-english-words"
 
-export type SpellCheckDocumentType = "text" | "markdown"
+export type SpellCheckDocumentType = "text" | "markdown" | "plaintext"
 
 export type SpellCheckFocusTarget =
   | {
@@ -10,6 +10,13 @@ export type SpellCheckFocusTarget =
   }
   | {
     documentType: "markdown"
+    normalizedWord: string
+    occurrenceIndex: number
+    start: number
+    end: number
+  }
+  | {
+    documentType: "plaintext"
     normalizedWord: string
     occurrenceIndex: number
     start: number
@@ -307,7 +314,15 @@ function buildIssue(
   }
 }
 
-function collectIssuesFromMarkdown(value: string, ignoredWords: Set<string>) {
+/** Position-aware collector shared by Markdown and PlainText documents — both
+ *  are raw strings whose offsets map directly to textarea selections. The
+ *  emitted focusTarget.documentType determines which editor's focus event
+ *  listener will pick it up. */
+function collectIssuesFromRawText(
+  value: string,
+  ignoredWords: Set<string>,
+  focusType: "markdown" | "plaintext",
+) {
   const issues: SpellCheckIssue[] = []
   const occurrenceMap: OccurrenceMap = new Map()
   const matcher = new RegExp(WORD_MATCHER.source, WORD_MATCHER.flags)
@@ -330,7 +345,7 @@ function collectIssuesFromMarkdown(value: string, ignoredWords: Set<string>) {
           start,
           end,
           {
-            documentType: "markdown",
+            documentType: focusType,
             normalizedWord,
             occurrenceIndex,
             start,
@@ -344,6 +359,14 @@ function collectIssuesFromMarkdown(value: string, ignoredWords: Set<string>) {
   }
 
   return issues
+}
+
+function collectIssuesFromMarkdown(value: string, ignoredWords: Set<string>) {
+  return collectIssuesFromRawText(value, ignoredWords, "markdown")
+}
+
+function collectIssuesFromPlaintext(value: string, ignoredWords: Set<string>) {
+  return collectIssuesFromRawText(value, ignoredWords, "plaintext")
 }
 
 function collectIssuesFromHtml(value: string, ignoredWords: Set<string>) {
@@ -480,6 +503,9 @@ export function collectSpellCheckIssues(
   if (documentType === "markdown") {
     return collectIssuesFromMarkdown(value, ignoredWords)
   }
+  if (documentType === "plaintext") {
+    return collectIssuesFromPlaintext(value, ignoredWords)
+  }
 
   return collectIssuesFromHtml(value, ignoredWords)
 }
@@ -495,7 +521,12 @@ export function replaceSpellCheckIssue(
     return value
   }
 
-  if (documentType === "markdown" && issue.focusTarget.documentType === "markdown") {
+  // Position-based replacement works for both Markdown and PlainText — the
+  // focusTarget already carries start/end offsets into the raw string.
+  if (
+    (documentType === "markdown" && issue.focusTarget.documentType === "markdown")
+    || (documentType === "plaintext" && issue.focusTarget.documentType === "plaintext")
+  ) {
     return `${value.slice(0, issue.focusTarget.start)}${cleanedReplacement}${value.slice(issue.focusTarget.end)}`
   }
 

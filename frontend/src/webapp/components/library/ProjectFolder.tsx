@@ -93,7 +93,10 @@ type FolderDetailViewProps = {
    *  name when navigating up out of a nested folder. */
   backLabel?: string
   onBack: () => void
-  onCreateBook: () => void
+  /** Open the create-kind picker. The view doesn't own the menu — it just
+   *  reports the click position and lets the parent (Library) render the
+   *  shared `buildCreateProjectActions` picker. */
+  onOpenCreateMenu: (anchor: { x: number; y: number; folderId: string }) => void
   onOpenSubFolder?: (folderId: string) => void
   renderProjectCard: (project: Project) => ReactNode
   /** Folder drag handlers (forwarded from useProjectDrag). When present,
@@ -119,7 +122,7 @@ export function FolderDetailView({
   subFolders = [],
   backLabel = "Library",
   onBack,
-  onCreateBook,
+  onOpenCreateMenu,
   onOpenSubFolder,
   renderProjectCard,
   onFolderDragStart,
@@ -190,9 +193,18 @@ export function FolderDetailView({
 
       {isEmpty ? (
         <div className="project-hub__create-row" role="list" aria-label="Create actions in folder">
-          <button type="button" className="project-hub__create-card" role="listitem" onClick={onCreateBook}>
+          <button
+            type="button"
+            className="project-hub__create-card"
+            role="listitem"
+            aria-haspopup="menu"
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect()
+              onOpenCreateMenu({ x: rect.left, y: rect.bottom + 6, folderId: folder.id })
+            }}
+          >
             <BookPlus size={28} aria-hidden={true} />
-            <span>Create book</span>
+            <span>Create project</span>
           </button>
         </div>
       ) : null}

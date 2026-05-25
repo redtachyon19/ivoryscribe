@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Archive, BookCopy, BookPlus, BookText, ChevronDown, Cloud, Folder, FolderPlus, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
+import { Archive, BookCopy, ChevronDown, Cloud, Folder, FolderPlus, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
+import { iconForProjectKind } from "../../../core/utils/projectIcons"
 import type { Project } from "../../../core/utils/projects"
 import type { LibrarySection } from "../library/useLibraryNavigation"
 import { duplicateProject } from "../../../core/utils/libraryUtils"
@@ -10,7 +11,7 @@ import { useListDrag } from "../shared/hooks/useListDrag"
 import useSectionDrop from "../library/useSectionDrop"
 import useProjectSettings from "../library/useProjectSettings"
 import type { ContextMenuAction } from "../library/ProjectContextMenu"
-import ProjectContextMenu, { buildProjectActions, buildFolderActions } from "../library/ProjectContextMenu"
+import ProjectContextMenu, { buildCreateProjectActions, buildProjectActions, buildFolderActions } from "../library/ProjectContextMenu"
 import ProjectSettings from "../settings/ProjectSettings"
 import ShareDialog from "../settings/ShareDialog"
 import Modal from "../ui/Modal"
@@ -34,7 +35,9 @@ type ProjectBrowserPanelProps = {
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
   sessionToken: string
   projectDocumentMap: Record<string, string>
-  onCreateProject: () => void
+  onCopyProjectPath?: (projectId: string) => void
+  onShowProjectInFinder?: (projectId: string) => void
+  onCreateProject: (kind: import("../../../core/utils/projects").ProjectKind) => void
   onCreateFolder: () => void
 }
 
@@ -55,6 +58,8 @@ export default function ProjectBrowserPanel({
   setProjects,
   sessionToken,
   projectDocumentMap,
+  onCopyProjectPath,
+  onShowProjectInFinder,
   onCreateProject,
   onCreateFolder,
 }: ProjectBrowserPanelProps) {
@@ -370,20 +375,19 @@ export default function ProjectBrowserPanel({
     setContextMenu({ x: event.clientX, y: event.clientY, kind: "background" })
   }, [])
 
-  const renderProject = (project: Project, depth = 0) => {
+  const renderProject = (project: Project) => {
     const isActive = project.id === activeProjectId
     const isDragging = drag.draggingId === project.id || (drag.draggingId !== null && multiDragIdsRef.current.has(project.id))
     const isMarqueeSelected = liveSelectedIds.has(project.id)
     const isDropBefore = drag.dropTarget?.targetId === project.id && drag.dropTarget.mode === "before"
     const isDropAfter = drag.dropTarget?.targetId === project.id && drag.dropTarget.mode === "after"
-    const Icon = BookText
+    const Icon = iconForProjectKind(project.kind)
     const isEditingProject = editingProjectId === project.id
 
     return (
       <li key={project.id} className="project-browser__item">
         <div
           className={`project-browser__drop-line project-browser__drop-line--top ${isDropBefore ? "project-browser__drop-line--visible" : ""}`.trim()}
-          style={{ marginLeft: `${8 + depth * 16}px` }}
         />
 
         <div
@@ -418,7 +422,6 @@ export default function ProjectBrowserPanel({
               draggable
               data-marquee-parent
               className={`project-browser__label ${isDragging ? "project-browser__label--dragging" : ""}`.trim()}
-              style={{ paddingLeft: `${8 + depth * 16}px` }}
               onClick={(event) => {
                 if ((event.metaKey || event.ctrlKey) && onOpenProjectInNewTab) {
                   onOpenProjectInNewTab(project.id)
@@ -448,7 +451,6 @@ export default function ProjectBrowserPanel({
 
         <div
           className={`project-browser__drop-line project-browser__drop-line--bottom ${isDropAfter ? "project-browser__drop-line--visible" : ""}`.trim()}
-          style={{ marginLeft: `${8 + depth * 16}px` }}
         />
       </li>
     )
@@ -605,7 +607,7 @@ export default function ProjectBrowserPanel({
         {hasChildren && isExpanded ? (
           <ul className="project-browser__list project-browser__list--nested">
             {subFolders.map((sub) => renderFolder(sub, depth + 1))}
-            {folderProjects.map((p) => renderProject(p, depth + 1))}
+            {folderProjects.map((p) => renderProject(p))}
           </ul>
         ) : null}
       </li>
@@ -819,11 +821,9 @@ export default function ProjectBrowserPanel({
           actions={(() => {
             if (contextMenu.kind === "background") {
               return [
-                {
-                  label: "Create Project",
-                  icon: <BookPlus size={14} strokeWidth={2} aria-hidden={true} />,
-                  action: onCreateProject,
-                },
+                // Inline the 4-kind picker so a single right-click reaches
+                // any project type without an intermediate submenu.
+                ...buildCreateProjectActions(onCreateProject),
                 {
                   label: "Create Folder",
                   icon: <FolderPlus size={14} strokeWidth={2} aria-hidden={true} />,
@@ -875,6 +875,8 @@ export default function ProjectBrowserPanel({
               })
             }
 
+            const target = projects.find((p) => p.id === contextMenu.projectId)
+            const isLocalProject = !!target && target.source !== "cloud"
             return buildProjectActions({
               projectId: contextMenu.projectId,
               onOpenInNewTab: onOpenProject,
@@ -896,6 +898,8 @@ export default function ProjectBrowserPanel({
                 setProjects((cur) => cur.map((p) => p.id === id ? { ...p, deletedAt: new Date().toISOString() } : p))
               },
               onShare: (id) => openShareDialog(id),
+              onCopyPath: isLocalProject && onCopyProjectPath ? onCopyProjectPath : undefined,
+              onShowInFinder: isLocalProject && onShowProjectInFinder ? onShowProjectInFinder : undefined,
             })
           })()}
         />

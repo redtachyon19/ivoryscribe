@@ -698,6 +698,26 @@
   text-overflow: ellipsis;
 }
 
+/* Cloud / shared chip in the meta line. Quiet — same colour as the
+   surrounding text, just an extra dot-separated glyph. */
+.project-card__meta-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
+}
+.project-card__meta-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+
 /* ── Drag states ── */
 
 .project-card--dragging {

@@ -15,12 +15,38 @@
 //
 // `paste` falls back to `navigator.clipboard.readText()` when
 // `document.execCommand("paste")` returns false (most modern browsers).
+//
+// Pass `editor = null` from non-TipTap editors (Markdown, plaintext) — the
+// hook still installs a listener so the native text-entry branch handles
+// the menu accelerators correctly, and TipTap-only commands simply no-op.
 
 import { useEffect } from "react"
 import type { Editor as TiptapEditor } from "@tiptap/react"
 import { EDITOR_COMMAND_EVENT, type EditorCommand } from "../../../../core/events/editorEvents"
 
 type EditorCommandDetail = { command: EditorCommand }
+
+/** Read clipboard text, preferring Electron's main-process clipboard
+ *  (which never gets blocked for permission) and falling back to the
+ *  renderer's async clipboard API for the web build. Returns "" on any
+ *  failure so callers can `if (!text) return` cleanly. */
+async function readClipboardText(): Promise<string> {
+  if (typeof window !== "undefined" && window.electronAPI?.clipboard?.readText) {
+    try {
+      return await window.electronAPI.clipboard.readText()
+    } catch {
+      /* fall through to the web API */
+    }
+  }
+  if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
+    try {
+      return await navigator.clipboard.readText()
+    } catch {
+      /* permission unavailable */
+    }
+  }
+  return ""
+}
 
 /** Native text-entry input types that should receive Cmd+A as "select the
  *  field's text" rather than as the editor's select-all. */
@@ -40,8 +66,6 @@ function isNativeTextEntry(el: Element | null, editor: TiptapEditor | null): boo
 
 export function useEditorCommandBus(editor: TiptapEditor | null) {
   useEffect(() => {
-    if (!editor) return
-
     const onEditorCommand = async (event: Event) => {
       const command = (event as CustomEvent<EditorCommandDetail>).detail?.command
       if (!command) return
@@ -59,9 +83,23 @@ export function useEditorCommandBus(editor: TiptapEditor | null) {
               document.execCommand("selectAll")
             }
             return
+          case "paste":
+          case "paste-plain": {
+            // Textareas / inputs are plain-text surfaces, so regular paste
+            // and paste-plain are equivalent here. execCommand("paste") is
+            // blocked in modern Electron renderer contexts (no user
+            // activation when fired from a menu accelerator), so we read
+            // the clipboard via the Electron main process (always works)
+            // and inject via execCommand("insertText", …) which fires the
+            // input event so React's controlled <textarea> updates.
+            const text = await readClipboardText()
+            if (text && typeof document !== "undefined") {
+              document.execCommand("insertText", false, text)
+            }
+            return
+          }
           case "copy":
           case "cut":
-          case "paste":
           case "bold":
           case "italic":
           case "underline":
@@ -75,6 +113,12 @@ export function useEditorCommandBus(editor: TiptapEditor | null) {
         }
         return
       }
+
+      // No TipTap editor mounted — the textarea-based editors (Markdown,
+      // plaintext) call this hook with `editor = null`. Without a TipTap
+      // surface there's nothing to do for commands that target it, so we
+      // bail rather than crash.
+      if (!editor) return
 
       // Default path: act on the TipTap editor.
       editor.commands.focus()
@@ -107,17 +151,22 @@ export function useEditorCommandBus(editor: TiptapEditor | null) {
         case "delete":
           editor.commands.deleteSelection()
           return
-        case "paste":
+        case "paste": {
           if (typeof document !== "undefined" && document.execCommand("paste")) return
-          if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
-            try {
-              const text = await navigator.clipboard.readText()
-              if (text) editor.chain().focus().insertContent(text).run()
-            } catch {
-              /* clipboard permission unavailable */
-            }
-          }
+          const text = await readClipboardText()
+          if (text) editor.chain().focus().insertContent(text).run()
           return
+        }
+        case "paste-plain": {
+          // Bypass execCommand("paste") entirely — that path inserts rich
+          // HTML and is exactly what the user is trying to avoid. Read the
+          // clipboard as plain text and insert it as a bare string; TipTap
+          // treats string content as plain text (no marks, no nodes), so
+          // the destination's current paragraph styling is preserved.
+          const text = await readClipboardText()
+          if (text) editor.chain().focus().insertContent(text).run()
+          return
+        }
       }
     }
 

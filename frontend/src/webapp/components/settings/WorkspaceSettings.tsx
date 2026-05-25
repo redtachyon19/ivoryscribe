@@ -42,9 +42,10 @@ export default function WorkspaceSettings({ rootPath, onChangeLocalWorkspace, se
 
       <p className="global-settings__field-description">
         Every project lives as a file inside your workspace folder. Subfolders show up as
-        Library folders, and the three Tusk file types are recognized: <code>.tusk</code> books,
-        <code> .tuskb</code> pinboards, and <code>.tusks</code> slideshows. Changing the workspace
-        switches you to a different folder — your old files stay where they are.
+        Library folders, and these file types are recognized: <code>.tusk</code> books,
+        <code> .tusks</code> presentations, <code>.md</code> and <code>.txt</code> documents,
+        and <code>.pdf</code> files (read-only — drop them in to view).
+        Changing the workspace switches you to a different folder — your old files stay where they are.
       </p>
 
       <div className="global-settings__field">

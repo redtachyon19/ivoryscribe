@@ -5,6 +5,13 @@
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
+    "copy-pdfjs-assets": "node scripts/copy-pdfjs-assets.mjs",
+    "predev": "npm run copy-pdfjs-assets",
+    "predev:lan": "npm run copy-pdfjs-assets",
+    "predev:electron": "npm run copy-pdfjs-assets",
+    "predev:electron:lan": "npm run copy-pdfjs-assets",
+    "prebuild": "npm run copy-pdfjs-assets",
+    "prebuild:electron": "npm run copy-pdfjs-assets",
     "dev": "vite",
     "dev:lan": "vite --host 0.0.0.0",
     "dev:electron": "ELECTRON=true vite",
@@ -31,6 +38,7 @@
     "jspdf": "^4.2.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.576.0",
+    "pdfjs-dist": "^5.7.284",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

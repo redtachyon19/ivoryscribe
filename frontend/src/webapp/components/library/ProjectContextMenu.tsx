@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
-import { Archive, BookCopy, Pencil, Settings2, SquareArrowOutUpRight, Trash2, UserRoundPlus } from "lucide-react"
+import { Archive, BookCopy, BookText, Cloud, ClipboardCopy, FileCode, FileType, FolderOpen, Pencil, Presentation, Settings2, SquareArrowOutUpRight, Trash2, UserRoundPlus } from "lucide-react"
+import type { ProjectKind } from "../../../core/utils/projects"
+import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
 
 export type ContextMenuAction = {
   label: string
@@ -101,6 +103,13 @@ export type ProjectContextMenuState = {
   isMultiSelect?: boolean
 } | null
 
+function showInFileManagerLabel(): string {
+  const platform = typeof window !== "undefined" ? window.electronAPI?.platform : undefined
+  if (platform === "darwin") return "Show in Finder"
+  if (platform === "win32") return "Show in File Explorer"
+  return "Show in File Manager"
+}
+
 export function buildProjectActions({
   projectId,
   onOpenInNewTab,
@@ -108,6 +117,9 @@ export function buildProjectActions({
   onOpenSettings,
   onDuplicate,
   onShare,
+  onMoveToCloud,
+  onCopyPath,
+  onShowInFinder,
   onArchive,
   onTrash,
 }: {
@@ -117,11 +129,20 @@ export function buildProjectActions({
   onOpenSettings?: (id: string) => void
   onDuplicate?: (id: string) => void
   onShare?: (id: string) => void
+  /** Only passed for local projects. Promotes the project to cloud
+   *  (upload + trash the local file) so it can be shared / synced. */
+  onMoveToCloud?: (id: string) => void
+  /** Only passed for local projects in Electron — copies the absolute
+   *  on-disk path to the clipboard. */
+  onCopyPath?: (id: string) => void
+  /** Only passed for local projects in Electron — reveals the file in
+   *  the OS file manager (Finder/Explorer). */
+  onShowInFinder?: (id: string) => void
   onArchive: (id: string) => void
   onTrash: (id: string) => void
 }): ContextMenuAction[] {
   const actions: ContextMenuAction[] = [
-    { label: "Open in New Tab", icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenInNewTab(projectId) },
+    { label: openInNewItemLabel(), icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenInNewTab(projectId) },
     { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => onRename(projectId) },
   ]
 
@@ -131,6 +152,18 @@ export function buildProjectActions({
 
   if (onDuplicate) {
     actions.push({ label: "Duplicate", icon: <BookCopy size={14} strokeWidth={2} aria-hidden={true} />, action: () => onDuplicate(projectId) })
+  }
+
+  if (onCopyPath) {
+    actions.push({ label: "Copy as Path", icon: <ClipboardCopy size={14} strokeWidth={2} aria-hidden={true} />, action: () => onCopyPath(projectId) })
+  }
+
+  if (onShowInFinder) {
+    actions.push({ label: showInFileManagerLabel(), icon: <FolderOpen size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShowInFinder(projectId) })
+  }
+
+  if (onMoveToCloud) {
+    actions.push({ label: "Move to Cloud", icon: <Cloud size={14} strokeWidth={2} aria-hidden={true} />, action: () => onMoveToCloud(projectId) })
   }
 
   if (onShare) {
@@ -201,4 +234,36 @@ export function buildMultiSelectActions({
   )
 
   return actions
+}
+
+/** Shared 4-kind create menu used by every "Create Project" entry point —
+ *  NavigationPanel, Library create-card, Library and ProjectBrowserPanel
+ *  context menus, FolderDetailView. Keeps the kind list (and its order +
+ *  icons) consistent everywhere; adding a new ProjectKind just means
+ *  extending this one builder. */
+export function buildCreateProjectActions(
+  onCreate: (kind: ProjectKind) => void,
+): ContextMenuAction[] {
+  return [
+    {
+      label: "Create Book",
+      icon: <BookText size={14} strokeWidth={2} aria-hidden={true} />,
+      action: () => onCreate("Book"),
+    },
+    {
+      label: "Create Presentation",
+      icon: <Presentation size={14} strokeWidth={2} aria-hidden={true} />,
+      action: () => onCreate("Presentation"),
+    },
+    {
+      label: "Create Markdown",
+      icon: <FileCode size={14} strokeWidth={2} aria-hidden={true} />,
+      action: () => onCreate("Markdown"),
+    },
+    {
+      label: "Create Plain Text",
+      icon: <FileType size={14} strokeWidth={2} aria-hidden={true} />,
+      action: () => onCreate("PlainText"),
+    },
+  ]
 }

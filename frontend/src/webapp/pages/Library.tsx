@@ -17,7 +17,7 @@ import ProjectFolderGrid from "../components/library/ProjectFolder"
 import useProjectDrag from "../components/library/useProjectDrag"
 import useProjectSettings from "../components/library/useProjectSettings"
 import { useViewMode, ViewToggle, formatRelativeDate } from "../components/library/useViewMode"
-import ProjectContextMenu, { buildProjectActions, buildFolderActions, buildMultiSelectActions } from "../components/library/ProjectContextMenu"
+import ProjectContextMenu, { buildCreateProjectActions, buildProjectActions, buildFolderActions, buildMultiSelectActions } from "../components/library/ProjectContextMenu"
 import useMultiSelect from "../components/library/useMultiSelect"
 import ShareDialog from "../components/settings/ShareDialog"
 import ShareRequestList from "../components/library/ShareRequestList"
@@ -65,6 +65,10 @@ export type LibraryProps = {
    *  Returns null if the user needs to sign in (the orchestrator handles
    *  showing the auth overlay). Returns the existing id if already shared. */
   onEnableCloudSharing?: (projectId: string) => Promise<string | null>
+  /** Upload a local project to cloud and trash its local file. */
+  onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
+  onCopyProjectPath?: (projectId: string) => void
+  onShowProjectInFinder?: (projectId: string) => void
 }
 
 export default function Library({
@@ -89,6 +93,9 @@ export default function Library({
   sharedProjectIds,
   ownerEmailByProjectId,
   onEnableCloudSharing,
+  onMoveProjectToCloud,
+  onCopyProjectPath,
+  onShowProjectInFinder,
 }: LibraryProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -157,6 +164,11 @@ export default function Library({
 
   const [contextMenu, setContextMenu] = useState<LibraryContextMenuState>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
+  /** Anchor for the kind-picker that opens from the empty-state "Create"
+   *  card. Reuses the same ProjectContextMenu component as right-click
+   *  menus so spacing/keyboard/dismiss behaviour is identical. */
+  const [createKindMenu, setCreateKindMenu] = useState<{ x: number; y: number; folderId?: string } | null>(null)
+  const closeCreateKindMenu = useCallback(() => setCreateKindMenu(null), [])
 
   const handleProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
     if (multiSelect.isMultiSelectTarget(projectId)) {
@@ -207,9 +219,9 @@ export default function Library({
     setEditingFolderName("")
   }
 
-  const createNewProject = (folderId?: string) => {
-    const nextName = generateUntitledName(projects, "Book")
-    const nextProject = createProject(nextName, "Book")
+  const createNewProject = (kind: import("../../core/utils/projects").ProjectKind = "Book", folderId?: string) => {
+    const nextName = generateUntitledName(projects, kind)
+    const nextProject = createProject(nextName, kind)
     setProjects((cur) => [{ ...nextProject, folderId: folderId ?? null, rootPosition: folderId ? nextProject.rootPosition : "top" }, ...cur])
     setActiveProjectId(nextProject.id)
     setSelectedProjectId(nextProject.id)
@@ -226,16 +238,21 @@ export default function Library({
     setFolders((current) => [newFolder, ...current])
   }
 
-  // Global create events from the menu bar
+  // Global create events from the menu bar. The CREATE_BOOK event now
+  // carries an optional `kind` so the same channel can request
+  // Presentation/Markdown/PlainText projects too. Missing detail → Book.
   useEffect(() => {
-    const handleCreateBook = () => createNewProject()
+    const handleCreateProject = (event: Event) => {
+      const detail = (event as CustomEvent<import("../../core/events/editorEvents").CreateProjectEventDetail>).detail
+      createNewProject(detail?.kind ?? "Book")
+    }
     const handleCreateFolder = () => createFolder()
 
-    window.addEventListener(PROJECTS_CREATE_BOOK_EVENT, handleCreateBook)
+    window.addEventListener(PROJECTS_CREATE_BOOK_EVENT, handleCreateProject as EventListener)
     window.addEventListener(PROJECTS_CREATE_FOLDER_EVENT, handleCreateFolder)
 
     return () => {
-      window.removeEventListener(PROJECTS_CREATE_BOOK_EVENT, handleCreateBook)
+      window.removeEventListener(PROJECTS_CREATE_BOOK_EVENT, handleCreateProject as EventListener)
       window.removeEventListener(PROJECTS_CREATE_FOLDER_EVENT, handleCreateFolder)
     }
   }, [bookCounter, folders.length])
@@ -258,6 +275,11 @@ export default function Library({
       setProjects={setProjects}
       onContextMenu={handleProjectContextMenu}
       marqueeSelected={multiSelect.liveSelectedIds.has(project.id)}
+      // Cloud chip is driven by `project.source === "cloud"` inside the
+      // card. We only need to tell it about share state here — a cloud
+      // project that's also shared shows the Users icon instead of the
+      // plain Cloud icon. Local projects ignore both signals.
+      isShared={Boolean(sharedProjectIds?.has(project.id))}
     />
   )
 
@@ -289,7 +311,7 @@ export default function Library({
                 subFolders={childFolders}
                 backLabel={openFolder.parentFolderId ? folders.find((f) => f.id === openFolder.parentFolderId)?.name ?? "Library" : "Library"}
                 onBack={() => setOpenFolderId(openFolder.parentFolderId ?? null)}
-                onCreateBook={() => createNewProject(openFolderId!)}
+                onOpenCreateMenu={(anchor) => setCreateKindMenu(anchor)}
                 onOpenSubFolder={(id) => setOpenFolderId(id)}
                 renderProjectCard={renderProjectCard}
                 onFolderDragStart={drag.handleFolderDragStart}
@@ -453,9 +475,23 @@ export default function Library({
 
             {activeProjects.length === 0 ? (
               <div className="project-hub__create-row project-hub__create-row--project-grid" role="list" aria-label="Create actions">
-                <button type="button" className="project-hub__create-card project-hub__create-card--project-size" role="listitem" onClick={() => createNewProject()}>
+                <button
+                  type="button"
+                  className="project-hub__create-card project-hub__create-card--project-size"
+                  role="listitem"
+                  aria-haspopup="menu"
+                  aria-expanded={Boolean(createKindMenu)}
+                  // Empty-state "Create" card opens the kind picker rather
+                  // than implicitly creating a Book — matches the sidebar
+                  // "Create Project" button so the four kinds are reachable
+                  // from every entry point.
+                  onClick={(event) => {
+                    const rect = event.currentTarget.getBoundingClientRect()
+                    setCreateKindMenu({ x: rect.left, y: rect.bottom + 6 })
+                  }}
+                >
                   <BookPlus size={28} aria-hidden={true} />
-                  <span>Create book</span>
+                  <span>Create project</span>
                 </button>
                 <button type="button" className="project-hub__create-card project-hub__create-card--project-size" role="listitem" onClick={() => createFolder()}>
                   <FolderPlus size={28} aria-hidden={true} />
@@ -547,11 +583,11 @@ export default function Library({
           actions={
             contextMenu.kind === "background"
               ? [
-                  {
-                    label: "Create Project",
-                    icon: <BookPlus size={14} strokeWidth={2} aria-hidden={true} />,
-                    action: () => createNewProject(openFolderId ?? undefined),
-                  },
+                  // 4-kind picker inlined into the right-click menu so the
+                  // user can pick a kind without an intermediate submenu.
+                  ...buildCreateProjectActions((kind) =>
+                    createNewProject(kind, openFolderId ?? undefined),
+                  ),
                   {
                     label: "Create Folder",
                     icon: <FolderPlus size={14} strokeWidth={2} aria-hidden={true} />,
@@ -625,10 +661,46 @@ export default function Library({
                   },
                   onDuplicate: (id) => setProjects((cur) => duplicateProject(cur, id)),
                   onShare: (id) => openShareDialog(id),
+                  // Only offer "Move to Cloud" for local projects (cloud
+                  // projects are already there). Hides the action when
+                  // the orchestration didn't provide a handler (e.g.
+                  // cloud-mode where every project is already cloud).
+                  onMoveToCloud: (() => {
+                    if (!onMoveProjectToCloud) return undefined
+                    const target = projects.find((p) => p.id === contextMenu.projectId)
+                    if (!target || target.source === "cloud") return undefined
+                    return (id) => { void onMoveProjectToCloud(id) }
+                  })(),
+                  // Local-only: copy path / reveal in Finder. Hidden for
+                  // cloud projects (no on-disk file) and on web (no Electron).
+                  onCopyPath: (() => {
+                    if (!onCopyProjectPath) return undefined
+                    const target = projects.find((p) => p.id === contextMenu.projectId)
+                    if (!target || target.source === "cloud") return undefined
+                    return onCopyProjectPath
+                  })(),
+                  onShowInFinder: (() => {
+                    if (!onShowProjectInFinder) return undefined
+                    const target = projects.find((p) => p.id === contextMenu.projectId)
+                    if (!target || target.source === "cloud") return undefined
+                    return onShowProjectInFinder
+                  })(),
                   onArchive: (id) => setProjects((cur) => cur.map((p) => p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p)),
                   onTrash: (id) => moveToTrash(id),
                 })
           }
+        />
+      ) : null}
+
+      {createKindMenu ? (
+        <ProjectContextMenu
+          x={createKindMenu.x}
+          y={createKindMenu.y}
+          onClose={closeCreateKindMenu}
+          actions={buildCreateProjectActions((kind) => {
+            createNewProject(kind, createKindMenu.folderId ?? openFolderId ?? undefined)
+            closeCreateKindMenu()
+          })}
         />
       ) : null}
 

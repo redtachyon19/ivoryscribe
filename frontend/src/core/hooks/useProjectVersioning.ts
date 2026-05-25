@@ -80,6 +80,14 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
   }
 
   const persistProjectDocument = async (token: string, project: Project) => {
+    // Hard gate: never touch the cloud for a local project. The legacy
+    // dual-state model would auto-create cloud copies for everything
+    // (the "cache" we tore out in Phase 6). Without this guard, the
+    // baseline-version effect below and the new-project create flow
+    // in useAppOrchestration would each upload every local project
+    // to the cloud and create duplicate Documents on every render.
+    if (project.source && project.source !== "cloud") return null
+
     const payload = buildProjectDocumentPayload(project)
     const existingDocumentId = projectDocumentMapRef.current[project.id]
 
@@ -120,6 +128,16 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
     if (!currentSession) {
       return null
     }
+
+    // Version snapshots are a cloud feature — they're stored as separate
+    // Documents linked to the project's cloud Document. Local projects
+    // never get them; otherwise we'd auto-upload every local file as
+    // a cloud doc *and* create version docs for it (the duplication
+    // bug the user reported). All callers (autosave interval,
+    // baseline-creation effect, save-project event, useAppOrchestration's
+    // onCreateProject) are funnelled through here, so this one guard
+    // protects them all.
+    if (project.source && project.source !== "cloud") return null
 
     if (isVersionSaveInFlightRef.current) {
       return null
@@ -231,6 +249,14 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
         return
       }
 
+      // Cloud-only feature — don't autosave version snapshots for
+      // local projects (their edits autosave to disk via the local
+      // filesystem sync). `createProjectVersionSnapshot` would gate
+      // this too, but bailing here avoids re-planning every tick.
+      if (currentProject.source && currentProject.source !== "cloud") {
+        return
+      }
+
       const versionDefinition = planAutosaveVersion(
         projectVersionsRef.current[currentProject.id] ?? [],
         serializeProjectSnapshot(currentProject),
@@ -283,13 +309,20 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
     }
   }, [])
 
-  // Baseline version creation for projects missing manual versions
+  // Baseline version creation for projects missing manual versions.
+  //
+  // CRITICAL: skip local projects. Version snapshots are stored as
+  // cloud Documents; if we run this for local projects we'd
+  // auto-upload every local file to the cloud (the duplication bug).
+  // Both this filter and the source check inside
+  // `createProjectVersionSnapshot` enforce the gate.
   useEffect(() => {
     if (!session || !isWorkspaceHydrated || isVersionSaveInFlightRef.current) {
       return
     }
 
     const projectMissingManualBaseline = projects.find((project) => {
+      if (project.source && project.source !== "cloud") return false
       const versions = projectVersionsByProjectId[project.id] ?? []
       return !versions.some((version) => version.saveKind === "manual")
     })

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from "react"
-import { BookText } from "lucide-react"
+import { Cloud, Users } from "lucide-react"
+import { iconForProjectKind } from "../../../core/utils/projectIcons"
 import { collectTabIds, getProjectEntryTerms, type Project } from "../../../core/utils/projects"
 import { extractEmojiTokens } from "../../../core/utils/libraryUtils"
 import MarqueeText from "../ui/MarqueeText"
@@ -130,6 +131,10 @@ export type ProjectCardProps = {
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
   onContextMenu?: (projectId: string, x: number, y: number) => void
   marqueeSelected?: boolean
+  /** True when this project is currently shared. Implies cloud — shared
+   *  projects in the new model are by definition cloud projects. Shows
+   *  a Users icon in place of the Cloud icon. */
+  isShared?: boolean
 }
 
 export default function ProjectCard({
@@ -148,6 +153,7 @@ export default function ProjectCard({
   setProjects,
   onContextMenu,
   marqueeSelected,
+  isShared = false,
 }: ProjectCardProps) {
   const [editingName, setEditingName] = useState("")
   const renameTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -284,7 +290,12 @@ export default function ProjectCard({
             ))}
           </div>
         ) : (
-          <BookText className="project-card__thumb-icon" size={28} strokeWidth={1.6} />
+          (() => {
+            // Branch on kind so each project type carries its own icon —
+            // see core/utils/projectIcons.ts for the resolver.
+            const Icon = iconForProjectKind(project.kind)
+            return <Icon className="project-card__thumb-icon" size={28} strokeWidth={1.6} />
+          })()
         )}
       </div>
 
@@ -326,7 +337,29 @@ export default function ProjectCard({
             <MarqueeText text={project.name} />
           </strong>
         )}
-        <span>{entryCount} {entryLabel} &middot; {formatRelativeTime(project.createdAt)}</span>
+        <span>
+          {entryCount} {entryLabel} &middot; {formatRelativeTime(project.createdAt)}
+          {/* Cloud / shared chip. Driven by the project's `source`
+              field (the only "is this in the cloud?" signal in the
+              new model — no more cache/cloud-id sniffing). Shared
+              takes precedence since every shared project is by
+              definition a cloud project. */}
+          {project.source === "cloud" ? (
+            isShared ? (
+              <>
+                {" · "}
+                <Users size={12} strokeWidth={2} aria-hidden="true" className="project-card__meta-icon" />
+                <span className="project-card__meta-sr">Shared</span>
+              </>
+            ) : (
+              <>
+                {" · "}
+                <Cloud size={12} strokeWidth={2} aria-hidden="true" className="project-card__meta-icon" />
+                <span className="project-card__meta-sr">Cloud</span>
+              </>
+            )
+          ) : null}
+        </span>
       </div>
     </li>
   )

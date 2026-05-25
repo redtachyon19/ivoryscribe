@@ -22,7 +22,7 @@ import { XMLParser } from "fast-xml-parser"
 import { FILE_FORMAT_VERSION, type ChapterMode, type TuskBookFile, type TuskChapter } from "./types"
 import { emitAttrs, emitCData, escapeText, indent, XML_PROLOG } from "./xmlPrimitives"
 
-const VALID_MODES: ChapterMode[] = ["default", "markdown", "typewriter"]
+const VALID_MODES: ChapterMode[] = ["default", "markdown", "typewriter", "plaintext"]
 
 function emitChapter(chapter: TuskChapter, depth: number): string {
   const open = `${indent(depth)}<chapter${emitAttrs({
@@ -42,10 +42,14 @@ function emitChapter(chapter: TuskChapter, depth: number): string {
 }
 
 export function serializeTuskBook(file: TuskBookFile): string {
+  // No `cloud-id` attribute — projects in the new model live entirely
+  // in the cloud or entirely on disk, never both. The migration in
+  // Phase 5 retires any old files that still carry it; subsequent
+  // writes drop the attribute (the parser ignores unknown attrs, so
+  // legacy stamps on disk don't break anything until they round-trip).
   const head = `<tusk${emitAttrs({
     version: file.version,
     id: file.id,
-    "cloud-id": file.cloudId ?? "",
     created: file.created,
     color: file.color,
     "wallpaper-emojis": file.wallpaperEmojis,
@@ -128,7 +132,11 @@ export function parseTuskBook(xml: string): TuskBookFile {
   const versionRaw = readAttr(root, "version")
   const version = versionRaw ? Number.parseInt(versionRaw, 10) : FILE_FORMAT_VERSION
   const id = readAttr(root, "id") ?? crypto.randomUUID()
-  const cloudId = readAttr(root, "cloud-id") || null
+  // We deliberately *don't* read a `cloud-id` attribute anymore. Old
+  // files on disk may still carry one; the migration in Phase 5
+  // retires those by trashing the local file in favour of the cloud
+  // copy. Anything that slips past keeps round-tripping cleanly
+  // because we just don't emit the attribute on write.
   const created = readAttr(root, "created") ?? new Date().toISOString()
   const color = readAttr(root, "color") ?? "#7ea8ff"
   const wallpaperEmojis = readAttr(root, "wallpaper-emojis") ?? ""
@@ -148,7 +156,6 @@ export function parseTuskBook(xml: string): TuskBookFile {
   return {
     version,
     id,
-    cloudId,
     created,
     name,
     color,

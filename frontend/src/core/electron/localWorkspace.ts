@@ -1,5 +1,6 @@
 // Local-workspace root: the user-chosen folder on disk that contains all
-// `.tusk`, `.tuskb`, and `.tusks` projects, organized in nested subfolders.
+// `.tusk` books, `.tusks` presentations, and standalone `.md` / `.txt`
+// documents, organized in nested subfolders.
 //
 // The root path is persisted in localStorage (per-machine, not per-account).
 
@@ -9,6 +10,12 @@ const LOCAL_ROOT_KEY = "ivoryscribe.local.rootFolder"
 
 export function isElectronEnv(): boolean {
   return typeof window !== "undefined" && !!window.electronAPI?.fs
+}
+
+// In Electron, window.open() spawns a real BrowserWindow rather than a
+// browser tab, so context-menu labels read "Open in New Window" there.
+export function openInNewItemLabel(): "Open in New Tab" | "Open in New Window" {
+  return typeof window !== "undefined" && window.electronAPI ? "Open in New Window" : "Open in New Tab"
 }
 
 export function getStoredLocalRoot(): string | null {

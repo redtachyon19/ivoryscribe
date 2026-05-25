@@ -15,6 +15,7 @@ import Underline from "@tiptap/extension-underline"
 import { DiffAddMark, DiffRemoveMark } from "../ai/diffMarks"
 import { ToolCase, X } from "lucide-react"
 import { useProseEditorBase } from "./hooks/useProseEditorBase"
+import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
 import { useRulerDrag } from "./hooks/useRulerDrag"
 import { useFormatPainter } from "./hooks/useFormatPainter"
 import { useToolbarDrag } from "./hooks/useToolbarDrag"
@@ -124,6 +125,11 @@ export default function TypewriterEditor({
     onTypingStateChange,
     onEditorReady,
   })
+
+  /* ── Route global menu accelerators (Cmd+A/C/X/V/Z/⇧⌘P/…) to this
+       TipTap surface so the Edit menu works the same way it does in
+       DraftingEditor. ── */
+  useEditorCommandBus(editor)
 
   /* ── Bump version for toolbar active states ── */
   useEffect(() => {

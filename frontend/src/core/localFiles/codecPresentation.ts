@@ -1,41 +1,40 @@
-// Codec for .tusks (slideshow) files.
+// Codec for .tusks (presentation) files.
 //
-// Phase-1 shell. Real presentation features (layouts, transitions, presenter
-// view) are deferred — for now a slide is just an HTML payload, and consumers
-// can paste images via standard rich-text behaviour.
+// A presentation is a flat sequence of pinboards — one slide = one pinboard.
+// The codec never parses the per-slide `board` payload; it stores the opaque
+// PinboardEditor content string verbatim.
 //
 // Schema:
 //
 // <?xml version="1.0" encoding="UTF-8"?>
 // <tusks version="1" id="..." cloud-id="" created="..." color="...">
-//   <name>My Talk</name>
+//   <name>My Deck</name>
 //   <active-slide-id>s1</active-slide-id>
 //   <slides>
-//     <slide id="s1">
-//       <content><![CDATA[<p>Slide HTML</p>]]></content>
-//     </slide>
-//     <slide id="s2">
-//       <content><![CDATA[<img src="..."/>]]></content>
+//     <slide id="s1" title="Slide 1">
+//       <board><![CDATA[ …opaque PinboardEditor content string… ]]></board>
 //     </slide>
 //   </slides>
 // </tusks>
 
 import { XMLParser } from "fast-xml-parser"
-import { FILE_FORMAT_VERSION, type TuskSlide, type TuskSlideshowFile } from "./types"
+import { FILE_FORMAT_VERSION, type TuskPresentationFile, type TuskPresentationSlide } from "./types"
 import { emitAttrs, emitCData, escapeText, indent, XML_PROLOG } from "./xmlPrimitives"
 
-function emitSlide(slide: TuskSlide, depth: number): string {
-  const open = `${indent(depth)}<slide${emitAttrs({ id: slide.id })}>\n`
-  const body = `${indent(depth + 1)}<content>${emitCData(slide.content)}</content>\n`
+function emitSlide(slide: TuskPresentationSlide, depth: number): string {
+  const open = `${indent(depth)}<slide${emitAttrs({ id: slide.id, title: slide.title })}>\n`
+  const body = `${indent(depth + 1)}<board>${emitCData(slide.board)}</board>\n`
   const close = `${indent(depth)}</slide>\n`
   return `${open}${body}${close}`
 }
 
-export function serializeTuskSlideshow(file: TuskSlideshowFile): string {
+export function serializeTuskPresentation(file: TuskPresentationFile): string {
+  // No `cloud-id` — same reasoning as codecBook: a project is local
+  // OR cloud, never both. The migration in Phase 5 retires any old
+  // files still carrying the attribute.
   const head = `<tusks${emitAttrs({
     version: file.version,
     id: file.id,
-    "cloud-id": file.cloudId ?? "",
     created: file.created,
     color: file.color,
   })}>\n`
@@ -84,14 +83,15 @@ function readText(node: RawNode | undefined | null): string {
   return ""
 }
 
-function parseSlideNode(rawSlide: RawNode): TuskSlide {
+function parseSlideNode(rawSlide: RawNode): TuskPresentationSlide {
   return {
     id: readAttr(rawSlide, "id") ?? crypto.randomUUID(),
-    content: readText(rawSlide.content as RawNode | undefined),
+    title: readAttr(rawSlide, "title") ?? "Untitled Slide",
+    board: readText(rawSlide.board as RawNode | undefined),
   }
 }
 
-export function parseTuskSlideshow(xml: string): TuskSlideshowFile {
+export function parseTuskPresentation(xml: string): TuskPresentationFile {
   const parsed = parser.parse(xml) as { tusks?: RawNode }
   const root = parsed.tusks
   if (!root) throw new Error("Invalid .tusks file: missing <tusks> root element")
@@ -99,10 +99,10 @@ export function parseTuskSlideshow(xml: string): TuskSlideshowFile {
   const versionRaw = readAttr(root, "version")
   const version = versionRaw ? Number.parseInt(versionRaw, 10) : FILE_FORMAT_VERSION
   const id = readAttr(root, "id") ?? crypto.randomUUID()
-  const cloudId = readAttr(root, "cloud-id") || null
+  // `cloud-id` is no longer read either — see codecBook for context.
   const created = readAttr(root, "created") ?? new Date().toISOString()
   const color = readAttr(root, "color") ?? "#ef4444"
-  const name = readText(root.name as RawNode | undefined) || "Untitled Slideshow"
+  const name = readText(root.name as RawNode | undefined) || "Untitled Presentation"
 
   const activeSlideIdRaw = readText(root["active-slide-id"] as RawNode | undefined)
   const activeSlideId = activeSlideIdRaw.length > 0 ? activeSlideIdRaw : null
@@ -111,5 +111,5 @@ export function parseTuskSlideshow(xml: string): TuskSlideshowFile {
   const slideArray = slidesHolder && Array.isArray(slidesHolder.slide) ? (slidesHolder.slide as RawNode[]) : []
   const slides = slideArray.map(parseSlideNode)
 
-  return { version, id, cloudId, created, name, color, activeSlideId, slides }
+  return { version, id, created, name, color, activeSlideId, slides }
 }

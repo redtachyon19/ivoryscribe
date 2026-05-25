@@ -494,8 +494,10 @@ export function buildVersionHistoryPageHtml(params: {
   menuDropdownBg: string
   menuDropdownBorder: string
   appAccent: string
+  isElectron?: boolean
 }): string {
-  const { versions, projectName, projectId, bodyFont, uiFont, displayFont, appBg, menuBg, menuButton, menuButtonHoverBg, menuDropdownBg, menuDropdownBorder, appAccent } = params
+  const { versions, projectName, projectId, bodyFont, uiFont, displayFont, appBg, menuBg, menuButton, menuButtonHoverBg, menuDropdownBg, menuDropdownBorder, appAccent, isElectron } = params
+  const openInNewLabel = isElectron ? "Open in New Window" : "Open in New Tab"
   const resolvedBodyFont = withEmojiFontFallback(bodyFont)
   const resolvedUiFont = withEmojiFontFallback(uiFont)
   const resolvedDisplayFont = withEmojiFontFallback(displayFont)
@@ -529,7 +531,7 @@ export function buildVersionHistoryPageHtml(params: {
         <p class="delta">${escapeHtml(delta)}</p>
       </div>
       <div class="actions">
-        <button type="button" class="btn" data-action="view" data-version-id="${escapeHtml(version.id)}">${iconExternalLink}<span>Open in New Tab</span></button>
+        <button type="button" class="btn" data-action="view" data-version-id="${escapeHtml(version.id)}">${iconExternalLink}<span>${escapeHtml(openInNewLabel)}</span></button>
         <button type="button" class="btn" data-action="duplicate" data-version-id="${escapeHtml(version.id)}">${iconCopy}<span>Make a Copy</span></button>
         <button type="button" class="btn" data-action="export" data-version-id="${escapeHtml(version.id)}">${iconDownload}<span>${escapeHtml(downloadLabel)}</span></button>
         <button type="button" class="btn btn--restore" data-action="restore" data-version-id="${escapeHtml(version.id)}">${iconRotateCcw}<span>Restore</span></button>

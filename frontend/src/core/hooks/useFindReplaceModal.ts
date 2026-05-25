@@ -4,11 +4,12 @@ import {
   requestAppProjectSearch,
   requestAppProjectSearchFocus,
 } from "../events/editorEvents"
+import { getPdfText } from "../pdf/pdfTextRegistry"
 import { collectTabSequence, getProjectMarkdownIds, type Project } from "../utils/projects"
 
 const FIND_REPLACE_RESULT_LIMIT = 200
 
-type FindReplaceDocumentType = "text" | "markdown"
+type FindReplaceDocumentType = "text" | "markdown" | "plaintext" | "pdf"
 
 type FindReplaceResult = {
   documentId: string
@@ -105,18 +106,66 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
     const markdownIdSet = new Set(getProjectMarkdownIds(project))
     const pinboardIdSet = new Set(project.pinboardIds ?? [])
     const typewriterIdSet = new Set(project.typewriterIds ?? [])
+    const plaintextIdSet = new Set(project.plaintextIds ?? [])
+    const pdfIdSet = new Set(project.pdfIds ?? [])
     const nextResults: FindReplaceResult[] = []
 
     for (const tab of projectTabs) {
-      if (nextResults.length >= FIND_REPLACE_RESULT_LIMIT || pinboardIdSet.has(tab.id) || typewriterIdSet.has(tab.id)) {
+      // Skip tabs we can't search through textually: pinboards (spatial)
+      // and typewriter (HTML wrapper differs). PDFs are searchable
+      // through the pdf-text registry — handled in the branch below.
+      if (
+        nextResults.length >= FIND_REPLACE_RESULT_LIMIT
+        || pinboardIdSet.has(tab.id)
+        || typewriterIdSet.has(tab.id)
+      ) {
         continue
       }
 
-      const documentType: FindReplaceDocumentType = markdownIdSet.has(tab.id) ? "markdown" : "text"
+      // ── PDF branch ──
+      // For PDFs we search the per-page text published by the
+      // PDFViewer into pdfTextRegistry. `start` carries the 1-indexed
+      // page number (where to scroll); `end` carries the 0-indexed
+      // occurrence number *within that page* (which specific match to
+      // highlight on the page). Together these let the viewer select
+      // the exact instance the user is currently navigating to.
+      if (pdfIdSet.has(tab.id)) {
+        const pages = getPdfText(project.id)
+        if (!pages) continue
+        let occurrenceIndex = 0
+        for (const page of pages) {
+          if (nextResults.length >= FIND_REPLACE_RESULT_LIMIT) break
+          const matches = findQueryMatches(
+            page.text,
+            normalizedQuery,
+            FIND_REPLACE_RESULT_LIMIT - nextResults.length,
+          )
+          let perPageIndex = 0
+          for (const _match of matches) {
+            nextResults.push({
+              documentId: tab.id,
+              documentType: "pdf",
+              occurrenceIndex,
+              start: page.pageNumber,
+              end: perPageIndex,
+            })
+            occurrenceIndex += 1
+            perPageIndex += 1
+          }
+        }
+        continue
+      }
+
+      const documentType: FindReplaceDocumentType =
+        plaintextIdSet.has(tab.id) ? "plaintext"
+        : markdownIdSet.has(tab.id) ? "markdown"
+        : "text"
       const rawContent = project.contentById[tab.id] ?? ""
-      const searchableContent = documentType === "markdown"
-        ? rawContent
-        : plainTextFromHtmlForSearch(rawContent)
+      // Markdown and PlainText are both raw strings — search them verbatim.
+      // Prose tabs (HTML) need stripping so we don't match tag names.
+      const searchableContent = documentType === "text"
+        ? plainTextFromHtmlForSearch(rawContent)
+        : rawContent
 
       if (!searchableContent.trim()) {
         continue
@@ -257,6 +306,33 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
           requestAppProjectSearchFocus({
             documentId: result.documentId,
             documentType: "markdown",
+            query: trimmedQuery,
+            occurrenceIndex: result.occurrenceIndex,
+            start: result.start,
+            end: result.end,
+          })
+          return
+        }
+
+        if (result.documentType === "plaintext") {
+          requestAppProjectSearchFocus({
+            documentId: result.documentId,
+            documentType: "plaintext",
+            query: trimmedQuery,
+            occurrenceIndex: result.occurrenceIndex,
+            start: result.start,
+            end: result.end,
+          })
+          return
+        }
+
+        if (result.documentType === "pdf") {
+          // For PDFs, `start` / `end` carry the 1-indexed page number
+          // (see search loop above). PDFViewer's focus listener reads
+          // it to scroll the matching page into view.
+          requestAppProjectSearchFocus({
+            documentId: result.documentId,
+            documentType: "pdf",
             query: trimmedQuery,
             occurrenceIndex: result.occurrenceIndex,
             start: result.start,

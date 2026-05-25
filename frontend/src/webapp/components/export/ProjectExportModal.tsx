@@ -1,4 +1,4 @@
-import { Download, FileText, FileType2, FileType, Files } from "lucide-react"
+import { Download, FileCode, FileText, FileType, FileType2, Files } from "lucide-react"
 import { useEffect, useMemo, useState, type ComponentType } from "react"
 import type { ExportProjectFormat } from "../../../core/events/editorEvents"
 import type { ExportMode } from "./exportSelection"
@@ -26,11 +26,13 @@ const formatLabelById: Record<ExportProjectFormat, string> = {
   txt: "Text (.txt)",
 }
 
+// House style: FileText → PDF, FileCode → Markdown, FileType → plaintext.
+// Keep in sync with `iconForProjectKind` in core/utils/projectIcons.
 const formatIconById: Record<ExportProjectFormat, ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }>> = {
-  pdf: FileType,
+  pdf: FileText,
   docx: FileType2,
-  md: FileText,
-  txt: FileText,
+  md: FileCode,
+  txt: FileType,
 }
 
 const combinedLabelById: Record<ExportProjectFormat, string> = {
