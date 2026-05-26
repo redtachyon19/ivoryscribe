@@ -11,8 +11,15 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
 body {
+  height: 100%;
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
   min-width: 320px;
   background-color: #0f0f0f;
 }
@@ -24,5 +31,26 @@ html.electron-mac.translucent-nav body {
 }
 
 #root {
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Globally hide scrollbars while preserving scroll behavior ────────── */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ and old Edge */
+}
+
+*::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important; /* Chrome, Safari, new Edge */
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-button {
+  display: none !important;
+  background: transparent !important;
 }
