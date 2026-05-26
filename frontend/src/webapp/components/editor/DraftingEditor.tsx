@@ -81,7 +81,6 @@ export default function DraftingEditor({
       DiffRemoveMark,
     ],
     defaultContent: DEFAULT_DOCUMENT_CONTENT,
-    stripInlineStylesOnPaste: true,
     onContentChange,
     onWordCountChange,
     onTypingStateChange,

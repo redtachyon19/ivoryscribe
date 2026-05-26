@@ -189,6 +189,31 @@
   flex: 0 0 auto;
 }
 
+/* Emoji replacement for the default folder icon. Sized to match the 18px
+   Folder lucide icon's optical weight; the inline-block + line-height
+   keeps it from inheriting paragraph spacing. */
+.project-hub__folder-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  font-size: 16px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.project-hub__folder-detail-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 20px;
+  line-height: 1;
+}
+
 .project-hub__folder-card strong {
   display: block;
   color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);

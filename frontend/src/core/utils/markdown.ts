@@ -1,68 +1,70 @@
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-}
-
-function sanitizeLink(value: string) {
-  const trimmed = value.trim()
-
-  if (!/^https?:\/\//i.test(trimmed) && !/^mailto:/i.test(trimmed)) {
-    return ""
-  }
-
-  return trimmed
-}
-
-function processInlineMarkdown(value: string) {
-  const source = escapeHtml(value)
-  const codeTokens: string[] = []
-
-  const withCodeTokens = source.replace(/`([^`]+)`/g, (_, code: string) => {
-    const token = `@@MDCODE${codeTokens.length}@@`
-    codeTokens.push(`<code>${code}</code>`)
-    return token
-  })
-
-  const withLinks = withCodeTokens.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text: string, href: string) => {
-    const safeHref = sanitizeLink(href)
-    if (!safeHref) {
-      return text
-    }
-
-    return `<a href="${safeHref}" target="_blank" rel="noreferrer noopener">${text}</a>`
-  })
-
-  const withStrong = withLinks
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-
-  const withEmphasis = withStrong
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/_([^_]+)_/g, "<em>$1</em>")
-
-  const withStrike = withEmphasis.replace(/~~([^~]+)~~/g, "<s>$1</s>")
-
-  return withStrike.replace(/@@MDCODE(\d+)@@/g, (_, index: string) => {
-    return codeTokens[Number(index)] ?? ""
-  })
-}
-
-function closeActiveList(parts: string[], activeList: "ul" | "ol" | null) {
-  if (!activeList) {
-    return null
-  }
-
-  parts.push(`</${activeList}>`)
-  return null
-}
+import { Marked } from "marked"
+import hljs from "highlight.js/lib/common"
+import markedKatex from "marked-katex-extension"
 
 export function normalizeLineEndings(value: string) {
   return value.replace(/\r\n?/g, "\n")
 }
+
+// One Marked instance, configured once. Reusing it keeps per-render cost
+// low (no re-registration of the highlight + link-safety hooks on every
+// preview update — and there are a lot of preview updates).
+//
+//  • GFM on (tables, task lists, autolinks, strikethrough)
+//  • Soft line breaks → <br> (matches what most writers expect from a
+//    Markdown PREVIEW, even though it diverges from CommonMark)
+//  • Code blocks routed through highlight.js when a known language tag is
+//    present, escaped otherwise
+const markedRuntime = new Marked({
+  gfm: true,
+  breaks: true,
+  renderer: {
+    code({ text, lang }: { text: string; lang?: string }) {
+      const language = (lang ?? "").trim().split(/\s+/)[0] ?? ""
+      if (language && hljs.getLanguage(language)) {
+        try {
+          const highlighted = hljs.highlight(text, { language, ignoreIllegals: true }).value
+          return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`
+        } catch {
+          /* fall through to plain rendering */
+        }
+      }
+      const escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+      return `<pre><code class="hljs">${escaped}</code></pre>`
+    },
+    // Strip `javascript:` / `data:` / etc. — preview is injected via
+    // dangerouslySetInnerHTML so a hostile .md file could otherwise wire
+    // up a click-to-XSS. We allow http(s), mailto, and same-origin paths.
+    link({ href, title, text }: { href: string; title?: string | null; text: string }) {
+      const trimmed = (href ?? "").trim()
+      const safe =
+        /^(https?:|mailto:)/i.test(trimmed) || trimmed.startsWith("/") || trimmed.startsWith("#")
+          ? trimmed
+          : ""
+      if (!safe) return text
+      const titleAttr = title ? ` title="${title.replace(/"/g, "&quot;")}"` : ""
+      return `<a href="${safe}"${titleAttr} target="_blank" rel="noreferrer noopener">${text}</a>`
+    },
+  },
+})
+
+// LaTeX math: $inline$, $$display$$, \(inline\), \[display\] all route
+// through KaTeX. `throwOnError: false` keeps a bad expression from
+// blowing up the entire preview render — KaTeX falls back to showing
+// the source string with a red outline. `output: "html"` keeps the
+// generated DOM smaller than the default MathML+HTML pair (we don't
+// need the MathML duplication for an in-app preview, and skipping it
+// halves the node count for math-heavy docs).
+markedRuntime.use(
+  markedKatex({
+    throwOnError: false,
+    output: "html",
+    nonStandard: true, // allow $...$ without strict CommonMark spacing rules
+  }),
+)
 
 const WORD_MATCHER = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu
 
@@ -110,93 +112,8 @@ export function normalizeMarkdownContentForEditing(value: string) {
 }
 
 export function renderMarkdownToHtml(markdown: string) {
-  const lines = normalizeLineEndings(markdown).split("\n")
-  const parts: string[] = []
-  let inCodeFence = false
-  let codeFenceLines: string[] = []
-  let activeList: "ul" | "ol" | null = null
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-
-    if (trimmed.startsWith("```")) {
-      if (!inCodeFence) {
-        activeList = closeActiveList(parts, activeList)
-        inCodeFence = true
-        codeFenceLines = []
-        continue
-      }
-
-      inCodeFence = false
-      parts.push(`<pre><code>${escapeHtml(codeFenceLines.join("\n"))}</code></pre>`)
-      codeFenceLines = []
-      continue
-    }
-
-    if (inCodeFence) {
-      codeFenceLines.push(line)
-      continue
-    }
-
-    if (!trimmed) {
-      activeList = closeActiveList(parts, activeList)
-      continue
-    }
-
-    if (/^---+$/.test(trimmed) || /^\*\*\*+$/.test(trimmed)) {
-      activeList = closeActiveList(parts, activeList)
-      parts.push("<hr />")
-      continue
-    }
-
-    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/)
-    if (headingMatch) {
-      activeList = closeActiveList(parts, activeList)
-      const level = headingMatch[1].length
-      parts.push(`<h${level}>${processInlineMarkdown(headingMatch[2])}</h${level}>`)
-      continue
-    }
-
-    const quoteMatch = trimmed.match(/^>\s?(.+)$/)
-    if (quoteMatch) {
-      activeList = closeActiveList(parts, activeList)
-      parts.push(`<blockquote>${processInlineMarkdown(quoteMatch[1])}</blockquote>`)
-      continue
-    }
-
-    const orderedMatch = trimmed.match(/^(\d+)\.\s+(.+)$/)
-    if (orderedMatch) {
-      if (activeList !== "ol") {
-        activeList = closeActiveList(parts, activeList)
-        activeList = "ol"
-        parts.push("<ol>")
-      }
-
-      parts.push(`<li>${processInlineMarkdown(orderedMatch[2])}</li>`)
-      continue
-    }
-
-    const unorderedMatch = trimmed.match(/^[-*+]\s+(.+)$/)
-    if (unorderedMatch) {
-      if (activeList !== "ul") {
-        activeList = closeActiveList(parts, activeList)
-        activeList = "ul"
-        parts.push("<ul>")
-      }
-
-      parts.push(`<li>${processInlineMarkdown(unorderedMatch[1])}</li>`)
-      continue
-    }
-
-    activeList = closeActiveList(parts, activeList)
-    parts.push(`<p>${processInlineMarkdown(line)}</p>`)
-  }
-
-  if (inCodeFence) {
-    parts.push(`<pre><code>${escapeHtml(codeFenceLines.join("\n"))}</code></pre>`)
-  }
-
-  closeActiveList(parts, activeList)
-
-  return parts.join("\n")
+  // marked.parse is sync when no async extensions are registered. We
+  // explicitly cast to string so the call-site (a useMemo) doesn't have
+  // to deal with a Promise.
+  return markedRuntime.parse(normalizeLineEndings(markdown), { async: false }) as string
 }

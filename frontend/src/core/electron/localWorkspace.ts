@@ -7,6 +7,32 @@
 import { useCallback, useEffect, useState } from "react"
 
 const LOCAL_ROOT_KEY = "ivoryscribe.local.rootFolder"
+/** Query-param the renderer reads at boot to override the workspace root
+ *  for THIS window only (set by the "Open folder in new window" action —
+ *  the main process's setWindowOpenHandler keeps the URL intact when it
+ *  promotes a window.open() call to a real BrowserWindow). */
+export const ROOT_OVERRIDE_QUERY_PARAM = "rootOverride"
+
+function readRootOverrideFromLocation(): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    const params = new URLSearchParams(window.location.search)
+    const value = params.get(ROOT_OVERRIDE_QUERY_PARAM)
+    return value && value.length > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+export function buildRootOverrideUrl(absoluteFolderPath: string): string {
+  const url = new URL(window.location.href)
+  // Strip everything but the rootOverride so the child window doesn't
+  // inherit hash routes or project-id params from the launching window.
+  url.search = ""
+  url.hash = ""
+  url.searchParams.set(ROOT_OVERRIDE_QUERY_PARAM, absoluteFolderPath)
+  return url.toString()
+}
 
 export function isElectronEnv(): boolean {
   return typeof window !== "undefined" && !!window.electronAPI?.fs
@@ -61,6 +87,25 @@ export function useLocalRoot(): UseLocalRootResult {
     let cancelled = false
     async function bootstrap() {
       const fs = window.electronAPI?.fs
+
+      // Highest priority: ?rootOverride=<absolute path>. Set by the "Open
+      // folder in new window" action so the child window scopes its
+      // workspace to that subfolder. We deliberately DON'T persist it to
+      // localStorage — the override is per-window, and the parent window's
+      // stored root must stay untouched.
+      const override = readRootOverrideFromLocation()
+      if (override && fs) {
+        try {
+          if (await fs.exists(override)) {
+            if (!cancelled) {
+              setRoot(override)
+              setIsReady(true)
+            }
+            return
+          }
+        } catch { /* fall through to stored / default */ }
+      }
+
       const stored = getStoredLocalRoot()
 
       // Validate the stored path actually exists. If a previous broken launch

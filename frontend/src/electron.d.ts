@@ -50,6 +50,12 @@ declare global {
         showItemInFolder: (targetPath: string) => void
         exists: (targetPath: string) => Promise<boolean>
         stat: (targetPath: string) => Promise<FsStat>
+        /** macOS only. Tint the macOS system folder icon to the given
+         *  hex color and install it as the folder's custom icon
+         *  (`Icon\r` + FinderInfo bit). Pass empty / null to clear the
+         *  custom icon and revert to the system default. Resolves
+         *  `{ ok, error? }`. */
+        setMacFolderIconColor: (targetPath: string, hex: string | null) => Promise<{ ok: boolean; error?: string }>
       }
 
       path: {

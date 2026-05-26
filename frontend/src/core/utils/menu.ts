@@ -21,6 +21,11 @@ export type MenuItem = {
   disabled?: boolean
   shortcut?: string
   icon?: string
+  /** When set, Electron's native menu uses this role instead of the JS click
+   *  handler — bypassing renderer code so `webContents.paste()` /
+   *  `pasteAndMatchStyle()` etc. fire natively. The web build ignores this
+   *  field and continues to dispatch `action`. */
+  electronRole?: "paste" | "pasteAndMatchStyle" | "copy" | "cut" | "undo" | "redo" | "selectAll"
 }
 
 const editMenuItem: MenuItem = {
@@ -69,6 +74,13 @@ const editMenuItem: MenuItem = {
       label: "Paste",
       icon: "paste",
       shortcut: "⌘V",
+      // In Electron, route to the native `paste` role so the keystroke
+      // triggers a real paste event in the focused contentEditable
+      // (TipTap then keeps bold/italic/underline marks via
+      // transformPastedHTML). The web build falls back to the JS action
+      // below — Cmd+V there is handled directly by the browser anyway,
+      // since the WebMenu doesn't bind accelerators.
+      electronRole: "paste",
       action: () => {
         requestEditorCommand("paste")
       },
@@ -76,7 +88,10 @@ const editMenuItem: MenuItem = {
     {
       label: "Paste Without Formatting",
       icon: "paste",
-      shortcut: "⇧⌘P",
+      shortcut: "⇧⌘V",
+      // Electron's `pasteAndMatchStyle` strips formatting natively. The
+      // web build falls back to the JS action (read text, insert plain).
+      electronRole: "pasteAndMatchStyle",
       action: () => {
         requestEditorCommand("paste-plain")
       },
@@ -443,6 +458,9 @@ export type NativeMenuItem = {
   submenu?: NativeMenuItem[]
   disabled?: boolean
   shortcut?: string
+  /** Passed straight to Electron's MenuItemConstructorOptions.role when
+   *  present (see MenuItem.electronRole for the rationale). */
+  role?: string
 }
 
 /**
@@ -477,6 +495,7 @@ export function serializeMenuForElectron(
         id: item.action ? id : undefined,
         disabled: item.disabled,
         shortcut: item.shortcut,
+        role: item.electronRole,
       }
     })
   }

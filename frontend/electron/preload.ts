@@ -53,6 +53,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("fs:exists", targetPath),
     stat: (targetPath: string) =>
       ipcRenderer.invoke("fs:stat", targetPath),
+    /** macOS only. Install a tinted version of the system folder icon as
+     *  the folder's custom icon, so it actually appears in that color
+     *  in Finder. Pass an empty hex (or null) to clear the custom icon
+     *  and revert to the system default. Returns `{ ok, error? }`. */
+    setMacFolderIconColor: (targetPath: string, hex: string | null) =>
+      ipcRenderer.invoke("fs:setMacFolderIconColor", targetPath, hex) as Promise<{ ok: boolean; error?: string }>,
   },
 
   path: {

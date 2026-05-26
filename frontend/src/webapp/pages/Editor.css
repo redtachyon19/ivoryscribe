@@ -481,6 +481,19 @@
   pointer-events: none;
 }
 
+/* Markdown-only Info button — same chrome as the Settings button, just
+   stacked directly below it. 28 (settings height) + 8 (gap) = 36. */
+.editor-workspace__info-btn {
+  top: calc(var(--editor-topbar-height) + 10px + 36px);
+}
+
+/* Don't inherit the Settings button's hover spin — Info isn't rotating
+   to anything. Keep just the color/background transitions. */
+.editor-workspace__info-btn:hover svg,
+.editor-workspace__info-btn:focus-visible svg {
+  animation: none;
+}
+
 .editor-workspace__settings-btn:hover,
 .editor-workspace__settings-btn:focus-visible {
   color: var(--menu-button, #ededed);

@@ -23,10 +23,12 @@ import { useWorkspaceHydration, type WorkspaceMutators } from "./useWorkspaceHyd
 import { useCloudProjectsInLocalMode } from "./useCloudProjectsInLocalMode"
 import { useDualStateMigration } from "./useDualStateMigration"
 import { setSessionInStorage } from "../state/session"
-import { useLocalRoot } from "../electron/localWorkspace"
+import { buildRootOverrideUrl, useLocalRoot } from "../electron/localWorkspace"
+import { setMacFolderColor } from "../electron/macFolderLabels"
 import { useLocalFilesystemSync } from "../localFiles"
 import { uploadLocalFileAsCloudDocument } from "../localFiles/cloudOverlay"
 import { useCloudPreferenceSync } from "./useCloudPreferenceSync"
+import { getStoredBoolean, writeStoredPreferences } from "../state/preferencesStorage"
 
 import { useTuskBilling } from "./useTuskBilling"
 import { getPendingShareRequests, respondToShareRequest, type PendingShareRequest } from "../api"
@@ -40,9 +42,21 @@ export function useAppOrchestration() {
   const [view, setView] = useState<"projects" | "editor">("projects")
   const [bookCounter, setBookCounter] = useState(1)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isMenuBarEnabled, setIsMenuBarEnabled] = useState(false)
-  const [isFlagsEnabled, setIsFlagsEnabled] = useState(false)
-  const [isTranslucentNavPanel, setIsTranslucentNavPanel] = useState(true)
+  // Seed UI toggles from localStorage (same rationale as the style hook —
+  // cloud sync overwrites these when it answers, but a reload before
+  // cloud responds keeps the user's last choice instead of snapping
+  // back to defaults).
+  const [isMenuBarEnabled, setIsMenuBarEnabled] = useState<boolean>(() => getStoredBoolean("isMenuBarEnabled", false))
+  const [isFlagsEnabled, setIsFlagsEnabled] = useState<boolean>(() => getStoredBoolean("isFlagsEnabled", false))
+  const [isTranslucentNavPanel, setIsTranslucentNavPanel] = useState<boolean>(() => getStoredBoolean("isTranslucentNavPanel", true))
+
+  useEffect(() => {
+    writeStoredPreferences({
+      isMenuBarEnabled,
+      isFlagsEnabled,
+      isTranslucentNavPanel,
+    })
+  }, [isMenuBarEnabled, isFlagsEnabled, isTranslucentNavPanel])
   const [isEditorTyping, setIsEditorTyping] = useState(false)
   const [isWorkspaceHydrated, setIsWorkspaceHydrated] = useState(false)
   const [projectDocumentMap, setProjectDocumentMap] = useState<Record<string, string>>({})
@@ -673,6 +687,32 @@ export function useAppOrchestration() {
       const filePath = localFsHandle.getFilePathForProject(projectId)
       if (!filePath) return
       window.electronAPI?.fs.showItemInFolder(filePath)
+    } : undefined,
+    // Spawn a new BrowserWindow whose workspace root is this folder's
+    // on-disk directory. We hand the absolute path through a
+    // `?rootOverride=` query param; useLocalRoot reads it at boot. Only
+    // available when there's a local FS handle (i.e. Electron + local
+    // mode) — cloud-only folders have no on-disk directory to bind to.
+    //
+    // The optional-chained `getFolderPath?.()` guards against a stale
+    // handleRef during HMR: `useRef(initialValue)` only honours the
+    // initial value on first mount, so if this method was added after
+    // the dev session started, the live ref might predate it. A no-op
+    // is better than a crash; a full restart picks up the new shape.
+    onOpenFolderInNewWindow: localFsHandle ? (folderId: string) => {
+      const folderPath = localFsHandle.getFolderPath?.(folderId) ?? null
+      if (!folderPath) return
+      window.open(buildRootOverrideUrl(folderPath), "_blank")
+    } : undefined,
+    // Paint the macOS Finder color label so a folder edited in-app picks
+    // up the same accent in Finder. Snaps the user's arbitrary hex to
+    // one of Finder's seven preset label colors (helper handles the
+    // mapping). Silently no-ops off macOS / without a local FS handle /
+    // when Apple Events are denied — the in-app color still applies.
+    onApplyFolderFinderColor: localFsHandle ? (folderId: string, color: string | null | undefined) => {
+      const folderPath = localFsHandle.getFolderPath?.(folderId) ?? null
+      if (!folderPath) return
+      void setMacFolderColor(folderPath, color)
     } : undefined,
     userEmail: session?.user.email ?? "",
     // Merge share metadata from both sources:

@@ -11,6 +11,8 @@ import {
 import { countWords, normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../../core/utils/markdown"
 import type { MarkdownTabViewMode } from "./utils/markdownViewModePrefs"
 import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
+import "highlight.js/styles/github-dark.css"
+import "katex/dist/katex.min.css"
 import "./MarkdownEditor.css"
 
 type MarkdownEditorProps = {
@@ -547,7 +549,13 @@ export default function MarkdownEditor({
   }
 
   return (
-    <div className="markdown-editor" style={markdownFontStyle} role="region" aria-label="Markdown split editor" ref={layoutRef}>
+    <div
+      className={`markdown-editor${paneViewMode !== "split" ? " markdown-editor--single-pane" : ""}`}
+      style={markdownFontStyle}
+      role="region"
+      aria-label="Markdown split editor"
+      ref={layoutRef}
+    >
       <section
         className={`markdown-editor__pane markdown-editor__pane--source ${editorIsFading ? "markdown-editor__pane--fading" : ""} ${editorIsCollapsed ? "markdown-editor__pane--collapsed" : ""}`.trim()}
         style={sourcePaneStyle}

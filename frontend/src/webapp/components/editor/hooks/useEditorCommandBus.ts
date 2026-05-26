@@ -22,7 +22,11 @@
 
 import { useEffect } from "react"
 import type { Editor as TiptapEditor } from "@tiptap/react"
-import { EDITOR_COMMAND_EVENT, type EditorCommand } from "../../../../core/events/editorEvents"
+import {
+  EDITOR_COMMAND_EVENT,
+  requestEditorCommand,
+  type EditorCommand,
+} from "../../../../core/events/editorEvents"
 
 type EditorCommandDetail = { command: EditorCommand }
 
@@ -175,4 +179,23 @@ export function useEditorCommandBus(editor: TiptapEditor | null) {
       window.removeEventListener(EDITOR_COMMAND_EVENT, onEditorCommand as EventListener)
     }
   }, [editor])
+
+  // Cmd/Ctrl + Shift + V → "Paste Without Formatting" in the web build. In
+  // Electron the native menu accelerator captures this keystroke before the
+  // renderer sees it, so this listener only ever fires in the browser.
+  useEffect(() => {
+    const onPastePlainShortcut = (event: KeyboardEvent) => {
+      if (event.repeat) return
+      const hasPrimaryModifier = event.metaKey || event.ctrlKey
+      if (!hasPrimaryModifier || !event.shiftKey || event.altKey) return
+      const isVShortcut = event.code === "KeyV" || event.key.toLowerCase() === "v"
+      if (!isVShortcut) return
+      event.preventDefault()
+      requestEditorCommand("paste-plain")
+    }
+    window.addEventListener("keydown", onPastePlainShortcut, true)
+    return () => {
+      window.removeEventListener("keydown", onPastePlainShortcut, true)
+    }
+  }, [])
 }

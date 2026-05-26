@@ -35,9 +35,13 @@
     "@tiptap/starter-kit": "^3.20.0",
     "an-array-of-english-words": "^2.0.0",
     "fast-xml-parser": "^5.7.3",
+    "highlight.js": "^11.11.1",
     "jspdf": "^4.2.0",
     "jszip": "^3.10.1",
+    "katex": "^0.17.0",
     "lucide-react": "^0.576.0",
+    "marked": "^18.0.4",
+    "marked-katex-extension": "^5.1.9",
     "pdfjs-dist": "^5.7.284",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -116,19 +120,33 @@
           {
             "UTTypeIdentifier": "com.ivoryscribe.tusk",
             "UTTypeDescription": "Ivoryscribe Book",
-            "UTTypeConformsTo": ["public.data", "public.content"],
+            "UTTypeConformsTo": [
+              "public.data",
+              "public.content"
+            ],
             "UTTypeTagSpecification": {
-              "public.filename-extension": ["tusk"],
-              "public.mime-type": ["application/vnd.ivoryscribe.book+xml"]
+              "public.filename-extension": [
+                "tusk"
+              ],
+              "public.mime-type": [
+                "application/vnd.ivoryscribe.book+xml"
+              ]
             }
           },
           {
             "UTTypeIdentifier": "com.ivoryscribe.tusks",
             "UTTypeDescription": "Ivoryscribe Presentation",
-            "UTTypeConformsTo": ["public.data", "public.content"],
+            "UTTypeConformsTo": [
+              "public.data",
+              "public.content"
+            ],
             "UTTypeTagSpecification": {
-              "public.filename-extension": ["tusks"],
-              "public.mime-type": ["application/vnd.ivoryscribe.presentation+xml"]
+              "public.filename-extension": [
+                "tusks"
+              ],
+              "public.mime-type": [
+                "application/vnd.ivoryscribe.presentation+xml"
+              ]
             }
           }
         ]

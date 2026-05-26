@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
-import { Archive, BookCopy, BookText, Cloud, ClipboardCopy, FileCode, FileType, FolderOpen, Pencil, Presentation, Settings2, SquareArrowOutUpRight, Trash2, UserRoundPlus } from "lucide-react"
+import { Archive, BookCopy, BookText, Cloud, ClipboardCopy, FileCode, FileType, FolderOpen, Pencil, Presentation, Settings2, SquareArrowOutUpRight, SquarePlus, Trash2, UserRoundPlus } from "lucide-react"
 import type { ProjectKind } from "../../../core/utils/projects"
 import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
 
@@ -180,20 +180,44 @@ export function buildProjectActions({
 
 export function buildFolderActions({
   folderId,
+  onOpenInNewWindow,
   onRename,
+  onOpenSettings,
   onShare,
   onArchive,
   onTrash,
 }: {
   folderId: string
+  /** Optional — only passed in by the local-FS orchestration. Cloud-only
+   *  folders have no on-disk directory, so the action is hidden when
+   *  this is undefined. */
+  onOpenInNewWindow?: (id: string) => void
   onRename: (id: string) => void
+  /** Open the per-folder settings modal (color / icon emoji). */
+  onOpenSettings?: (id: string) => void
   onShare?: (id: string) => void
   onArchive: (id: string) => void
   onTrash: (id: string) => void
 }): ContextMenuAction[] {
-  const actions: ContextMenuAction[] = [
-    { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => onRename(folderId) },
-  ]
+  const actions: ContextMenuAction[] = []
+
+  if (onOpenInNewWindow) {
+    actions.push({
+      label: "Open in New Window",
+      icon: <SquarePlus size={14} strokeWidth={2} aria-hidden={true} />,
+      action: () => onOpenInNewWindow(folderId),
+    })
+  }
+
+  actions.push({ label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => onRename(folderId) })
+
+  if (onOpenSettings) {
+    actions.push({
+      label: "Folder Settings",
+      icon: <Settings2 size={14} strokeWidth={2} aria-hidden={true} />,
+      action: () => onOpenSettings(folderId),
+    })
+  }
 
   if (onShare) {
     actions.push({ label: "Share", icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShare(folderId) })

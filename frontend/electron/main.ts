@@ -1,5 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell } from "electron"
 import type { MenuItemConstructorOptions } from "electron"
+import { execFile } from "node:child_process"
 import { promises as fsp } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -123,6 +124,11 @@ type RendererMenuItem = {
   submenu?: RendererMenuItem[]
   disabled?: boolean
   shortcut?: string
+  /** Optional Electron menu role (e.g. "paste", "pasteAndMatchStyle"). When
+   *  present, the native menu uses the role instead of dispatching through
+   *  the renderer — letting `webContents.paste()` fire a real paste event
+   *  into the focused contentEditable so TipTap can keep formatting. */
+  role?: string
 }
 
 /** Map web-style shortcut glyphs to Electron accelerator strings */
@@ -143,6 +149,20 @@ function buildNativeMenu(items: RendererMenuItem[], sendCommand: (id: string) =>
         label: item.label,
         enabled: !item.disabled,
         submenu: buildNativeMenu(item.submenu, sendCommand),
+      }
+    }
+
+    // Native role wins when present — Electron implements it via
+    // webContents.{paste,pasteAndMatchStyle,copy,…}() which dispatches a real
+    // ClipboardEvent into the focused element. That's exactly what we need
+    // for Cmd+V to preserve bold/italic/underline through TipTap's
+    // transformPastedHTML.
+    if (item.role) {
+      return {
+        label: item.label,
+        enabled: !item.disabled,
+        accelerator: item.shortcut ? toAccelerator(item.shortcut) : undefined,
+        role: item.role as MenuItemConstructorOptions["role"],
       }
     }
 
@@ -396,6 +416,163 @@ ipcMain.handle("clipboard:readText", () => {
 })
 
 
+
+/**
+ * Recolor a folder's icon by installing a tinted copy of macOS's own
+ * folder graphic as the folder's custom icon. macOS only.
+ *
+ * Strategy:
+ *   1. Run a JXA script that asks AppKit for the system folder icon
+ *      (`NSWorkspace.iconForFileType: "public.folder"`).
+ *   2. Composite the user's hex color over it with `sourceAtop`, which
+ *      tints only the opaque pixels and preserves the folder's shading.
+ *   3. Hand the tinted NSImage to `NSWorkspace.setIcon:forFile:options:`,
+ *      which writes `Icon\r` + flips the FinderInfo bit atomically.
+ *
+ * An empty hex resets to the system default (passes a nil icon to
+ * setIcon, which clears the custom icon and restores the stock look).
+ *
+ * Path + hex are passed via environment variables — that way the JXA
+ * script body is a static string with no user-controlled interpolation,
+ * so we never have to think about shell or JXA quoting.
+ *
+ * Apple Events permission is NOT required for this path (NSWorkspace
+ * just writes files inside the folder). No prompt should appear.
+ */
+const TINT_FOLDER_ICON_JXA = String.raw`
+ObjC.import('AppKit');
+ObjC.import('CoreImage');
+
+// JXA's idiomatic nil check — \`obj.isNil\` returns the *method* (truthy)
+// rather than calling it, so we unwrap to a JS value and compare. This
+// caught a bug where every "did the object survive?" branch silently
+// passed.
+function isObjCNil(value) {
+  if (value === null || value === undefined) return true;
+  try {
+    return ObjC.unwrap(value) === null;
+  } catch (_) {
+    return false;
+  }
+}
+
+function run() {
+  const env = $.NSProcessInfo.processInfo.environment;
+  const folderPath = ObjC.unwrap(env.objectForKey('IV_FOLDER_PATH'));
+  const rawHex = ObjC.unwrap(env.objectForKey('IV_HEX_COLOR')) || '';
+  const workspace = $.NSWorkspace.sharedWorkspace;
+
+  if (!folderPath) return 'ERR:no path';
+
+  // Empty hex → clear custom icon, restore system default.
+  if (rawHex.trim() === '') {
+    workspace.setIconForFileOptions($(), folderPath, 0);
+    return 'reset';
+  }
+
+  const clean = rawHex.replace('#', '');
+  if (clean.length !== 6) return 'ERR:bad hex';
+  const r = parseInt(clean.substr(0, 2), 16) / 255;
+  const g = parseInt(clean.substr(2, 2), 16) / 255;
+  const b = parseInt(clean.substr(4, 2), 16) / 255;
+
+  // Grab the system folder icon. NSImage.imageNamed('NSFolder') is the
+  // native blue Finder folder. iconForFileType is a fallback that on some
+  // OS versions returns a less detailed representation.
+  let baseIcon = $.NSImage.imageNamed('NSFolder');
+  if (isObjCNil(baseIcon)) {
+    baseIcon = workspace.iconForFileType('public.folder');
+  }
+  if (isObjCNil(baseIcon)) return 'ERR:no base icon';
+
+  // Force a large representation for crisp Finder rendering at any zoom.
+  const drawSize = $.NSMakeSize(512, 512);
+  baseIcon.setSize(drawSize);
+
+  // Convert the NSImage to a CIImage via TIFF → NSBitmapImageRep. We
+  // can't go NSImage → CIImage directly across all macOS versions, but
+  // every NSImage exposes a TIFFRepresentation, and the TIFF carries the
+  // highest-resolution sub-representation (we verified 1024×1024 in dev).
+  const tiffData = baseIcon.TIFFRepresentation;
+  if (isObjCNil(tiffData)) return 'ERR:no TIFF data';
+  const bitmap = $.NSBitmapImageRep.imageRepWithData(tiffData);
+  if (isObjCNil(bitmap)) return 'ERR:no bitmap rep';
+  const ciImage = $.CIImage.alloc.initWithBitmapImageRep(bitmap);
+  if (isObjCNil(ciImage)) return 'ERR:no CI image';
+
+  // CIColorMonochrome: replaces each pixel's color with the input color
+  // scaled by the pixel's luminance, while preserving the alpha channel.
+  // The folder's highlights/shadows stay (so it still reads as 3D), but
+  // every visible pixel is now in the chosen hue. Result is *vibrant*
+  // tinting — verified by writing the output PNG to disk during dev.
+  const filter = $.CIFilter.filterWithName('CIColorMonochrome');
+  if (isObjCNil(filter)) return 'ERR:CIColorMonochrome unavailable';
+  filter.setDefaults;
+  filter.setValueForKey(ciImage, 'inputImage');
+  filter.setValueForKey($.CIColor.colorWithRedGreenBlue(r, g, b), 'inputColor');
+  filter.setValueForKey(1.0, 'inputIntensity');
+
+  const output = filter.outputImage;
+  if (isObjCNil(output)) return 'ERR:filter produced no output';
+
+  // CRITICAL: rasterize through CIContext, NOT NSCIImageRep.
+  // NSCIImageRep is a "lazy" representation — addRepresentation accepts
+  // it, but NSWorkspace.setIcon writes a broken Icon\\r resource because
+  // it never asks for actual pixel bytes. Finder then renders the
+  // generic gray "no icon" placeholder, which was the bug the user saw.
+  // CIContext.createCGImage produces a concrete CGImage, and an
+  // NSBitmapImageRep built from that CGImage round-trips through
+  // setIcon correctly.
+  const cictx = $.CIContext.context;
+  const cgImg = cictx.createCGImageFromRect(output, output.extent);
+  if (isObjCNil(cgImg)) return 'ERR:could not rasterize';
+  const bitmapRep = $.NSBitmapImageRep.alloc.initWithCGImage(cgImg);
+  if (isObjCNil(bitmapRep)) return 'ERR:no bitmap from CG';
+
+  const tinted = $.NSImage.alloc.initWithSize(drawSize);
+  tinted.addRepresentation(bitmapRep);
+
+  const ok = workspace.setIconForFileOptions(tinted, folderPath, 0);
+  return ok ? 'ok' : 'ERR:setIcon returned false';
+}
+`
+
+ipcMain.handle("fs:setMacFolderIconColor", async (_event, targetPath: string, hex: string | null): Promise<{ ok: boolean; error?: string }> => {
+  if (process.platform !== "darwin") {
+    return { ok: false, error: "Folder icon coloring is only available on macOS" }
+  }
+  if (typeof targetPath !== "string" || !targetPath) {
+    return { ok: false, error: "Invalid path" }
+  }
+  return await new Promise((resolve) => {
+    execFile(
+      "/usr/bin/osascript",
+      ["-l", "JavaScript", "-e", TINT_FOLDER_ICON_JXA],
+      {
+        // Pass path + hex via env so the JXA body stays a constant string
+        // — no escaping concerns no matter what's in the folder name.
+        env: {
+          ...process.env,
+          IV_FOLDER_PATH: targetPath,
+          IV_HEX_COLOR: hex ?? "",
+        },
+        timeout: 8_000,
+      },
+      (err, stdout, stderr) => {
+        if (err) {
+          resolve({ ok: false, error: stderr?.toString().trim() || err.message })
+          return
+        }
+        const result = stdout.toString().trim()
+        if (result.startsWith("ERR:")) {
+          resolve({ ok: false, error: result.slice(4) })
+          return
+        }
+        resolve({ ok: true })
+      },
+    )
+  })
+})
 
 ipcMain.handle("fs:exists", async (_event, targetPath: string) => {
   try {
