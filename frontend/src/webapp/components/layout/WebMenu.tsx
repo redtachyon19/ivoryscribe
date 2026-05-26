@@ -129,17 +129,19 @@ function MenuList({
 
 type WebMenuProps = {
   items?: MenuItem[]
+  showMenuItems?: boolean
 }
 
 const isElectron = Boolean(window.electronAPI)
 const isElectronMac = isElectron && window.electronAPI?.platform === "darwin"
 const showWindowControls = isElectron && !isElectronMac
 
-export default function WebMenu({ items = appMenu }: WebMenuProps) {
+export default function WebMenu({ items = appMenu, showMenuItems = true }: WebMenuProps) {
   const { isMenuOpen, openMenuPath, closeAllMenus, cancelCloseTimer, scheduleCloseAll } = useMenuState()
 
   const className = [
     "web-menu",
+    !showMenuItems ? "web-menu--controls-only" : "",
     isElectronMac ? "web-menu--electron-mac" : "",
   ].filter(Boolean).join(" ")
 
@@ -150,13 +152,15 @@ export default function WebMenu({ items = appMenu }: WebMenuProps) {
       onMouseEnter={cancelCloseTimer}
       onMouseLeave={scheduleCloseAll}
     >
-      <MenuList
-        items={items}
-        isRoot
-        isMenuOpen={isMenuOpen}
-        openMenuPath={openMenuPath}
-        closeAllMenus={closeAllMenus}
-      />
+      {showMenuItems ? (
+        <MenuList
+          items={items}
+          isRoot
+          isMenuOpen={isMenuOpen}
+          openMenuPath={openMenuPath}
+          closeAllMenus={closeAllMenus}
+        />
+      ) : null}
       {showWindowControls ? (
         <div className="web-menu__window-controls">
           <button
