@@ -1,13 +1,18 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { Archive, BookCopy, BookText, Cloud, ClipboardCopy, FileCode, FileType, FolderOpen, Pencil, Presentation, Settings2, SquareArrowOutUpRight, SquarePlus, Trash2, UserRoundPlus } from "lucide-react"
+import { Archive, BookCopy, BookText, ChevronRight, Cloud, ClipboardCopy, FileCode, FileType, FolderOpen, MoreHorizontal, Pencil, Presentation, Settings2, SquareArrowOutUpRight, Trash2, UserRoundPlus } from "lucide-react"
 import type { ProjectKind } from "../../../core/utils/projects"
 import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
 
 export type ContextMenuAction = {
   label: string
   icon: React.ReactNode
-  action: () => void
+  /** Leaf actions provide `action`; submenu parents provide `children`
+   *  instead. Items with `children` open a nested flyout when hovered. */
+  action?: () => void
+  /** When present, this item becomes a submenu parent rendering a
+   *  chevron and opening a flyout panel with these nested actions. */
+  children?: ContextMenuAction[]
   danger?: boolean
 }
 
@@ -18,8 +23,136 @@ type ProjectContextMenuProps = {
   onClose: () => void
 }
 
+/** Renders the list of menu items. Extracted so it can be reused by the
+ *  root menu and any submenu flyouts without duplicating the markup. */
+function MenuItems({
+  actions,
+  onClose,
+  openSubmenuLabel,
+  setOpenSubmenuLabel,
+}: {
+  actions: ContextMenuAction[]
+  onClose: () => void
+  openSubmenuLabel: string | null
+  setOpenSubmenuLabel: (label: string | null) => void
+}) {
+  const itemRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map())
+
+  return (
+    <>
+      {actions.map((item) => {
+        const hasChildren = !!item.children && item.children.length > 0
+        const isSubmenuOpen = hasChildren && openSubmenuLabel === item.label
+        const itemRect = isSubmenuOpen ? itemRefs.current.get(item.label)?.getBoundingClientRect() : undefined
+        return (
+          <div
+            key={item.label}
+            className="project-context-menu__row"
+            onMouseEnter={() => {
+              if (hasChildren) setOpenSubmenuLabel(item.label)
+              else setOpenSubmenuLabel(null)
+            }}
+          >
+            <button
+              ref={(el) => {
+                itemRefs.current.set(item.label, el)
+              }}
+              type="button"
+              role="menuitem"
+              aria-haspopup={hasChildren ? "menu" : undefined}
+              aria-expanded={hasChildren ? isSubmenuOpen : undefined}
+              className={[
+                "project-context-menu__item",
+                item.danger ? "project-context-menu__item--danger" : "",
+                hasChildren ? "project-context-menu__item--has-submenu" : "",
+              ].filter(Boolean).join(" ")}
+              onClick={() => {
+                if (hasChildren) {
+                  setOpenSubmenuLabel(isSubmenuOpen ? null : item.label)
+                  return
+                }
+                item.action?.()
+                onClose()
+              }}
+            >
+              {item.icon}
+              <span className="project-context-menu__item-label">{item.label}</span>
+              {hasChildren && (
+                <ChevronRight size={14} strokeWidth={2} aria-hidden={true} className="project-context-menu__chevron" />
+              )}
+            </button>
+            {hasChildren && isSubmenuOpen && itemRect && (
+              <SubmenuPanel
+                anchorRect={itemRect}
+                actions={item.children!}
+                onClose={onClose}
+              />
+            )}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+/** Flyout panel that opens beside the parent item. Mirrors the root
+ *  menu's styling and viewport-clamping behavior so it never escapes
+ *  the visible area. */
+function SubmenuPanel({
+  anchorRect,
+  actions,
+  onClose,
+}: {
+  anchorRect: DOMRect
+  actions: ContextMenuAction[]
+  onClose: () => void
+}) {
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const [openSubmenuLabel, setOpenSubmenuLabel] = useState<string | null>(null)
+
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+
+    let left = anchorRect.right - 4
+    let top = anchorRect.top - 4
+
+    if (left + rect.width > viewportWidth) {
+      // Not enough room on the right — flip to the left side of the parent.
+      left = Math.max(8, anchorRect.left - rect.width + 4)
+    }
+    if (top + rect.height > viewportHeight) {
+      top = Math.max(8, viewportHeight - rect.height - 8)
+    }
+
+    el.style.left = `${left}px`
+    el.style.top = `${top}px`
+    el.style.visibility = "visible"
+  }, [anchorRect])
+
+  return (
+    <div
+      ref={panelRef}
+      className="project-context-menu project-context-menu--submenu"
+      role="menu"
+      style={{ visibility: "hidden" }}
+    >
+      <MenuItems
+        actions={actions}
+        onClose={onClose}
+        openSubmenuLabel={openSubmenuLabel}
+        setOpenSubmenuLabel={setOpenSubmenuLabel}
+      />
+    </div>
+  )
+}
+
 export default function ProjectContextMenu({ x, y, actions, onClose }: ProjectContextMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const [openSubmenuLabel, setOpenSubmenuLabel] = useState<string | null>(null)
 
   useEffect(() => {
     const el = menuRef.current
@@ -75,21 +208,12 @@ export default function ProjectContextMenu({ x, y, actions, onClose }: ProjectCo
       role="menu"
       style={{ left: x, top: y, visibility: "hidden" }}
     >
-      {actions.map((item) => (
-        <button
-          key={item.label}
-          type="button"
-          role="menuitem"
-          className={`project-context-menu__item ${item.danger ? "project-context-menu__item--danger" : ""}`.trim()}
-          onClick={() => {
-            item.action()
-            onClose()
-          }}
-        >
-          {item.icon}
-          <span>{item.label}</span>
-        </button>
-      ))}
+      <MenuItems
+        actions={actions}
+        onClose={onClose}
+        openSubmenuLabel={openSubmenuLabel}
+        setOpenSubmenuLabel={setOpenSubmenuLabel}
+      />
     </div>,
     document.querySelector('.app') ?? document.body,
   )
@@ -141,6 +265,7 @@ export function buildProjectActions({
   onArchive: (id: string) => void
   onTrash: (id: string) => void
 }): ContextMenuAction[] {
+  // Top-level (always visible) actions.
   const actions: ContextMenuAction[] = [
     { label: openInNewItemLabel(), icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenInNewTab(projectId) },
     { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => onRename(projectId) },
@@ -154,26 +279,37 @@ export function buildProjectActions({
     actions.push({ label: "Duplicate", icon: <BookCopy size={14} strokeWidth={2} aria-hidden={true} />, action: () => onDuplicate(projectId) })
   }
 
-  if (onCopyPath) {
-    actions.push({ label: "Copy as Path", icon: <ClipboardCopy size={14} strokeWidth={2} aria-hidden={true} />, action: () => onCopyPath(projectId) })
-  }
-
-  if (onShowInFinder) {
-    actions.push({ label: showInFileManagerLabel(), icon: <FolderOpen size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShowInFinder(projectId) })
-  }
-
-  if (onMoveToCloud) {
-    actions.push({ label: "Move to Cloud", icon: <Cloud size={14} strokeWidth={2} aria-hidden={true} />, action: () => onMoveToCloud(projectId) })
-  }
-
   if (onShare) {
     actions.push({ label: "Share", icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShare(projectId) })
   }
 
-  actions.push(
+  // Group the less-frequently-used / destructive actions under a single
+  // "More Options" submenu — keeps the top-level menu short while still
+  // surfacing every action one hover away.
+  const moreOptions: ContextMenuAction[] = []
+
+  if (onCopyPath) {
+    moreOptions.push({ label: "Copy as Path", icon: <ClipboardCopy size={14} strokeWidth={2} aria-hidden={true} />, action: () => onCopyPath(projectId) })
+  }
+
+  if (onShowInFinder) {
+    moreOptions.push({ label: showInFileManagerLabel(), icon: <FolderOpen size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShowInFinder(projectId) })
+  }
+
+  if (onMoveToCloud) {
+    moreOptions.push({ label: "Move to Cloud", icon: <Cloud size={14} strokeWidth={2} aria-hidden={true} />, action: () => onMoveToCloud(projectId) })
+  }
+
+  moreOptions.push(
     { label: "Archive", icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />, action: () => onArchive(projectId) },
     { label: "Trash", icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => onTrash(projectId), danger: true },
   )
+
+  actions.push({
+    label: "More Options",
+    icon: <MoreHorizontal size={14} strokeWidth={2} aria-hidden={true} />,
+    children: moreOptions,
+  })
 
   return actions
 }
@@ -204,7 +340,9 @@ export function buildFolderActions({
   if (onOpenInNewWindow) {
     actions.push({
       label: "Open in New Window",
-      icon: <SquarePlus size={14} strokeWidth={2} aria-hidden={true} />,
+      // Same lucide icon as the project "Open in New Tab/Window"
+      // action so the two menus read consistently.
+      icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />,
       action: () => onOpenInNewWindow(folderId),
     })
   }
@@ -223,10 +361,16 @@ export function buildFolderActions({
     actions.push({ label: "Share", icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShare(folderId) })
   }
 
-  actions.push(
-    { label: "Archive", icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />, action: () => onArchive(folderId) },
-    { label: "Trash", icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => onTrash(folderId), danger: true },
-  )
+  // Mirror the project menu: tuck Archive + Trash under a single
+  // "More Options" submenu so the top of the menu stays uncluttered.
+  actions.push({
+    label: "More Options",
+    icon: <MoreHorizontal size={14} strokeWidth={2} aria-hidden={true} />,
+    children: [
+      { label: "Archive", icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />, action: () => onArchive(folderId) },
+      { label: "Trash", icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => onTrash(folderId), danger: true },
+    ],
+  })
 
   return actions
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
-import { Archive, ArrowLeft, ArrowRight, BookCopy, Copy, ExternalLink, Folder, Info, Pencil, PanelLeft, PanelRight, Settings, Settings2, Trash2, UserRoundPlus } from "lucide-react"
+import { ArrowLeft, ArrowRight, Copy, ExternalLink, Folder, Info, Pencil, PanelLeft, PanelRight, Settings, Trash2 } from "lucide-react"
 import { iconForProjectKind } from "../../../core/utils/projectIcons"
 import NavigationPanel from "../navigation/NavigationPanel"
 import type { LibrarySection } from "../library/useLibraryNavigation"
@@ -10,7 +10,7 @@ import Modal from "../ui/Modal"
 import Button from "../ui/Button"
 import MarkdownCheatsheetModal from "../editor/MarkdownCheatsheetModal"
 import ShareDialog from "../settings/ShareDialog"
-import ProjectContextMenu from "../library/ProjectContextMenu"
+import ProjectContextMenu, { buildFolderActions, buildProjectActions } from "../library/ProjectContextMenu"
 import type { ContextMenuAction } from "../library/ProjectContextMenu"
 import { createId, type Project } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
@@ -60,6 +60,9 @@ export type AppShellProps = {
   onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
   /** Local-mode + Electron only: reveals the project file in Finder/Explorer. */
   onShowProjectInFinder?: (projectId: string) => void
+  /** Local-mode + Electron only: promotes a local project to cloud
+   *  (upload + trash on-disk file). Mirrors the Library card menu. */
+  onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
   sharedProjectIds?: Set<string>
   ownerEmailByProjectId?: Map<string, string>
   userEmail?: string
@@ -118,6 +121,7 @@ export default function AppShell({
   projectDocumentMap,
   onCopyProjectPath,
   onShowProjectInFinder,
+  onMoveProjectToCloud,
   onOpenFolderInNewWindow,
   onApplyFolderFinderColor,
   sharedProjectIds,
@@ -279,100 +283,83 @@ export default function AppShell({
 
     if (topbarMenu.kind === "folder") {
       const folder = folders.find((f) => f.name === activeFolderName)
-      return [
-        {
-          label: openInNewItemLabel(),
-          icon: <ExternalLink size={14} strokeWidth={2} aria-hidden={true} />,
-          action: () => { window.open(new URL("/app", window.location.origin).toString(), "_blank"); closeTopbarMenu() },
+      if (!folder) return []
+      // Same `buildFolderActions` helper the Library project browser
+      // uses, so the editor breadcrumb folder menu matches the Library
+      // folder card menu in labels, icons, order, and behavior.
+      return buildFolderActions({
+        folderId: folder.id,
+        onOpenInNewWindow: onOpenFolderInNewWindow
+          ? (id) => { onOpenFolderInNewWindow(id); closeTopbarMenu() }
+          : undefined,
+        onRename: (id) => {
+          setRenameTarget({ kind: "folder", id })
+          setRenameValue(folder.name)
+          closeTopbarMenu()
         },
-        {
-          label: "Rename",
-          icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />,
-          action: () => {
-            if (folder) { setRenameTarget({ kind: "folder", id: folder.id }); setRenameValue(folder.name) }
-            closeTopbarMenu()
-          },
+        onArchive: (id) => {
+          setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+          setFolders((cur) => cur.filter((f) => f.id !== id))
+          closeTopbarMenu()
         },
-        {
-          label: "Archive",
-          icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />,
-          action: () => {
-            if (folder) setProjects((cur) => cur.map((p) => p.folderId === folder.id ? { ...p, archivedAt: new Date().toISOString() } : p))
-            closeTopbarMenu()
-          },
+        onTrash: (id) => {
+          setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, folderId: null } : p))
+          setFolders((cur) => cur.filter((f) => f.id !== id))
+          closeTopbarMenu()
         },
-        {
-          label: "Trash",
-          icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />,
-          action: () => {
-            if (folder) {
-              setProjects((cur) => cur.map((p) => p.folderId === folder.id ? { ...p, folderId: null } : p))
-              setFolders((cur) => cur.filter((f) => f.id !== folder.id))
-            }
-            closeTopbarMenu()
-          },
-          danger: true,
-        },
-      ]
+      })
     }
 
     if (topbarMenu.kind === "project") {
-      const actions: ContextMenuAction[] = []
-      if (onOpenProjectInNewTab && project) {
-        actions.push({
-          label: openInNewItemLabel(),
-          icon: <ExternalLink size={14} strokeWidth={2} aria-hidden={true} />,
-          action: () => { onOpenProjectInNewTab(project.id); closeTopbarMenu() },
-        })
-      }
-      if (project) {
-        actions.push(
-          {
-            label: "Rename",
-            icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />,
-            action: () => { setRenameTarget({ kind: "project", id: project.id }); setRenameValue(project.name); closeTopbarMenu() },
-          },
-          {
-            label: "Open Project Settings",
-            icon: <Settings2 size={14} strokeWidth={2} aria-hidden={true} />,
-            action: () => { onToggleSettings(); closeTopbarMenu() },
-          },
-          {
-            label: "Duplicate",
-            icon: <BookCopy size={14} strokeWidth={2} aria-hidden={true} />,
-            action: () => { setProjects((cur) => duplicateProject(cur, project.id)); closeTopbarMenu() },
-          },
-        )
-        if (projectDocumentMap[project.id]) {
-          actions.push({
-            label: "Share",
-            icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />,
-            action: () => { setShareProjectId(project.id); closeTopbarMenu() },
-          })
-        }
-        actions.push(
-          {
-            label: "Archive",
-            icon: <Archive size={14} strokeWidth={2} aria-hidden={true} />,
-            action: () => {
-              setProjects((cur) => cur.map((p) => p.id === project.id ? { ...p, archivedAt: new Date().toISOString() } : p))
-              onReturnToDashboard()
-              closeTopbarMenu()
-            },
-          },
-          {
-            label: "Trash",
-            icon: <Trash2 size={14} strokeWidth={2} aria-hidden={true} />,
-            action: () => {
-              setProjects((cur) => cur.map((p) => p.id === project.id ? { ...p, deletedAt: new Date().toISOString() } : p))
-              onReturnToDashboard()
-              closeTopbarMenu()
-            },
-            danger: true,
-          },
-        )
-      }
-      return actions
+      if (!project) return []
+      // Use the same `buildProjectActions` helper the Library project
+      // card menu calls, so the editor topbar menu stays identical in
+      // labels, icons, order, and behavior. The handlers below close the
+      // topbar menu and (for destructive actions) return to the
+      // dashboard since the project being acted on is the open one.
+      const isLocalProject = project.source !== "cloud"
+      return buildProjectActions({
+        projectId: project.id,
+        onOpenInNewTab: (id) => {
+          onOpenProjectInNewTab?.(id)
+          closeTopbarMenu()
+        },
+        onRename: (id) => {
+          setRenameTarget({ kind: "project", id })
+          setRenameValue(project.name)
+          closeTopbarMenu()
+        },
+        onOpenSettings: () => {
+          onToggleSettings()
+          closeTopbarMenu()
+        },
+        onDuplicate: (id) => {
+          setProjects((cur) => duplicateProject(cur, id))
+          closeTopbarMenu()
+        },
+        onShare: projectDocumentMap[project.id]
+          ? (id) => { setShareProjectId(id); closeTopbarMenu() }
+          : undefined,
+        onMoveToCloud: onMoveProjectToCloud && isLocalProject
+          ? (id) => { void onMoveProjectToCloud(id); closeTopbarMenu() }
+          : undefined,
+        onCopyPath: onCopyProjectPath && isLocalProject
+          ? (id) => { onCopyProjectPath(id); closeTopbarMenu() }
+          : undefined,
+        onShowInFinder: onShowProjectInFinder && isLocalProject
+          ? (id) => { onShowProjectInFinder(id); closeTopbarMenu() }
+          : undefined,
+        onArchive: (id) => {
+          setProjects((cur) => cur.map((p) => p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p))
+          onReturnToDashboard()
+          closeTopbarMenu()
+        },
+        onTrash: (id) => {
+          setProjects((cur) => cur.map((p) => p.id === id ? { ...p, deletedAt: new Date().toISOString() } : p))
+          onReturnToDashboard()
+          closeTopbarMenu()
+        },
+      })
     }
 
     if (topbarMenu.kind === "tab") {
@@ -440,7 +427,7 @@ export default function AppShell({
     }
 
     return []
-  }, [topbarMenu, project, folders, activeFolderName, onOpenProjectInNewTab, onToggleSettings, onProjectChange, onReturnToDashboard, projectDocumentMap, setProjects, setFolders, closeTopbarMenu])
+  }, [topbarMenu, project, folders, activeFolderName, onOpenProjectInNewTab, onToggleSettings, onProjectChange, onReturnToDashboard, projectDocumentMap, setProjects, setFolders, closeTopbarMenu, onCopyProjectPath, onShowProjectInFinder, onMoveProjectToCloud])
 
   const estimatedStorageBytes = useMemo(() => {
     const projectBytes = projects.reduce((total, item) => total + new Blob([JSON.stringify(item)]).size, 0)
@@ -801,6 +788,7 @@ export default function AppShell({
           projectDocumentMap={projectDocumentMap}
           onCopyProjectPath={onCopyProjectPath}
           onShowProjectInFinder={onShowProjectInFinder}
+          onMoveProjectToCloud={onMoveProjectToCloud}
           onOpenFolderInNewWindow={onOpenFolderInNewWindow}
           onApplyFolderFinderColor={onApplyFolderFinderColor}
           pendingEditTabIds={pendingEditTabIds}
