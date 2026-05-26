@@ -23,6 +23,7 @@ export default function AppLayout({
   onNavigateHome,
   children,
 }: AppLayoutProps) {
+  const isElectron = Boolean(window.electronAPI)
   const isElectronMac = Boolean(window.electronAPI) && window.electronAPI?.platform === "darwin"
   const [isWindowFullscreen, setIsWindowFullscreen] = useState(false)
 
@@ -79,7 +80,7 @@ export default function AppLayout({
   return (
     <div className={appClassName} style={appStyleVariables}>
       <main className="app-main">
-        {menuBarEnabled && !isElectronMac && <WebMenu items={menuItems} />}
+        {isElectron && !isElectronMac && <WebMenu items={menuItems} showMenuItems={menuBarEnabled} />}
         {showBrand && (
           <button
             type="button"
