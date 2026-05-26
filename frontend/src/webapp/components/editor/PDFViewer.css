@@ -17,6 +17,9 @@
      across the page rather than have it squeezed to fit. */
   overflow-x: auto;
   overflow-y: auto;
+  /* Keep scroll momentum / rubber-band inside the viewer so it never
+     bubbles up to the window and reveals the body background. */
+  overscroll-behavior: contain;
 }
 
 .pdf-viewer__pages {
