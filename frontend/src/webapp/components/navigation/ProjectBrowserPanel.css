@@ -200,6 +200,16 @@
   justify-content: center;
 }
 
+.project-browser__folder-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 13px;
+  line-height: 1;
+}
+
 
 
 /* Collapse button */

@@ -91,6 +91,13 @@ export type EditorProps = {
   /** Reveal the project's on-disk file in the OS file manager. Only
    *  defined for local projects in Electron. */
   onShowProjectInFinder?: (projectId: string) => void
+  /** Spawn a new BrowserWindow rooted at this folder's on-disk directory.
+   *  Only defined for local mode (cloud folders have no directory). */
+  onOpenFolderInNewWindow?: (folderId: string) => void
+  /** macOS Finder label painter — fires alongside in-app color changes so
+   *  the folder gets the same color in Finder. No-op on other OSes or
+   *  when there's no on-disk folder. */
+  onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
 }
 
 /**
@@ -148,6 +155,8 @@ export default function Editor({
   onMoveProjectToCloud,
   onCopyProjectPath,
   onShowProjectInFinder,
+  onOpenFolderInNewWindow,
+  onApplyFolderFinderColor,
 }: EditorProps) {
   const entryTerms = project
     ? getProjectEntryTerms(project.kind)
@@ -266,6 +275,8 @@ export default function Editor({
       projectDocumentMap={projectDocumentMap}
       onCopyProjectPath={onCopyProjectPath}
       onShowProjectInFinder={onShowProjectInFinder}
+      onOpenFolderInNewWindow={onOpenFolderInNewWindow}
+      onApplyFolderFinderColor={onApplyFolderFinderColor}
       sharedProjectIds={sharedProjectIds}
       ownerEmailByProjectId={ownerEmailByProjectId}
       userEmail={userEmail}
@@ -314,6 +325,8 @@ export default function Editor({
           onMoveProjectToCloud={onMoveProjectToCloud}
           onCopyProjectPath={onCopyProjectPath}
           onShowProjectInFinder={onShowProjectInFinder}
+          onOpenFolderInNewWindow={onOpenFolderInNewWindow}
+      onApplyFolderFinderColor={onApplyFolderFinderColor}
         />
       ) : project ? (
         <EditorWorkspace

@@ -55,7 +55,11 @@ export default function ProjectFolderGrid({
             }
           }}
         >
-          <Folder size={18} aria-hidden={true} />
+          {folder.iconEmoji ? (
+            <span className="project-hub__folder-emoji" aria-hidden={true} style={folder.color ? { color: folder.color } : undefined}>{folder.iconEmoji}</span>
+          ) : (
+            <Folder size={18} aria-hidden={true} style={folder.color ? { color: folder.color } : undefined} />
+          )}
           <div>
             {editingFolderId === folder.id ? (
               <input
@@ -151,7 +155,11 @@ export function FolderDetailView({
           {backLabel}
         </button>
         <div className="project-hub__folder-detail-title">
-          <Folder size={20} aria-hidden={true} />
+          {folder.iconEmoji ? (
+            <span className="project-hub__folder-detail-emoji" aria-hidden={true} style={folder.color ? { color: folder.color } : undefined}>{folder.iconEmoji}</span>
+          ) : (
+            <Folder size={20} aria-hidden={true} style={folder.color ? { color: folder.color } : undefined} />
+          )}
           <h3>{folder.name}</h3>
         </div>
         {folder.description ? (
@@ -179,7 +187,11 @@ export function FolderDetailView({
               onDragOver={onFolderDragOver?.(sub)}
               onDrop={onFolderDrop?.(sub)}
             >
-              <Folder size={18} aria-hidden={true} />
+              {sub.iconEmoji ? (
+                <span className="project-hub__folder-emoji" aria-hidden={true} style={sub.color ? { color: sub.color } : undefined}>{sub.iconEmoji}</span>
+              ) : (
+                <Folder size={18} aria-hidden={true} style={sub.color ? { color: sub.color } : undefined} />
+              )}
               <div>
                 <strong className="project-hub__folder-title" data-marquee-parent>
                   <MarqueeText text={sub.name} />

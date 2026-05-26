@@ -73,6 +73,10 @@ export type NavigationPanelProps = {
   projectDocumentMap: Record<string, string>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
+  /** Spawn a new Electron window scoped to this folder's on-disk dir. */
+  onOpenFolderInNewWindow?: (folderId: string) => void
+  /** Paint the folder's macOS Finder label so in-app color changes propagate to Finder. */
+  onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
   pendingEditTabIds?: Set<string>
 }
 
@@ -103,6 +107,8 @@ export default function NavigationPanel({
   projectDocumentMap,
   onCopyProjectPath,
   onShowProjectInFinder,
+  onOpenFolderInNewWindow,
+  onApplyFolderFinderColor,
   pendingEditTabIds,
 }: NavigationPanelProps) {
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
@@ -384,6 +390,8 @@ export default function NavigationPanel({
               projectDocumentMap={projectDocumentMap}
               onCopyProjectPath={onCopyProjectPath}
               onShowProjectInFinder={onShowProjectInFinder}
+              onOpenFolderInNewWindow={onOpenFolderInNewWindow}
+              onApplyFolderFinderColor={onApplyFolderFinderColor}
               onCreateProject={onCreateProject}
               onCreateFolder={handleCreateFolder}
             />

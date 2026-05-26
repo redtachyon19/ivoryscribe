@@ -12,6 +12,8 @@ import useSectionDrop from "../library/useSectionDrop"
 import useProjectSettings from "../library/useProjectSettings"
 import type { ContextMenuAction } from "../library/ProjectContextMenu"
 import ProjectContextMenu, { buildCreateProjectActions, buildProjectActions, buildFolderActions } from "../library/ProjectContextMenu"
+import FolderSettingsModal from "../library/FolderSettingsModal"
+import { setFolderMeta } from "../../../core/state/folderMetaStorage"
 import ProjectSettings from "../settings/ProjectSettings"
 import ShareDialog from "../settings/ShareDialog"
 import Modal from "../ui/Modal"
@@ -37,6 +39,12 @@ type ProjectBrowserPanelProps = {
   projectDocumentMap: Record<string, string>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
+  /** Local-only: spawn a new BrowserWindow with this folder's directory as
+   *  the workspace root. Undefined in cloud-only mode. */
+  onOpenFolderInNewWindow?: (folderId: string) => void
+  /** macOS-only: paint the folder's Finder color label. Undefined when not
+   *  on macOS / not in local mode. */
+  onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
   onCreateProject: (kind: import("../../../core/utils/projects").ProjectKind) => void
   onCreateFolder: () => void
 }
@@ -60,6 +68,8 @@ export default function ProjectBrowserPanel({
   projectDocumentMap,
   onCopyProjectPath,
   onShowProjectInFinder,
+  onOpenFolderInNewWindow,
+  onApplyFolderFinderColor,
   onCreateProject,
   onCreateFolder,
 }: ProjectBrowserPanelProps) {
@@ -70,6 +80,8 @@ export default function ProjectBrowserPanel({
   const multiDragIdsRef = useRef<Set<string>>(new Set())
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
+  const [folderSettingsId, setFolderSettingsId] = useState<string | null>(null)
+  const folderSettingsTarget = folderSettingsId ? folders.find((f) => f.id === folderSettingsId) ?? null : null
   const [editingFolderName, setEditingFolderName] = useState("")
   const [pendingTrashFolderId, setPendingTrashFolderId] = useState<string | null>(null)
   const [externalFolderDropId, setExternalFolderDropId] = useState<string | null>(null)
@@ -142,7 +154,9 @@ export default function ProjectBrowserPanel({
     }
     const walk = (folder: ProjectFolder) => {
       ids.push(folder.id)
-      if (expandedFolders[folder.id] === false) return
+      // Folders start collapsed — only walk into them when explicitly
+      // expanded. (Mirrors the isFolderExpanded predicate below.)
+      if (expandedFolders[folder.id] !== true) return
       for (const child of childrenByParent.get(folder.id) ?? []) walk(child)
       for (const p of projects.filter((pr) => pr.folderId === folder.id)) ids.push(p.id)
     }
@@ -295,12 +309,15 @@ export default function ProjectBrowserPanel({
     drag.handleDragEnd()
   }, [drag])
 
-  const isFolderExpanded = (folderId: string) => expandedFolders[folderId] !== false
+  // Folders default to *collapsed* — only an explicit true means open.
+  // That way a freshly hydrated sidebar shows just the folder rows, and
+  // the user opts in to seeing each folder's contents.
+  const isFolderExpanded = (folderId: string) => expandedFolders[folderId] === true
 
   const toggleFolder = (folderId: string) => {
     setExpandedFolders((current) => ({
       ...current,
-      [folderId]: current[folderId] === false,
+      [folderId]: current[folderId] !== true,
     }))
   }
 
@@ -575,8 +592,15 @@ export default function ProjectBrowserPanel({
                   setContextMenu({ x: event.clientX, y: event.clientY, kind: "item", projectId: folder.id, isFolder: true })
                 }}
               >
-                <span className="project-browser__icon">
-                  <Folder size={14} strokeWidth={1.8} aria-hidden="true" />
+                <span
+                  className="project-browser__icon"
+                  style={folder.color ? { color: folder.color } : undefined}
+                >
+                  {folder.iconEmoji ? (
+                    <span className="project-browser__folder-emoji" aria-hidden="true">{folder.iconEmoji}</span>
+                  ) : (
+                    <Folder size={14} strokeWidth={1.8} aria-hidden="true" />
+                  )}
                 </span>
                 <MarqueeText text={folder.name} />
               </button>
@@ -863,10 +887,12 @@ export default function ProjectBrowserPanel({
             if (contextMenu.isFolder) {
               return buildFolderActions({
                 folderId: contextMenu.projectId,
+                onOpenInNewWindow: onOpenFolderInNewWindow,
                 onRename: (id) => {
                   const folder = folders.find((f) => f.id === id)
                   if (folder) startFolderRename(id, folder.name)
                 },
+                onOpenSettings: (id) => setFolderSettingsId(id),
                 onArchive: (id) => {
                   setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, archivedAt: new Date().toISOString() } : p))
                   setFolders((cur) => cur.filter((f) => f.id !== id))
@@ -914,6 +940,19 @@ export default function ProjectBrowserPanel({
           projectName={shareDialogProject?.name ?? "Untitled"}
         />
       ) : null}
+
+      <FolderSettingsModal
+        isOpen={folderSettingsTarget !== null}
+        folder={folderSettingsTarget}
+        onClose={() => setFolderSettingsId(null)}
+        onChange={(patch) => {
+          if (!folderSettingsTarget) return
+          const targetId = folderSettingsTarget.id
+          setFolders((current) => current.map((f) => f.id === targetId ? { ...f, ...patch } : f))
+          setFolderMeta(targetId, patch)
+          if (patch.color !== undefined) onApplyFolderFinderColor?.(targetId, patch.color)
+        }}
+      />
     </div>
   )
 }

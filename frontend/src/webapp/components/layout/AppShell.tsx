@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react"
-import { Archive, ArrowLeft, ArrowRight, BookCopy, Copy, ExternalLink, Folder, Pencil, PanelLeft, PanelRight, Settings, Settings2, Trash2, UserRoundPlus } from "lucide-react"
+import { Archive, ArrowLeft, ArrowRight, BookCopy, Copy, ExternalLink, Folder, Info, Pencil, PanelLeft, PanelRight, Settings, Settings2, Trash2, UserRoundPlus } from "lucide-react"
 import { iconForProjectKind } from "../../../core/utils/projectIcons"
 import NavigationPanel from "../navigation/NavigationPanel"
 import type { LibrarySection } from "../library/useLibraryNavigation"
@@ -8,6 +8,7 @@ import type { ProposedEdit } from "../ai/proposedEditsTypes"
 import MarqueeText from "../ui/MarqueeText"
 import Modal from "../ui/Modal"
 import Button from "../ui/Button"
+import MarkdownCheatsheetModal from "../editor/MarkdownCheatsheetModal"
 import ShareDialog from "../settings/ShareDialog"
 import ProjectContextMenu from "../library/ProjectContextMenu"
 import type { ContextMenuAction } from "../library/ProjectContextMenu"
@@ -55,6 +56,8 @@ export type AppShellProps = {
   projectDocumentMap: Record<string, string>
   /** Local-mode + Electron only: copies the project's on-disk path. */
   onCopyProjectPath?: (projectId: string) => void
+  onOpenFolderInNewWindow?: (folderId: string) => void
+  onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
   /** Local-mode + Electron only: reveals the project file in Finder/Explorer. */
   onShowProjectInFinder?: (projectId: string) => void
   sharedProjectIds?: Set<string>
@@ -115,6 +118,8 @@ export default function AppShell({
   projectDocumentMap,
   onCopyProjectPath,
   onShowProjectInFinder,
+  onOpenFolderInNewWindow,
+  onApplyFolderFinderColor,
   sharedProjectIds,
   ownerEmailByProjectId,
   userEmail = "",
@@ -140,6 +145,9 @@ export default function AppShell({
   const [rightPanelWidth, setRightPanelWidth] = useState(280)
   const [draggingPanel, setDraggingPanel] = useState<"left" | "right" | null>(null)
   const [sidebarSlide, setSidebarSlide] = useState<1 | 2>(view === "projects" ? 1 : 2)
+  // Info popup for the Markdown reference (button rendered only when a
+  // markdown doc is active — see the render block below).
+  const [isMarkdownCheatsheetOpen, setIsMarkdownCheatsheetOpen] = useState(false)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const panelSeparatorWidth = 8
 
@@ -793,6 +801,8 @@ export default function AppShell({
           projectDocumentMap={projectDocumentMap}
           onCopyProjectPath={onCopyProjectPath}
           onShowProjectInFinder={onShowProjectInFinder}
+          onOpenFolderInNewWindow={onOpenFolderInNewWindow}
+          onApplyFolderFinderColor={onApplyFolderFinderColor}
           pendingEditTabIds={pendingEditTabIds}
         />
 
@@ -816,6 +826,21 @@ export default function AppShell({
         >
           <Settings size={14} aria-hidden={true} />
         </button>
+
+        {/* Markdown-only Info button — sits directly below the Settings
+            button (shares the same styling class for visual parity) and
+            opens the Markdown + LaTeX reference modal. */}
+        {markdownViewToggleAvailable ? (
+          <button
+            type="button"
+            className={`editor-workspace__settings-btn editor-workspace__info-btn ${isEditorTyping ? "editor-workspace__settings-btn--hidden" : ""}`.trim()}
+            aria-label="Markdown reference"
+            onClick={() => setIsMarkdownCheatsheetOpen(true)}
+            style={{ right: `${(isRightRailOpen ? rightPanelWidth + panelSeparatorWidth : 0) + 14}px` }}
+          >
+            <Info size={14} aria-hidden={true} />
+          </button>
+        ) : null}
 
         <div
           className={`editor-workspace__resizer editor-workspace__resizer--right ${draggingPanel === "right" ? "editor-workspace__resizer--dragging" : ""} ${!isRightRailOpen ? "editor-workspace__resizer--hidden" : ""}`.trim()}
@@ -877,6 +902,14 @@ export default function AppShell({
           ownerEmail={ownerEmailByProjectId?.get(shareProject.id) ?? ""}
         />
       ) : null}
+
+      {/* Markdown + LaTeX reference. Mount unconditionally so the close
+          animation can play even if the Info button disappears
+          mid-transition (e.g. user switches docs while it's open). */}
+      <MarkdownCheatsheetModal
+        isOpen={isMarkdownCheatsheetOpen}
+        onClose={() => setIsMarkdownCheatsheetOpen(false)}
+      />
     </div>
   )
 }

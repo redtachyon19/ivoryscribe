@@ -40,6 +40,12 @@ type LibraryRouterProps = {
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
+  /** Local-only: open a folder's directory as a new BrowserWindow's
+   *  workspace root. Undefined in cloud-only mode. */
+  onOpenFolderInNewWindow?: (folderId: string) => void
+  /** macOS-only: apply a Finder color label to a folder when its in-app
+   *  color changes. */
+  onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
 }
 
 export default function LibraryRouter({
@@ -71,6 +77,8 @@ export default function LibraryRouter({
   onMoveProjectToCloud,
   onCopyProjectPath,
   onShowProjectInFinder,
+  onOpenFolderInNewWindow,
+  onApplyFolderFinderColor,
 }: LibraryRouterProps) {
   if (librarySection === "cloud") {
     return (
@@ -135,6 +143,8 @@ export default function LibraryRouter({
       onMoveProjectToCloud={onMoveProjectToCloud}
       onCopyProjectPath={onCopyProjectPath}
       onShowProjectInFinder={onShowProjectInFinder}
+      onOpenFolderInNewWindow={onOpenFolderInNewWindow}
+      onApplyFolderFinderColor={onApplyFolderFinderColor}
     />
   )
 }

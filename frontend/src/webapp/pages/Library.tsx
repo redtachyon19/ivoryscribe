@@ -18,6 +18,8 @@ import useProjectDrag from "../components/library/useProjectDrag"
 import useProjectSettings from "../components/library/useProjectSettings"
 import { useViewMode, ViewToggle, formatRelativeDate } from "../components/library/useViewMode"
 import ProjectContextMenu, { buildCreateProjectActions, buildProjectActions, buildFolderActions, buildMultiSelectActions } from "../components/library/ProjectContextMenu"
+import FolderSettingsModal from "../components/library/FolderSettingsModal"
+import { setFolderMeta } from "../../core/state/folderMetaStorage"
 import useMultiSelect from "../components/library/useMultiSelect"
 import ShareDialog from "../components/settings/ShareDialog"
 import ShareRequestList from "../components/library/ShareRequestList"
@@ -36,6 +38,11 @@ export type ProjectFolder = {
   /** Parent folder id, or null for top-level folders. Allows nested folders
    *  to be hidden until the user navigates into their parent. */
   parentFolderId?: string | null
+  /** Hex color (`#RRGGBB`) tinting the folder's icon and accents. Empty /
+   *  undefined renders with the default editor-text color. */
+  color?: string | null
+  /** Single emoji that replaces the default Folder icon when set. */
+  iconEmoji?: string | null
 }
 
 export type LibraryProps = {
@@ -69,6 +76,13 @@ export type LibraryProps = {
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
+  /** Local-only: spawn a new BrowserWindow whose workspace root is the
+   *  folder's on-disk directory. Wired by the orchestration when the
+   *  local FS handle is available; cloud-only folders pass undefined. */
+  onOpenFolderInNewWindow?: (folderId: string) => void
+  /** macOS-only: paint the folder's Finder color label to match the
+   *  in-app color the user just picked. */
+  onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
 }
 
 export default function Library({
@@ -96,9 +110,13 @@ export default function Library({
   onMoveProjectToCloud,
   onCopyProjectPath,
   onShowProjectInFinder,
+  onOpenFolderInNewWindow,
+  onApplyFolderFinderColor,
 }: LibraryProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
+  const [folderSettingsId, setFolderSettingsId] = useState<string | null>(null)
+  const folderSettingsTarget = folderSettingsId ? folders.find((f) => f.id === folderSettingsId) ?? null : null
   const [editingFolderName, setEditingFolderName] = useState("")
   const { viewMode, toggle: toggleView } = useViewMode()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
@@ -641,7 +659,9 @@ export default function Library({
               : contextMenu.isFolder
               ? buildFolderActions({
                   folderId: contextMenu.projectId,
+                  onOpenInNewWindow: onOpenFolderInNewWindow,
                   onRename: (id) => startFolderRename(id),
+                  onOpenSettings: (id) => setFolderSettingsId(id),
                   onArchive: (id) => {
                     setProjects((cur) => cur.map((p) => p.folderId === id ? { ...p, archivedAt: new Date().toISOString() } : p))
                     setFolders((cur) => cur.filter((f) => f.id !== id))
@@ -717,6 +737,26 @@ export default function Library({
           onEnableCloudSharing={onEnableCloudSharing ? () => onEnableCloudSharing(shareDialogProjectId) : undefined}
         />
       ) : null}
+
+      <FolderSettingsModal
+        isOpen={folderSettingsTarget !== null}
+        folder={folderSettingsTarget}
+        onClose={() => setFolderSettingsId(null)}
+        onChange={(patch) => {
+          if (!folderSettingsTarget) return
+          const targetId = folderSettingsTarget.id
+          setFolders((current) => current.map((f) => f.id === targetId ? { ...f, ...patch } : f))
+          // Mirror to the per-folder localStorage shadow so the change
+          // survives reload in local mode (cloud mode also benefits — its
+          // preferences sync will write back, but the local mirror keeps
+          // the value visible until that round-trip lands).
+          setFolderMeta(targetId, patch)
+          // macOS only: also stamp the folder's Finder color label so a
+          // user opening Finder sees the same accent. Snaps to the nearest
+          // of Finder's seven preset colors (see macFolderLabels.ts).
+          if (patch.color !== undefined) onApplyFolderFinderColor?.(targetId, patch.color)
+        }}
+      />
     </>
   )
 }
