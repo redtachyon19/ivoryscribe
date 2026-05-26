@@ -73,6 +73,10 @@ export type NavigationPanelProps = {
   projectDocumentMap: Record<string, string>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
+  /** Local-only: upload-then-trash a local project. Threaded into the
+   *  ProjectBrowserPanel so both the right-click "Move to Cloud" and
+   *  the drag-into-Cloud section drop call the same code path. */
+  onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
   /** Spawn a new Electron window scoped to this folder's on-disk dir. */
   onOpenFolderInNewWindow?: (folderId: string) => void
   /** Paint the folder's macOS Finder label so in-app color changes propagate to Finder. */
@@ -107,6 +111,7 @@ export default function NavigationPanel({
   projectDocumentMap,
   onCopyProjectPath,
   onShowProjectInFinder,
+  onMoveProjectToCloud,
   onOpenFolderInNewWindow,
   onApplyFolderFinderColor,
   pendingEditTabIds,
@@ -390,6 +395,7 @@ export default function NavigationPanel({
               projectDocumentMap={projectDocumentMap}
               onCopyProjectPath={onCopyProjectPath}
               onShowProjectInFinder={onShowProjectInFinder}
+              onMoveProjectToCloud={onMoveProjectToCloud}
               onOpenFolderInNewWindow={onOpenFolderInNewWindow}
               onApplyFolderFinderColor={onApplyFolderFinderColor}
               onCreateProject={onCreateProject}

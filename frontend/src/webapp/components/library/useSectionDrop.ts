@@ -2,18 +2,33 @@ import { useState, type DragEvent, type Dispatch, type SetStateAction } from "re
 import type { Project } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
 
-type SectionTarget = "library" | "archive" | "trash" | null
+/** "cloud" is a move-and-upload target: dropping a local project (or
+ *  folder of local projects) onto it uploads the file(s) to cloud and
+ *  trashes the on-disk file via `onMoveProjectToCloud`. The other
+ *  targets are pure state mutations (archive flags / trash flags). */
+export type DroppableSection = "library" | "archive" | "trash" | "cloud"
+type SectionTarget = DroppableSection | null
 
 type UseSectionDropOptions = {
   folders: ProjectFolder[]
+  projects: Project[]
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
+  /** Local-mode + Electron only: upload-then-trash for a single
+   *  project. The hook calls this once per local project being moved
+   *  to cloud (whether the user dragged a project directly or dragged
+   *  a folder containing local projects). Undefined disables the
+   *  cloud drop target entirely. */
+  onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
 }
 
-export default function useSectionDrop({ folders, setProjects, setFolders }: UseSectionDropOptions) {
+export default function useSectionDrop({ folders, projects, setProjects, setFolders, onMoveProjectToCloud }: UseSectionDropOptions) {
   const [sectionDropTarget, setSectionDropTarget] = useState<SectionTarget>(null)
 
-  const handleSectionDragOver = (section: "library" | "archive" | "trash") => (event: DragEvent<HTMLElement>) => {
+  const handleSectionDragOver = (section: DroppableSection) => (event: DragEvent<HTMLElement>) => {
+    // Disable cloud drop highlight when there's no handler wired up
+    // (cloud-mode, or before the orchestration is ready).
+    if (section === "cloud" && !onMoveProjectToCloud) return
     event.preventDefault()
     if (sectionDropTarget !== section) setSectionDropTarget(section)
   }
@@ -24,7 +39,7 @@ export default function useSectionDrop({ folders, setProjects, setFolders }: Use
     setSectionDropTarget(null)
   }
 
-  const handleSectionDrop = (section: "library" | "archive" | "trash") => (event: DragEvent<HTMLElement>) => {
+  const handleSectionDrop = (section: DroppableSection) => (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
     event.stopPropagation()
     const raw = event.dataTransfer.getData("text/plain")
@@ -34,6 +49,65 @@ export default function useSectionDrop({ folders, setProjects, setFolders }: Use
     }
 
     const ids = raw.split(",").filter(Boolean)
+    const folderIds = new Set(ids.filter((id) => folders.some((f) => f.id === id)))
+    const projectIds = new Set(ids.filter((id) => !folderIds.has(id)))
+
+    // ── Cloud target ──────────────────────────────────────────────
+    // Resolve dragged ids into a flat list of local project ids
+    // (folder drags expand into their member local projects), then
+    // upload each in sequence. Each successful upload trashes the
+    // on-disk file and stamps source: "cloud" on the project.
+    if (section === "cloud") {
+      if (!onMoveProjectToCloud) {
+        console.warn("[sectionDrop] cloud drop ignored — no onMoveProjectToCloud handler wired up (cloud-only mode?)")
+        setSectionDropTarget(null)
+        return
+      }
+      const localProjectIds = new Set<string>()
+      for (const pid of projectIds) {
+        const p = projects.find((proj) => proj.id === pid)
+        if (p && p.source !== "cloud") localProjectIds.add(pid)
+      }
+      for (const fId of folderIds) {
+        for (const p of projects) {
+          if (p.folderId === fId && p.source !== "cloud") localProjectIds.add(p.id)
+        }
+      }
+
+      if (localProjectIds.size === 0) {
+        // Either every dragged project was already cloud or nothing
+        // resolved to a real project — bail loud-ish so the user
+        // doesn't think the drop silently worked.
+        console.warn("[sectionDrop] cloud drop resolved to zero local projects", { projectIds: Array.from(projectIds), folderIds: Array.from(folderIds) })
+        setSectionDropTarget(null)
+        return
+      }
+
+      void (async () => {
+        let succeeded = 0
+        for (const pid of localProjectIds) {
+          try {
+            const result = await onMoveProjectToCloud(pid)
+            if (result) succeeded += 1
+          } catch (err) {
+            console.error("[sectionDrop] move to cloud failed for", pid, err)
+          }
+        }
+        // After moving the contents of a folder to cloud, drop the
+        // (now-empty) folder shell — its projects no longer live in
+        // the local library so the folder has nothing to hold. Only
+        // remove folders if at least one of their projects actually
+        // made it to cloud (avoids nuking a folder on total failure).
+        if (folderIds.size > 0 && succeeded > 0) {
+          setFolders((cur) => cur.filter((f) => !folderIds.has(f.id)))
+        }
+      })()
+
+      setSectionDropTarget(null)
+      return
+    }
+
+    // ── library / archive / trash targets ─────────────────────────
     const now = new Date().toISOString()
     const applySection = (p: Project): Project => {
       switch (section) {
@@ -45,9 +119,6 @@ export default function useSectionDrop({ folders, setProjects, setFolders }: Use
           return { ...p, deletedAt: p.deletedAt ?? now, archivedAt: null }
       }
     }
-
-    const folderIds = new Set(ids.filter((id) => folders.some((f) => f.id === id)))
-    const projectIds = new Set(ids.filter((id) => !folderIds.has(id)))
 
     setProjects((cur) =>
       cur.map((p) => {
@@ -69,7 +140,7 @@ export default function useSectionDrop({ folders, setProjects, setFolders }: Use
     setSectionDropTarget(null)
   }
 
-  const getSectionDropClass = (section: "library" | "archive" | "trash") =>
+  const getSectionDropClass = (section: DroppableSection) =>
     sectionDropTarget === section ? "project-browser__section-btn--drop-target" : ""
 
   return { sectionDropTarget, handleSectionDragOver, handleSectionDragLeave, handleSectionDrop, getSectionDropClass }

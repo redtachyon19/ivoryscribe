@@ -39,6 +39,10 @@ type ProjectBrowserPanelProps = {
   projectDocumentMap: Record<string, string>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
+  /** Local-only: upload-then-trash a local project. Powers both the
+   *  right-click "Move to Cloud" action and the drag-into-Cloud
+   *  section drop target. Undefined disables both in cloud-only mode. */
+  onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
   /** Local-only: spawn a new BrowserWindow with this folder's directory as
    *  the workspace root. Undefined in cloud-only mode. */
   onOpenFolderInNewWindow?: (folderId: string) => void
@@ -68,13 +72,14 @@ export default function ProjectBrowserPanel({
   projectDocumentMap,
   onCopyProjectPath,
   onShowProjectInFinder,
+  onMoveProjectToCloud,
   onOpenFolderInNewWindow,
   onApplyFolderFinderColor,
   onCreateProject,
   onCreateFolder,
 }: ProjectBrowserPanelProps) {
   const drag = useListDrag({ flatOnly: true })
-  const sectionDrop = useSectionDrop({ folders, setProjects, setFolders })
+  const sectionDrop = useSectionDrop({ folders, projects, setProjects, setFolders, onMoveProjectToCloud })
   const settings = useProjectSettings({ projects, setProjects })
   const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee()
   const multiDragIdsRef = useRef<Set<string>>(new Set())
@@ -663,11 +668,14 @@ export default function ProjectBrowserPanel({
             type="button"
             role="tab"
             aria-selected={librarySection === "cloud"}
-            className={`project-browser__section-btn ${librarySection === "cloud" ? "project-browser__section-btn--active" : ""}`.trim()}
+            className={`project-browser__section-btn ${librarySection === "cloud" ? "project-browser__section-btn--active" : ""} ${sectionDrop.getSectionDropClass("cloud")}`.trim()}
             onClick={() => {
               setLibrarySection("cloud")
               onNavigateLibrary()
             }}
+            onDragOver={sectionDrop.handleSectionDragOver("cloud")}
+            onDragLeave={sectionDrop.handleSectionDragLeave}
+            onDrop={sectionDrop.handleSectionDrop("cloud")}
           >
             <Cloud size={14} strokeWidth={1.9} aria-hidden="true" />
             <span>Cloud</span>
@@ -926,6 +934,13 @@ export default function ProjectBrowserPanel({
               onShare: (id) => openShareDialog(id),
               onCopyPath: isLocalProject && onCopyProjectPath ? onCopyProjectPath : undefined,
               onShowInFinder: isLocalProject && onShowProjectInFinder ? onShowProjectInFinder : undefined,
+              // Local-only: upload the on-disk file to cloud and trash
+              // the local copy. Hidden for cloud projects (already
+              // there) and when the orchestration didn't provide a
+              // handler (web / cloud-only mode).
+              onMoveToCloud: isLocalProject && onMoveProjectToCloud
+                ? (id) => { void onMoveProjectToCloud(id) }
+                : undefined,
             })
           })()}
         />

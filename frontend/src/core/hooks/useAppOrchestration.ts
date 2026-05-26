@@ -329,9 +329,20 @@ export function useAppOrchestration() {
       setIsAuthOverlayOpen(true)
       return null
     }
-    if (!isLocalMode || !localFsHandle) return null
+    if (!isLocalMode || !localFsHandle) {
+      // No on-disk backing for this project — usually means we're in
+      // pure cloud mode and the user shouldn't have been offered the
+      // action at all. Surface it instead of silently no-op'ing.
+      console.warn("[moveToCloud] skipped: not in local mode or no FS handle")
+      window.alert("Move to Cloud is only available in local-file mode.")
+      return null
+    }
     const filePath = localFsHandle.getFilePathForProject(projectId)
-    if (!filePath) return null
+    if (!filePath) {
+      console.warn("[moveToCloud] no file path for project", projectId)
+      window.alert("Couldn't find a local file for this project — nothing to upload.")
+      return null
+    }
 
     let cloudId: string
     try {
@@ -340,6 +351,8 @@ export function useAppOrchestration() {
       cloudId = await uploadLocalFileAsCloudDocument(session.token, filePath)
     } catch (err) {
       console.error("[moveToCloud] upload failed; local file left intact:", err)
+      const detail = err instanceof Error ? err.message : String(err)
+      window.alert(`Failed to upload to cloud. The local file is unchanged.\n\n${detail}`)
       return null
     }
 
