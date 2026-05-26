@@ -275,6 +275,7 @@ export default function Editor({
       projectDocumentMap={projectDocumentMap}
       onCopyProjectPath={onCopyProjectPath}
       onShowProjectInFinder={onShowProjectInFinder}
+      onMoveProjectToCloud={onMoveProjectToCloud}
       onOpenFolderInNewWindow={onOpenFolderInNewWindow}
       onApplyFolderFinderColor={onApplyFolderFinderColor}
       sharedProjectIds={sharedProjectIds}
