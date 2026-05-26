@@ -496,7 +496,7 @@ export default function AppShell({
   }
 
   const isElectronMac = Boolean(window.electronAPI) && window.electronAPI?.platform === "darwin"
-  const showWebMenuSpacing = menuBarEnabled && !isElectronMac
+  const showWebMenuSpacing = Boolean(window.electronAPI) && !isElectronMac
 
   return (
     <div className={`editor-workspace ${showWebMenuSpacing ? "editor-workspace--with-menu" : ""}`.trim()}>
