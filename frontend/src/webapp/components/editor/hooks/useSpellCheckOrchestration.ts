@@ -20,7 +20,7 @@ import {
   removeNativeSpellCheckWord,
 } from "../utils/spellCheckDictionary"
 
-type ActiveDocumentType = "prose" | "pinboard" | "markdown" | "plaintext" | "pdf"
+type ActiveDocumentType = "prose" | "pinboard" | "markdown" | "plaintext" | "pdf" | "image"
 
 type UseSpellCheckOrchestrationArgs = {
   view: "projects" | "editor"

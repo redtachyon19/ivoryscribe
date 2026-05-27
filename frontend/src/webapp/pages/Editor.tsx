@@ -181,13 +181,15 @@ export default function Editor({
   const projectMarkdownIds = project?.markdownIds
   const projectPlaintextIds = project?.plaintextIds
   const projectPdfIds = project?.pdfIds
+  const projectImageIds = project?.imageIds
   const projectMarkdownEditorEnabled = project?.markdownEditorEnabled
   const untitledLabel = entryTerms.untitled
 
-  const activeDocumentType = useMemo<"prose" | "pinboard" | "markdown" | "plaintext" | "pdf">(() => {
+  const activeDocumentType = useMemo<"prose" | "pinboard" | "markdown" | "plaintext" | "pdf" | "image">(() => {
     if (!activeTabId || !projectTabs) return "prose"
     if ((projectPinboardIds ?? []).includes(activeTabId)) return "pinboard"
     if ((projectPdfIds ?? []).includes(activeTabId)) return "pdf"
+    if ((projectImageIds ?? []).includes(activeTabId)) return "image"
     if ((projectPlaintextIds ?? []).includes(activeTabId)) return "plaintext"
     const markdownIds = getProjectMarkdownIds({
       tabs: projectTabs,
@@ -196,7 +198,7 @@ export default function Editor({
     })
     if (markdownIds.includes(activeTabId)) return "markdown"
     return "prose"
-  }, [activeTabId, projectTabs, projectPinboardIds, projectPdfIds, projectPlaintextIds, projectMarkdownIds, projectMarkdownEditorEnabled])
+  }, [activeTabId, projectTabs, projectPinboardIds, projectPdfIds, projectImageIds, projectPlaintextIds, projectMarkdownIds, projectMarkdownEditorEnabled])
 
   const activeTabPath = useMemo(() => {
     if (!activeTabId || !projectTabs) {
