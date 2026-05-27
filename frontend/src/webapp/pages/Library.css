@@ -775,6 +775,38 @@
 }
 
 
+/* ── Unsupported-file (Unknown-kind) cards ──
+ *
+ * Files whose extension the app can't read or write still show up in the
+ * library so the user can drag / delete / move them — they just can't be
+ * opened or renamed. We grey them out + drop the cursor hint to make the
+ * "can't click into this" affordance obvious without removing the card
+ * entirely. Drag handles still work because the drag listeners sit on
+ * the <li> itself and don't check opacity. */
+.project-card--unknown {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.project-card--unknown:hover {
+  /* Most cards lift on hover; suppress that for unknowns so the card
+   * doesn't look interactable. */
+  transform: none;
+}
+
+.project-card--unknown .project-card__title {
+  /* Match the muted treatment of the meta line — keeps the title from
+   * looking like a clickable link inside an otherwise-disabled card. */
+  color: inherit;
+  opacity: 0.9;
+}
+
+/* Same treatment for the list-view row variant. */
+.project-hub__list-row--unknown {
+  opacity: 0.55;
+  cursor: default;
+}
+
 /* ── Drag states ── */
 
 .project-card--dragging {

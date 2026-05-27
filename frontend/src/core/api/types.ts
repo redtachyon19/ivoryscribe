@@ -60,7 +60,12 @@ export type TuskAiProjectContext = {
   // Widened with the file-type overhaul. The AI provider is told the kind so
   // it can adjust its prompts for a Presentation / Markdown / PlainText
   // document instead of always treating the context as a Book.
-  kind: "Book" | "Presentation" | "Markdown" | "PlainText" | "PDF"
+  // "Image" and "Unknown" are included for type compatibility with
+  // `Project.kind` — in practice the AI tab never mounts for them (the
+  // editor for Unknown isn't reachable; for Image it's a read-only
+  // viewer with no text the AI could edit), so the values will never
+  // appear in a real request.
+  kind: "Book" | "Presentation" | "Markdown" | "PlainText" | "PDF" | "Image" | "Unknown"
   activeId: string | null
   tabs: Array<{
     id: string

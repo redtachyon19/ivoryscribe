@@ -452,16 +452,23 @@ export default function Library({
             {viewMode === "list" ? (
               activeProjects.filter((p) => !p.folderId).length > 0 ? (
                 <div className="project-hub__list-view" aria-label="Library projects list">
-                  {activeProjects.filter((p) => !p.folderId).map((project) => (
+                  {activeProjects.filter((p) => !p.folderId).map((project) => {
+                    // Unknown-kind files appear in the list but click /
+                    // Enter don't open them — there's no editor to mount.
+                    const isUnknown = project.kind === "Unknown"
+                    return (
                     <article
                       key={project.id}
                       data-selectable-id={project.id}
-                      className={`project-hub__list-row ${project.id === (selectedProjectId ?? activeProjectId) || multiSelect.liveSelectedIds.has(project.id) ? "project-hub__list-row--selected" : ""} ${drag.draggingProjectId === project.id ? "project-hub__list-row--dragging" : ""} ${drag.getProjectDropClassName(project.id).replace("project-card", "project-hub__list-row")}`.trim()}
-                      onClick={() => { setSelectedProjectId(project.id); onOpenProject(project.id) }}
+                      className={`project-hub__list-row ${project.id === (selectedProjectId ?? activeProjectId) || multiSelect.liveSelectedIds.has(project.id) ? "project-hub__list-row--selected" : ""} ${drag.draggingProjectId === project.id ? "project-hub__list-row--dragging" : ""} ${isUnknown ? "project-hub__list-row--unknown" : ""} ${drag.getProjectDropClassName(project.id).replace("project-card", "project-hub__list-row")}`.trim()}
+                      onClick={() => {
+                        if (isUnknown) { setSelectedProjectId(project.id); return }
+                        setSelectedProjectId(project.id); onOpenProject(project.id)
+                      }}
                       role="button"
                       tabIndex={0}
                       draggable
-                      onKeyDown={(e) => { if (e.key === "Enter") onOpenProject(project.id) }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !isUnknown) onOpenProject(project.id) }}
                       onDragStart={(e) => multiSelect.handleMultiDragStart(project.id, e)}
                       onDragEnd={multiSelect.handleMultiDragEnd}
                       onDragEnter={drag.updateProjectDropTarget(project)}
@@ -476,10 +483,11 @@ export default function Library({
                         <BookOpenText size={17} aria-hidden={true} />
                         <strong>{project.name}</strong>
                       </div>
-                      <span>{collectTabIds(project.tabs).length} docs</span>
+                      <span>{isUnknown ? "Unsupported" : `${collectTabIds(project.tabs).length} docs`}</span>
                       <span>{formatRelativeDate(project.createdAt)}</span>
                     </article>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : null
             ) : (
@@ -673,6 +681,14 @@ export default function Library({
                 })
               : buildProjectActions({
                   projectId: contextMenu.projectId,
+                  // Files of an Unknown kind have no in-app editor and no
+                  // settable name — we strip the actions the app couldn't
+                  // honour. Delete/Archive/Trash + Show in Finder + Copy
+                  // Path still apply (the file exists on disk regardless
+                  // of whether we can read it). Passing `() => {}` would
+                  // silently fail; passing the real handler would call
+                  // into code that assumes a parseable project.
+                  isUnknownKind: (projects.find((p) => p.id === contextMenu.projectId)?.kind === "Unknown"),
                   onOpenInNewTab: onOpenProjectInNewTab,
                   onRename: (id) => setEditingProjectId(id),
                   onOpenSettings: (id) => {

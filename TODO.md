@@ -20,7 +20,6 @@
  
 - fonts loading is still not etnreily resove
 
-
 - glitch regarding opening  absolute paths, they appear in the side bar for a short moment and should never do so
 
 - opening those absolute paths should also open in a new window
@@ -31,9 +30,18 @@
 
 - swiping back with 2 folders goes back to wherever that back button is.
 
-
 - scrolling on marketing site doesnt work
 
+
+feat/image-viewing
+
+bug/image-zoom
+
+bug/pdf-zoom
+
+bug/scrolling-on-landing-page
+
+bug/dissapearing settings icon
 
 
 resolved

@@ -6,6 +6,7 @@ import { Suspense, lazy, type Dispatch, type SetStateAction } from "react"
 import DraftingEditor from "./DraftingEditor"
 import MarkdownEditor from "./MarkdownEditor"
 import PDFViewer from "./PDFViewer"
+import ImageViewer from "./ImageViewer"
 import PinboardEditor from "./PinboardEditor"
 import PlainTextEditor from "./PlainTextEditor"
 import TypewriterEditor from "./TypewriterEditor"
@@ -36,7 +37,7 @@ type EditorWorkspaceProps = {
   activeViewMode: TabViewMode
   activeMarkdownViewMode: MarkdownTabViewMode
   onSetMarkdownViewMode: (mode: MarkdownTabViewMode) => void
-  activeDocumentType: "prose" | "pinboard" | "markdown" | "plaintext" | "pdf"
+  activeDocumentType: "prose" | "pinboard" | "markdown" | "plaintext" | "pdf" | "image"
   /** Workspace root from settings. PDFViewer joins this with the
    *  project's relative path at render time. Null in cloud mode. */
   workspaceRoot?: string | null
@@ -219,6 +220,15 @@ export default function EditorWorkspace({
           relativePath={activeContent}
           projectId={project.id}
           matchPalette={matchPdfToPalette}
+        />
+      ) : activeDocumentType === "image" ? (
+        // `activeContent` for an Image is a path RELATIVE to the workspace
+        // root, set by `imageFileToProject` during hydrate. Same contract
+        // as the PDF branch above — ImageViewer joins it with the live
+        // workspace root setting at render time.
+        <ImageViewer
+          workspaceRoot={workspaceRoot ?? null}
+          relativePath={activeContent}
         />
       ) : (
         <div ref={editorStageRef} className="editor-workspace__editor-stage">

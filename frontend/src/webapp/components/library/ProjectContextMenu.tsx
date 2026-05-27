@@ -236,6 +236,7 @@ function showInFileManagerLabel(): string {
 
 export function buildProjectActions({
   projectId,
+  isUnknownKind = false,
   onOpenInNewTab,
   onRename,
   onOpenSettings,
@@ -248,6 +249,12 @@ export function buildProjectActions({
   onTrash,
 }: {
   projectId: string
+  /** True when the project is an Unknown-kind file (an unsupported file
+   *  extension the app surfaces in the library but can't open). For these
+   *  we hide Open / Rename / Duplicate / Share / Move-to-Cloud / Settings
+   *  because the app can't read or write the file's bytes. Filesystem
+   *  actions (Show in Finder, Copy Path, Archive, Trash) still apply. */
+  isUnknownKind?: boolean
   onOpenInNewTab: (id: string) => void
   onRename: (id: string) => void
   onOpenSettings?: (id: string) => void
@@ -265,21 +272,26 @@ export function buildProjectActions({
   onArchive: (id: string) => void
   onTrash: (id: string) => void
 }): ContextMenuAction[] {
-  // Top-level (always visible) actions.
-  const actions: ContextMenuAction[] = [
-    { label: openInNewItemLabel(), icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenInNewTab(projectId) },
-    { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => onRename(projectId) },
-  ]
+  // Top-level (always visible) actions. Unknown-kind files skip Open /
+  // Rename — the app has no editor for them and the disk name is the
+  // user's only identifier.
+  const actions: ContextMenuAction[] = []
+  if (!isUnknownKind) {
+    actions.push(
+      { label: openInNewItemLabel(), icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenInNewTab(projectId) },
+      { label: "Rename", icon: <Pencil size={14} strokeWidth={2} aria-hidden={true} />, action: () => onRename(projectId) },
+    )
+  }
 
-  if (onOpenSettings) {
+  if (onOpenSettings && !isUnknownKind) {
     actions.push({ label: "Open Project Settings", icon: <Settings2 size={14} strokeWidth={2} aria-hidden={true} />, action: () => onOpenSettings(projectId) })
   }
 
-  if (onDuplicate) {
+  if (onDuplicate && !isUnknownKind) {
     actions.push({ label: "Duplicate", icon: <BookCopy size={14} strokeWidth={2} aria-hidden={true} />, action: () => onDuplicate(projectId) })
   }
 
-  if (onShare) {
+  if (onShare && !isUnknownKind) {
     actions.push({ label: "Share", icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShare(projectId) })
   }
 
@@ -296,7 +308,7 @@ export function buildProjectActions({
     moreOptions.push({ label: showInFileManagerLabel(), icon: <FolderOpen size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShowInFinder(projectId) })
   }
 
-  if (onMoveToCloud) {
+  if (onMoveToCloud && !isUnknownKind) {
     moreOptions.push({ label: "Move to Cloud", icon: <Cloud size={14} strokeWidth={2} aria-hidden={true} />, action: () => onMoveToCloud(projectId) })
   }
 

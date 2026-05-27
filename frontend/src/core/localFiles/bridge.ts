@@ -309,3 +309,77 @@ export function pdfFileToProject(
     contentById: { [tabId]: relativePath },
   }
 }
+
+// ── Image bridge ─────────────────────────────────────────────────────────
+//
+// PNG / JPEG files mirror PDFs almost exactly — they're read-only, the
+// app never writes their bytes, and the Project stores a path RELATIVE
+// to the workspace root in `contentById[tabId]`. The ImageViewer joins
+// that with the live workspace root at render time, so switching
+// workspaces in settings automatically reroots every image.
+
+/** Build a single-tab Project pointing at an image on disk. The
+ *  `relativePath` is the file's location relative to the workspace
+ *  root (e.g. `"Assets/photo.png"`). */
+export function imageFileToProject(
+  relativePath: string,
+  opts: { name: string; id?: string; createdAt?: string; color?: string },
+): Project {
+  const tabId = createId()
+  return {
+    id: opts.id ?? createId(),
+    name: opts.name,
+    createdAt: opts.createdAt ?? new Date().toISOString(),
+    kind: "Image",
+    source: "local",
+    markdownIds:   [],
+    pinboardIds:   [],
+    typewriterIds: [],
+    plaintextIds:  [],
+    pdfIds:        [],
+    imageIds:      [tabId],
+    color: opts.color ?? "#10b981",
+    wallpaperEmojis: "",
+    folderId: null,
+    rootPosition: "top",
+    tabs: [{ id: tabId, title: opts.name, children: [] }],
+    activeId: tabId,
+    contentById: { [tabId]: relativePath },
+  }
+}
+
+// ── Unknown bridge ───────────────────────────────────────────────────────
+//
+// Files whose extension the app has no editor for still show up in the
+// library so the user can see / drag / delete / move them — they just
+// can't be opened or renamed. We never read or write their bytes; we
+// just track the on-disk path in the hook's fileMetaRef. The Project
+// itself carries no tabs / contentById data — the card branches on
+// kind === "Unknown" to skip the entry-count line, and EditorWorkspace
+// never mounts for these because clicks are gated off.
+
+/** Build a "shell" Project for an unsupported file. `name` is the full
+ *  basename (with extension) so the user can see what file it is. */
+export function unknownFileToProject(
+  opts: { name: string; id?: string; createdAt?: string },
+): Project {
+  return {
+    id: opts.id ?? createId(),
+    name: opts.name,
+    createdAt: opts.createdAt ?? new Date().toISOString(),
+    kind: "Unknown",
+    source: "local",
+    markdownIds:   [],
+    pinboardIds:   [],
+    typewriterIds: [],
+    plaintextIds:  [],
+    pdfIds:        [],
+    color: "#9ca3af",
+    wallpaperEmojis: "",
+    folderId: null,
+    rootPosition: "top",
+    tabs: [],
+    activeId: null,
+    contentById: {},
+  }
+}

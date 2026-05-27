@@ -913,6 +913,11 @@ export default function ProjectBrowserPanel({
             const isLocalProject = !!target && target.source !== "cloud"
             return buildProjectActions({
               projectId: contextMenu.projectId,
+              // Unsupported-file entries skip Open / Rename / Duplicate /
+              // Share / Settings — same gating the Library context menu
+              // applies. The Trash/Archive/Show-in-Finder actions still
+              // come through because they don't need to read the file.
+              isUnknownKind: target?.kind === "Unknown",
               onOpenInNewTab: onOpenProject,
               onRename: (id) => {
                 const project = projects.find((p) => p.id === id)

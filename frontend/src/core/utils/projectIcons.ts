@@ -8,11 +8,14 @@
 //   • PDF        → FileText
 //   • Book       → BookText
 //   • Presentation → Presentation
+//   • Image      → FileImage (PNG/JPEG opened in the read-only ImageViewer)
+//   • Unknown    → FileQuestion (any file the app can't read or write —
+//                  shown greyed out in the library)
 //
 // Anything that visually represents a document/tab/project file type MUST
 // use one of these. Do not introduce new icons for these kinds.
 
-import { BookText, FileCode, FileText, FileType, Presentation, type LucideIcon } from "lucide-react"
+import { BookText, FileCode, FileImage, FileQuestion, FileText, FileType, Presentation, type LucideIcon } from "lucide-react"
 import type { Project, ProjectKind } from "./projects"
 
 export function iconForProjectKind(kind: ProjectKind): LucideIcon {
@@ -22,6 +25,8 @@ export function iconForProjectKind(kind: ProjectKind): LucideIcon {
     case "Markdown": return FileCode
     case "PlainText": return FileType
     case "PDF": return FileText
+    case "Image": return FileImage
+    case "Unknown": return FileQuestion
   }
 }
 
@@ -32,6 +37,7 @@ export function iconForProjectKind(kind: ProjectKind): LucideIcon {
  *  project's kind icon (e.g. a chapter in a Book → BookText). */
 export function iconForTabKind(tabId: string, project: Project): LucideIcon {
   if (project.pdfIds?.includes(tabId)) return FileText
+  if (project.imageIds?.includes(tabId)) return FileImage
   if (project.pinboardIds?.includes(tabId)) return Presentation
   if (project.plaintextIds?.includes(tabId)) return FileType
   if (project.markdownIds?.includes(tabId)) return FileCode
