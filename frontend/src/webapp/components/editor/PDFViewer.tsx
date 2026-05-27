@@ -8,7 +8,7 @@
 // hash or CSS can reach. The user wanted the page gaps to match the
 // app's dark theme; the only way is to render the pages ourselves.
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { AlertCircle, FileText } from "lucide-react"
 import * as pdfjs from "pdfjs-dist"
 import { TextLayer } from "pdfjs-dist"
@@ -122,6 +122,56 @@ function selectNthOccurrenceInElement(
 // between memory footprint and "stays sharp at common zoom levels".
 const OVERSAMPLE = 2
 
+/**
+ * Apply a zoom level to one rendered page wrapper by writing explicit
+ * pixel dimensions on the wrapper + canvas, and a `transform: scale`
+ * on the selectable text layer (so its absolutely-positioned spans
+ * visually track the canvas).
+ *
+ * `baseW` / `baseH` are the fit-to-width display dimensions captured
+ * when the page was rasterised (the unzoomed size at zoom = 1). The
+ * canvas's underlying pixel buffer was rasterised at `OVERSAMPLE×`
+ * the base size, so the canvas stays crisp through zoom ≤ OVERSAMPLE
+ * and only softens slightly past that — same behaviour as the CSS
+ * `zoom` approach this replaces.
+ *
+ * The text layer is sized to the UNZOOMED base box and then visually
+ * scaled with `transform`; that's what lets pdf.js position its
+ * spans once (in unzoomed CSS pixels, during render) and stay
+ * aligned with the canvas at every subsequent zoom.
+ */
+function applyZoomToPdfWrapper(
+  wrapper: HTMLDivElement,
+  baseW: number,
+  baseH: number,
+  zoom: number,
+): void {
+  const displayW = baseW * zoom
+  const displayH = baseH * zoom
+
+  wrapper.style.width = `${displayW}px`
+  wrapper.style.height = `${displayH}px`
+
+  const canvas = wrapper.querySelector<HTMLCanvasElement>(".pdf-viewer__page")
+  if (canvas) {
+    canvas.style.width = `${displayW}px`
+    canvas.style.height = `${displayH}px`
+  }
+
+  const textLayer = wrapper.querySelector<HTMLDivElement>(".pdf-viewer__text-layer")
+  if (textLayer) {
+    // Layer box stays at the base (unzoomed) dimensions; transform
+    // does the visual scaling. transform-origin: 0 0 keeps the
+    // top-left anchored so a span at (left:X, top:Y) lands at
+    // (X*zoom, Y*zoom) physical pixels — exactly where the canvas's
+    // rasterised glyph sits.
+    textLayer.style.width = `${baseW}px`
+    textLayer.style.height = `${baseH}px`
+    textLayer.style.transform = `scale(${zoom})`
+    textLayer.style.transformOrigin = "0 0"
+  }
+}
+
 export default function PDFViewer({ workspaceRoot, relativePath, projectId, matchPalette = false }: PDFViewerProps) {
   // Resolve to an absolute path at render time, using whatever the user
   // has chosen as their workspace right now. Changing the workspace in
@@ -135,9 +185,6 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
   })()
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // User zoom multiplier on top of fit-to-width. 1.0 = fit-to-width (the
-  // default after a fresh load or container resize).
-  const [zoom, setZoom] = useState(1)
   // Scroll container — drives the page-width fit math.
   const scrollRef = useRef<HTMLDivElement | null>(null)
   // Inner column holding the canvases.
@@ -154,25 +201,68 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
     return () => window.removeEventListener(APP_COLOR_PALETTE_CHANGE_EVENT, onPaletteChange)
   }, [matchPalette])
 
-  // Live zoom during a pinch gesture. We write straight to the DOM for
-  // smoothness and only sync back to React state after the gesture
-  // settles, so an unrelated re-render can't snap us back to stale zoom.
+  // ── Zoom state (refs only — no React state) ─────────────────────────
+  //
+  // Zoom is applied by writing EXPLICIT pixel width/height onto each
+  // page wrapper + canvas, and `transform: scale(zoom)` onto each
+  // text layer so its selectable spans visually track the rasterised
+  // canvas. We deliberately do NOT use CSS `zoom` on the pages column
+  // anymore — see ImageViewer.tsx for the long write-up, but the
+  // short version is that CSS `zoom` + percentage-sized descendants
+  // breaks at viewport edges in Chromium and the explicit-pixel
+  // approach is cheaper to reason about anyway.
+  //
+  // The pending zoom value lives in a ref so a sequence of wheel
+  // events all read the latest value without going through React
+  // state. The DOM writes persist across re-renders; the render
+  // effect re-applies the current pending zoom to every new wrapper
+  // as it's created so freshly-rasterised pages (e.g. after a
+  // palette change) come in at the right size.
   const pendingZoomRef = useRef(1)
-  const settleTimerRef = useRef<number | null>(null)
   // Timestamp of the last pinch (ctrl-wheel) event. macOS trackpad
   // gestures emit both pinch and pan wheel events; if we only block the
   // pinch ones, the panning slips through and scrolls the page mid-zoom.
   // We use this to suppress *any* wheel event within a short tail
   // window after a pinch.
   const lastPinchTimeRef = useRef(0)
+  // Sliding post-clamp cooldown — same mechanism as ImageViewer.tsx.
+  // When the user pinches past MIN_ZOOM or MAX_ZOOM, the macOS
+  // gesture-momentum tail can keep firing wheel events for hundreds
+  // of milliseconds, some with the OPPOSITE deltaY sign. Without a
+  // cooldown those tail events would zoom the wrong way the moment
+  // the user hits a limit. Every wheel event arriving inside the
+  // window resets the timer, so suppression only ends once events
+  // stop arriving — i.e. the user has lifted their fingers.
+  const clampHitTimeRef = useRef(0)
+
+  // Apply a zoom level to every rendered page wrapper. Each wrapper
+  // stores its fit-to-width base dimensions on `dataset.baseWidth /
+  // baseHeight` at render time (so this function can iterate the
+  // pages container without re-querying pdf.js for page sizes), and
+  // `applyZoomToPdfWrapper` writes the resulting display pixel
+  // dimensions onto the wrapper + canvas + text layer.
+  const applyZoom = useCallback((zoom: number) => {
+    const pagesEl = pagesRef.current
+    if (!pagesEl) return
+    const wrappers = pagesEl.querySelectorAll<HTMLDivElement>(".pdf-viewer__page-wrapper")
+    for (const wrapper of wrappers) {
+      const baseW = parseFloat(wrapper.dataset.baseWidth || "0")
+      const baseH = parseFloat(wrapper.dataset.baseHeight || "0")
+      if (baseW > 0 && baseH > 0) {
+        applyZoomToPdfWrapper(wrapper, baseW, baseH, zoom)
+      }
+    }
+  }, [])
 
   // ── Load the PDF document ─────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
     setError(null)
     setDoc(null)
-    // Fresh document → reset zoom back to fit-to-width.
-    setZoom(1)
+    // Fresh document → reset zoom back to fit-to-width. No React
+    // state for zoom anymore — the render effect re-creates every
+    // wrapper from scratch and applies `pendingZoomRef.current` to
+    // each, so resetting the ref here is enough.
     pendingZoomRef.current = 1
 
     if (!filePath) {
@@ -365,6 +455,9 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
     // trackpad emits pan + pinch interleaved, so without this the
     // page would scroll while the user is trying to zoom.
     const PINCH_TAIL_MS = 200
+    // Sliding post-clamp cooldown — see comment on clampHitTimeRef
+    // above. Mirrors the value used in ImageViewer.tsx.
+    const CLAMP_COOLDOWN_MS = 250
 
     const onWheel = (event: WheelEvent) => {
       const now = performance.now()
@@ -382,13 +475,28 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
       event.preventDefault()
       lastPinchTimeRef.current = now
 
+      // Sliding post-clamp cooldown — every wheel event arriving while
+      // we're already cooling down extends the timer, so the whole
+      // macOS momentum tail gets suppressed (including decayed
+      // deltaY≈0 events and the opposite-sign tail) until the user
+      // has actually lifted their fingers.
+      if (now - clampHitTimeRef.current < CLAMP_COOLDOWN_MS) {
+        clampHitTimeRef.current = now
+        return
+      }
+
       const oldZoom = pendingZoomRef.current
       // Direction: deltaY > 0 means pinch-in (zoom out), < 0 means
       // pinch-out (zoom in). Magnitude is small and proportional, so we
       // exponentiate to convert raw delta into a multiplicative factor.
       const factor = Math.exp(-event.deltaY * 0.01)
       const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * factor))
-      if (newZoom === oldZoom) return // hit a zoom limit, nothing to do
+      if (newZoom === oldZoom) {
+        // At the clamp — start / extend the sliding cooldown so the
+        // momentum tail can't slip through and reverse the zoom.
+        clampHitTimeRef.current = now
+        return
+      }
       pendingZoomRef.current = newZoom
 
       const pagesEl = pagesRef.current
@@ -397,12 +505,13 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
       // ── Zoom toward the cursor ──
       //
       // Goal: the page point under the cursor stays under the cursor
-      // after the zoom. With CSS `zoom`, the scroll container's scroll
-      // dimensions scale by the same factor, so we need to adjust
-      // scrollLeft/scrollTop to compensate. Let `r = newZoom/oldZoom`
-      // and (cx, cy) be the cursor's offset inside the scroll viewport.
-      // The new scroll position that keeps the same content under the
-      // cursor is:
+      // after the zoom. With explicit pixel sizing, the scroll
+      // container's scroll dimensions scale by the same factor as the
+      // pages (because every wrapper's width/height multiplies by r),
+      // so the math is identical to the old CSS-`zoom` version.
+      // Let `r = newZoom/oldZoom` and (cx, cy) be the cursor's offset
+      // inside the scroll viewport. The new scroll position that
+      // keeps the same content under the cursor is:
       //   newScroll = cursorOffset * (r - 1) + oldScroll * r
       const r = newZoom / oldZoom
       const rect = el.getBoundingClientRect()
@@ -411,24 +520,14 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
       const oldScrollLeft = el.scrollLeft
       const oldScrollTop = el.scrollTop
 
-      // Direct DOM write — bypasses React entirely so we paint on the
-      // very next frame instead of going through reconciliation. CSS
-      // `zoom` is a paint-time scale, and Chromium applies it
-      // synchronously, so the scroll-position adjustment below lands
-      // in the same frame.
-      pagesEl.style.zoom = `${newZoom}`
+      // Direct DOM write — `applyZoom` rewrites every page wrapper's
+      // pixel dimensions and the scroll-position adjustment below
+      // lands in the same frame. No CSS `zoom`, no transform on the
+      // container; just explicit sizes that Chromium lays out
+      // synchronously.
+      applyZoom(newZoom)
       el.scrollLeft = cursorX * (r - 1) + oldScrollLeft * r
       el.scrollTop = cursorY * (r - 1) + oldScrollTop * r
-
-      // Sync to React state on settle so an unrelated re-render
-      // doesn't reset us to a stale zoom value from React state.
-      if (settleTimerRef.current !== null) {
-        window.clearTimeout(settleTimerRef.current)
-      }
-      settleTimerRef.current = window.setTimeout(() => {
-        settleTimerRef.current = null
-        setZoom(pendingZoomRef.current)
-      }, 200)
     }
 
     // passive:false so preventDefault() actually blocks the browser's
@@ -436,12 +535,8 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
     el.addEventListener("wheel", onWheel, { passive: false })
     return () => {
       el.removeEventListener("wheel", onWheel)
-      if (settleTimerRef.current !== null) {
-        window.clearTimeout(settleTimerRef.current)
-        settleTimerRef.current = null
-      }
     }
-  }, [])
+  }, [applyZoom])
 
   // ── Render pages whenever doc or container width changes ─────────────
   //
@@ -533,7 +628,17 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
         const wrapper = document.createElement("div")
         wrapper.className = "pdf-viewer__page-wrapper"
         wrapper.dataset.pageNumber = String(pageNumber)
-        wrapper.style.width = `${Math.floor(displayViewport.width)}px`
+        // Stash the fit-to-width base dimensions on the wrapper itself
+        // so the wheel handler's `applyZoom` can iterate every page
+        // and rewrite its display size without re-querying pdf.js.
+        const baseW = Math.floor(displayViewport.width)
+        const baseH = Math.floor(displayViewport.height)
+        wrapper.dataset.baseWidth = String(baseW)
+        wrapper.dataset.baseHeight = String(baseH)
+        // Initial size = base × 1; `applyZoomToPdfWrapper` below
+        // overwrites this with the actual current zoom after the
+        // canvas + text layer are attached.
+        wrapper.style.width = `${baseW}px`
 
         const canvas = document.createElement("canvas")
         canvas.className = "pdf-viewer__page"
@@ -606,6 +711,13 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
           // No text layer (image-only page). Canvas alone is fine.
         }
 
+        // Apply the user's current zoom level to this freshly-built
+        // wrapper before inserting it, so the in-place swap below
+        // doesn't briefly show a fit-to-width-sized page when the
+        // user is already zoomed in. Uses the same helper the wheel
+        // handler calls so all pages stay in sync.
+        applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
+
         // Atomic in-place swap: the new wrapper appears in the same
         // DOM position as the old one in a single paint frame.
         const oldEl = oldPageEls[pageNumber - 1]
@@ -666,10 +778,10 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
           // depending on whether the user has enabled "Match PDF to
           // Color Palette" in settings.
           data-match-palette={matchPalette ? "on" : "off"}
-          // Initial zoom; the wheel handler then writes directly to
-          // `.style.zoom` for max smoothness. React updates here only
-          // re-sync after re-mounts (HMR, doc switch).
-          style={{ zoom }}
+          // No `style={{ zoom }}` — zoom now lives on each page
+          // wrapper as explicit pixel dimensions, applied by
+          // `applyZoomToPdfWrapper` at render time and by the wheel
+          // handler's `applyZoom` during gestures.
         />
       )}
     </div>
