@@ -158,7 +158,15 @@ export default function ProjectCard({
   const [editingName, setEditingName] = useState("")
   const renameTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
-  const isEditing = editingProjectId === project.id
+  // Unknown-kind projects are stand-ins for files the app can't read or
+  // write (any extension that isn't .tusk/.tusks/.md/.txt/.pdf). The
+  // user can still drag, delete, and move them — but click-to-open and
+  // rename are gated off everywhere this flag is checked.
+  const isUnknown = project.kind === "Unknown"
+  // Defensive: never enter rename mode for Unknown projects even if the
+  // parent accidentally sets editingProjectId to one (the context menu
+  // gates this already, but the card double-checks).
+  const isEditing = editingProjectId === project.id && !isUnknown
 
   const cancelRename = () => {
     setEditingProjectId(null)
@@ -223,6 +231,10 @@ export default function ProjectCard({
 
   const handleProjectCardClick = (event: ReactMouseEvent<HTMLElement>) => {
     if (isEditing) return
+    // Unknown-kind files have no editor — clicking the card is a no-op.
+    // Drag / delete / move still work because they're handled separately
+    // (drag handlers on the card, context menu for delete/move).
+    if (isUnknown) return
     const target = event.target
     if (target instanceof Element && target.closest("button, input, textarea, select, label")) return
     if ((event.metaKey || event.ctrlKey) && onOpenInNewTab) {
@@ -235,7 +247,7 @@ export default function ProjectCard({
   return (
     <li
       data-selectable-id={project.id}
-      className={`project-card ${dropClassName} ${isDragging ? "project-card--dragging" : ""} ${marqueeSelected ? "project-card--marquee-selected" : ""}`.trim()}
+      className={`project-card ${dropClassName} ${isDragging ? "project-card--dragging" : ""} ${marqueeSelected ? "project-card--marquee-selected" : ""} ${isUnknown ? "project-card--unknown" : ""}`.trim()}
       style={
         {
           "--project-accent": project.color,
@@ -338,7 +350,9 @@ export default function ProjectCard({
           </strong>
         )}
         <span>
-          {entryCount} {entryLabel} &middot; {formatRelativeTime(project.createdAt)}
+          {isUnknown
+            ? <>Unsupported file &middot; {formatRelativeTime(project.createdAt)}</>
+            : <>{entryCount} {entryLabel} &middot; {formatRelativeTime(project.createdAt)}</>}
           {/* Cloud / shared chip. Driven by the project's `source`
               field (the only "is this in the cloud?" signal in the
               new model — no more cache/cloud-id sniffing). Shared
