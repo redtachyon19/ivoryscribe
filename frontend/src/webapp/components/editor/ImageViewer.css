@@ -1,0 +1,116 @@
+/* ImageViewer — read-only PNG / JPEG display, themed to match PDFViewer
+   so the editor center looks consistent whether the active project is a
+   PDF or an image. */
+
+.image-viewer {
+  /* Same anchoring as .pdf-viewer — fill the editor center under the
+     topbar. Keeps the chrome consistent between the two read-only
+     viewers. */
+  position: absolute;
+  inset: var(--editor-topbar-height, 46px) 0 0 0;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background: var(--app-bg, #111);
+  /* Both axes scroll. At zoom = 1 the stage is exactly viewport-sized
+     and the image fits inside it, so no scrollbars appear. Pinch /
+     ctrl-scroll zoom > 1 grows the stage via CSS `zoom`, which is a
+     layout-time scale — the scroll dimensions follow and the user
+     can pan across the enlarged image. We do NOT use flex centering
+     on the scroll container itself: that would pin an overflowing
+     child to the center and make negative scroll directions
+     unreachable. The stage handles centering internally instead. */
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.image-viewer__stage {
+  /* min-width/min-height: 100% are FALLBACKS that apply only before
+     JS has captured the image's natural dimensions. The wheel
+     handler's `applyZoom` writes explicit pixel `style.width` and
+     `style.height` on this element (alongside `style.minWidth/
+     minHeight: 0`) the moment the image finishes decoding, and
+     those inline values then own sizing for the rest of the
+     session. The fallback exists so the empty area around the
+     image still accepts wheel events during the brief window
+     between mount and first decode. */
+  min-width: 100%;
+  min-height: 100%;
+  /* Provide horizontal padding so a tightly-cropped image isn't pinned
+     to the very edge of the pane. Vertical padding stays small so
+     portrait images make full use of the available height. The
+     `applyZoom` helper reads these values back via getComputedStyle
+     so the JS-driven base-fit dims subtract the right amount. */
+  padding: 24px clamp(24px, 6vw, 120px);
+  box-sizing: border-box;
+  /* Centering INSIDE the stage. At zoom = 1 the image lands dead
+     center in the viewport. At higher zoom the stage grows in JS
+     to contain the larger image, and centering still applies. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-viewer__image {
+  /* `max-*: 100%` + `width: auto; height: auto;` are FALLBACKS that
+     apply between when the <img> mounts and when its onLoad fires.
+     After that, the `applyZoom` helper writes inline pixel
+     `style.width` / `style.height` (and `style.maxWidth: none`) so
+     percentage-based clamping can never reassert itself.
+     The previous CSS-`zoom`-based approach relied on max-width
+     scaling proportionally with the parent's `zoom`, which broke
+     once the rendered image reached the viewport edges — Chromium
+     would re-clamp the image to the parent's pre-zoom 100% and the
+     bitmap would snap back to fit-to-window mid-gesture. */
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+  /* Subtle drop shadow matches the PDF page surround so the image
+     reads as "a document on the dark canvas" rather than floating. */
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--menu-border, #2b2b2b) 60%, transparent),
+    0 8px 24px rgba(0, 0, 0, 0.45);
+  border-radius: 2px;
+  /* Disable browser text-selection drag for images. Users can still
+     right-click → Save Image / Copy if they need to. */
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.image-viewer__loading,
+.image-viewer--error {
+  /* Same treatment PDFViewer uses for the loading / error states so
+     the empty-state visuals feel identical across viewers. Both
+     states use a different root layout (centered text, not a
+     scrollable stage) — they're applied on the SAME `.image-viewer`
+     element though, so the flex props override the default scroll
+     container layout above. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  color: color-mix(in srgb, var(--editor-text, #f5f5f5) 70%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  /* Loading/error states never need to scroll — keep the empty-state
+     overflow predictable. */
+  overflow: hidden;
+}
+
+.image-viewer--error {
+  color: color-mix(in srgb, #e55353 80%, transparent);
+}
+
+.image-viewer__path {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--editor-text, #f5f5f5) 45%, transparent);
+  font-family: "IBM Plex Mono", Menlo, monospace;
+  word-break: break-all;
+  max-width: 80ch;
+  text-align: center;
+  margin-top: 4px;
+}

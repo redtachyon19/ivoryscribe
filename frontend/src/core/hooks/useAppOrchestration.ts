@@ -644,7 +644,18 @@ export function useAppOrchestration() {
     folders,
     setProjects,
     setFolders,
-    onOpenProject: (projectId: string) => { setActiveProjectId(projectId); setView("editor") },
+    onOpenProject: (projectId: string) => {
+      // Safety net: Unknown-kind projects (unsupported file extensions
+      // surfaced in the library) have no editor — refuse to navigate to
+      // them. The Library/Browser UIs already gate clicks, but a stray
+      // keyboard shortcut or programmatic caller could still slip
+      // through, and mounting the editor on an empty tabs[] would render
+      // a blank DraftingEditor.
+      const target = projects.find((p) => p.id === projectId)
+      if (target?.kind === "Unknown") return
+      setActiveProjectId(projectId)
+      setView("editor")
+    },
     onCreateProject: (kind: import("../utils/projects").ProjectKind) => {
       const nextName = generateUntitledName(projects, kind)
       const nextProject = createProject(nextName, kind)

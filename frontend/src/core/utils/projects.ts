@@ -5,7 +5,7 @@ export type DocumentTab = {
   children: DocumentTab[]
 }
 
-export type ProjectKind = "Book" | "Presentation" | "Markdown" | "PlainText" | "PDF"
+export type ProjectKind = "Book" | "Presentation" | "Markdown" | "PlainText" | "PDF" | "Image" | "Unknown"
 
 /** Where a project's source of truth lives.
  *
@@ -39,6 +39,11 @@ export type Project = {
    *  project this holds the single synthetic tab id; the on-disk path
    *  for the PDF is stored in `contentById[tabId]` (no editable text). */
   pdfIds?: string[]
+  /** Tab ids rendered as a read-only image viewer (PNG / JPEG). Mirrors
+   *  `pdfIds`: the synthetic tab's id sits here, and the workspace-relative
+   *  path to the image file lives in `contentById[tabId]`. ImageViewer
+   *  resolves that against the live workspace root at render time. */
+  imageIds?: string[]
   color: string
   wallpaperEmojis: string
   folderId: string | null
@@ -58,15 +63,28 @@ type LegacyProjectSnapshot = Omit<Project, "kind"> & {
 
 /** Single-document kinds have exactly one synthetic tab and hide the tab-list
  *  UI. See update.md §2.1 for why we keep one tab rather than removing it.
- *  PDFs are read-only single-document projects, so they sit here too. */
+ *  PDFs are read-only single-document projects, so they sit here too.
+ *  Images (PNG/JPEG) follow the same pattern. Unknown files have no tabs
+ *  at all but we treat them as single-document so any tab-list UI stays
+ *  hidden. */
 export function isSingleDocumentKind(kind: ProjectKind): boolean {
-  return kind === "Markdown" || kind === "PlainText" || kind === "PDF"
+  return kind === "Markdown" || kind === "PlainText" || kind === "PDF" || kind === "Image" || kind === "Unknown"
 }
 
 /** Read-only kinds — autosave and cloud sync are skipped for these. PDFs
- *  are viewable but can't be modified through the app. */
+ *  and Images are viewable but can't be modified through the app.
+ *  Unknown-extension files have no in-app editor at all, so they're
+ *  treated as read-only: the user can drag / delete / move them, but
+ *  we never read or write their bytes. */
 export function isReadOnlyKind(kind: ProjectKind): boolean {
-  return kind === "PDF"
+  return kind === "PDF" || kind === "Image" || kind === "Unknown"
+}
+
+/** True for files the app has no editor for and therefore cannot open.
+ *  Library entries for these still appear (greyed out) so drag/delete/move
+ *  still work, but click-to-open and rename are gated off. */
+export function isUnopenableKind(kind: ProjectKind): boolean {
+  return kind === "Unknown"
 }
 
 export type ProjectEntryTerms = {
@@ -84,6 +102,11 @@ const ENTRY_TERMS_BY_KIND: Record<ProjectKind, ProjectEntryTerms> = {
   Markdown:     { singular: "Document", plural: "Documents", untitled: "Untitled Document" },
   PlainText:    { singular: "Document", plural: "Documents", untitled: "Untitled Document" },
   PDF:          { singular: "Document", plural: "Documents", untitled: "Untitled PDF" },
+  Image:        { singular: "Image",    plural: "Images",    untitled: "Untitled Image" },
+  // Unknown files have no in-app entries, but the per-kind table is
+  // typed as a Record so we still have to supply something. The card
+  // skips rendering this label for Unknown projects.
+  Unknown:      { singular: "File",     plural: "Files",     untitled: "Untitled File" },
 }
 
 export function getProjectEntryTerms(kind: ProjectKind): ProjectEntryTerms {
@@ -180,8 +203,11 @@ export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTa
   const nextPdfIds = collectValidUniqueIds(tabIds, project.pdfIds)
     .filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id))
   const pdfIdSet = new Set(nextPdfIds)
-  const nextPlaintextIds = collectValidUniqueIds(tabIds, project.plaintextIds)
+  const nextImageIds = collectValidUniqueIds(tabIds, project.imageIds)
     .filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id) && !pdfIdSet.has(id))
+  const imageIdSet = new Set(nextImageIds)
+  const nextPlaintextIds = collectValidUniqueIds(tabIds, project.plaintextIds)
+    .filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id) && !pdfIdSet.has(id) && !imageIdSet.has(id))
   const plaintextIdSet = new Set(nextPlaintextIds)
   const nextMarkdownIds = collectValidUniqueIds(
     tabIds,
@@ -190,7 +216,7 @@ export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTa
       markdownIds: project.markdownIds,
       markdownEditorEnabled: project.markdownEditorEnabled,
     }),
-  ).filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id) && !pdfIdSet.has(id) && !plaintextIdSet.has(id))
+  ).filter((id) => !pinboardIdSet.has(id) && !typewriterIdSet.has(id) && !pdfIdSet.has(id) && !imageIdSet.has(id) && !plaintextIdSet.has(id))
 
   for (const id of tabIds) {
     if (!(id in nextContentById)) {
@@ -208,6 +234,7 @@ export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTa
     typewriterIds: nextTypewriterIds,
     plaintextIds: nextPlaintextIds,
     pdfIds: nextPdfIds,
+    imageIds: nextImageIds,
     markdownIds: nextMarkdownIds,
     contentById: nextContentById,
   }
@@ -217,6 +244,17 @@ export function normalizeProjectAfterTabs(project: Project, nextTabs: DocumentTa
 // Per-kind seeding of the parallel id arrays makes the editor pick the right
 // renderer immediately — no post-create reconciliation needed.
 export function createProject(name: string, kind: ProjectKind): Project {
+  // Unknown and Image projects can't be created from the app — they only
+  // ever come from the hydrate path (Unknown = scanner didn't recognise
+  // the extension; Image = the user dropped a PNG/JPEG into the workspace
+  // folder). Calling createProject for those is a bug, so fail loudly
+  // rather than silently materialising a corrupt entry.
+  if (kind === "Unknown") {
+    throw new Error("createProject: 'Unknown' projects are only built via the local-FS hydrate path")
+  }
+  if (kind === "Image") {
+    throw new Error("createProject: 'Image' projects are only built via the local-FS hydrate path")
+  }
   const tabs = createInitialTabs(kind)
   const firstId = collectTabIds(tabs)[0] ?? null
   const color = ({
@@ -225,6 +263,8 @@ export function createProject(name: string, kind: ProjectKind): Project {
     Markdown: "#a78bfa",
     PlainText: "#9ca3af",
     PDF: "#f97316",
+    Image: "#10b981",
+    Unknown: "#9ca3af",
   } satisfies Record<ProjectKind, string>)[kind]
 
   return {
