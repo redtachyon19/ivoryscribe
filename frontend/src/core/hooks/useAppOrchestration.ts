@@ -28,6 +28,7 @@ import { setMacFolderColor } from "../electron/macFolderLabels"
 import { useLocalFilesystemSync } from "../localFiles"
 import { uploadLocalFileAsCloudDocument } from "../localFiles/cloudOverlay"
 import { useCloudPreferenceSync } from "./useCloudPreferenceSync"
+import { useNativeTextEntryCommandBus } from "./useNativeTextEntryCommandBus"
 import { getStoredBoolean, writeStoredPreferences } from "../state/preferencesStorage"
 
 import { useTuskBilling } from "./useTuskBilling"
@@ -35,6 +36,13 @@ import { getPendingShareRequests, respondToShareRequest, type PendingShareReques
 import type { ProjectFolder } from "../../webapp/pages/Library"
 
 export function useAppOrchestration() {
+  // Application-global Cmd+A / Cmd+C / Cmd+V handler for native text
+  // inputs (rename modals, settings fields, sidebar inline renames, …).
+  // Mounted here — not inside an editor — so it stays active even in
+  // Library view when no document editor is on screen. See
+  // `useNativeTextEntryCommandBus` for the routing rationale.
+  useNativeTextEntryCommandBus()
+
   // ── local state ──────────────────────────────────────────────
   const [projects, setProjects] = useState<Project[]>([])
   const [folders, setFolders] = useState<ProjectFolder[]>([])
