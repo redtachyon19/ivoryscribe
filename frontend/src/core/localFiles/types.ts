@@ -15,9 +15,13 @@
 // Legacy `.tuskb` (standalone pinboard) and the old HTML-slideshow form of
 // `.tusks` are not supported — the scanner ignores them; no migration code.
 
-import type { ProjectKind } from "../utils/projects"
+import type { ProjectKind, ProjectVersion } from "../utils/projects"
 
-export const FILE_FORMAT_VERSION = 1
+// Bumped from 1 → 2 when versions moved inside the .tusk / .tusks file.
+// Version 1 files load fine (parser tolerates a missing <versions> block);
+// they just open with an empty version history that begins accruing on
+// the first save under the new app.
+export const FILE_FORMAT_VERSION = 2
 
 export type ChapterMode = "default" | "markdown" | "typewriter" | "plaintext"
 
@@ -39,6 +43,9 @@ export type TuskBookFile = {
   rootPosition: "top" | "bottom"
   activeChapterId: string | null
   chapters: TuskChapter[]
+  /** Newest-first version snapshots embedded in the .tusk file. Missing on
+   *  legacy v1 files; defaults to []. */
+  versions?: ProjectVersion[]
 }
 
 // ── Presentation (.tusks) ────────────────────────────────────────────────
@@ -63,6 +70,9 @@ export type TuskPresentationFile = {
   color: string
   activeSlideId: string | null
   slides: TuskPresentationSlide[]
+  /** Newest-first version snapshots embedded in the .tusks file. Missing on
+   *  legacy v1 files; defaults to []. */
+  versions?: ProjectVersion[]
 }
 
 // ── Extensions & kind enum ───────────────────────────────────────────────

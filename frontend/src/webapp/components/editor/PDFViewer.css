@@ -98,8 +98,21 @@
   user-select: text;
 }
 
-.pdf-viewer__text-layer > span,
-.pdf-viewer__text-layer > br {
+/* pdf.js v5 wraps groups of text spans in `<span class="markedContent">`
+   containers whenever the source PDF uses tagged marked-content regions
+   (figure captions, language tags, segmented title runs, …). Without
+   `display: contents` on the wrapper, those nested spans render as inline
+   content stacked at the top of the wrapper instead of at their intended
+   absolute positions — visible as "missing" words in the visual selection
+   highlight (a Cmd+A range covers them, but they're stacked in the wrong
+   place). Mirrors pdf.js's own .textLayer rules against our class name.
+   See node_modules/pdfjs-dist/web/pdf_viewer.css for the upstream pair. */
+.pdf-viewer__text-layer .markedContent {
+  display: contents;
+}
+
+.pdf-viewer__text-layer span:not(.markedContent),
+.pdf-viewer__text-layer br {
   position: absolute;
   white-space: pre;
   /* Glyphs are transparent — the canvas is what the user sees.
