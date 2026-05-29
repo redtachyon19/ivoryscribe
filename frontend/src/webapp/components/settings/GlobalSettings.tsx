@@ -60,7 +60,7 @@ export type GlobalSettingsProps = {
     label: string
     saveKind: "manual" | "autosave"
     createdAt: string
-    changedCharacters: number
+    wordCount: number
     preview?: {
       projectName: string
       projectKind: ProjectKind

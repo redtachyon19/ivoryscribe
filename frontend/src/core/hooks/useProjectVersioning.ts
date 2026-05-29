@@ -1,21 +1,45 @@
-import { type Dispatch, type MutableRefObject, type SetStateAction, useEffect, useRef, useState } from "react"
-import { type DocumentRecord, createDocument, getDocuments, updateDocument } from "../api"
-import { type Project } from "../utils/projects"
-import type { UserSession } from "../state/session"
+// Unified project versioning hook.
+//
+// Versions now live inside the project itself (and therefore inside the
+// .tusk / .tusks file on disk, or the cloud Document blob). This hook is
+// no longer responsible for any cloud Document writes — the project Document
+// upload that already happens for cloud projects carries the embedded
+// versions along for free, and the local FS sync writes them into the
+// .tusk / .tusks file via the codec.
+//
+// Triggers:
+//   • Manual save (File > Save Version, fires APP_SAVE_PROJECT_VERSION_EVENT):
+//     push a manual version (label = next roman numeral) onto the active
+//     project.
+//   • Autosave: after every projects[] state change, diff current word count
+//     against the most recent version's word count. If the delta crosses
+//     AUTOSAVE_WORD_DELTA, push an autosave version (label = next arabic).
+//
+// Restore / duplicate replay the snapshot JSON stored on the version back
+// into projects[].
+//
+// Markdown / PlainText / PDF / Image projects don't carry versions (gated
+// via projectKindSupportsVersions). Markdown and PlainText are single-file
+// edits where the user chose against history; PDF/Image/Unknown are read-
+// only and have no editable content to snapshot.
+
 import {
-  AUTOSAVE_VERSION_INTERVAL_MS,
-  PROJECT_RECORD_TYPE,
-  buildProjectDocumentPayload,
-  buildProjectVersionPayload,
-  getInitialManualVersionDefinition,
-  getNextManualVersionDefinition,
-  parseProjectVersion,
-  planAutosaveVersion,
-  serializeProjectSnapshot,
-  sortProjectVersionsDesc,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react"
+import {
+  AUTOSAVE_WORD_DELTA,
+  appendProjectVersion,
+  countProjectWords,
+  createProjectVersion,
+  projectKindSupportsVersions,
+  type Project,
   type ProjectVersion,
-  type ProjectVersionDefinition,
-} from "../state/versioning"
+} from "../utils/projects"
 import { APP_SAVE_PROJECT_EVENT, APP_SAVE_PROJECT_VERSION_EVENT } from "../events/editorEvents"
 
 type VersionActionMessage = {
@@ -26,203 +50,94 @@ type VersionActionMessage = {
 }
 
 type UseProjectVersioningParams = {
-  sessionRef: MutableRefObject<UserSession | null>
-  session: UserSession | null
+  /** Current projects[]. Used to diff word counts and to find the active
+   *  project on event handlers. */
   projects: Project[]
-  projectDocumentMapRef: MutableRefObject<Record<string, string>>
-  setProjectDocumentMap: Dispatch<SetStateAction<Record<string, string>>>
-  isWorkspaceHydrated: boolean
+  /** Setter for projects[]. The hook pushes versions onto a project by
+   *  cloning it through this setter — no separate version-store state. */
+  setProjects: Dispatch<SetStateAction<Project[]>>
+  /** Ref tracking the active project so the manual-save event handler can
+   *  read it without re-subscribing on every render. */
   activeProjectRef: MutableRefObject<Project | null>
-  viewRef: MutableRefObject<"projects" | "editor">
+  /** Gate: skip everything until the workspace finished hydrating. Before
+   *  hydration projects[] may be a transient placeholder we don't want to
+   *  snapshot. */
+  isWorkspaceHydrated: boolean
   /** Orchestrator-owned: apply a restored snapshot into projects[]. Returns
    *  true if the target project still exists. */
   onRestoreVersion: (projectId: string, snapshot: Project) => boolean
-  /** Orchestrator-owned: insert a duplicated snapshot as a new project. Returns
-   *  the new project id on success. */
+  /** Orchestrator-owned: insert a duplicated snapshot as a new project.
+   *  Returns the new project id on success. */
   onDuplicateVersion: (snapshot: Project) => string | null
+}
+
+/** Internal helper: append `version` to whichever project matches `projectId`
+ *  in `setProjects`. Stays out of the public surface — both the manual and
+ *  autosave paths go through it. */
+function pushVersionOntoProject(
+  setProjects: Dispatch<SetStateAction<Project[]>>,
+  projectId: string,
+  version: ProjectVersion,
+) {
+  setProjects((current) =>
+    current.map((project) =>
+      project.id === projectId ? appendProjectVersion(project, version) : project,
+    ),
+  )
 }
 
 export function useProjectVersioning(params: UseProjectVersioningParams) {
   const {
-    sessionRef,
-    session,
     projects,
-    projectDocumentMapRef,
-    setProjectDocumentMap,
-    isWorkspaceHydrated,
+    setProjects,
     activeProjectRef,
-    viewRef,
+    isWorkspaceHydrated,
     onRestoreVersion,
     onDuplicateVersion,
   } = params
 
-  const [projectVersionsByProjectId, setProjectVersionsByProjectId] = useState<Record<string, ProjectVersion[]>>({})
-  const projectVersionsRef = useRef<Record<string, ProjectVersion[]>>({})
-  const isVersionSaveInFlightRef = useRef(false)
+  // Map keyed by project id → that project's versions array. Derived from
+  // projects[] so call sites that read `versioning.projectVersionsByProjectId`
+  // keep working unchanged (the orchestration layer feeds it into the
+  // settings UI). useMemo keeps the reference stable when no version array
+  // actually changed.
+  const projectVersionsByProjectId = useMemo<Record<string, ProjectVersion[]>>(() => {
+    const next: Record<string, ProjectVersion[]> = {}
+    for (const project of projects) {
+      next[project.id] = project.versions ?? []
+    }
+    return next
+  }, [projects])
 
+  // Latest snapshot of the version map for event handlers to read without
+  // re-subscribing every render.
+  const projectVersionsRef = useRef<Record<string, ProjectVersion[]>>({})
   useEffect(() => {
     projectVersionsRef.current = projectVersionsByProjectId
   }, [projectVersionsByProjectId])
 
-  const upsertProjectVersion = (projectId: string, version: ProjectVersion) => {
-    setProjectVersionsByProjectId((current) => {
-      const existingVersions = current[projectId] ?? []
-      const nextVersions = sortProjectVersionsDesc([
-        version,
-        ...existingVersions.filter((existingVersion) => existingVersion.id !== version.id),
-      ])
-
-      return {
-        ...current,
-        [projectId]: nextVersions,
-      }
-    })
-  }
-
-  const persistProjectDocument = async (token: string, project: Project) => {
-    // Hard gate: never touch the cloud for a local project. The legacy
-    // dual-state model would auto-create cloud copies for everything
-    // (the "cache" we tore out in Phase 6). Without this guard, the
-    // baseline-version effect below and the new-project create flow
-    // in useAppOrchestration would each upload every local project
-    // to the cloud and create duplicate Documents on every render.
-    if (project.source && project.source !== "cloud") return null
-
-    const payload = buildProjectDocumentPayload(project)
-    const existingDocumentId = projectDocumentMapRef.current[project.id]
-
-    if (existingDocumentId) {
-      await updateDocument(token, existingDocumentId, payload)
-      return existingDocumentId
-    }
-
-    const remoteDocuments = await getDocuments(token)
-    const existingRemoteDocument = remoteDocuments.find(
-      (documentRecord) =>
-        documentRecord.metadata?.recordType === PROJECT_RECORD_TYPE && documentRecord.metadata?.projectId === project.id,
-    )
-
-    if (existingRemoteDocument) {
-      await updateDocument(token, existingRemoteDocument.id, payload)
-      setProjectDocumentMap((current) => ({
-        ...current,
-        [project.id]: existingRemoteDocument.id,
-      }))
-      return existingRemoteDocument.id
-    }
-
-    const createdDocument = await createDocument(token, payload)
-    setProjectDocumentMap((current) => ({
-      ...current,
-      [project.id]: createdDocument.id,
-    }))
-    return createdDocument.id
-  }
-
-  const createProjectVersionSnapshot = async (
-    project: Project,
-    definition: ProjectVersionDefinition,
-    options?: { alertOnFailure?: boolean },
-  ) => {
-    const currentSession = sessionRef.current
-    if (!currentSession) {
-      return null
-    }
-
-    // Version snapshots are a cloud feature — they're stored as separate
-    // Documents linked to the project's cloud Document. Local projects
-    // never get them; otherwise we'd auto-upload every local file as
-    // a cloud doc *and* create version docs for it (the duplication
-    // bug the user reported). All callers (autosave interval,
-    // baseline-creation effect, save-project event, useAppOrchestration's
-    // onCreateProject) are funnelled through here, so this one guard
-    // protects them all.
-    if (project.source && project.source !== "cloud") return null
-
-    if (isVersionSaveInFlightRef.current) {
-      return null
-    }
-
-    isVersionSaveInFlightRef.current = true
-
-    try {
-      await persistProjectDocument(currentSession.token, project)
-      const createdDocument = await createDocument(currentSession.token, buildProjectVersionPayload(project, definition))
-      const parsedVersion = parseProjectVersion(createdDocument as DocumentRecord)
-
-      if (parsedVersion) {
-        upsertProjectVersion(project.id, parsedVersion)
-      }
-
-      return parsedVersion
-    } catch (error) {
-      if (options?.alertOnFailure !== false && typeof window !== "undefined") {
-        const message = error instanceof Error ? error.message : "Failed to save version"
-        window.alert(message)
-      }
-
-      return null
-    } finally {
-      isVersionSaveInFlightRef.current = false
-    }
-  }
-
-  const restoreVersionIntoProject = (projectId: string, versionId: string) => {
-    const selectedVersion = (projectVersionsRef.current[projectId] ?? []).find((version) => version.id === versionId)
-    if (!selectedVersion) {
-      return false
-    }
-
-    return onRestoreVersion(projectId, selectedVersion.snapshot)
-  }
-
-  const duplicateVersionIntoLibrary = (projectId: string, versionId: string) => {
-    const selectedVersion = (projectVersionsRef.current[projectId] ?? []).find((version) => version.id === versionId)
-    if (!selectedVersion) {
-      return false
-    }
-
-    return onDuplicateVersion(selectedVersion.snapshot) !== null
-  }
-
-  // Save project + save version event listeners
+  // ── Manual save: File > Save Version ────────────────────────────────────
   useEffect(() => {
     const handleSaveProject = () => {
-      const currentSession = sessionRef.current
-      const currentProject = activeProjectRef.current
-      if (!currentSession || !currentProject) {
-        return
-      }
-
-      void persistProjectDocument(currentSession.token, currentProject)
+      // The "Save Project" event is decoupled from versioning in the
+      // embedded model — local files autosave through useLocalFilesystemSync,
+      // cloud projects sync through useWorkspaceHydration's push effect.
+      // Nothing for this hook to do here, but we keep the listener so
+      // existing keyboard shortcuts don't 404.
     }
 
-    const handleSaveProjectVersion = async () => {
+    const handleSaveProjectVersion = () => {
       const currentProject = activeProjectRef.current
-      if (!currentProject) {
-        return
-      }
+      if (!currentProject) return
+      // Don't snapshot kinds that have no version slot — silently bail so
+      // the menu item / shortcut still appears to "work" without an error.
+      if (!projectKindSupportsVersions(currentProject.kind)) return
 
-      const currentSerializedSnapshot = serializeProjectSnapshot(currentProject)
-      let versionsForProject = projectVersionsRef.current[currentProject.id] ?? []
-      const hasManualVersion = versionsForProject.some((version) => version.saveKind === "manual")
+      const manualVersion = createProjectVersion(currentProject, "manual")
+      pushVersionOntoProject(setProjects, currentProject.id, manualVersion)
 
-      if (!hasManualVersion) {
-        const initialDefinition = getInitialManualVersionDefinition(versionsForProject, currentSerializedSnapshot)
-        const initialVersion = await createProjectVersionSnapshot(currentProject, initialDefinition, { alertOnFailure: false })
-        if (initialVersion) {
-          versionsForProject = sortProjectVersionsDesc([initialVersion, ...versionsForProject])
-        }
-      }
-
-      const versionDefinition = getNextManualVersionDefinition(
-        versionsForProject,
-        currentSerializedSnapshot,
-      )
-
-      const savedVersion = await createProjectVersionSnapshot(currentProject, versionDefinition)
-      if (savedVersion && typeof window !== "undefined") {
-        window.alert(`Saved version ${savedVersion.label}.`)
+      if (typeof window !== "undefined") {
+        window.alert(`Saved version ${manualVersion.label}.`)
       }
     }
 
@@ -233,52 +148,112 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
       window.removeEventListener(APP_SAVE_PROJECT_EVENT, handleSaveProject)
       window.removeEventListener(APP_SAVE_PROJECT_VERSION_EVENT, handleSaveProjectVersion)
     }
+    // activeProjectRef and setProjects are stable refs — no deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Autosave interval
+  // ── Autosave on word-count delta ────────────────────────────────────────
+  //
+  // We track the word count we last snapshotted for each project. Whenever
+  // projects[] changes, we sweep all version-supporting projects and push
+  // an autosave if their current word count moved by ≥ AUTOSAVE_WORD_DELTA
+  // since the last version. The first non-empty save on a project (i.e.
+  // no versions yet) also creates a baseline manual "I" so the user has
+  // an anchor.
+  //
+  // Why ref-tracked baseline counts rather than reading versions[0]?
+  // Because two rapid edits in the same tick (a paste followed by a
+  // formatting tweak) both run this effect — without the ref, both ticks
+  // would see the same versions[] (the setProjects from the first tick
+  // hasn't committed yet), each would compute "delta exceeded", and we'd
+  // double-snapshot. The ref pinpoints the in-flight commit and prevents
+  // the second tick from firing.
+  const lastSnapshotWordCountRef = useRef<Map<string, number>>(new Map())
+
   useEffect(() => {
-    if (!isWorkspaceHydrated) {
+    if (!isWorkspaceHydrated) return
+
+    for (const project of projects) {
+      if (!projectKindSupportsVersions(project.kind)) continue
+      if (project.deletedAt) continue
+      if (project.archivedAt) continue
+
+      const versions = project.versions ?? []
+      const currentWordCount = countProjectWords(project)
+
+      // Baseline: empty version list ⇒ push a manual "I" so the user has a
+      // starting point. We also seed lastSnapshotWordCountRef so the next
+      // delta is measured from this baseline, not from 0.
+      if (versions.length === 0) {
+        const baseline = createProjectVersion(project, "manual")
+        lastSnapshotWordCountRef.current.set(project.id, baseline.wordCount)
+        pushVersionOntoProject(setProjects, project.id, baseline)
+        return
+      }
+
+      // Word-count delta check. The reference point is the most recent
+      // version's wordCount — which is what we just stored in
+      // lastSnapshotWordCountRef on the previous commit. Fall back to the
+      // versions list if the ref hasn't been seeded yet (first render
+      // after hydrate).
+      const lastCount =
+        lastSnapshotWordCountRef.current.get(project.id) ?? versions[0]?.wordCount ?? 0
+      const delta = Math.abs(currentWordCount - lastCount)
+      if (delta < AUTOSAVE_WORD_DELTA) continue
+
+      const autosave = createProjectVersion(project, "autosave")
+      lastSnapshotWordCountRef.current.set(project.id, autosave.wordCount)
+      pushVersionOntoProject(setProjects, project.id, autosave)
+      // Only one autosave per sweep — pushing into setProjects re-runs this
+      // effect anyway, and snapshotting two projects in the same tick is
+      // never urgent enough to justify the complexity.
       return
     }
+  }, [projects, isWorkspaceHydrated, setProjects])
 
-    const intervalId = window.setInterval(() => {
-      const currentSession = sessionRef.current
-      const currentProject = activeProjectRef.current
+  // ── Restore / duplicate (driven by postMessage from the popup) ─────────
+  const restoreVersionIntoProject = (projectId: string, versionId: string): boolean => {
+    const selectedVersion = (projectVersionsRef.current[projectId] ?? []).find(
+      (version) => version.id === versionId,
+    )
+    if (!selectedVersion) return false
 
-      if (!currentSession || !currentProject || viewRef.current !== "editor" || isVersionSaveInFlightRef.current) {
-        return
-      }
-
-      // Cloud-only feature — don't autosave version snapshots for
-      // local projects (their edits autosave to disk via the local
-      // filesystem sync). `createProjectVersionSnapshot` would gate
-      // this too, but bailing here avoids re-planning every tick.
-      if (currentProject.source && currentProject.source !== "cloud") {
-        return
-      }
-
-      const versionDefinition = planAutosaveVersion(
-        projectVersionsRef.current[currentProject.id] ?? [],
-        serializeProjectSnapshot(currentProject),
-      )
-
-      if (!versionDefinition) {
-        return
-      }
-
-      void createProjectVersionSnapshot(currentProject, versionDefinition, { alertOnFailure: false })
-    }, AUTOSAVE_VERSION_INTERVAL_MS)
-
-    return () => {
-      window.clearInterval(intervalId)
+    let parsedSnapshot: Project
+    try {
+      parsedSnapshot = JSON.parse(selectedVersion.snapshot) as Project
+    } catch {
+      return false
     }
-  }, [isWorkspaceHydrated])
+    if (!parsedSnapshot || !Array.isArray(parsedSnapshot.tabs)) return false
 
-  // Version action message listener
+    return onRestoreVersion(projectId, parsedSnapshot)
+  }
+
+  const duplicateVersionIntoLibrary = (projectId: string, versionId: string): boolean => {
+    const selectedVersion = (projectVersionsRef.current[projectId] ?? []).find(
+      (version) => version.id === versionId,
+    )
+    if (!selectedVersion) return false
+
+    let parsedSnapshot: Project
+    try {
+      parsedSnapshot = JSON.parse(selectedVersion.snapshot) as Project
+    } catch {
+      return false
+    }
+    if (!parsedSnapshot || !Array.isArray(parsedSnapshot.tabs)) return false
+
+    return onDuplicateVersion(parsedSnapshot) !== null
+  }
+
+  // postMessage listener used by the per-version preview popup (built by
+  // buildVersionPreviewHtml — opened via the modal's "Open in New Window"
+  // toolbar action). The version-history list itself is now in-app, so it
+  // doesn't postMessage at all — its buttons call into the modal's props
+  // directly. We keep this listener for the preview popup, which still
+  // benefits from running in its own browser window.
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return
-    }
+    if (typeof window === "undefined") return
 
     const onVersionActionMessage = (event: MessageEvent<unknown>) => {
       if (event.origin !== window.location.origin || !event.data || typeof event.data !== "object") {
@@ -296,59 +271,26 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
       }
 
       if (message.action === "restore") {
-        void restoreVersionIntoProject(message.projectId, message.versionId)
+        restoreVersionIntoProject(message.projectId, message.versionId)
         return
       }
 
-      void duplicateVersionIntoLibrary(message.projectId, message.versionId)
+      duplicateVersionIntoLibrary(message.projectId, message.versionId)
     }
 
     window.addEventListener("message", onVersionActionMessage)
     return () => {
       window.removeEventListener("message", onVersionActionMessage)
     }
+    // restoreVersionIntoProject + duplicateVersionIntoLibrary close over
+    // refs that update independently — no deps needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Baseline version creation for projects missing manual versions.
-  //
-  // CRITICAL: skip local projects. Version snapshots are stored as
-  // cloud Documents; if we run this for local projects we'd
-  // auto-upload every local file to the cloud (the duplication bug).
-  // Both this filter and the source check inside
-  // `createProjectVersionSnapshot` enforce the gate.
-  useEffect(() => {
-    if (!session || !isWorkspaceHydrated || isVersionSaveInFlightRef.current) {
-      return
-    }
-
-    const projectMissingManualBaseline = projects.find((project) => {
-      if (project.source && project.source !== "cloud") return false
-      const versions = projectVersionsByProjectId[project.id] ?? []
-      return !versions.some((version) => version.saveKind === "manual")
-    })
-
-    if (!projectMissingManualBaseline) {
-      return
-    }
-
-    const versions = projectVersionsByProjectId[projectMissingManualBaseline.id] ?? []
-    const baselineDefinition = getInitialManualVersionDefinition(
-      versions,
-      serializeProjectSnapshot(projectMissingManualBaseline),
-    )
-
-    void createProjectVersionSnapshot(projectMissingManualBaseline, baselineDefinition, { alertOnFailure: false })
-  }, [isWorkspaceHydrated, projectVersionsByProjectId, projects, session])
 
   return {
     projectVersionsByProjectId,
-    setProjectVersionsByProjectId,
     projectVersionsRef,
-    isVersionSaveInFlightRef,
-    upsertProjectVersion,
     restoreVersionIntoProject,
     duplicateVersionIntoLibrary,
-    createProjectVersionSnapshot,
-    persistProjectDocument,
   }
 }

@@ -12,6 +12,10 @@ type ModalProps = {
   closeLabel?: string
   showCloseButton?: boolean
   panelClassName?: string
+  /** Class merged onto the outer `.ui-modal__frame`. Use to override the
+   *  default width / max-height — most callers don't need this, but the
+   *  version history view widens the frame to fit its toolbar + columns. */
+  frameClassName?: string
   children: ReactNode
   actions?: ReactNode
   footer?: ReactNode
@@ -27,6 +31,7 @@ export default function Modal({
   closeLabel = "Close",
   showCloseButton = true,
   panelClassName,
+  frameClassName,
   children,
   actions,
   footer,
@@ -72,7 +77,7 @@ export default function Modal({
         onMouseDown={onClose}
         aria-hidden="true"
       />
-      <div className="ui-modal__frame">
+      <div className={`ui-modal__frame${frameClassName ? ` ${frameClassName}` : ""}`}>
         {showCloseButton ? (
           <GhostButton
             className={`ui-modal__floating-close ui-modal__floating-close${animSuffix}`}

@@ -13,8 +13,8 @@ import { requestAppColorPaletteChange, requestExportProject } from "../events/ed
 import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "../utils/menu"
 import { exportProjectAsPdf } from "../../webapp/components/export/pdfExport"
 import { buildDuplicateProjectName, createLocalId } from "../utils/libraryUtils"
-import { createProject, createId, generateUntitledName, normalizeProjectAfterTabs, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, type Project } from "../utils/projects"
-import { buildVersionHistoryPageHtml, buildVersionPreviewHtml, getInitialManualVersionDefinition, mapVersionsForSettings, resolveThemeForPalette, restoreProjectFromVersion, serializeProjectSnapshot, type VersionSettingsEntry } from "../state/versioning"
+import { createProject, createId, generateUntitledName, normalizeProjectAfterTabs, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, removeProjectVersions, type Project } from "../utils/projects"
+import { buildVersionPreviewHtml, mapVersionsForSettings, parseVersionSnapshot, restoreProjectFromVersion, type VersionSettingsEntry } from "../state/versioning"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
 import { useAppStyle } from "./useAppStyle"
@@ -28,6 +28,7 @@ import { setMacFolderColor } from "../electron/macFolderLabels"
 import { useLocalFilesystemSync } from "../localFiles"
 import { uploadLocalFileAsCloudDocument } from "../localFiles/cloudOverlay"
 import { useCloudPreferenceSync } from "./useCloudPreferenceSync"
+import { useNativeTextEntryCommandBus } from "./useNativeTextEntryCommandBus"
 import { getStoredBoolean, writeStoredPreferences } from "../state/preferencesStorage"
 
 import { useTuskBilling } from "./useTuskBilling"
@@ -35,6 +36,13 @@ import { getPendingShareRequests, respondToShareRequest, type PendingShareReques
 import type { ProjectFolder } from "../../webapp/pages/Library"
 
 export function useAppOrchestration() {
+  // Application-global Cmd+A / Cmd+C / Cmd+V handler for native text
+  // inputs (rename modals, settings fields, sidebar inline renames, …).
+  // Mounted here — not inside an editor — so it stays active even in
+  // Library view when no document editor is on screen. See
+  // `useNativeTextEntryCommandBus` for the routing rationale.
+  useNativeTextEntryCommandBus()
+
   // ── local state ──────────────────────────────────────────────
   const [projects, setProjects] = useState<Project[]>([])
   const [folders, setFolders] = useState<ProjectFolder[]>([])
@@ -61,13 +69,19 @@ export function useAppOrchestration() {
   const [isWorkspaceHydrated, setIsWorkspaceHydrated] = useState(false)
   const [projectDocumentMap, setProjectDocumentMap] = useState<Record<string, string>>({})
   const [pendingShareRequests, setPendingShareRequests] = useState<PendingShareRequest[]>([])
+  // When non-null: the in-app VersionHistory modal is open for this project.
+  // Closing the modal sets it back to null. Two call sites can open it (the
+  // library context-menu and the project settings panel) — both just set
+  // this id; rendering lives in App.tsx.
+  const [versionHistoryProjectId, setVersionHistoryProjectId] = useState<string | null>(null)
   const viewRef = useRef<"projects" | "editor">("projects")
   const activeProjectRef = useRef<Project | null>(null)
   const projectDocumentMapRef = useRef<Record<string, string>>({})
 
   // refs for cross-hook callbacks (set after hooks are created)
   const billingResetRef = useRef<() => void>(() => {})
-  const versioningResetRef = useRef<(v: Record<string, never>) => void>(() => {})
+  // (Versions are now embedded in projects[]; clearing projects clears their
+  // versions transitively. No separate reset ref needed.)
   // Tracks whether we're in Electron local-file mode. Logout reads this to
   // decide whether to clear projects[] / folders[] (cloud mode = clear all;
   // local mode = keep them, since the disk is the source of truth and
@@ -87,7 +101,7 @@ export function useAppOrchestration() {
   isLocalModeRef.current = isLocalMode
 
   const {
-    session, isAuthBootstrapping, authLoadError, sessionRef,
+    session, isAuthBootstrapping, authLoadError,
     setSession, setIsAuthBootstrapping, setAuthLoadError,
     handleAuthenticated, logout,
     saveAccountProfile, requestPasswordReset, requestEmailChange,
@@ -123,7 +137,6 @@ export function useAppOrchestration() {
         setIsFlagsEnabled(false)
         setIsTranslucentNavPanel(true)
       }
-      versioningResetRef.current({})
       setProjectDocumentMap({})
       setPendingShareRequests([])
       billingResetRef.current()
@@ -170,10 +183,10 @@ export function useAppOrchestration() {
   }
 
   const versioning = useProjectVersioning({
-    sessionRef, session, projects,
-    projectDocumentMapRef, setProjectDocumentMap,
+    projects,
+    setProjects,
+    activeProjectRef,
     isWorkspaceHydrated,
-    activeProjectRef, viewRef,
     onRestoreVersion: handleRestoreVersion,
     onDuplicateVersion: handleDuplicateVersion,
   })
@@ -184,7 +197,6 @@ export function useAppOrchestration() {
 
   // keep refs in sync for logout callback
   billingResetRef.current = billing.reset
-  versioningResetRef.current = versioning.setProjectVersionsByProjectId as (v: Record<string, never>) => void
 
   // Electron+local mode: the user's filesystem is the source of truth for
   // In local mode, the disk is the source of truth — block cloud hydration
@@ -201,7 +213,6 @@ export function useAppOrchestration() {
     },
     setIsWorkspaceHydrated,
     setProjects, setProjectDocumentMap,
-    setProjectVersionsByProjectId: versioning.setProjectVersionsByProjectId,
     setFolders, setActiveProjectId, setView, setBookCounter,
     setPendingShareRequests,
     setTuskAiBilling: billing.setTuskAiBilling,
@@ -216,7 +227,7 @@ export function useAppOrchestration() {
     setIsWordCountEnabled: style.setIsWordCountEnabled,
   }), [
     setIsAuthBootstrapping, setAuthLoadError, setSession,
-    setIsWorkspaceHydrated, versioning.setProjectVersionsByProjectId,
+    setIsWorkspaceHydrated,
     billing.setTuskAiBilling,
     style.setPalette, style.setCustomPaletteBackground, style.setCustomPaletteAccent,
     style.setDisplayFont, style.setBodyFont, style.setUiFont,
@@ -547,7 +558,13 @@ export function useAppOrchestration() {
       }
 
       if (msg.action === "export") {
-        exportProjectAsPdf(version.snapshot)
+        // version.snapshot is the JSON-stringified project at save time.
+        // Parse it before handing to the PDF exporter (which expects a
+        // Project object). A corrupt snapshot silently skips the export.
+        const snapshotProject = parseVersionSnapshot(version.snapshot)
+        if (snapshotProject) {
+          exportProjectAsPdf(snapshotProject)
+        }
       }
     }
 
@@ -661,9 +678,10 @@ export function useAppOrchestration() {
       const nextProject = createProject(nextName, kind)
       setProjects((cur) => [{ ...nextProject, folderId: null, rootPosition: "top" }, ...cur])
       setActiveProjectId(nextProject.id)
-      if (sessionRef.current && isWorkspaceHydrated) {
-        void versioning.createProjectVersionSnapshot(nextProject, getInitialManualVersionDefinition([], serializeProjectSnapshot(nextProject)), { alertOnFailure: false })
-      }
+      // The baseline "Manual I" snapshot is created by the versioning hook's
+      // sweep effect as soon as it observes a version-supporting project
+      // with an empty versions[] (see useProjectVersioning.ts). Nothing to
+      // do here.
     },
     onCreateFolder: () => {
       const nextIndex = folders.length + 1
@@ -684,10 +702,9 @@ export function useAppOrchestration() {
     setActiveProjectId,
     bookCounter,
     setBookCounter,
-    onProjectCreated: (project: Project) => {
-      if (sessionRef.current && isWorkspaceHydrated) {
-        void versioning.createProjectVersionSnapshot(project, getInitialManualVersionDefinition([], serializeProjectSnapshot(project)), { alertOnFailure: false })
-      }
+    onProjectCreated: (_project: Project) => {
+      // Same as onCreateProject: the baseline manual "I" comes from the
+      // versioning sweep effect; no work to do at the call site.
     },
     onOpenProjectInNewTab: (projectId: string) => {
       const url = new URL("/app", window.location.origin)
@@ -758,14 +775,11 @@ export function useAppOrchestration() {
     onRejectShareRequest: handleRejectShareRequest,
     onRefreshPendingShareRequests: refreshPendingShareRequests,
     onShowVersionHistory: (projectId: string) => {
-      const versions = versioning.projectVersionsByProjectId[projectId] ?? []
-      const proj = projects.find((p) => p.id === projectId)
-      const projectName = proj?.name ?? "Project"
-      const theme = resolveThemeForPalette(style.palette, { customPaletteBackground: style.customPaletteBackground, customPaletteAccent: style.customPaletteAccent })
-      const html = buildVersionHistoryPageHtml({ versions, projectName, projectId, bodyFont: style.bodyFont, uiFont: style.uiFont, displayFont: style.displayFont, ...theme, isElectron: !!window.electronAPI })
-      const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
-      window.open(blobUrl, "_blank")
-      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)
+      // Opens the in-app VersionHistory modal — rendered top-level in
+      // App.tsx — instead of a detached blob popup. Theme + fonts flow in
+      // through the same CSS variables the rest of the app uses, and
+      // updates in Settings take effect immediately.
+      setVersionHistoryProjectId(projectId)
     },
   } : null
 
@@ -823,13 +837,11 @@ export function useAppOrchestration() {
     onActiveProjectColorChange: (color: string) => updateActiveProject((p) => ({ ...p, color })),
     onActiveProjectWallpaperEmojisChange: (emojis: string) => updateActiveProject((p) => ({ ...p, wallpaperEmojis: emojis })),
     onShowVersionHistory: () => {
+      // Same in-app modal as the library entry point — just opened from
+      // the project settings panel rather than from the library context
+      // menu.
       if (!activeProject) return
-      const versions = versioning.projectVersionsByProjectId[activeProject.id] ?? []
-      const theme = resolveThemeForPalette(style.palette, { customPaletteBackground: style.customPaletteBackground, customPaletteAccent: style.customPaletteAccent })
-      const html = buildVersionHistoryPageHtml({ versions, projectName: activeProject.name, projectId: activeProject.id, bodyFont: style.bodyFont, uiFont: style.uiFont, displayFont: style.displayFont, ...theme, isElectron: !!window.electronAPI })
-      const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
-      window.open(blobUrl, "_blank")
-      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)
+      setVersionHistoryProjectId(activeProject.id)
     },
     onExportProject: (format: "pdf" | "docx" | "md" | "txt") => {
       if (!activeProject) return
@@ -849,6 +861,69 @@ export function useAppOrchestration() {
     onSignOut: logout,
     onRequestSignIn: () => setIsAuthOverlayOpen(true),
   } : null
+
+  // ── Version history modal props ──────────────────────────────────────
+  //
+  // Built last so it can close over the rest of the state. Every action
+  // routes back into the same handlers that already power the menu /
+  // popup actions:
+  //   • Restore   → versioning.restoreVersionIntoProject
+  //   • Duplicate → versioning.duplicateVersionIntoLibrary
+  //   • Export    → exportProjectAsPdf(parseVersionSnapshot(snapshot))
+  //   • Open new  → blob URL with buildVersionPreviewHtml (single-version
+  //                 page; the full history is now in-app, only the
+  //                 per-version detail page still lives as a popup)
+  //   • Delete    → removeProjectVersions(project, ids) via setProjects
+  const versionHistoryProject = versionHistoryProjectId
+    ? projects.find((p) => p.id === versionHistoryProjectId) ?? null
+    : null
+  const versionHistoryProps = {
+    isOpen: versionHistoryProjectId !== null && versionHistoryProject !== null,
+    onClose: () => setVersionHistoryProjectId(null),
+    projectName: versionHistoryProject?.name ?? "Project",
+    versions: versionHistoryProject?.versions ?? [],
+    onRestore: (versionId: string) => {
+      if (!versionHistoryProjectId) return
+      const ok = versioning.restoreVersionIntoProject(versionHistoryProjectId, versionId)
+      if (ok) setVersionHistoryProjectId(null)
+    },
+    onDuplicate: (versionId: string) => {
+      if (!versionHistoryProjectId) return
+      const ok = versioning.duplicateVersionIntoLibrary(versionHistoryProjectId, versionId)
+      if (ok) setVersionHistoryProjectId(null)
+    },
+    onExportPdf: (versionId: string) => {
+      if (!versionHistoryProject) return
+      const target = versionHistoryProject.versions?.find((v) => v.id === versionId)
+      if (!target) return
+      const snapshot = parseVersionSnapshot(target.snapshot)
+      if (snapshot) exportProjectAsPdf(snapshot)
+    },
+    onOpenInNewWindow: (versionId: string) => {
+      if (!versionHistoryProject) return
+      const target = versionHistoryProject.versions?.find((v) => v.id === versionId)
+      if (!target) return
+      const html = buildVersionPreviewHtml({
+        version: target,
+        bodyFont: style.bodyFont,
+        projectId: versionHistoryProject.id,
+      })
+      const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
+      window.open(blobUrl, "_blank")
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 15_000)
+    },
+    onDelete: (versionIds: string[]) => {
+      if (!versionHistoryProjectId || versionIds.length === 0) return
+      const idsSet = new Set(versionIds)
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === versionHistoryProjectId
+            ? removeProjectVersions(project, idsSet)
+            : project,
+        ),
+      )
+    },
+  }
 
   return {
     // routing
@@ -874,5 +949,6 @@ export function useAppOrchestration() {
     brandProps,
     editorProps,
     settingsProps,
+    versionHistoryProps,
   }
 }

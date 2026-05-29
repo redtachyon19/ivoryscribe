@@ -5,6 +5,7 @@ import { useLocalRoot } from "./core/electron/localWorkspace"
 import AppLayout from "./webapp/components/layout/AppLayout"
 import GlobalSettings from "./webapp/components/settings/GlobalSettings"
 import GlobalCaretOverlay from "./webapp/components/layout/GlobalCaretOverlay"
+import VersionHistory from "./webapp/components/version-history/VersionHistory"
 import Home from "./landing/pages/Home"
 import MissionPage from "./landing/pages/MissionPage"
 import TransparencyPage from "./landing/pages/TransparencyPage"
@@ -35,6 +36,7 @@ export default function App() {
         <>
           <Editor {...app.editorProps!} />
           <GlobalSettings {...app.settingsProps!} />
+          <VersionHistory {...app.versionHistoryProps} />
           <GlobalCaretOverlay />
           {app.isAuthOverlayOpen && (
             <div className="auth-overlay" role="dialog" aria-modal="true">
@@ -83,6 +85,7 @@ export default function App() {
       <>
         <Editor {...app.editorProps!} />
         <GlobalSettings {...app.settingsProps!} />
+        <VersionHistory {...app.versionHistoryProps} />
         <GlobalCaretOverlay />
       </>
     )

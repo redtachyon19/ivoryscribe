@@ -1,9 +1,9 @@
 // Codec for .tusk (book) files.
 //
-// Schema:
+// Schema (file format version 2):
 //
 // <?xml version="1.0" encoding="UTF-8"?>
-// <tusk version="1" id="..." cloud-id="" created="..." color="..." wallpaper-emojis="" root-position="top">
+// <tusk version="2" id="..." created="..." color="..." wallpaper-emojis="" root-position="top">
 //   <name>My Book</name>
 //   <active-chapter-id>...</active-chapter-id>
 //   <chapters>
@@ -14,13 +14,21 @@
 //       </chapter>
 //     </chapter>
 //   </chapters>
+//   <versions>
+//     <version id="..." label="I" kind="manual" saved-at="..." word-count="...">
+//       <![CDATA[ {JSON snapshot of the Project at save time, sans versions} ]]>
+//     </version>
+//   </versions>
 // </tusk>
 //
 // `mode` replaces the legacy markdownIds / typewriterIds parallel arrays.
+// `<versions>` was added in format version 2 and is absent on v1 files; the
+// parser tolerates that and starts the history empty.
 
 import { XMLParser } from "fast-xml-parser"
 import { FILE_FORMAT_VERSION, type ChapterMode, type TuskBookFile, type TuskChapter } from "./types"
 import { emitAttrs, emitCData, escapeText, indent, XML_PROLOG } from "./xmlPrimitives"
+import { emitVersionsBlock, parseVersionsBlock, VERSIONS_ARRAY_NAMES } from "./codecVersions"
 
 const VALID_MODES: ChapterMode[] = ["default", "markdown", "typewriter", "plaintext"]
 
@@ -64,7 +72,11 @@ export function serializeTuskBook(file: TuskBookFile): string {
   const chaptersBody = file.chapters.map((c) => emitChapter(c, 2)).join("")
   const chaptersClose = `${indent(1)}</chapters>\n`
 
-  return `${XML_PROLOG}${head}${meta}${chaptersOpen}${chaptersBody}${chaptersClose}</tusk>\n`
+  // Always emit <versions> (possibly empty) — structural consistency keeps
+  // git diffs sane and the parse path simpler.
+  const versionsBlock = emitVersionsBlock(file.versions ?? [], 1)
+
+  return `${XML_PROLOG}${head}${meta}${chaptersOpen}${chaptersBody}${chaptersClose}${versionsBlock}</tusk>\n`
 }
 
 // ── Parsing ────────────────────────────────────────────────────────────────
@@ -78,8 +90,11 @@ const parser = new XMLParser({
   textNodeName: "#text",
   // <chapter> elements must always be arrays so single-child cases don't
   // collapse to a single object. Our schema uses `chapter` only inside
-  // <chapters> and nested under other <chapter>, so a name-only check is safe.
-  isArray: (name) => name === "chapter",
+  // <chapters> and nested under other <chapter>, so a name-only check is
+  // safe. `version` lives under <versions> and is added to the set by the
+  // shared codecVersions module (VERSIONS_ARRAY_NAMES) — keep that list
+  // canonical there so codecPresentation gets the same treatment.
+  isArray: (name) => name === "chapter" || VERSIONS_ARRAY_NAMES.has(name),
 })
 
 type RawAttrs = Record<string, string | undefined>
@@ -153,6 +168,11 @@ export function parseTuskBook(xml: string): TuskBookFile {
     : []
   const chapters = chapterArray.map(parseChapterNode)
 
+  // Versions are added in file format v2. v1 files don't have a <versions>
+  // element; parseVersionsBlock returns [] in that case and the history
+  // begins accruing fresh on next save.
+  const versions = parseVersionsBlock(root.versions as RawNode | undefined)
+
   return {
     version,
     id,
@@ -163,5 +183,6 @@ export function parseTuskBook(xml: string): TuskBookFile {
     rootPosition,
     activeChapterId,
     chapters,
+    versions,
   }
 }
