@@ -22,6 +22,40 @@ export type ProjectKind = "Book" | "Presentation" | "Markdown" | "PlainText" | "
  *  field; consumers default missing values to `"local"`. */
 export type ProjectSource = "local" | "cloud"
 
+/** Discriminates manual ("Save Version" menu) saves from autosaves triggered
+ *  by word-count deltas. Manual versions get roman-numeral labels (I, II, …);
+ *  autosaves get arabic-number labels (1, 2, …). The two counters are
+ *  independent — so I, II, 1, 2, III, 3 is a legal sequence. */
+export type ProjectVersionKind = "manual" | "autosave"
+
+/** A single snapshot of a Book or Presentation at a point in time, kept
+ *  *inside* the project (and therefore inside the .tusk / .tusks file on
+ *  disk, or the cloud Document blob). Markdown / PlainText projects do not
+ *  carry versions — there's no schema slot for them and the editor never
+ *  produces any.
+ *
+ *  `snapshot` is the JSON-stringified Project at the moment of save, with
+ *  its own `versions` array stripped (no recursion). Stored as a string so
+ *  it stays opaque to React reconciliation and to the diff effects in
+ *  useLocalFilesystemSync — only the wrapping Project mutates per render,
+ *  not every nested snapshot. mapVersionsForSettings parses on demand for
+ *  the UI. */
+export type ProjectVersion = {
+  id: string
+  /** Roman numeral for manual saves ("I", "II", "IV", …); arabic string for
+   *  autosaves ("1", "2", "47"). */
+  label: string
+  kind: ProjectVersionKind
+  /** ISO timestamp of when the snapshot was taken. */
+  savedAt: string
+  /** Total word count across every editable tab at save time. The autosave
+   *  effect compares the current word count against the most recent version's
+   *  to decide whether to push a new snapshot. */
+  wordCount: number
+  /** JSON.stringify of the Project at save time, with `versions` removed. */
+  snapshot: string
+}
+
 export type Project = {
   id: string
   name: string
@@ -53,6 +87,24 @@ export type Project = {
   contentById: Record<string, string>
   archivedAt?: string | null
   deletedAt?: string | null
+  /** Sorted newest-first. Only Book and Presentation projects populate this;
+   *  Markdown/PlainText/PDF/Image keep it `undefined`. Newest version is
+   *  always at index 0. */
+  versions?: ProjectVersion[]
+}
+
+/** Word-count delta that triggers an autosave snapshot. The unified
+ *  versioning hook diffs the current project's total word count against the
+ *  most recent version's `wordCount`; once the delta crosses this threshold,
+ *  it pushes a new autosave entry. */
+export const AUTOSAVE_WORD_DELTA = 500
+
+/** Project kinds that carry an embedded version history. Markdown / PlainText
+ *  documents are single-file edits and don't earn snapshots; PDF / Image /
+ *  Unknown are read-only. Keep this as the single source of truth — every
+ *  version-creating path checks it before pushing. */
+export function projectKindSupportsVersions(kind: ProjectKind): boolean {
+  return kind === "Book" || kind === "Presentation"
 }
 
 type LegacyProjectSnapshot = Omit<Project, "kind"> & {
@@ -517,4 +569,133 @@ export function setActiveTabContent(project: Project, nextContent: string): Proj
     ...project,
     contentById: { ...project.contentById, [project.activeId]: nextContent },
   }
+}
+
+// ── Word counting ──────────────────────────────────────────────────────────
+//
+// Lives here (rather than in core/utils/markdown.ts where countWords is)
+// so the versioning hook can take a project-wide count without dragging
+// the markdown module's marked/highlight.js bundle into its closure.
+// Mirrors countWordsFromContent's behavior for HTML-wrapped content but
+// without importing it.
+
+const HTML_TAG_PATTERN = /<\/?[a-z][^>]*>/gi
+const WORD_PATTERN = /[\p{L}\p{N}'']+/gu
+
+function stripHtml(value: string): string {
+  return value.replace(HTML_TAG_PATTERN, " ")
+}
+
+function countWordsInText(value: string): number {
+  if (!value) return 0
+  // Strip HTML if present; ProseMirror/TipTap stores content as wrapped HTML
+  // for prose tabs but as raw text/markdown for others.
+  const text = value.includes("<") ? stripHtml(value) : value
+  const matches = text.match(WORD_PATTERN)
+  return matches ? matches.length : 0
+}
+
+/** Sum of word counts across every tab in `contentById`. Used by the
+ *  versioning hook to decide when an autosave snapshot is due. */
+export function countProjectWords(project: Project): number {
+  let total = 0
+  for (const value of Object.values(project.contentById)) {
+    if (typeof value !== "string") continue
+    total += countWordsInText(value)
+  }
+  return total
+}
+
+// ── Version labels ─────────────────────────────────────────────────────────
+
+const ROMAN_NUMERALS: ReadonlyArray<readonly [number, string]> = [
+  [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"],
+  [100,  "C"], [90,  "XC"], [50,  "L"], [40,  "XL"],
+  [10,   "X"], [9,   "IX"], [5,   "V"], [4,   "IV"],
+  [1,    "I"],
+]
+
+/** Convert a positive integer to its roman numeral. 0 returns "" — but the
+ *  callers below pass 1 or higher (the count is always "existing manual
+ *  versions + 1"). */
+export function toRomanNumeral(value: number): string {
+  if (value <= 0 || !Number.isFinite(value)) return ""
+  let remaining = Math.floor(value)
+  let result = ""
+  for (const [digit, glyph] of ROMAN_NUMERALS) {
+    while (remaining >= digit) {
+      result += glyph
+      remaining -= digit
+    }
+  }
+  return result
+}
+
+/** Next manual label = roman numeral one past the count of existing manual
+ *  versions. The two counters (manual/autosave) are independent — see the
+ *  ProjectVersion comment. */
+export function nextManualVersionLabel(versions: ReadonlyArray<ProjectVersion>): string {
+  const manualCount = versions.reduce((n, v) => v.kind === "manual" ? n + 1 : n, 0)
+  return toRomanNumeral(manualCount + 1)
+}
+
+/** Next autosave label = stringified arabic number one past the count of
+ *  existing autosave versions. */
+export function nextAutosaveVersionLabel(versions: ReadonlyArray<ProjectVersion>): string {
+  const autosaveCount = versions.reduce((n, v) => v.kind === "autosave" ? n + 1 : n, 0)
+  return String(autosaveCount + 1)
+}
+
+// ── Snapshot factory ──────────────────────────────────────────────────────
+
+/** Returns a copy of `project` with `versions` stripped. We snapshot this
+ *  shape (never the project as-is) so versions never contain other versions
+ *  — a `.tusk` opened, edited, saved twenty times would otherwise carry an
+ *  exponentially growing nested history. */
+export function projectWithoutVersions(project: Project): Project {
+  if (!project.versions) return project
+  const { versions: _versions, ...rest } = project
+  return rest
+}
+
+/** Build a new `ProjectVersion` from the current state of `project`. Caller
+ *  is responsible for appending it (via `appendProjectVersion`) and pushing
+ *  the result back into React state. */
+export function createProjectVersion(project: Project, kind: ProjectVersionKind): ProjectVersion {
+  const existingVersions = project.versions ?? []
+  const label = kind === "manual"
+    ? nextManualVersionLabel(existingVersions)
+    : nextAutosaveVersionLabel(existingVersions)
+  return {
+    id: createId(),
+    label,
+    kind,
+    savedAt: new Date().toISOString(),
+    wordCount: countProjectWords(project),
+    snapshot: JSON.stringify(projectWithoutVersions(project)),
+  }
+}
+
+/** Returns a copy of `project` with `version` prepended to its `versions`
+ *  array (newest-first ordering). */
+export function appendProjectVersion(project: Project, version: ProjectVersion): Project {
+  return {
+    ...project,
+    versions: [version, ...(project.versions ?? [])],
+  }
+}
+
+/** Returns a copy of `project` with every version whose id is in `idsToRemove`
+ *  filtered out. Used by the version-history modal's Delete action — the
+ *  hook calls this through `setProjects`, the FS sync writes the resulting
+ *  project (sans those versions) back to disk, and the cloud sync pushes
+ *  the same updated content. No special "tombstone" handling needed: a
+ *  deleted version is simply absent on next read. */
+export function removeProjectVersions(project: Project, idsToRemove: ReadonlySet<string>): Project {
+  if (!project.versions || project.versions.length === 0 || idsToRemove.size === 0) {
+    return project
+  }
+  const next = project.versions.filter((version) => !idsToRemove.has(version.id))
+  if (next.length === project.versions.length) return project
+  return { ...project, versions: next }
 }

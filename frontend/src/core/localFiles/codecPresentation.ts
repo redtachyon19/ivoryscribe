@@ -20,6 +20,7 @@
 import { XMLParser } from "fast-xml-parser"
 import { FILE_FORMAT_VERSION, type TuskPresentationFile, type TuskPresentationSlide } from "./types"
 import { emitAttrs, emitCData, escapeText, indent, XML_PROLOG } from "./xmlPrimitives"
+import { emitVersionsBlock, parseVersionsBlock, VERSIONS_ARRAY_NAMES } from "./codecVersions"
 
 function emitSlide(slide: TuskPresentationSlide, depth: number): string {
   const open = `${indent(depth)}<slide${emitAttrs({ id: slide.id, title: slide.title })}>\n`
@@ -47,7 +48,9 @@ export function serializeTuskPresentation(file: TuskPresentationFile): string {
   const slidesBody = file.slides.map((s) => emitSlide(s, 2)).join("")
   const slidesClose = `${indent(1)}</slides>\n`
 
-  return `${XML_PROLOG}${head}${meta}${slidesOpen}${slidesBody}${slidesClose}</tusks>\n`
+  const versionsBlock = emitVersionsBlock(file.versions ?? [], 1)
+
+  return `${XML_PROLOG}${head}${meta}${slidesOpen}${slidesBody}${slidesClose}${versionsBlock}</tusks>\n`
 }
 
 // ── Parsing ────────────────────────────────────────────────────────────────
@@ -59,7 +62,7 @@ const parser = new XMLParser({
   parseAttributeValue: false,
   trimValues: false,
   textNodeName: "#text",
-  isArray: (name) => name === "slide",
+  isArray: (name) => name === "slide" || VERSIONS_ARRAY_NAMES.has(name),
 })
 
 type RawAttrs = Record<string, string | undefined>
@@ -111,5 +114,9 @@ export function parseTuskPresentation(xml: string): TuskPresentationFile {
   const slideArray = slidesHolder && Array.isArray(slidesHolder.slide) ? (slidesHolder.slide as RawNode[]) : []
   const slides = slideArray.map(parseSlideNode)
 
-  return { version, id, created, name, color, activeSlideId, slides }
+  // Versions are added in file format v2. v1 files don't have a <versions>
+  // element and start fresh on next save.
+  const versions = parseVersionsBlock(root.versions as RawNode | undefined)
+
+  return { version, id, created, name, color, activeSlideId, slides, versions }
 }

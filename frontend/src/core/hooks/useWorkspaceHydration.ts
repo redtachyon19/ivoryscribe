@@ -23,10 +23,7 @@ import {
 } from "../utils/projects"
 import type { UserSession } from "../state/session"
 import {
-  parseProjectVersion,
   PROJECT_RECORD_TYPE,
-  sortProjectVersionsDesc,
-  type ProjectVersion,
 } from "../state/versioning"
 import type { ProjectFolder } from "../../webapp/pages/Library"
 
@@ -44,7 +41,6 @@ export type WorkspaceMutators = {
   // Workspace data
   setProjects: Dispatch<SetStateAction<Project[]>>
   setProjectDocumentMap: Dispatch<SetStateAction<Record<string, string>>>
-  setProjectVersionsByProjectId: Dispatch<SetStateAction<Record<string, ProjectVersion[]>>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
   setView: Dispatch<SetStateAction<"projects" | "editor">>
@@ -121,7 +117,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     setIsWorkspaceHydrated,
     setProjects,
     setProjectDocumentMap,
-    setProjectVersionsByProjectId,
     setFolders,
     setActiveProjectId,
     setView,
@@ -186,19 +181,13 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
     const nextProjects: Project[] = []
     const nextDocumentMap: Record<string, string> = {}
-    const nextVersionsByProjectId: Record<string, ProjectVersion[]> = {}
 
     for (const documentRecord of documents) {
-      if (documentRecord.metadata?.recordType !== PROJECT_RECORD_TYPE) {
-        const versionRecord = parseProjectVersion(documentRecord)
-        if (!versionRecord) {
-          continue
-        }
-
-        const existingVersions = nextVersionsByProjectId[versionRecord.projectId] ?? []
-        nextVersionsByProjectId[versionRecord.projectId] = sortProjectVersionsDesc([...existingVersions, versionRecord])
-        continue
-      }
+      // Version records used to be separate Documents — they're now
+      // embedded inside the project's own content. Skip any non-project
+      // record we encounter (legacy version Documents on the server are
+      // ignored; see the migration note at the top of this commit).
+      if (documentRecord.metadata?.recordType !== PROJECT_RECORD_TYPE) continue
 
       const project = parseProjectFromDocument(documentRecord)
       if (!project) {
@@ -251,7 +240,10 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
     setProjects(projectList)
     setProjectDocumentMap(nextDocumentMap)
-    setProjectVersionsByProjectId(nextVersionsByProjectId)
+    // Versions are part of the Project shape now (embedded inside .tusk /
+    // .tusks files, and inside the cloud Document's content blob), so
+    // there's no separate version map to seed here — `setProjects` above
+    // carries them.
     setFolders(Array.isArray(uiSettings?.folders) ? uiSettings.folders : [])
 
     const requestedActiveProjectId = uiSettings?.activeProjectId
@@ -296,7 +288,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           const fallbackProject = createProject("Book 1", "Book")
           setProjects([fallbackProject])
           setProjectDocumentMap({})
-          setProjectVersionsByProjectId({})
           setFolders([])
           setActiveProjectId(fallbackProject.id)
           setView("projects")

@@ -1,0 +1,203 @@
+/* Version history modal — styling.
+ *
+ * Every color / font / radius is derived from the app's CSS variables so
+ * the modal picks up palette + font changes from settings with no extra
+ * wiring. The marquee selection rectangle uses the same accent-mixed
+ * background as the project browser panel's, so dragging looks identical
+ * across the app.
+ */
+
+/* Wider than the default 560px Modal — version rows + the action toolbar
+ * read better with breathing room. */
+.version-history__frame {
+  width: min(880px, calc(100vw - 32px));
+  max-height: min(88vh, 820px);
+}
+
+.version-history__panel {
+  /* Override the default modal padding so the toolbar and list can hug
+   * the panel edges. */
+  padding: 18px;
+  gap: 14px;
+}
+
+.version-history {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────── */
+
+.version-history__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 70%, transparent);
+}
+
+/* The toolbar buttons inherit the standard `ui-button--footer` look — no
+ * extra rules needed here. We only adjust spacing/sizing to fit the
+ * toolbar row. */
+.version-history__toolbar .ui-button {
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.version-history__toolbar .ui-button > span {
+  white-space: nowrap;
+}
+
+.version-history__toolbar .ui-button svg {
+  flex-shrink: 0;
+}
+
+/* ── Subtitle / status line ──────────────────────────────────────────── */
+
+.version-history__subtitle {
+  margin: 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── List ────────────────────────────────────────────────────────────── */
+
+/* No border / background of its own — the cards sit directly inside the
+ * modal panel. We still need this element so the marquee rect has an
+ * anchor (`position: relative`) and the list can scroll independently
+ * of the modal header / toolbar when there are many versions. */
+.version-history__list {
+  position: relative;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 60vh;
+}
+
+.version-history__list--marqueeing {
+  cursor: crosshair;
+  user-select: none;
+}
+
+.version-history__rows {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.version-history__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--menu-button, #ededed);
+  font-family: var(--app-ui-font);
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.version-history__row:hover {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #242424) 56%, transparent);
+}
+
+.version-history__row--selected {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 14%, transparent);
+  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 48%, transparent);
+}
+
+.version-history__row--selected:hover {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 20%, transparent);
+}
+
+.version-history__row-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.version-history__row-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.version-history__row-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--menu-button, #ededed);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.version-history__row-time,
+.version-history__row-delta {
+  margin: 2px 0 0;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* ── Badges (pill labels) ────────────────────────────────────────────── */
+
+.version-history__badge {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: var(--app-ui-font);
+  /* Keep on a single line so "Auto Save 12" doesn't wrap inside the pill. */
+  white-space: nowrap;
+}
+
+.version-history__badge--manual {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 22%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, var(--app-accent, #9ab8ff));
+}
+
+.version-history__badge--autosave {
+  background: rgba(122, 199, 154, 0.18);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, #7ac79a);
+}
+
+/* ── Marquee selection rectangle ─────────────────────────────────────── */
+
+.version-history__marquee-selection {
+  position: absolute;
+  z-index: 50;
+  border: 1.5px solid color-mix(in srgb, var(--app-accent, #7ea8ff) 75%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #7ea8ff) 10%, transparent);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────── */
+
+/* The subtitle line already covers the empty-state messaging — no extra
+ * placeholder needed inside the list. */
+
+/* ── Narrow viewport ─────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .version-history__toolbar .ui-button > span {
+    /* Hide labels on mobile — icons + tooltips carry the meaning. */
+    display: none;
+  }
+
+  .version-history__row {
+    padding: 10px 12px;
+  }
+}

@@ -73,6 +73,9 @@ export function projectToBookFile(project: Project): TuskBookFile {
     rootPosition: project.rootPosition,
     activeChapterId: project.activeId,
     chapters: tabsToChapters(project.tabs, project.contentById, markdownIds, typewriterIds, plaintextIds),
+    // Versions roundtrip verbatim — the in-memory representation and the
+    // file representation share the ProjectVersion shape.
+    versions: project.versions,
   }
 }
 
@@ -127,6 +130,10 @@ export function bookFileToProject(file: TuskBookFile): Project {
     tabs: buckets.tabs,
     activeId,
     contentById: buckets.contentById,
+    // Carry the embedded history forward. v1 files (no <versions> block)
+    // arrive here as []; the autosave/manual paths begin populating it on
+    // the next save.
+    versions: file.versions ?? [],
   }
 }
 
@@ -189,6 +196,8 @@ export function presentationFileToProject(file: TuskPresentationFile): Project {
     tabs,
     activeId,
     contentById,
+    // See codecBook bridge — versions roundtrip verbatim, missing => [].
+    versions: file.versions ?? [],
   }
 }
 
@@ -211,6 +220,7 @@ export function projectToPresentationFile(project: Project): TuskPresentationFil
     color: project.color,
     activeSlideId: project.activeId,
     slides,
+    versions: project.versions,
   }
 }
 
