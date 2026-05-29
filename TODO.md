@@ -37,14 +37,18 @@ feat/image-viewing
 
 bug/image-zoom
 
-bug/pdf-zoom
 
-bug/scrolling-on-landing-page
 
 bug/dissapearing settings icon
 
 
 resolved
+
+bug/pdf-zoom
+
+bug/scrolling-on-landing-page
+
+
 - allow opening in a new tab on electron local app (done)
 
 - delete the scrolling effect

@@ -11,7 +11,10 @@ type ProjectVersionListItem = {
   label: string
   saveKind: "manual" | "autosave"
   createdAt: string
-  changedCharacters: number
+  /** Word count at save time. The settings panel currently only counts the
+   *  list length, but this field is shown in the popup history page so the
+   *  shape needs to match what mapVersionsForSettings emits. */
+  wordCount: number
   preview?: {
     projectName: string
     projectKind: ProjectKind

@@ -20,6 +20,8 @@ import { registerPdfText, unregisterPdfText, type PdfPageText } from "../../../c
 import {
   APP_COLOR_PALETTE_CHANGE_EVENT,
   APP_PROJECT_SEARCH_FOCUS_EVENT,
+  EDITOR_COMMAND_EVENT,
+  type EditorCommand,
   type ProjectSearchFocusDetail,
 } from "../../../core/events/editorEvents"
 import "./PDFViewer.css"
@@ -386,50 +388,71 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
   // the editor center (which can include the surrounding chrome);
   // scoping the selection to the pages column gives the expected
   // "select all text in the PDF" outcome.
+  //
+  // Two entry points, one helper:
+  //   • Web build → no Electron menu accelerator, so the renderer's
+  //     keydown listener catches Cmd+A directly.
+  //   • Electron build → the native menu accelerator consumes the
+  //     keystroke before any keydown listener can see it, then
+  //     dispatches `EDITOR_COMMAND_EVENT` over the command bus. We
+  //     listen for that too and run the same helper.
   useEffect(() => {
     const scrollEl = scrollRef.current
     if (!scrollEl) return
+
+    /** True iff the PDF viewer currently owns focus — `document.body` counts
+     *  (initial load / blank click inside the viewer). Anything focused
+     *  outside the viewer (find input, sidebar) yields the keystroke. */
+    const viewerOwnsFocus = () => {
+      const active = document.activeElement
+      if (!active || active === document.body) return true
+      return scrollEl.contains(active)
+    }
+
+    /** Select every text-layer span across every page. Returns true when a
+     *  selection was actually made so callers can preventDefault. */
+    const selectAllPdfText = (): boolean => {
+      const pagesEl = pagesRef.current
+      if (!pagesEl) return false
+      const textLayers = pagesEl.querySelectorAll(".pdf-viewer__text-layer")
+      if (textLayers.length === 0) return false
+      const range = document.createRange()
+      // Span from the first text layer to the last. Canvases between
+      // page wrappers aren't selectable text and don't inflate the
+      // visible selection geometry.
+      range.setStartBefore(textLayers[0])
+      range.setEndAfter(textLayers[textLayers.length - 1])
+      const selection = window.getSelection()
+      if (!selection) return false
+      selection.removeAllRanges()
+      selection.addRange(range)
+      return true
+    }
 
     const onKeyDown = (event: KeyboardEvent) => {
       const isPrimary = event.metaKey || event.ctrlKey
       if (!isPrimary || event.shiftKey || event.altKey) return
       if (event.key.toLowerCase() !== "a") return
+      if (!viewerOwnsFocus()) return
+      if (selectAllPdfText()) event.preventDefault()
+    }
 
-      // Only handle when the keydown is happening while the viewer is
-      // the active surface — we check by walking up from the active
-      // element. If something else owns focus (e.g. the find input),
-      // let its default Cmd+A behaviour run.
-      const active = document.activeElement
-      if (active && active !== document.body && !scrollEl.contains(active)) return
-
-      const pagesEl = pagesRef.current
-      if (!pagesEl) return
-      // Need at least one text layer to select anything meaningful.
-      const firstTextLayer = pagesEl.querySelector(".pdf-viewer__text-layer")
-      if (!firstTextLayer) return
-
-      event.preventDefault()
-      const range = document.createRange()
-      // Select everything from the first text layer to the last —
-      // skipping the canvases in between, which aren't selectable
-      // anyway but would inflate the selection's geometry.
-      const textLayers = pagesEl.querySelectorAll(".pdf-viewer__text-layer")
-      if (textLayers.length === 0) return
-      range.setStartBefore(textLayers[0])
-      range.setEndAfter(textLayers[textLayers.length - 1])
-      const selection = window.getSelection()
-      if (!selection) return
-      selection.removeAllRanges()
-      selection.addRange(range)
+    const onEditorCommand = (event: Event) => {
+      const command = (event as CustomEvent<{ command: EditorCommand }>).detail?.command
+      if (command !== "select-all") return
+      if (!viewerOwnsFocus()) return
+      selectAllPdfText()
     }
 
     scrollEl.addEventListener("keydown", onKeyDown)
     // Also handle the case where focus is on document.body (initial
     // load, after clicking on empty area inside the viewer).
     window.addEventListener("keydown", onKeyDown)
+    window.addEventListener(EDITOR_COMMAND_EVENT, onEditorCommand)
     return () => {
       scrollEl.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener(EDITOR_COMMAND_EVENT, onEditorCommand)
     }
   }, [])
 
