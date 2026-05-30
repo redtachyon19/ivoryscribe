@@ -93,6 +93,9 @@ type FolderDetailViewProps = {
   /** Sub-folders that live directly inside this folder. Rendered as cards
    *  above the project grid so the user can drill into them. */
   subFolders?: ProjectFolderType[]
+  /** Marquee/multi-selected ids — used to highlight selected sub-folder
+   *  cards, matching the top-level folder grid. */
+  selectedIds?: Set<string>
   /** Back-button label. Defaults to "Library" but can be a parent folder
    *  name when navigating up out of a nested folder. */
   backLabel?: string
@@ -124,6 +127,7 @@ export function FolderDetailView({
   folder,
   folderProjects,
   subFolders = [],
+  selectedIds,
   backLabel = "Library",
   onBack,
   onOpenCreateMenu,
@@ -176,7 +180,8 @@ export function FolderDetailView({
           {subFolders.map((sub) => (
             <article
               key={sub.id}
-              className={`project-hub__folder-card ${getFolderDropClassName?.(sub.id) ?? ""} ${getFolderReorderClassName?.(sub.id) ?? ""}`.trim()}
+              data-selectable-id={sub.id}
+              className={`project-hub__folder-card ${getFolderDropClassName?.(sub.id) ?? ""} ${getFolderReorderClassName?.(sub.id) ?? ""} ${selectedIds?.has(sub.id) ? "project-hub__folder-card--marquee-selected" : ""}`.trim()}
               role="button"
               tabIndex={0}
               draggable={!!onFolderDragStart}

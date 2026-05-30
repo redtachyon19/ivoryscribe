@@ -51,6 +51,12 @@ type ProjectBrowserPanelProps = {
   onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
   onCreateProject: (kind: import("../../../core/utils/projects").ProjectKind) => void
   onCreateFolder: () => void
+  /** When set, the tree is rooted at this folder instead of the workspace
+   *  top: only this folder's direct sub-folders and files render as roots.
+   *  Used by the editor's single-document sidebar to scope the browser to
+   *  the folder the open file lives in. Default (undefined/null) = whole
+   *  workspace, the library/Slide-1 behavior. */
+  rootFolderId?: string | null
 }
 
 type BrowserContextMenuState =
@@ -77,11 +83,21 @@ export default function ProjectBrowserPanel({
   onApplyFolderFinderColor,
   onCreateProject,
   onCreateFolder,
+  rootFolderId = null,
 }: ProjectBrowserPanelProps) {
   const drag = useListDrag({ flatOnly: true })
   const sectionDrop = useSectionDrop({ folders, projects, setProjects, setFolders, onMoveProjectToCloud })
   const settings = useProjectSettings({ projects, setProjects })
-  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee()
+  // Every row here is a draggable <li> whose label is itself the selectable
+  // item, so a press on a row should start a marquee — NOT bail. We mirror the
+  // library grid's proven filter (only genuine text-entry controls suppress
+  // the marquee); crucially we do NOT bail on `button`, because the row label
+  // is a <button> and would otherwise swallow every drag. A plain click still
+  // opens the project (no drag past threshold); dragging past it marquee-
+  // selects; and native drag-to-reorder still fires dragstart independently.
+  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee({
+    ignoreSelector: "input, textarea, select",
+  })
   const multiDragIdsRef = useRef<Set<string>>(new Set())
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
@@ -111,8 +127,12 @@ export default function ProjectBrowserPanel({
     }
   }
 
-  const topRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "top")
-  const bottomRootProjects = projects.filter((p) => !p.folderId && p.rootPosition === "bottom")
+  // "Root" here means the level the panel is anchored at — the workspace top
+  // (rootFolderId null) for the library, or a specific folder for the editor's
+  // single-document sidebar. Everything else (drag, marquee, context menus)
+  // is unchanged; only the starting level of the tree shifts.
+  const topRootProjects = projects.filter((p) => (p.folderId ?? null) === rootFolderId && p.rootPosition === "top")
+  const bottomRootProjects = projects.filter((p) => (p.folderId ?? null) === rootFolderId && p.rootPosition === "bottom")
 
   useEffect(() => {
     const validIds = new Set<string>([
@@ -166,10 +186,10 @@ export default function ProjectBrowserPanel({
       for (const p of projects.filter((pr) => pr.folderId === folder.id)) ids.push(p.id)
     }
     for (const p of topRootProjects) ids.push(p.id)
-    for (const f of (childrenByParent.get(null) ?? [])) walk(f)
+    for (const f of (childrenByParent.get(rootFolderId) ?? [])) walk(f)
     for (const p of bottomRootProjects) ids.push(p.id)
     return ids
-  }, [projects, folders, expandedFolders, topRootProjects, bottomRootProjects])
+  }, [projects, folders, expandedFolders, topRootProjects, bottomRootProjects, rootFolderId])
 
   const rootListHandlers = drag.createRootListHandlers(visibleItemIds, "project-browser__item")
 
@@ -755,7 +775,7 @@ export default function ProjectBrowserPanel({
           }}
         >
           {topRootProjects.map((p) => renderProject(p))}
-          {folders.filter((f) => !f.parentFolderId).map((f) => renderFolder(f))}
+          {folders.filter((f) => (f.parentFolderId ?? null) === rootFolderId).map((f) => renderFolder(f))}
           {bottomRootProjects.map((p) => renderProject(p))}
         </ul>
       </div>

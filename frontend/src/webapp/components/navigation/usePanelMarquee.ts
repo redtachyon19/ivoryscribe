@@ -1,12 +1,19 @@
 import { useCallback, useRef, useState } from "react"
 import useMarqueeSelection from "../shared/hooks/useMarqueeSelection"
 
+type UsePanelMarqueeOptions = {
+  /** Forwarded to useMarqueeSelection — see its `ignoreSelector`. Panels
+   *  whose rows are themselves the selectable items (so a press on a row
+   *  should start a marquee, not bail) pass a narrower selector. */
+  ignoreSelector?: string
+}
+
 /**
  * Shared marquee selection setup used by navigation panel components.
  * Encapsulates the container ref, getItemRects helper, useMarqueeSelection wiring,
  * and the liveSelectedIds computation that is identical in both panels.
  */
-export default function usePanelMarquee() {
+export default function usePanelMarquee(options: UsePanelMarqueeOptions = {}) {
   const marqueeContainerRef = useRef<HTMLDivElement | null>(null)
   const [marqueeSelectedIds, setMarqueeSelectedIds] = useState<Set<string>>(new Set())
 
@@ -27,6 +34,7 @@ export default function usePanelMarquee() {
     getItemRects,
     containerRef: marqueeContainerRef,
     onSelectionChange: setMarqueeSelectedIds,
+    ignoreSelector: options.ignoreSelector,
   })
 
   const liveSelectedIds = marquee.isActive ? marquee.selectedIds : marqueeSelectedIds
