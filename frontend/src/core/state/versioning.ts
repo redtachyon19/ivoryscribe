@@ -32,7 +32,6 @@ import {
   type ProjectVersion,
   type ProjectVersionKind,
 } from "../utils/projects"
-import { withEmojiFontFallback } from "../utils/appearance"
 
 // The discriminator on a cloud Document record that identifies it as the
 // canonical record for a project (vs other record types we may add later).
@@ -133,16 +132,7 @@ export function parseVersionSnapshot(serialized: string): Project | null {
   }
 }
 
-// ── HTML helpers shared by the popup builders ─────────────────────────────
-
-export function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-}
+// ── Version display helpers ───────────────────────────────────────────────
 
 export function formatVersionTimestamp(value: string): string {
   const parsed = new Date(value)
@@ -245,121 +235,37 @@ export function mapVersionsForSettings(versions: ReadonlyArray<ProjectVersion>):
   })
 }
 
-// ── Single-version preview popup ─────────────────────────────────────────
+// ── Single-version preview window ────────────────────────────────────────
 
-export function buildVersionPreviewHtml(params: {
+/** Payload handed from the main window to the standalone version-preview
+ *  window via localStorage (keyed by version id). The preview reads it once
+ *  and clears the key on mount. */
+export type VersionPreviewHandoff = {
   version: ProjectVersion
-  bodyFont: string
   projectId: string
-}): string {
-  const { version, bodyFont, projectId } = params
-  const resolvedBodyFont = withEmojiFontFallback(bodyFont)
-  const snapshot = parseVersionSnapshot(version.snapshot)
-  const projectName = snapshot?.name ?? "(unreadable snapshot)"
-  const activeDocumentTitle = snapshot
-    ? ((snapshot.activeId ? findTabTitleById(snapshot.tabs, snapshot.activeId) : null) ?? "Untitled Entry")
-    : "Untitled Entry"
-  const activeDocumentPreview = snapshot?.activeId
-    ? stripHtmlPreview(snapshot.contentById[snapshot.activeId] ?? "")
-    : ""
-
-  // Match the history list popup: title = project name as it was at save
-  // time; metadata line carries the "Manual II" / "Auto Save 3" tag.
-  const kindLabel = version.kind === "manual" ? `Manual ${version.label}` : `Auto Save ${version.label}`
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(projectName)} - ${escapeHtml(kindLabel)}</title>
-    <style>
-      body { margin: 0; padding: 24px; font-family: ${resolvedBodyFont}; background: #101113; color: #ececec; }
-      .wrap { max-width: 860px; margin: 0 auto; }
-      h1 { margin: 0 0 8px; font-weight: 400; font-size: 36px; }
-      .meta { margin: 0; color: #b6bcc8; font-size: 15px; }
-      .card { margin-top: 20px; border: 1px solid #313642; border-radius: 12px; padding: 14px; background: #171a21; }
-      h2 { margin: 0 0 10px; font-weight: 400; font-size: 24px; }
-      p { margin: 0; color: #dde3ee; line-height: 1.45; white-space: pre-wrap; }
-      .actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
-      .btn { border: 1px solid #3e4555; border-radius: 8px; background: #1f2531; color: #e9edf5; padding: 8px 12px; font-size: 15px; cursor: pointer; }
-      .btn:hover { background: #273043; }
-      .status { margin-top: 10px; color: #9bb6ff; font-size: 14px; min-height: 1.2em; }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <h1>${escapeHtml(projectName)}</h1>
-      <p class="meta">${escapeHtml(kindLabel)} &middot; ${escapeHtml(formatVersionTimestamp(version.savedAt))}</p>
-      <div class="actions">
-        <button id="restoreBtn" class="btn" type="button">Restore Version</button>
-        <button id="duplicateBtn" class="btn" type="button">Add Copy to Library</button>
-      </div>
-      <p id="actionStatus" class="status"></p>
-      <div class="card">
-        <h2>${escapeHtml(activeDocumentTitle)}</h2>
-        <p>${escapeHtml(activeDocumentPreview || "No preview content available for this entry.")}</p>
-      </div>
-    </div>
-    <script>
-      (function () {
-        var projectId = ${JSON.stringify(projectId)};
-        var versionId = ${JSON.stringify(version.id)};
-        var status = document.getElementById("actionStatus");
-
-        function sendAction(action) {
-          if (!window.opener) {
-            if (status) {
-              status.textContent = "This tab is detached from the app window. Open from version history to enable actions.";
-            }
-            return;
-          }
-
-          window.opener.postMessage(
-            {
-              type: "ivory:version-action",
-              action: action,
-              projectId: projectId,
-              versionId: versionId,
-            },
-            window.location.origin,
-          );
-
-          if (status) {
-            status.textContent = action === "restore"
-              ? "Restore request sent to app window."
-              : "Duplicate request sent to app window.";
-          }
-        }
-
-        var restoreBtn = document.getElementById("restoreBtn");
-        var duplicateBtn = document.getElementById("duplicateBtn");
-
-        if (restoreBtn) {
-          restoreBtn.addEventListener("click", function () {
-            sendAction("restore");
-          });
-        }
-
-        if (duplicateBtn) {
-          duplicateBtn.addEventListener("click", function () {
-            sendAction("duplicate");
-          });
-        }
-      })();
-    </script>
-  </body>
-</html>`
+  projectName: string
 }
 
-// The full version-history page used to be built as a standalone HTML blob
-// here (≈250 lines of inlined CSS/JS that the orchestration opened in a
-// new tab). That detached page never picked up theme changes from the
-// settings panel because each blob was a one-shot snapshot.
-//
-// The replacement is the in-app React modal at
-// webapp/components/version-history/VersionHistory.tsx — same data, same
-// actions, but living inside the React tree so the app's CSS variables
-// flow through naturally. The `buildVersionPreviewHtml` above is still
-// used for the per-version "Open in New Window" action because that
-// genuinely benefits from being a separate browser window.
+/** Open the read-only single-version view in its own window. Instead of a
+ *  detached HTML blob, this stashes the version in localStorage and opens the
+ *  real in-app `/version-preview` route, so that window inherits the app
+ *  palette and reuses the real Find & Replace modal + toolbar
+ *  (see webapp/pages/VersionPreviewPage.tsx). */
+export function openVersionPreviewWindow(
+  version: ProjectVersion,
+  projectId: string,
+  projectName: string,
+): void {
+  if (typeof window === "undefined") return
+  const key = `ivoryscribe.version-preview.${version.id}`
+  try {
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({ version, projectId, projectName } satisfies VersionPreviewHandoff),
+    )
+  } catch {
+    // localStorage may be unavailable / full — still open the window; it will
+    // render its "unavailable" state.
+  }
+  window.open(`${window.location.origin}/version-preview?key=${encodeURIComponent(key)}`, "_blank")
+}

@@ -14,7 +14,7 @@ import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "../u
 import { exportProjectAsPdf } from "../../webapp/components/export/pdfExport"
 import { buildDuplicateProjectName, createLocalId } from "../utils/libraryUtils"
 import { createProject, createId, generateUntitledName, normalizeProjectAfterTabs, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, removeProjectVersions, type Project } from "../utils/projects"
-import { buildVersionPreviewHtml, mapVersionsForSettings, parseVersionSnapshot, restoreProjectFromVersion, type VersionSettingsEntry } from "../state/versioning"
+import { mapVersionsForSettings, openVersionPreviewWindow, parseVersionSnapshot, restoreProjectFromVersion, type VersionSettingsEntry } from "../state/versioning"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
 import { useAppStyle } from "./useAppStyle"
@@ -550,10 +550,7 @@ export function useAppOrchestration() {
       if (!version) return
 
       if (msg.action === "view") {
-        const html = buildVersionPreviewHtml({ version, bodyFont: style.bodyFont, projectId: msg.projectId })
-        const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
-        window.open(blobUrl, "_blank")
-        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 15_000)
+        openVersionPreviewWindow(version, msg.projectId, "")
         return
       }
 
@@ -565,12 +562,20 @@ export function useAppOrchestration() {
         if (snapshotProject) {
           exportProjectAsPdf(snapshotProject)
         }
+        return
+      }
+
+      if (msg.action === "delete") {
+        const idsSet = new Set([msg.versionId])
+        setProjects((cur) =>
+          cur.map((p) => (p.id === msg.projectId ? removeProjectVersions(p, idsSet) : p)),
+        )
       }
     }
 
     window.addEventListener("message", onVersionAction)
     return () => { window.removeEventListener("message", onVersionAction) }
-  }, [versioning.projectVersionsByProjectId, style.bodyFont])
+  }, [versioning.projectVersionsByProjectId])
 
   // ── helpers ──────────────────────────────────────────────────
   const updateActiveProject = (updater: (project: Project) => Project) => {
@@ -870,9 +875,10 @@ export function useAppOrchestration() {
   //   • Restore   → versioning.restoreVersionIntoProject
   //   • Duplicate → versioning.duplicateVersionIntoLibrary
   //   • Export    → exportProjectAsPdf(parseVersionSnapshot(snapshot))
-  //   • Open new  → blob URL with buildVersionPreviewHtml (single-version
-  //                 page; the full history is now in-app, only the
-  //                 per-version detail page still lives as a popup)
+  //   • Open new  → openVersionPreviewWindow (opens the in-app
+  //                 /version-preview route in its own window; the full
+  //                 history is in-app, only the per-version detail page
+  //                 lives as a separate window)
   //   • Delete    → removeProjectVersions(project, ids) via setProjects
   const versionHistoryProject = versionHistoryProjectId
     ? projects.find((p) => p.id === versionHistoryProjectId) ?? null
@@ -903,14 +909,7 @@ export function useAppOrchestration() {
       if (!versionHistoryProject) return
       const target = versionHistoryProject.versions?.find((v) => v.id === versionId)
       if (!target) return
-      const html = buildVersionPreviewHtml({
-        version: target,
-        bodyFont: style.bodyFont,
-        projectId: versionHistoryProject.id,
-      })
-      const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
-      window.open(blobUrl, "_blank")
-      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 15_000)
+      openVersionPreviewWindow(target, versionHistoryProject.id, versionHistoryProject.name)
     },
     onDelete: (versionIds: string[]) => {
       if (!versionHistoryProjectId || versionIds.length === 0) return

@@ -14,6 +14,7 @@ import DownloadPage from "./landing/pages/DownloadPage.tsx"
 import CareersPage from "./landing/pages/CareersPage"
 import AuthPage from "./webapp/pages/AuthPage"
 import Editor from "./webapp/pages/Editor"
+import VersionPreviewPage from "./webapp/pages/VersionPreviewPage"
 import PasswordResetPage from "./webapp/pages/PasswordResetPage"
 
 export default function App() {
@@ -23,12 +24,21 @@ export default function App() {
 
   let content: ReactNode = null
 
+  // ─── Version preview window ─────────────────────────────────────────────
+  // Standalone read-only view of a single saved version, opened in its own
+  // window from Version History. Checked first (before the auth / electron
+  // branches) so it renders regardless of session state; it reads its data
+  // from a localStorage handoff (see openVersionPreviewWindow).
+  const isVersionPreview = app.currentPathname === "/version-preview"
+  if (isVersionPreview) {
+    content = <VersionPreviewPage />
+  }
   // ─── ELECTRON: local-first, no auth required ────────────────────────────
   // Renders the same Editor + Library used everywhere else. The local
   // filesystem sync wired into useAppOrchestration sources projects from the
   // user's workspace folder and writes edits back to disk. Sharing prompts an
   // auth overlay when the user is signed out.
-  if (isElectron) {
+  else if (isElectron) {
     if (!localRoot.isReady) {
       content = <section className="app-loading"><p>Opening workspace…</p></section>
     } else {
@@ -100,7 +110,7 @@ export default function App() {
       appStyleVariables={app.style.appStyleVariables}
       menuBarEnabled={app.menuBarProps.enabled}
       menuItems={app.menuBarProps.items}
-      showBrand={Boolean(isWorkspace) && !isElectron}
+      showBrand={!isVersionPreview && Boolean(isWorkspace) && !isElectron}
       translucentNavPanel={app.isTranslucentNavPanel}
       onNavigateHome={app.brandProps.onNavigateHome}
     >
