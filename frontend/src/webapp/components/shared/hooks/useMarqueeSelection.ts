@@ -23,13 +23,26 @@ type UseMarqueeSelectionOptions = {
   onSelectionChange: (ids: Set<string>) => void
   /** Minimum drag distance (px) before marquee activates */
   threshold?: number
+  /**
+   * CSS selector for elements that, when the mousedown lands inside them,
+   * suppress the marquee (so the press is treated as a click / drag-handle
+   * instead). Defaults to a conservative set that also bails on `li` /
+   * `article` / `[draggable]` — appropriate for reorder-drag panels where a
+   * row press means "grab to reorder". Panels whose rows ARE the selectable
+   * items (so a press on a row should start a marquee) pass a narrower
+   * selector — e.g. just interactive controls.
+   */
+  ignoreSelector?: string
 }
+
+const DEFAULT_IGNORE_SELECTOR = "button, input, textarea, select, a, [draggable='true'], li, article"
 
 export default function useMarqueeSelection({
   getItemRects,
   containerRef,
   onSelectionChange,
   threshold = 5,
+  ignoreSelector = DEFAULT_IGNORE_SELECTOR,
 }: UseMarqueeSelectionOptions) {
   const [state, setState] = useState<MarqueeState>({
     isActive: false,
@@ -82,7 +95,7 @@ export default function useMarqueeSelection({
       // Only left click, not on interactive elements
       if (e.button !== 0) return
       const target = e.target as HTMLElement
-      if (target.closest("button, input, textarea, select, a, [draggable='true'], li, article")) return
+      if (target.closest(ignoreSelector)) return
 
       const container = containerRef.current
       if (!container) return
@@ -101,7 +114,7 @@ export default function useMarqueeSelection({
       activeRef.current = true
       thresholdMetRef.current = false
     },
-    [containerRef],
+    [containerRef, ignoreSelector],
   )
 
   useEffect(() => {

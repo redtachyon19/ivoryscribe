@@ -345,6 +345,7 @@ export default function Library({
                 folder={openFolder}
                 folderProjects={folderProjects}
                 subFolders={childFolders}
+                selectedIds={multiSelect.liveSelectedIds}
                 backLabel={openFolder.parentFolderId ? folders.find((f) => f.id === openFolder.parentFolderId)?.name ?? "Library" : "Library"}
                 onBack={() => setOpenFolderId(openFolder.parentFolderId ?? null)}
                 onOpenCreateMenu={(anchor) => setCreateKindMenu(anchor)}
