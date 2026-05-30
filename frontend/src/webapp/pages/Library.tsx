@@ -10,6 +10,7 @@ import { exportProjectAsTxt } from "../components/export/txtExport"
 import { collectTabIds, createProject, generateUntitledName, type Project } from "../../core/utils/projects"
 import { createLocalId, duplicateProject } from "../../core/utils/libraryUtils"
 import type { VersionSettingsEntry } from "../../core/state/versioning"
+import { readLastLibraryLocation, writeLastLibraryLocation } from "../../core/state/lastLocationStorage"
 import ProjectSettings from "../components/settings/ProjectSettings"
 import ProjectCard from "../components/library/ProjectCard"
 import { FolderDetailView } from "../components/library/ProjectFolder"
@@ -120,10 +121,27 @@ export default function Library({
   const [editingFolderName, setEditingFolderName] = useState("")
   const { viewMode, toggle: toggleView } = useViewMode()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-  const [openFolderId, setOpenFolderId] = useState<string | null>(null)
+  // Seed the open folder from the last session so a reload keeps the user
+  // inside the folder they were browsing instead of snapping to the root.
+  const [openFolderId, setOpenFolderId] = useState<string | null>(
+    () => readLastLibraryLocation()?.folderId ?? null,
+  )
   const [shareDialogProjectId, setShareDialogProjectId] = useState<string | null>(null)
 
+  // Persist the open folder whenever it changes (or clears).
+  useEffect(() => {
+    writeLastLibraryLocation({ folderId: openFolderId })
+  }, [openFolderId])
+
   const activeProjects = projects.filter((p) => !p.archivedAt && !p.deletedAt)
+  // Guard against a stale stored folder id (folder deleted / not yet loaded):
+  // if it doesn't resolve once folders are present, fall back to the root.
+  useEffect(() => {
+    if (openFolderId && folders.length > 0 && !folders.some((f) => f.id === openFolderId)) {
+      setOpenFolderId(null)
+    }
+  }, [openFolderId, folders])
+
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null
   const folderProjects = openFolderId ? activeProjects.filter((p) => p.folderId === openFolderId) : []
   // Top-level folders (no parent) for the root library view; sub-folders of
