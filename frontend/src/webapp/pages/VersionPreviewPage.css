@@ -1,0 +1,205 @@
+/* Read-only single-version preview window.
+ *
+ * Everything is driven off the app's CSS variables (palette + fonts) — the
+ * page renders inside AppLayout, which sets them — so it matches the chosen
+ * theme automatically. The toolbar + cards intentionally mirror the
+ * Version History modal's styling. */
+
+.version-preview {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  background: var(--app-bg, #101113);
+  color: var(--menu-button, #ededed);
+  font-family: var(--app-ui-font);
+}
+
+.version-preview--empty {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
+}
+
+/* ── Header (title, meta, toolbar) ───────────────────────────────────── */
+
+.version-preview__head {
+  flex: 0 0 auto;
+  padding: 20px 28px 0;
+}
+
+.version-preview__title {
+  margin: 0;
+  font-family: var(--app-display-font, var(--app-ui-font));
+  font-weight: 400;
+  font-size: 32px;
+  line-height: 1.15;
+  color: var(--menu-button, #ededed);
+}
+
+.version-preview__meta {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+}
+
+/* Mirrors .version-history__toolbar. */
+.version-preview__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 70%, transparent);
+}
+
+.version-preview__toolbar .ui-button {
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.version-preview__toolbar .ui-button > span {
+  white-space: nowrap;
+}
+
+.version-preview__toolbar .ui-button svg {
+  flex-shrink: 0;
+}
+
+.version-preview__status {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--app-accent, #9ab8ff);
+  min-height: 1.2em;
+}
+
+/* ── Body: contents sidebar + main scroll ────────────────────────────── */
+
+.version-preview__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.version-preview__sidebar {
+  flex: 0 0 248px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 10px 24px;
+  border-right: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 70%, transparent);
+}
+
+.version-preview__sidebar-title {
+  margin: 0 0 8px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 50%, transparent);
+}
+
+.version-preview__toc {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.version-preview__toc-item {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 82%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  line-height: 1.3;
+  padding: 7px 10px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.version-preview__toc-item:hover,
+.version-preview__toc-item:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #242424) 60%, transparent);
+  color: var(--menu-button, #ededed);
+}
+
+/* ── Scrollable content ──────────────────────────────────────────────── */
+
+.version-preview__scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Nudge the reused Find modal down from the editor's 46px assumption so it
+ * tucks neatly under the top edge of this window. */
+.version-preview__scroll .find-replace-modal__wrap {
+  top: 12px;
+}
+
+.version-preview__content {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 20px 28px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Cards mirror the Version History row surface. */
+.version-preview__card {
+  border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #313642) 80%, transparent);
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #171a21) 80%, transparent);
+}
+
+.version-preview__card-title {
+  margin: 0 0 10px;
+  font-family: var(--app-display-font, var(--app-ui-font));
+  font-weight: 400;
+  font-size: 22px;
+  color: var(--menu-button, #ededed);
+}
+
+.version-preview__entry {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);
+  font-family: var(--app-body-font, var(--app-ui-font));
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.version-preview__entry > :first-child { margin-top: 0; }
+.version-preview__entry > :last-child { margin-bottom: 0; }
+.version-preview__entry p { margin: 0 0 0.75em; }
+.version-preview__entry h1,
+.version-preview__entry h2,
+.version-preview__entry h3 { font-weight: 600; line-height: 1.3; }
+.version-preview__entry img { max-width: 100%; height: auto; }
+
+.version-preview__empty {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 50%, transparent);
+  font-style: italic;
+}
+
+/* Search-hit highlight (native selection), matching the accent. */
+.version-preview__entry ::selection {
+  background: color-mix(in srgb, var(--app-accent, #7ea8ff) 45%, transparent);
+}
+.version-preview__entry ::-moz-selection {
+  background: color-mix(in srgb, var(--app-accent, #7ea8ff) 45%, transparent);
+}
