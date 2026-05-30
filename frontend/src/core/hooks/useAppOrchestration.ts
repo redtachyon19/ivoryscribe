@@ -15,6 +15,7 @@ import { exportProjectAsPdf } from "../../webapp/components/export/pdfExport"
 import { buildDuplicateProjectName, createLocalId } from "../utils/libraryUtils"
 import { createProject, createId, generateUntitledName, normalizeProjectAfterTabs, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, removeProjectVersions, type Project } from "../utils/projects"
 import { mapVersionsForSettings, openVersionPreviewWindow, parseVersionSnapshot, restoreProjectFromVersion, type VersionSettingsEntry } from "../state/versioning"
+import { readLastEditorLocation, writeLastEditorLocation } from "../state/lastLocationStorage"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
 import { useAppStyle } from "./useAppStyle"
@@ -464,6 +465,57 @@ export function useAppOrchestration() {
     }
   }, [currentPathname, isWorkspaceHydrated, projects, requestedProjectId, requestedTabId])
 
+  // ── Restore last location on reload / cold start (local mode) ──────────
+  // Reopen whatever the user was on before the reload instead of dumping
+  // them at the library home. Local mode only, and only when no explicit
+  // URL deep-link is present (those win — they're how cloud / shared files
+  // are addressed). The active tab isn't restored here: it's saved inside
+  // the project file on disk, so it returns when the project reopens.
+  const lastLocationRestoredRef = useRef(false)
+  useEffect(() => {
+    if (lastLocationRestoredRef.current) return
+    if (!isWorkspaceHydrated || !isLocalMode) return
+
+    // A URL deep-link (cloud / shared) takes precedence — the effect above
+    // already handled it; don't override with the stored local location.
+    if (currentPathname === "/app" && requestedProjectId) {
+      lastLocationRestoredRef.current = true
+      return
+    }
+
+    const saved = readLastEditorLocation()
+    // Nothing to restore — settle and let the projects[0] fallback stand.
+    if (!saved?.projectId) {
+      lastLocationRestoredRef.current = true
+      return
+    }
+
+    // The saved project may not have streamed in from disk yet (local files
+    // load incrementally). Do NOT consume the one-shot until it's actually
+    // present — otherwise we'd give up before the right project arrives and
+    // get stuck on whatever loaded first. Retry on the next projects change.
+    const target = projects.find((p) => p.id === saved.projectId)
+    if (!target) return
+
+    lastLocationRestoredRef.current = true
+    setActiveProjectId(saved.projectId)
+    if (saved.view === "editor") setView("editor")
+  }, [isWorkspaceHydrated, isLocalMode, projects, currentPathname, requestedProjectId])
+
+  // Persist the current location so the effect above can restore it.
+  //
+  // Crucially, do NOT write until restore has run (lastLocationRestoredRef).
+  // Local files stream in incrementally, and the `projects[0]` fallback above
+  // sets activeProjectId to the first-loaded project before the saved one has
+  // arrived — if we persisted that, we'd overwrite the saved location with
+  // the wrong project and restore would have nothing correct to read.
+  useEffect(() => {
+    if (!isLocalMode || !isWorkspaceHydrated) return
+    if (!lastLocationRestoredRef.current) return
+    if (!activeProjectId && view === "projects") return
+    writeLastEditorLocation({ view, projectId: activeProjectId })
+  }, [isLocalMode, isWorkspaceHydrated, view, activeProjectId])
+
   // ── OS file-open handler (Finder double-click on .tusk/.tusks) ─────────
   // electron/main.ts buffers paths from `open-file` / `second-instance` /
   // cold-start argv until the renderer subscribes via onOpenPath. We hand
@@ -617,11 +669,19 @@ export function useAppOrchestration() {
 
   useEffect(() => {
     if (!isElectronMac) return
+    // The standalone version-preview window must NOT rebuild the global
+    // application menu. The macOS menu is process-global, but each window
+    // keeps its own command map; if the preview window rebuilds the menu
+    // with its (different) item set, the native menu's command ids stop
+    // matching the main window's command map — silently killing the main
+    // window's Edit-menu shortcuts like Cmd+A. The preview window has its
+    // own find modal and doesn't need the app menu.
+    if (currentPathname === "/version-preview") return
 
     const { nativeItems, commandMap } = serializeMenuForElectron(menuBarProps.items)
     nativeMenuCommandMapRef.current = commandMap
     window.electronAPI?.updateMenu(nativeItems)
-  }, [isElectronMac, menuBarProps.items])
+  }, [isElectronMac, menuBarProps.items, currentPathname])
 
   useEffect(() => {
     if (!isElectronMac) return
