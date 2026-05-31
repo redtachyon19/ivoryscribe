@@ -54,6 +54,17 @@ function flushPendingOpenPaths() {
   pendingOpenPaths.length = 0
 }
 
+// The renderer signals (via electronAPI.notifyOpenPathReady) that it has
+// attached its open-path listener and resolved its workspace. Only now is it
+// safe to flush buffered cold-start paths. Marked ready so subsequent live
+// opens send immediately.
+ipcMain.on("app:open-path-ready", (event) => {
+  if (mainWindow && event.sender === mainWindow.webContents) {
+    isRendererReady = true
+    flushPendingOpenPaths()
+  }
+})
+
 // Pull supported file paths out of an argv array. Skips electron-runtime
 // flags and the executable path itself. Used for Windows/Linux startup and
 // the `second-instance` event payload.
@@ -218,13 +229,12 @@ function createWindow() {
     console.error("[ivoryscribe] PRELOAD ERROR:", preload, error)
   })
 
-  // Mark the renderer ready *after* the first paint and flush any paths the
-  // OS handed us during startup (e.g. a Finder double-click that launched
-  // the app cold).
-  mainWindow.webContents.once("did-finish-load", () => {
-    isRendererReady = true
-    flushPendingOpenPaths()
-  })
+  // NOTE: we deliberately do NOT mark the renderer ready on did-finish-load.
+  // The renderer's open-path handler only attaches after its local workspace
+  // bootstrap (an async root resolve) completes; flushing at first-paint
+  // raced that and silently dropped the cold-start file. Instead the renderer
+  // calls electronAPI.notifyOpenPathReady() when it's genuinely ready, and we
+  // flush from the "app:open-path-ready" IPC handler below.
 
   // If the window is closed and recreated (macOS dock activate path), reset
   // the readiness flag so we re-buffer until the next did-finish-load.

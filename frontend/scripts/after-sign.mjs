@@ -30,10 +30,22 @@ const __dirname = path.dirname(__filename)
 const REPO_ROOT = path.resolve(__dirname, "..", "..")
 const QUICKLOOK_DIR = path.join(REPO_ROOT, "quicklook")
 const HELPER_BUILD_SCRIPT = path.join(QUICKLOOK_DIR, "build.sh")
-const HELPER_APPEX_SRC = path.join(QUICKLOOK_DIR, "build", "IvoryscribeMacHelper.appex")
-const HELPER_ENTITLEMENTS = path.join(
-  QUICKLOOK_DIR, "Sources", "Extension", "Extension.entitlements"
-)
+
+// Both QuickLook extensions to embed: the HTML preview (Spacebar panel) and
+// the Core-Graphics thumbnail (Finder file icon). Each is a separate .appex
+// because one bundle declares exactly one NSExtension point.
+const APPEXES = [
+  {
+    name: "IvoryscribeMacHelper.appex",
+    src: path.join(QUICKLOOK_DIR, "build", "IvoryscribeMacHelper.appex"),
+    entitlements: path.join(QUICKLOOK_DIR, "Sources", "Extension", "Extension.entitlements"),
+  },
+  {
+    name: "IvoryscribeThumbnail.appex",
+    src: path.join(QUICKLOOK_DIR, "build", "IvoryscribeThumbnail.appex"),
+    entitlements: path.join(QUICKLOOK_DIR, "Sources", "Thumbnail", "Thumbnail.entitlements"),
+  },
+]
 
 export default async function afterSign(context) {
   if (context.electronPlatformName !== "darwin") {
@@ -44,45 +56,44 @@ export default async function afterSign(context) {
   const appName = context.packager.appInfo.productFilename
   const appPath = path.join(context.appOutDir, `${appName}.app`)
   const pluginsDir = path.join(appPath, "Contents", "PlugIns")
-  const appexDest = path.join(pluginsDir, "IvoryscribeMacHelper.appex")
 
   if (!existsSync(appPath)) {
     throw new Error(`[after-sign] expected app at ${appPath} but it doesn't exist`)
   }
 
-  // 1. Build the helper .appex fresh. The Swift build is fast (~3s) and
-  //    ensures we never embed a stale binary that doesn't match the
-  //    current sources.
-  console.log("[after-sign] building Ivoryscribe Mac Helper …")
+  // 1. Build the helper .appex bundles fresh (preview + thumbnail). The Swift
+  //    build is fast (~5s) and ensures we never embed stale binaries.
+  console.log("[after-sign] building Ivoryscribe Mac Helper extensions …")
   execFileSync("bash", [HELPER_BUILD_SCRIPT], { stdio: "inherit" })
-  if (!existsSync(HELPER_APPEX_SRC)) {
-    throw new Error(`[after-sign] build.sh did not produce ${HELPER_APPEX_SRC}`)
+  for (const a of APPEXES) {
+    if (!existsSync(a.src)) {
+      throw new Error(`[after-sign] build.sh did not produce ${a.src}`)
+    }
   }
 
-  // 2. Copy into Contents/PlugIns/, replacing any prior copy.
-  console.log(`[after-sign] embedding into ${path.relative(REPO_ROOT, appexDest)}`)
+  // 2-3. Embed each .appex into Contents/PlugIns/ and re-sign it in place
+  //      with the sandbox entitlement (PlugInKit rejects non-sandboxed
+  //      extensions). cp -R preserves the signature but Apple's docs say
+  //      re-sign after any move so path-bound assertions hold.
   mkdirSync(pluginsDir, { recursive: true })
-  if (existsSync(appexDest)) rmSync(appexDest, { recursive: true, force: true })
-  cpSync(HELPER_APPEX_SRC, appexDest, { recursive: true })
-
-  // 3. Re-sign the .appex in its new location. `cp -R` preserves the
-  //    in-place signature but Apple's docs are clear: re-sign after any
-  //    move to ensure the signature's path-bound assertions hold. We
-  //    re-apply the sandbox entitlement explicitly.
-  console.log("[after-sign] signing embedded .appex (sandboxed, ad-hoc) …")
-  execFileSync("codesign", [
-    "--force",
-    "--sign", "-",
-    "--timestamp=none",
-    "--entitlements", HELPER_ENTITLEMENTS,
-    appexDest,
-  ], { stdio: "inherit" })
+  for (const a of APPEXES) {
+    const dest = path.join(pluginsDir, a.name)
+    console.log(`[after-sign] embedding ${a.name} → ${path.relative(REPO_ROOT, dest)}`)
+    if (existsSync(dest)) rmSync(dest, { recursive: true, force: true })
+    cpSync(a.src, dest, { recursive: true })
+    execFileSync("codesign", [
+      "--force",
+      "--sign", "-",
+      "--timestamp=none",
+      "--entitlements", a.entitlements,
+      dest,
+    ], { stdio: "inherit" })
+  }
 
   // 4. Re-sign the outer .app. Its content hashes changed when we wrote
-  //    PlugIns/, so its existing signature is invalid. Preserve every
-  //    metadata field electron-builder set (identifier, entitlements,
-  //    flags, requirements, runtime) so we don't strip anything important
-  //    like hardened-runtime flags.
+  //    PlugIns/, so its existing signature is stale. Preserve every metadata
+  //    field electron-builder set (identifier, entitlements, flags,
+  //    requirements, runtime).
   console.log("[after-sign] re-signing outer app to refresh content hashes …")
   execFileSync("codesign", [
     "--force",
@@ -92,19 +103,17 @@ export default async function afterSign(context) {
     appPath,
   ], { stdio: "inherit" })
 
-  // 5. Verify the embedded extension is sandboxed end-to-end. If this
-  //    fails CI we want to know immediately, not after a user reports
-  //    "preview is blank in Finder".
-  const ents = execSync(
-    `codesign -d --entitlements - "${appexDest}" 2>&1`,
-    { encoding: "utf8" }
-  )
-  if (!ents.includes("com.apple.security.app-sandbox")) {
-    throw new Error(
-      "[after-sign] embedded .appex is missing the app-sandbox entitlement — " +
-      "PlugInKit will silently reject it. Investigate the codesign command above."
-    )
+  // 5. Verify each embedded extension is sandboxed end-to-end.
+  for (const a of APPEXES) {
+    const dest = path.join(pluginsDir, a.name)
+    const ents = execSync(`codesign -d --entitlements - "${dest}" 2>&1`, { encoding: "utf8" })
+    if (!ents.includes("com.apple.security.app-sandbox")) {
+      throw new Error(
+        `[after-sign] embedded ${a.name} is missing the app-sandbox entitlement — ` +
+        "PlugInKit will silently reject it."
+      )
+    }
   }
 
-  console.log("[after-sign] ✅ Ivoryscribe Mac Helper embedded + sandboxed")
+  console.log("[after-sign] ✅ Ivoryscribe Mac Helper (preview + thumbnail) embedded + sandboxed")
 }

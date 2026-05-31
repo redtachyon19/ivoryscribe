@@ -90,7 +90,9 @@ export type AppShellProps = {
 }
 
 export default function AppShell({
-  menuBarEnabled,
+  // menuBarEnabled is part of the props contract but unused in this
+  // component (the native menu is built in useAppOrchestration); omit it
+  // from destructuring so noUnusedLocals stays happy.
   isEditorTyping,
   view,
   project,

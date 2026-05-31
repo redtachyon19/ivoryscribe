@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   DEFAULT_BODY_FONT,
   DEFAULT_CUSTOM_ACCENT,
@@ -24,7 +24,7 @@ import { useWorkspaceHydration, type WorkspaceMutators } from "./useWorkspaceHyd
 import { useCloudProjectsInLocalMode } from "./useCloudProjectsInLocalMode"
 import { useDualStateMigration } from "./useDualStateMigration"
 import { setSessionInStorage } from "../state/session"
-import { buildRootOverrideUrl, useLocalRoot } from "../electron/localWorkspace"
+import { buildRootOverrideUrl, isPathInsideRoot, readOpenFileFromLocation, useLocalRoot } from "../electron/localWorkspace"
 import { setMacFolderColor } from "../electron/macFolderLabels"
 import { useLocalFilesystemSync } from "../localFiles"
 import { uploadLocalFileAsCloudDocument } from "../localFiles/cloudOverlay"
@@ -518,29 +518,69 @@ export function useAppOrchestration() {
 
   // ── OS file-open handler (Finder double-click on .tusk/.tusks) ─────────
   // electron/main.ts buffers paths from `open-file` / `second-instance` /
-  // cold-start argv until the renderer subscribes via onOpenPath. We hand
-  // each one to the local-FS hook's `openExternalFile`, which loads the
-  // file in place (no copy into the workspace) and gives us back a project
-  // id we can navigate to. Local mode only — in cloud mode we have no
-  // backing autosave, so we'd be silently losing edits.
+  // cold-start argv until the renderer subscribes via onOpenPath.
+  //
+  // Routing rule (per product spec):
+  //   • File INSIDE the current window's workspace root → open it in THIS
+  //     window (it already belongs here; the project list contains it).
+  //   • File OUTSIDE the workspace → open a NEW window scoped to the file's
+  //     own folder (?rootOverride=<dir>&openFile=<path>), leaving the
+  //     current window untouched. Reuses the same window.open path as
+  //     "Open folder in new window".
+  //
+  // Local mode only — in cloud mode there's no backing autosave.
+  const openLocalFilePath = useCallback(async (filePath: string) => {
+    if (!localFsHandle) return
+    const fsPath = window.electronAPI?.path
+    const root = localRoot.root
+    const inside = root && fsPath
+      ? isPathInsideRoot(filePath, root, fsPath.sep)
+      : true // no root yet → just open in place rather than spawning a window
+
+    if (!inside && fsPath) {
+      // Outside the workspace → dedicated window rooted at the file's folder.
+      const folder = fsPath.dirname(filePath)
+      window.open(buildRootOverrideUrl(folder, filePath), "_blank")
+      return
+    }
+
+    try {
+      const projectId = await localFsHandle.openExternalFile(filePath)
+      if (!projectId) return
+      setActiveProjectId(projectId)
+      setView("editor")
+    } catch (err) {
+      console.error("[orchestration] openExternalFile failed for", filePath, err)
+    }
+  }, [localFsHandle, localRoot.root])
+
   useEffect(() => {
     if (!isElectron) return
     if (!isLocalMode) return
     if (!localFsHandle) return
     const subscribe = window.electronAPI?.onOpenPath
     if (!subscribe) return
-    const unsubscribe = subscribe(async (filePath: string) => {
-      try {
-        const projectId = await localFsHandle.openExternalFile(filePath)
-        if (!projectId) return
-        setActiveProjectId(projectId)
-        setView("editor")
-      } catch (err) {
-        console.error("[orchestration] openExternalFile failed for", filePath, err)
-      }
-    })
+    const unsubscribe = subscribe((filePath: string) => { void openLocalFilePath(filePath) })
+    // Tell main we're ready to receive paths NOW (listener attached + local
+    // workspace resolved). Main buffers cold-start file opens until this
+    // fires — flushing earlier dropped the file (readiness race).
+    window.electronAPI?.notifyOpenPathReady?.()
     return unsubscribe
-  }, [isElectron, isLocalMode, localFsHandle])
+  }, [isElectron, isLocalMode, localFsHandle, openLocalFilePath])
+
+  // When THIS window was spawned to open a specific out-of-workspace file
+  // (?openFile=), load it once the workspace is ready. The rootOverride
+  // boot path already scoped the workspace to the file's folder, so the
+  // file is inside-root here and opens in place.
+  const openedBootFileRef = useRef(false)
+  useEffect(() => {
+    if (!isElectron || !isLocalMode || !localFsHandle) return
+    if (openedBootFileRef.current) return
+    const bootFile = readOpenFileFromLocation()
+    if (!bootFile) { openedBootFileRef.current = true; return }
+    openedBootFileRef.current = true
+    void openLocalFilePath(bootFile)
+  }, [isElectron, isLocalMode, localFsHandle, openLocalFilePath])
 
   // ── share request handlers ────────────────────────────────────
   const handleAcceptShareRequest = async (shareId: string) => {

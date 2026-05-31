@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- REQUIRED for all macOS app extensions. PlugInKit refuses to load the
+         .appex without this entitlement (logs: "plug-ins must be sandboxed").
+         The QL extension runs in its own sandboxed process; macOS hands it a
+         file descriptor for the file being previewed, so we don't need any
+         "files.*" entitlements just to read that. -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- We don't talk to the network and don't open the user's file picker;
+         keep both off explicitly so the sandbox profile is minimal. -->
+    <key>com.apple.security.network.client</key>
+    <false/>
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <false/>
+</dict>
+</plist>
