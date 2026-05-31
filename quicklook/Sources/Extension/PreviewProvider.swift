@@ -1,13 +1,26 @@
-// PreviewProvider — the QuickLook entry point.
+// PreviewProvider — the QuickLook entry point (Spacebar preview panel).
 //
-// macOS calls providePreview(for:) when the user spacebar-previews a .tusk or
-// .tusks file in Finder (or anywhere else QuickLook is shown). We read the
-// file, dispatch by extension to the right parser, render an HTML string, and
-// return it as UTF-8 bytes. The QuickLook host renders the HTML in a
-// sandboxed WebKit view at the size we ask for.
+// IMPORTANT: this used to return an HTML QLPreviewReply. On modern macOS that
+// path makes QuickLook spawn a sandboxed WebKit WebContent process inside the
+// extension; when that fails to launch the preview spins forever with no
+// error. We sidestep WebKit entirely by DRAWING the preview into a graphics
+// context (the same proven-reliable path our thumbnail extension uses, just
+// larger and multi-chapter). No web process, no spinner.
 
-import Foundation
 import QuickLookUI
+import AppKit
+
+// TEMP DIAGNOSTIC — writes the preview lifecycle to /tmp so we can see what
+// the sandboxed extension actually does at runtime (its stdout/console is
+// not visible). Remove once the preview is confirmed working.
+private func pdiag(_ msg: String) {
+    let line = "\(Date()) [preview] \(msg)\n"
+    if let h = FileHandle(forWritingAtPath: "/tmp/ivory-preview-diag.log") {
+        h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile()
+    } else {
+        try? line.data(using: .utf8)!.write(to: URL(fileURLWithPath: "/tmp/ivory-preview-diag.log"))
+    }
+}
 
 @objc(PreviewProvider)
 final class PreviewProvider: QLPreviewProvider, QLPreviewingController {
@@ -15,38 +28,52 @@ final class PreviewProvider: QLPreviewProvider, QLPreviewingController {
     func providePreview(for request: QLFilePreviewRequest) async throws -> QLPreviewReply {
         let url = request.fileURL
         let ext = url.pathExtension.lowercased()
+        pdiag("providePreview called for \(url.lastPathComponent) ext=\(ext)")
 
-        // We synthesize an HTML string off the main actor; QLPreviewReply
-        // hands it back to the QuickLook host as UTF-8 bytes with
-        // contentType = .html. The reply closure runs at draw time so the
-        // expensive read+parse work lives inside it (not in the actor hop).
-        let contentSize = CGSize(width: 820, height: 640)
-        let reply = QLPreviewReply(dataOfContentType: .html, contentSize: contentSize) { _ in
+        // Presentations preview landscape; books/markdown portrait. Pick a
+        // generous canvas — QuickLook scales it into the panel.
+        let size: CGSize = (ext == "tusks")
+            ? CGSize(width: 1024, height: 640)
+            : CGSize(width: 800, height: 1035)
+
+        let reply = QLPreviewReply(contextSize: size, isBitmap: true) { (ctx: CGContext, _: QLPreviewReply) in
+            pdiag("draw closure entered, size=\(size)")
+            // Flip into top-left origin + wrap in a flipped NSGraphicsContext so
+            // AppKit text renders upright (same pairing the thumbnail uses).
+            ctx.translateBy(x: 0, y: size.height)
+            ctx.scaleBy(x: 1, y: -1)
+            let nsCtx = NSGraphicsContext(cgContext: ctx, flipped: true)
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = nsCtx
+            defer { NSGraphicsContext.restoreGraphicsState() }
+
+            // Page background fill (so the panel isn't transparent).
+            NSColor.white.setFill()
+            NSBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
+
             do {
                 let data = try Data(contentsOf: url)
-                let html: String
+                pdiag("read \(data.count) bytes")
                 switch ext {
                 case "tusk":
                     let book = try parseTuskBook(data: data)
-                    html = renderBookHTML(book)
+                    pdiag("parsed book chapters=\(book.chapters.count)")
+                    drawBookPreview(book, size: size)
                 case "tusks":
                     let pres = try parseTuskPresentation(data: data)
-                    html = renderPresentationHTML(pres)
+                    pdiag("parsed pres slides=\(pres.slides.count)")
+                    drawPresentationPreview(pres, size: size)
                 default:
-                    html = renderErrorHTML("Unsupported file type: .\(ext)")
+                    drawBookPreview(TuskBookPreview(name: url.lastPathComponent, color: nil, chapters: []), size: size)
                 }
-                guard let bytes = html.data(using: .utf8) else {
-                    return renderErrorHTML("Couldn't encode preview HTML as UTF-8.").data(using: .utf8) ?? Data()
-                }
-                return bytes
+                pdiag("draw closure finished OK")
             } catch {
-                let msg = "Could not read or parse the file. (\(error.localizedDescription))"
-                return renderErrorHTML(msg).data(using: .utf8) ?? Data()
+                pdiag("draw closure ERROR: \(error)")
+                drawBookPreview(TuskBookPreview(name: url.lastPathComponent, color: nil, chapters: []), size: size)
             }
         }
-        // Default page title in the QuickLook chrome — we'll let the host
-        // override with the document's <title> from our HTML when available.
         reply.title = url.lastPathComponent
+        pdiag("returning reply")
         return reply
     }
 }

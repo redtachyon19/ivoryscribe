@@ -33,6 +33,9 @@ declare global {
        *  argv on Win/Linux). Returns an unsubscribe function. Main buffers
        *  paths until the renderer subscribes, then flushes. */
       onOpenPath?: (callback: (filePath: string) => void) => () => void
+      /** Signal main that the renderer's open-path listener is attached and
+       *  the workspace is resolved, so buffered cold-start paths can flush. */
+      notifyOpenPathReady?: () => void
 
       fs: {
         selectDirectory: (opts?: { defaultPath?: string; title?: string }) => Promise<string | null>
