@@ -85,8 +85,10 @@ final class BookParserDelegate: NSObject, XMLParserDelegate {
                 let trimmed = textBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty { name = trimmed }
             }
-        } else if elementName == "body" {
-            // <body> is the chapter prose container.
+        } else if elementName == "content" || elementName == "body" {
+            // Chapter prose container. The current on-disk schema uses
+            // <content> (CDATA HTML); older snapshots used <body>. Accept
+            // either so the preview shows real text instead of nothing.
             if currentChapter != nil {
                 currentChapter!.body = textBuffer
             }

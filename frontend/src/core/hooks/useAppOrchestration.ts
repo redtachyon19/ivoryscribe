@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   DEFAULT_BODY_FONT,
   DEFAULT_CUSTOM_ACCENT,
@@ -14,7 +14,8 @@ import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "../u
 import { exportProjectAsPdf } from "../../webapp/components/export/pdfExport"
 import { buildDuplicateProjectName, createLocalId } from "../utils/libraryUtils"
 import { createProject, createId, generateUntitledName, normalizeProjectAfterTabs, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, removeProjectVersions, type Project } from "../utils/projects"
-import { buildVersionPreviewHtml, mapVersionsForSettings, parseVersionSnapshot, restoreProjectFromVersion, type VersionSettingsEntry } from "../state/versioning"
+import { mapVersionsForSettings, openVersionPreviewWindow, parseVersionSnapshot, restoreProjectFromVersion, type VersionSettingsEntry } from "../state/versioning"
+import { readLastEditorLocation, writeLastEditorLocation } from "../state/lastLocationStorage"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
 import { useAppStyle } from "./useAppStyle"
@@ -23,7 +24,7 @@ import { useWorkspaceHydration, type WorkspaceMutators } from "./useWorkspaceHyd
 import { useCloudProjectsInLocalMode } from "./useCloudProjectsInLocalMode"
 import { useDualStateMigration } from "./useDualStateMigration"
 import { setSessionInStorage } from "../state/session"
-import { buildRootOverrideUrl, useLocalRoot } from "../electron/localWorkspace"
+import { buildRootOverrideUrl, isPathInsideRoot, readOpenFileFromLocation, useLocalRoot } from "../electron/localWorkspace"
 import { setMacFolderColor } from "../electron/macFolderLabels"
 import { useLocalFilesystemSync } from "../localFiles"
 import { uploadLocalFileAsCloudDocument } from "../localFiles/cloudOverlay"
@@ -464,31 +465,122 @@ export function useAppOrchestration() {
     }
   }, [currentPathname, isWorkspaceHydrated, projects, requestedProjectId, requestedTabId])
 
+  // ── Restore last location on reload / cold start (local mode) ──────────
+  // Reopen whatever the user was on before the reload instead of dumping
+  // them at the library home. Local mode only, and only when no explicit
+  // URL deep-link is present (those win — they're how cloud / shared files
+  // are addressed). The active tab isn't restored here: it's saved inside
+  // the project file on disk, so it returns when the project reopens.
+  const lastLocationRestoredRef = useRef(false)
+  useEffect(() => {
+    if (lastLocationRestoredRef.current) return
+    if (!isWorkspaceHydrated || !isLocalMode) return
+
+    // A URL deep-link (cloud / shared) takes precedence — the effect above
+    // already handled it; don't override with the stored local location.
+    if (currentPathname === "/app" && requestedProjectId) {
+      lastLocationRestoredRef.current = true
+      return
+    }
+
+    const saved = readLastEditorLocation()
+    // Nothing to restore — settle and let the projects[0] fallback stand.
+    if (!saved?.projectId) {
+      lastLocationRestoredRef.current = true
+      return
+    }
+
+    // The saved project may not have streamed in from disk yet (local files
+    // load incrementally). Do NOT consume the one-shot until it's actually
+    // present — otherwise we'd give up before the right project arrives and
+    // get stuck on whatever loaded first. Retry on the next projects change.
+    const target = projects.find((p) => p.id === saved.projectId)
+    if (!target) return
+
+    lastLocationRestoredRef.current = true
+    setActiveProjectId(saved.projectId)
+    if (saved.view === "editor") setView("editor")
+  }, [isWorkspaceHydrated, isLocalMode, projects, currentPathname, requestedProjectId])
+
+  // Persist the current location so the effect above can restore it.
+  //
+  // Crucially, do NOT write until restore has run (lastLocationRestoredRef).
+  // Local files stream in incrementally, and the `projects[0]` fallback above
+  // sets activeProjectId to the first-loaded project before the saved one has
+  // arrived — if we persisted that, we'd overwrite the saved location with
+  // the wrong project and restore would have nothing correct to read.
+  useEffect(() => {
+    if (!isLocalMode || !isWorkspaceHydrated) return
+    if (!lastLocationRestoredRef.current) return
+    if (!activeProjectId && view === "projects") return
+    writeLastEditorLocation({ view, projectId: activeProjectId })
+  }, [isLocalMode, isWorkspaceHydrated, view, activeProjectId])
+
   // ── OS file-open handler (Finder double-click on .tusk/.tusks) ─────────
   // electron/main.ts buffers paths from `open-file` / `second-instance` /
-  // cold-start argv until the renderer subscribes via onOpenPath. We hand
-  // each one to the local-FS hook's `openExternalFile`, which loads the
-  // file in place (no copy into the workspace) and gives us back a project
-  // id we can navigate to. Local mode only — in cloud mode we have no
-  // backing autosave, so we'd be silently losing edits.
+  // cold-start argv until the renderer subscribes via onOpenPath.
+  //
+  // Routing rule (per product spec):
+  //   • File INSIDE the current window's workspace root → open it in THIS
+  //     window (it already belongs here; the project list contains it).
+  //   • File OUTSIDE the workspace → open a NEW window scoped to the file's
+  //     own folder (?rootOverride=<dir>&openFile=<path>), leaving the
+  //     current window untouched. Reuses the same window.open path as
+  //     "Open folder in new window".
+  //
+  // Local mode only — in cloud mode there's no backing autosave.
+  const openLocalFilePath = useCallback(async (filePath: string) => {
+    if (!localFsHandle) return
+    const fsPath = window.electronAPI?.path
+    const root = localRoot.root
+    const inside = root && fsPath
+      ? isPathInsideRoot(filePath, root, fsPath.sep)
+      : true // no root yet → just open in place rather than spawning a window
+
+    if (!inside && fsPath) {
+      // Outside the workspace → dedicated window rooted at the file's folder.
+      const folder = fsPath.dirname(filePath)
+      window.open(buildRootOverrideUrl(folder, filePath), "_blank")
+      return
+    }
+
+    try {
+      const projectId = await localFsHandle.openExternalFile(filePath)
+      if (!projectId) return
+      setActiveProjectId(projectId)
+      setView("editor")
+    } catch (err) {
+      console.error("[orchestration] openExternalFile failed for", filePath, err)
+    }
+  }, [localFsHandle, localRoot.root])
+
   useEffect(() => {
     if (!isElectron) return
     if (!isLocalMode) return
     if (!localFsHandle) return
     const subscribe = window.electronAPI?.onOpenPath
     if (!subscribe) return
-    const unsubscribe = subscribe(async (filePath: string) => {
-      try {
-        const projectId = await localFsHandle.openExternalFile(filePath)
-        if (!projectId) return
-        setActiveProjectId(projectId)
-        setView("editor")
-      } catch (err) {
-        console.error("[orchestration] openExternalFile failed for", filePath, err)
-      }
-    })
+    const unsubscribe = subscribe((filePath: string) => { void openLocalFilePath(filePath) })
+    // Tell main we're ready to receive paths NOW (listener attached + local
+    // workspace resolved). Main buffers cold-start file opens until this
+    // fires — flushing earlier dropped the file (readiness race).
+    window.electronAPI?.notifyOpenPathReady?.()
     return unsubscribe
-  }, [isElectron, isLocalMode, localFsHandle])
+  }, [isElectron, isLocalMode, localFsHandle, openLocalFilePath])
+
+  // When THIS window was spawned to open a specific out-of-workspace file
+  // (?openFile=), load it once the workspace is ready. The rootOverride
+  // boot path already scoped the workspace to the file's folder, so the
+  // file is inside-root here and opens in place.
+  const openedBootFileRef = useRef(false)
+  useEffect(() => {
+    if (!isElectron || !isLocalMode || !localFsHandle) return
+    if (openedBootFileRef.current) return
+    const bootFile = readOpenFileFromLocation()
+    if (!bootFile) { openedBootFileRef.current = true; return }
+    openedBootFileRef.current = true
+    void openLocalFilePath(bootFile)
+  }, [isElectron, isLocalMode, localFsHandle, openLocalFilePath])
 
   // ── share request handlers ────────────────────────────────────
   const handleAcceptShareRequest = async (shareId: string) => {
@@ -550,10 +642,7 @@ export function useAppOrchestration() {
       if (!version) return
 
       if (msg.action === "view") {
-        const html = buildVersionPreviewHtml({ version, bodyFont: style.bodyFont, projectId: msg.projectId })
-        const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
-        window.open(blobUrl, "_blank")
-        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 15_000)
+        openVersionPreviewWindow(version, msg.projectId, "")
         return
       }
 
@@ -565,12 +654,20 @@ export function useAppOrchestration() {
         if (snapshotProject) {
           exportProjectAsPdf(snapshotProject)
         }
+        return
+      }
+
+      if (msg.action === "delete") {
+        const idsSet = new Set([msg.versionId])
+        setProjects((cur) =>
+          cur.map((p) => (p.id === msg.projectId ? removeProjectVersions(p, idsSet) : p)),
+        )
       }
     }
 
     window.addEventListener("message", onVersionAction)
     return () => { window.removeEventListener("message", onVersionAction) }
-  }, [versioning.projectVersionsByProjectId, style.bodyFont])
+  }, [versioning.projectVersionsByProjectId])
 
   // ── helpers ──────────────────────────────────────────────────
   const updateActiveProject = (updater: (project: Project) => Project) => {
@@ -612,11 +709,19 @@ export function useAppOrchestration() {
 
   useEffect(() => {
     if (!isElectronMac) return
+    // The standalone version-preview window must NOT rebuild the global
+    // application menu. The macOS menu is process-global, but each window
+    // keeps its own command map; if the preview window rebuilds the menu
+    // with its (different) item set, the native menu's command ids stop
+    // matching the main window's command map — silently killing the main
+    // window's Edit-menu shortcuts like Cmd+A. The preview window has its
+    // own find modal and doesn't need the app menu.
+    if (currentPathname === "/version-preview") return
 
     const { nativeItems, commandMap } = serializeMenuForElectron(menuBarProps.items)
     nativeMenuCommandMapRef.current = commandMap
     window.electronAPI?.updateMenu(nativeItems)
-  }, [isElectronMac, menuBarProps.items])
+  }, [isElectronMac, menuBarProps.items, currentPathname])
 
   useEffect(() => {
     if (!isElectronMac) return
@@ -870,9 +975,10 @@ export function useAppOrchestration() {
   //   • Restore   → versioning.restoreVersionIntoProject
   //   • Duplicate → versioning.duplicateVersionIntoLibrary
   //   • Export    → exportProjectAsPdf(parseVersionSnapshot(snapshot))
-  //   • Open new  → blob URL with buildVersionPreviewHtml (single-version
-  //                 page; the full history is now in-app, only the
-  //                 per-version detail page still lives as a popup)
+  //   • Open new  → openVersionPreviewWindow (opens the in-app
+  //                 /version-preview route in its own window; the full
+  //                 history is in-app, only the per-version detail page
+  //                 lives as a separate window)
   //   • Delete    → removeProjectVersions(project, ids) via setProjects
   const versionHistoryProject = versionHistoryProjectId
     ? projects.find((p) => p.id === versionHistoryProjectId) ?? null
@@ -903,14 +1009,7 @@ export function useAppOrchestration() {
       if (!versionHistoryProject) return
       const target = versionHistoryProject.versions?.find((v) => v.id === versionId)
       if (!target) return
-      const html = buildVersionPreviewHtml({
-        version: target,
-        bodyFont: style.bodyFont,
-        projectId: versionHistoryProject.id,
-      })
-      const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
-      window.open(blobUrl, "_blank")
-      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 15_000)
+      openVersionPreviewWindow(target, versionHistoryProject.id, versionHistoryProject.name)
     },
     onDelete: (versionIds: string[]) => {
       if (!versionHistoryProjectId || versionIds.length === 0) return
