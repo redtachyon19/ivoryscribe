@@ -12,6 +12,11 @@ const LOCAL_ROOT_KEY = "ivoryscribe.local.rootFolder"
  *  the main process's setWindowOpenHandler keeps the URL intact when it
  *  promotes a window.open() call to a real BrowserWindow). */
 export const ROOT_OVERRIDE_QUERY_PARAM = "rootOverride"
+/** Absolute path of a single file the child window should open on boot.
+ *  Set alongside rootOverride when a Finder double-click targets a file
+ *  OUTSIDE the launching window's workspace — the new window scopes to the
+ *  file's folder and opens the file itself. */
+export const OPEN_FILE_QUERY_PARAM = "openFile"
 
 function readRootOverrideFromLocation(): string | null {
   if (typeof window === "undefined") return null
@@ -24,14 +29,44 @@ function readRootOverrideFromLocation(): string | null {
   }
 }
 
-export function buildRootOverrideUrl(absoluteFolderPath: string): string {
+/** Read the boot-time `?openFile=` param (see OPEN_FILE_QUERY_PARAM). Returns
+ *  the absolute file path a freshly-spawned window should open, or null. */
+export function readOpenFileFromLocation(): string | null {
+  if (typeof window === "undefined") return null
+  try {
+    const params = new URLSearchParams(window.location.search)
+    const value = params.get(OPEN_FILE_QUERY_PARAM)
+    return value && value.length > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+export function buildRootOverrideUrl(absoluteFolderPath: string, openFilePath?: string): string {
   const url = new URL(window.location.href)
   // Strip everything but the rootOverride so the child window doesn't
   // inherit hash routes or project-id params from the launching window.
   url.search = ""
   url.hash = ""
   url.searchParams.set(ROOT_OVERRIDE_QUERY_PARAM, absoluteFolderPath)
+  if (openFilePath) url.searchParams.set(OPEN_FILE_QUERY_PARAM, openFilePath)
   return url.toString()
+}
+
+/** True iff `filePath` lives inside (or directly at) `rootPath`. Used to
+ *  decide whether a Finder-opened file belongs to the current window's
+ *  workspace (open in place) or somewhere else (open a new window scoped to
+ *  its folder). Pure string comparison on normalized separators — both paths
+ *  are absolute OS paths from the same machine. */
+export function isPathInsideRoot(filePath: string, rootPath: string, sep: string): boolean {
+  if (!filePath || !rootPath) return false
+  const normalize = (p: string) => {
+    let out = p.replace(/[/\\]+$/, "")
+    return out
+  }
+  const file = normalize(filePath)
+  const root = normalize(rootPath)
+  return file === root || file.startsWith(root + sep)
 }
 
 export function isElectronEnv(): boolean {

@@ -37,6 +37,12 @@
                 <string>com.ivoryscribe.tusk</string>
                 <string>com.ivoryscribe.tusks</string>
             </array>
+            <!-- REQUIRED for a QLPreviewProvider (file/data-based) extension.
+                 Without it, QuickLook treats the extension as a view-controller
+                 preview, never binds our QLPreviewProvider, and never calls
+                 providePreview(for:) — the panel just spins forever. -->
+            <key>QLIsDataBasedPreview</key>
+            <true/>
             <key>QLSupportsSearchableItems</key>
             <false/>
         </dict>

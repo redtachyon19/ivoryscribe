@@ -43,7 +43,7 @@ import Button from "../ui/Button"
 import Modal from "../ui/Modal"
 import usePanelMarquee from "../navigation/usePanelMarquee"
 import { formatVersionTimestamp, parseVersionSnapshot } from "../../../core/state/versioning"
-import type { ProjectVersion } from "../../../core/utils/projects"
+import { collectTabIds, type ProjectVersion } from "../../../core/utils/projects"
 import "./VersionHistory.css"
 
 export type VersionHistoryProps = {
@@ -73,13 +73,32 @@ type RowMeta = {
   /** Project name as captured in the snapshot. Falls back to current
    *  project name when the snapshot is unreadable. */
   titleAtSave: string
+  /** Number of document tabs in the snapshot. */
+  entryCount: number
+  /** Unit word for `entryCount` — "chapter" for Books, "slide" for
+   *  Presentations (tusks). */
+  entryUnit: "chapter" | "slide"
+  /** Word count captured at save time. */
+  wordCount: number
+  /** Estimated page count from the word count. Exact pagination would mean
+   *  running the PDF layout engine per version — far too heavy for a list
+   *  render — so we approximate with a manuscript-standard words-per-page. */
+  pageCount: number
 }
+
+/** Words per page used to estimate a version's page count. 250 is the
+ *  classic double-spaced manuscript page. */
+const WORDS_PER_PAGE = 250
 
 function buildRowMetas(versions: ProjectVersion[], fallbackName: string): RowMeta[] {
   return versions.map((version) => {
     const snapshot = parseVersionSnapshot(version.snapshot)
     const titleAtSave = snapshot?.name?.trim() || fallbackName
-    return { version, titleAtSave }
+    const entryCount = snapshot ? collectTabIds(snapshot.tabs).length : 0
+    const entryUnit = snapshot?.kind === "Presentation" ? "slide" : "chapter"
+    const wordCount = version.wordCount
+    const pageCount = wordCount > 0 ? Math.max(1, Math.ceil(wordCount / WORDS_PER_PAGE)) : 0
+    return { version, titleAtSave, entryCount, entryUnit, wordCount, pageCount }
   })
 }
 
@@ -105,6 +124,15 @@ export default function VersionHistory({
   // into here via the panel hook's `marqueeSelectedIds`.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const lastClickedIdRef = useRef<string | null>(null)
+  // When a marquee drag starts and ends on the same row, the browser
+  // fires a trailing synthetic `click` on that row after mouseup. Without
+  // intervention that click runs handleRowClick and collapses the marquee
+  // selection back down to a single row — the exact opposite of what the
+  // user just drew. This ref records "the last mouseup ended a real
+  // drag", and the row click handler short-circuits when it's set.
+  // Reset on every fresh mousedown so a previous drag that didn't end on
+  // a row can't suppress a later, genuine click.
+  const wasMarqueeDragRef = useRef(false)
 
   const {
     marqueeContainerRef,
@@ -113,6 +141,34 @@ export default function VersionHistory({
     marquee,
     liveSelectedIds,
   } = usePanelMarquee()
+
+  // Mirror marquee.isActive into a ref so the mouseup handler below can
+  // read the value React rendered with *before* the hook's window-level
+  // mouseup listener flips it back to false. This is stable across
+  // renders so the wrapping callbacks don't have to be rebuilt.
+  const marqueeIsActiveRef = useRef(false)
+  marqueeIsActiveRef.current = marquee.isActive
+
+  // Wrapped mousedown — clears the drag-suppression flag, then forwards
+  // to the marquee hook. Without the reset, a previous drag's flag could
+  // leak into the next click.
+  const handleContainerMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      wasMarqueeDragRef.current = false
+      marquee.handleMouseDown(event)
+    },
+    [marquee.handleMouseDown],
+  )
+
+  // React's onMouseUp fires during the bubble phase *before* the hook's
+  // window-level mouseup listener — at this point marquee.isActive (via
+  // the ref) is still true if the user was dragging. We record that so
+  // the synthetic click event the browser fires next gets ignored.
+  const handleContainerMouseUp = useCallback(() => {
+    if (marqueeIsActiveRef.current) {
+      wasMarqueeDragRef.current = true
+    }
+  }, [])
 
   // Keep the displayed selection in sync with the marquee. After a drag
   // ends, `marqueeSelectedIds` holds whatever the rectangle covered; we
@@ -159,6 +215,15 @@ export default function VersionHistory({
       // Stop propagation so the click doesn't get treated as a marquee
       // mousedown on the container.
       event.stopPropagation()
+
+      // If a marquee drag just ended on this row, the browser fires a
+      // click event we never asked for. Swallow it — the marquee already
+      // committed the right selection and the genuine click on this row
+      // would replace it with a single-row selection.
+      if (wasMarqueeDragRef.current) {
+        wasMarqueeDragRef.current = false
+        return
+      }
 
       const isModifier = event.metaKey || event.ctrlKey
       const isRange = event.shiftKey
@@ -234,7 +299,12 @@ export default function VersionHistory({
       frameClassName="version-history__frame"
       panelClassName="version-history__panel"
     >
-      <div className="version-history">
+      <div
+        ref={marqueeContainerRef}
+        className={`version-history${marquee.isActive ? " version-history--marqueeing" : ""}`}
+        onMouseDown={handleContainerMouseDown}
+        onMouseUp={handleContainerMouseUp}
+      >
         <div className="version-history__toolbar" role="toolbar" aria-label="Version actions">
           <Button
             type="button"
@@ -292,21 +362,11 @@ export default function VersionHistory({
               : `${selectionCount} of ${versions.length} selected`}
         </p>
 
-        <div
-          ref={marqueeContainerRef}
-          className={`version-history__list${marquee.isActive ? " version-history__list--marqueeing" : ""}`}
-          onMouseDown={marquee.handleMouseDown}
-        >
+        <div className="version-history__list">
           {versions.length === 0 ? null : (
             <div className="version-history__rows" role="listbox" aria-label="Saved versions" aria-multiselectable="true">
-              {rowMetas.map(({ version, titleAtSave }) => {
+              {rowMetas.map(({ version, titleAtSave, entryCount, entryUnit, pageCount, wordCount }) => {
                 const isSelected = displayedSelection.has(version.id)
-                const badgeClass = version.kind === "manual"
-                  ? "version-history__badge version-history__badge--manual"
-                  : "version-history__badge version-history__badge--autosave"
-                const wordSummary = version.wordCount > 0
-                  ? `${version.wordCount.toLocaleString()} words at save`
-                  : "Empty document"
                 return (
                   <div
                     key={version.id}
@@ -318,34 +378,46 @@ export default function VersionHistory({
                     role="option"
                     tabIndex={0}
                   >
-                    <div className="version-history__row-meta">
+                    <div className="version-history__row-main">
                       <div className="version-history__row-title-line">
                         <strong className="version-history__row-title">{titleAtSave}</strong>
-                        <span className={badgeClass}>{kindLabel(version)}</span>
+                        <span className={`version-history__row-pill version-history__row-pill--${version.kind}`}>
+                          {kindLabel(version)}
+                        </span>
                       </div>
-                      <p className="version-history__row-time">
+                      <span className="version-history__row-time">
                         {formatVersionTimestamp(version.savedAt)}
-                      </p>
-                      <p className="version-history__row-delta">{wordSummary}</p>
+                      </span>
+                    </div>
+                    <div className="version-history__row-stats">
+                      <span className="version-history__row-stat">
+                        {entryCount === 1 ? `1 ${entryUnit}` : `${entryCount} ${entryUnit}s`}
+                      </span>
+                      <span className="version-history__row-stat">
+                        {pageCount === 1 ? "1 page" : `${pageCount} pages`}
+                      </span>
+                      <span className="version-history__row-stat">
+                        {wordCount === 1 ? "1 word" : `${wordCount.toLocaleString()} words`}
+                      </span>
                     </div>
                   </div>
                 )
               })}
             </div>
           )}
-
-          {marquee.isActive && marquee.rect ? (
-            <div
-              className="version-history__marquee-selection"
-              style={{
-                left: marquee.rect.x,
-                top: marquee.rect.y,
-                width: marquee.rect.width,
-                height: marquee.rect.height,
-              }}
-            />
-          ) : null}
         </div>
+
+        {marquee.isActive && marquee.rect ? (
+          <div
+            className="version-history__marquee-selection"
+            style={{
+              left: marquee.rect.x,
+              top: marquee.rect.y,
+              width: marquee.rect.width,
+              height: marquee.rect.height,
+            }}
+          />
+        ) : null}
       </div>
     </Modal>
   )

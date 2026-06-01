@@ -25,6 +25,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("app:open-path", handler)
     return () => { ipcRenderer.removeListener("app:open-path", handler) }
   },
+  // The renderer calls this once it has actually attached its onOpenPath
+  // listener AND is ready to act on a path (local workspace resolved). Main
+  // buffers OS-handed paths until THIS fires — flushing earlier (on
+  // did-finish-load) raced the async workspace bootstrap and dropped the
+  // cold-start file. See main.ts flushPendingOpenPaths.
+  notifyOpenPathReady: () => {
+    ipcRenderer.send("app:open-path-ready")
+  },
 
   fs: {
     selectDirectory: (opts?: { defaultPath?: string; title?: string }) =>

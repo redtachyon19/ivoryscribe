@@ -1,12 +1,17 @@
 
 
+
+
+
+- create a mac helper tool: quicklook and default apps for .tusk and .tusks
+
+
+
 - Markdown overhaul via Preview editor and both, include LATEX support and viewing
 
 - make markdowns their own type of tusk file which supports extensions. (label as tusk)
 
 - breakdown .tusks
-
-- create a mac helper tool: quicklook and default apps for .tusk and .tusks
 
 - seperate .tusks from .tusk YOU CANNOT create pinboards from within a .tusk page it is a seperate type of project
 

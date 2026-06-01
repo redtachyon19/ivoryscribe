@@ -432,11 +432,35 @@ export default function NavigationPanel({
                 onDuplicateTab={handleDuplicateTab}
               />
             ) : project && isSingleDoc ? (
-              // Single-doc project: show just the project name so the user
-              // knows what's open without a tab tree.
-              <div className="editor-workspace__rail-slide-single-doc" aria-label="Open document">
-                <p className="doc-tabs__project-name" style={{ padding: "0 14px" }}>{project.name}</p>
-              </div>
+              // Single-doc project (PDF / Image / Markdown / PlainText / …):
+              // there's no tab tree, so reuse the full Project Browser here —
+              // same component as Slide 1, so it brings every behavior with
+              // it (right-click menus, drag-into-nested-folders, marquee
+              // selection, expand/collapse). No duplicated logic. Rooted at
+              // the open file's containing folder so it shows that folder's
+              // contents, not the whole workspace.
+              <ProjectBrowserPanel
+                projects={projects.filter((p) => !p.archivedAt && !p.deletedAt)}
+                folders={folders}
+                rootFolderId={project.folderId ?? null}
+                activeProjectId={project?.id ?? null}
+                librarySection={librarySection}
+                setLibrarySection={setLibrarySection}
+                onNavigateLibrary={onReturnToDashboard}
+                onOpenProject={onOpenProject}
+                onOpenProjectInNewTab={onOpenProjectInNewTab}
+                setFolders={setFolders}
+                setProjects={setProjects}
+                sessionToken={sessionToken}
+                projectDocumentMap={projectDocumentMap}
+                onCopyProjectPath={onCopyProjectPath}
+                onShowProjectInFinder={onShowProjectInFinder}
+                onMoveProjectToCloud={onMoveProjectToCloud}
+                onOpenFolderInNewWindow={onOpenFolderInNewWindow}
+                onApplyFolderFinderColor={onApplyFolderFinderColor}
+                onCreateProject={onCreateProject}
+                onCreateFolder={handleCreateFolder}
+              />
             ) : null}
           </div>
         </div>

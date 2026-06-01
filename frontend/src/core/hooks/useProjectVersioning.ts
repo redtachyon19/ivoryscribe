@@ -246,12 +246,13 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
     return onDuplicateVersion(parsedSnapshot) !== null
   }
 
-  // postMessage listener used by the per-version preview popup (built by
-  // buildVersionPreviewHtml — opened via the modal's "Open in New Window"
-  // toolbar action). The version-history list itself is now in-app, so it
-  // doesn't postMessage at all — its buttons call into the modal's props
-  // directly. We keep this listener for the preview popup, which still
-  // benefits from running in its own browser window.
+  // postMessage listener used by the per-version preview window (the
+  // /version-preview route opened via the modal's "Open in New Window"
+  // toolbar action — see openVersionPreviewWindow). The version-history
+  // list itself is in-app, so it doesn't postMessage at all — its buttons
+  // call into the modal's props directly. This listener handles the preview
+  // window's Restore / Add Copy actions; Export / Delete are handled by the
+  // orchestration-level listener.
   useEffect(() => {
     if (typeof window === "undefined") return
 

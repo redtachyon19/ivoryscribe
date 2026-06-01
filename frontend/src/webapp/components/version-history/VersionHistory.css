@@ -26,6 +26,22 @@
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+  /* Anchor for the marquee rectangle, which now lives at this level so a
+   * drag can begin anywhere in the modal body (toolbar, subtitle, list,
+   * surrounding whitespace) — not just on top of the version cards. */
+  position: relative;
+  /* This is a selection UI (pick version cards), not a reading surface —
+   * nothing here needs to be text-selectable. Disabling it stops a marquee
+   * drag from also rubber-banding the subtitle / card labels into a messy
+   * text highlight. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* While a marquee drag is in progress, show the crosshair across the whole
+ * content area. */
+.version-history--marqueeing {
+  cursor: crosshair;
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────── */
@@ -68,20 +84,15 @@
 /* ── List ────────────────────────────────────────────────────────────── */
 
 /* No border / background of its own — the cards sit directly inside the
- * modal panel. We still need this element so the marquee rect has an
- * anchor (`position: relative`) and the list can scroll independently
- * of the modal header / toolbar when there are many versions. */
+ * modal panel. This element scrolls independently of the modal header /
+ * toolbar when there are many versions. (The marquee rectangle is now
+ * anchored one level up, on `.version-history`, so a drag can start
+ * anywhere in the modal body — see that rule above.) */
 .version-history__list {
-  position: relative;
   overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
   max-height: 60vh;
-}
-
-.version-history__list--marqueeing {
-  cursor: crosshair;
-  user-select: none;
 }
 
 .version-history__rows {
@@ -92,10 +103,13 @@
   gap: 4px;
 }
 
+/* Title block on the left, stat stack on the right — `space-between` lets
+ * the two halves push apart so each card fills its full width. */
 .version-history__row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
+  gap: 16px;
   padding: 12px 14px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -119,16 +133,24 @@
   background: color-mix(in srgb, var(--app-accent, #9ab8ff) 20%, transparent);
 }
 
-.version-history__row-meta {
+/* ── Left: title pill + timestamp ────────────────────────────────────── */
+
+.version-history__row-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
 }
 
+/* Title (plain text) and the version pill, side by side on one line. */
 .version-history__row-title-line {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .version-history__row-title {
@@ -138,39 +160,56 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
+  min-width: 0;
 }
 
-.version-history__row-time,
-.version-history__row-delta {
-  margin: 2px 0 0;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-/* ── Badges (pill labels) ────────────────────────────────────────────── */
-
-.version-history__badge {
+/* The version number sits in a pill, tinted by save kind so manual vs
+ * autosave reads at a glance (the two get different colors). */
+.version-history__row-pill {
+  flex: 0 0 auto;
   display: inline-flex;
-  padding: 3px 8px;
+  align-items: center;
+  padding: 3px 9px;
   border-radius: 999px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-family: var(--app-ui-font);
-  /* Keep on a single line so "Auto Save 12" doesn't wrap inside the pill. */
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
-.version-history__badge--manual {
+.version-history__row-pill--manual {
   background: color-mix(in srgb, var(--app-accent, #9ab8ff) 22%, transparent);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, var(--app-accent, #9ab8ff));
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, var(--app-accent, #9ab8ff));
 }
 
-.version-history__badge--autosave {
-  background: rgba(122, 199, 154, 0.18);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, #7ac79a);
+.version-history__row-pill--autosave {
+  background: rgba(122, 199, 154, 0.2);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 82%, #7ac79a);
+}
+
+.version-history__row-time {
+  padding-left: 2px;
+  font-size: 13px;
+  line-height: 1.3;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+}
+
+/* ── Right: stat stack (chapters/slides, pages, words) ───────────────── */
+
+.version-history__row-stats {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
+.version-history__row-stat {
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
 }
 
 /* ── Marquee selection rectangle ─────────────────────────────────────── */
