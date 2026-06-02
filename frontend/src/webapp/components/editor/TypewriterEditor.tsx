@@ -15,6 +15,7 @@ import Underline from "@tiptap/extension-underline"
 import { DiffAddMark, DiffRemoveMark } from "../ai/diffMarks"
 import { ToolCase, X } from "lucide-react"
 import { useProseEditorBase } from "./hooks/useProseEditorBase"
+import { useEditorZoom } from "./hooks/useEditorZoom"
 import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
 import { useRulerDrag } from "./hooks/useRulerDrag"
 import { useFormatPainter } from "./hooks/useFormatPainter"
@@ -75,6 +76,8 @@ export default function TypewriterEditor({
 
   /* ── Refs ── */
   const outerRef      = useRef<HTMLDivElement | null>(null)
+  const scrollRef     = useRef<HTMLDivElement | null>(null)
+  const pagesStackRef = useRef<HTMLDivElement | null>(null)
   const rulerXRef     = useRef<HTMLDivElement | null>(null)
   const rulerYRef     = useRef<HTMLDivElement | null>(null)
 
@@ -92,6 +95,12 @@ export default function TypewriterEditor({
   /* ── Force re-render on selection/transaction so the toolbar's active-state
        highlights stay current. */
   const [, setEditorVer] = useState(0)
+
+  /* ── Trackpad-pinch / ctrl+scroll zoom toward the cursor ──
+       Zooms the whole page stack (pages + editor surface) via CSS `zoom`,
+       so the .tw-scroll container reflows and every page stays reachable.
+       Same gesture as the image/PDF viewers. */
+  useEditorZoom({ scrollRef, contentRef: pagesStackRef, enabledKey: documentId })
 
   /* ── Shared prose-editor base (TipTap setup, typing state/caret, lifecycle) ── */
   const { editor, editorSurfaceRef: editorSurfRef, caretRef, isUiTyping } = useProseEditorBase({
@@ -264,7 +273,11 @@ export default function TypewriterEditor({
     <div className="tw-outer" ref={outerRef}>
 
       {/* scroll container */}
-      <div className="tw-scroll">
+      <div className="tw-scroll" ref={scrollRef}>
+
+        {/* zoom wrapper: rulers + pages scale together so the margins (and the
+            ruler ticks that mark them) stay aligned to the page at any zoom. */}
+        <div className="tw-zoom-wrap" ref={pagesStackRef}>
 
         <TypewriterRulerRow
           isUiTyping={isUiTyping}
@@ -330,6 +343,8 @@ export default function TypewriterEditor({
             </div>
           </div>
         </div>
+
+        </div>{/* /tw-zoom-wrap */}
 
         <div className="tw-scroll-spacer" aria-hidden="true" />
       </div>
