@@ -46,6 +46,16 @@
   margin-left: calc(var(--rail-left-natural-w, 0px) - 8px);
 }
 
+/* ── Zoom wrapper (rulers + pages scale together) ── */
+/* useEditorZoom applies CSS `zoom` here so the top + side rulers stay aligned
+   to the page margins at every zoom level. fit-content keeps the wrapper sized
+   to its content (the ruler row + body row) so the sticky top ruler and the
+   page layout behave exactly as before at zoom: 1. */
+.tw-zoom-wrap {
+  flex-shrink: 0;
+  width: fit-content;
+}
+
 /* ── Bottom spacer (so toolbar never covers last line) ── */
 .tw-scroll-spacer {
   flex-shrink: 0;

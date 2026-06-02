@@ -9,6 +9,7 @@ import { FlagRail } from "./components/FlagRail"
 import { EditorDocumentTitle } from "./components/EditorDocumentTitle"
 import { useFlagRail } from "./hooks/useFlagRail"
 import { useProseEditorBase } from "./hooks/useProseEditorBase"
+import { useEditorZoom } from "./hooks/useEditorZoom"
 import { useEditorFontEvents } from "./hooks/useEditorFontEvents"
 import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
 import { useEditorFocusJumps } from "./hooks/useEditorFocusJumps"
@@ -106,6 +107,11 @@ export default function DraftingEditor({
     handleCreateFlag,
     handleRemoveFlag,
   } = useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef })
+
+  // Trackpad-pinch / ctrl+scroll zoom toward the cursor — scales the whole
+  // editor surface (same gesture as the image/PDF viewers). Re-attaches when
+  // the document changes so the listener binds to the live surface.
+  useEditorZoom({ contentRef: editorSurfaceRef, enabledKey: documentId })
 
   /* ── Initial empty-state + word count ── */
   useEffect(() => {
