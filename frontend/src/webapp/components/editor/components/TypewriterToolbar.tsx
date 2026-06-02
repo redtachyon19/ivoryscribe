@@ -36,6 +36,20 @@ import {
 type AlignMode = "left" | "center" | "right"
 type ColumnCount = 2 | 3 | 4
 
+/* Curated colour palettes for the text + highlight pickers. Using an in-app
+   swatch popover (instead of the OS colour dialog) keeps these controls in
+   line with the rest of the toolbar's design; "Custom…" still opens a full
+   picker for anything off-palette. */
+const TEXT_SWATCHES = [
+  "#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc",
+  "#cc0000", "#e06666", "#e69138", "#f1c232", "#6aa84f", "#45818e",
+  "#3d85c6", "#3c4fae", "#674ea7", "#a64d79", "#85200c",
+]
+const HIGHLIGHT_SWATCHES = [
+  "#fff475", "#fbbc04", "#f28b82", "#fdcfe8", "#d7aefb",
+  "#aecbfa", "#a7ffeb", "#ccff90", "#e6c9a8", "#e8eaed",
+]
+
 type TypewriterToolbarProps = {
   editor: TiptapEditor | null
   showToolbar: boolean
@@ -70,6 +84,13 @@ export function TypewriterToolbar({
   const fontFamilyComboRef = useRef<HTMLDivElement | null>(null)
   const [alignMenuOpen, setAlignMenuOpen] = useState(false)
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false)
+  const [textColorMenuOpen, setTextColorMenuOpen] = useState(false)
+  const [highlightMenuOpen, setHighlightMenuOpen] = useState(false)
+  const textColorCloseTimer = useRef<number | null>(null)
+  const highlightCloseTimer = useRef<number | null>(null)
+  // Hidden native inputs, opened only via the "Custom…" swatch.
+  const textColorInputRef = useRef<HTMLInputElement | null>(null)
+  const highlightInputRef = useRef<HTMLInputElement | null>(null)
 
   /* ── Remembered defaults for the collapsed combo buttons ── */
   const [defaultAlign, setDefaultAlign] = useState<AlignMode>("left")
@@ -379,46 +400,131 @@ export function TypewriterToolbar({
         <UnderlineIcon size={15} />
       </button>
 
-      <label className="tw-toolbar__color-wrap" title="Text color">
-        <span
-          className="tw-toolbar__color-icon"
-          style={{ color: curColor }}
-          aria-hidden="true"
-        >
-          A
-        </span>
-        <input
-          type="color"
-          className="tw-toolbar__color-input"
-          value={curColor}
-          onChange={(e) => editor?.chain().focus().setColor(e.target.value).run()}
-          aria-label="Text color"
-        />
-      </label>
-
-      <label
-        className={`tw-toolbar__color-wrap${isHighlightActive ? " tw-toolbar__color-wrap--active" : ""}`}
-        title={isHighlightActive ? "Highlight (Cmd+Shift+H to remove)" : "Highlight color"}
+      {/* Text colour — in-app swatch popover (matches the align/columns menus) */}
+      <div
+        className="tw-toolbar__submenu-combo"
+        onMouseEnter={openMenu(textColorCloseTimer, setTextColorMenuOpen)}
+        onMouseLeave={closeMenu(textColorCloseTimer, setTextColorMenuOpen)}
       >
-        <span
-          className="tw-toolbar__highlight-icon"
-          style={{ color: curHighlight }}
-          aria-hidden="true"
+        <button
+          type="button"
+          className="tw-toolbar__btn tw-toolbar__color-btn"
+          onClick={() => editor?.chain().focus().setColor(curColor).run()}
+          title="Text color"
+          aria-label="Text color"
+          aria-haspopup="menu"
+          aria-expanded={textColorMenuOpen}
         >
-          <Highlighter size={15} />
-        </span>
+          <span className="tw-toolbar__color-letter" aria-hidden="true">A</span>
+          <span className="tw-toolbar__color-bar" style={{ background: curColor }} aria-hidden="true" />
+        </button>
+        {textColorMenuOpen ? (
+          <div className="tw-toolbar__palette" role="menu" aria-label="Text color">
+            <button
+              type="button"
+              role="menuitem"
+              className="tw-toolbar__palette-reset"
+              onMouseDown={(e) => { e.preventDefault(); editor?.chain().focus().unsetColor().run(); setTextColorMenuOpen(false) }}
+            >
+              Default
+            </button>
+            <div className="tw-toolbar__swatch-grid">
+              {TEXT_SWATCHES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="menuitem"
+                  className={`tw-toolbar__swatch${c.toLowerCase() === curColor.toLowerCase() ? " tw-toolbar__swatch--active" : ""}`}
+                  style={{ background: c }}
+                  title={c}
+                  aria-label={c}
+                  onMouseDown={(e) => { e.preventDefault(); editor?.chain().focus().setColor(c).run(); setTextColorMenuOpen(false) }}
+                />
+              ))}
+              <button
+                type="button"
+                role="menuitem"
+                className="tw-toolbar__swatch tw-toolbar__swatch--custom"
+                title="Custom…"
+                aria-label="Custom color"
+                onMouseDown={(e) => { e.preventDefault(); textColorInputRef.current?.click() }}
+              />
+            </div>
+          </div>
+        ) : null}
         <input
+          ref={textColorInputRef}
           type="color"
-          className="tw-toolbar__color-input"
-          value={curHighlight}
-          onChange={(e) => {
-            const next = e.target.value
-            setLastHighlightColor(next)
-            editor?.chain().focus().setHighlight({ color: next }).run()
-          }}
-          aria-label="Highlight color"
+          className="tw-toolbar__color-input-hidden"
+          value={curColor}
+          onChange={(e) => { editor?.chain().focus().setColor(e.target.value).run(); setTextColorMenuOpen(false) }}
+          tabIndex={-1}
+          aria-hidden="true"
         />
-      </label>
+      </div>
+
+      {/* Highlight colour — in-app swatch popover */}
+      <div
+        className="tw-toolbar__submenu-combo"
+        onMouseEnter={openMenu(highlightCloseTimer, setHighlightMenuOpen)}
+        onMouseLeave={closeMenu(highlightCloseTimer, setHighlightMenuOpen)}
+      >
+        <button
+          type="button"
+          className={`tw-toolbar__btn tw-toolbar__color-btn${isHighlightActive ? " tw-toolbar__btn--active" : ""}`}
+          onClick={() => { setLastHighlightColor(curHighlight); editor?.chain().focus().setHighlight({ color: curHighlight }).run() }}
+          title={isHighlightActive ? "Highlight (Cmd+Shift+H to remove)" : "Highlight color"}
+          aria-label="Highlight color"
+          aria-haspopup="menu"
+          aria-expanded={highlightMenuOpen}
+        >
+          <Highlighter size={15} aria-hidden="true" />
+          <span className="tw-toolbar__color-bar" style={{ background: curHighlight }} aria-hidden="true" />
+        </button>
+        {highlightMenuOpen ? (
+          <div className="tw-toolbar__palette" role="menu" aria-label="Highlight color">
+            <button
+              type="button"
+              role="menuitem"
+              className="tw-toolbar__palette-reset"
+              onMouseDown={(e) => { e.preventDefault(); editor?.chain().focus().unsetHighlight().run(); setHighlightMenuOpen(false) }}
+            >
+              None
+            </button>
+            <div className="tw-toolbar__swatch-grid">
+              {HIGHLIGHT_SWATCHES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="menuitem"
+                  className={`tw-toolbar__swatch${c.toLowerCase() === curHighlight.toLowerCase() ? " tw-toolbar__swatch--active" : ""}`}
+                  style={{ background: c }}
+                  title={c}
+                  aria-label={c}
+                  onMouseDown={(e) => { e.preventDefault(); setLastHighlightColor(c); editor?.chain().focus().setHighlight({ color: c }).run(); setHighlightMenuOpen(false) }}
+                />
+              ))}
+              <button
+                type="button"
+                role="menuitem"
+                className="tw-toolbar__swatch tw-toolbar__swatch--custom"
+                title="Custom…"
+                aria-label="Custom highlight color"
+                onMouseDown={(e) => { e.preventDefault(); highlightInputRef.current?.click() }}
+              />
+            </div>
+          </div>
+        ) : null}
+        <input
+          ref={highlightInputRef}
+          type="color"
+          className="tw-toolbar__color-input-hidden"
+          value={curHighlight}
+          onChange={(e) => { const next = e.target.value; setLastHighlightColor(next); editor?.chain().focus().setHighlight({ color: next }).run(); setHighlightMenuOpen(false) }}
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      </div>
 
       <span className="tw-toolbar__sep" aria-hidden="true" />
 

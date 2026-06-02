@@ -15,35 +15,29 @@
 }
 
 /* ── Scroll container ── */
-/* Pin the page+ruler to a fixed viewport-x. The page must NOT move when
-   either rail collapses. The right rail collapse already preserves position
-   (only the editor-center's right edge expands, not the left). For the left
-   rail, the editor-center's left edge shifts by `(leftPanel + 8)px` when it
-   collapses — we cancel that shift with a positive margin-left of the same
-   amount. AppShell exposes `--rail-left-natural-w` (always = leftPanel + 8)
-   and `--rail-left-w` (= leftPanel + 8 when open, 0 when collapsed), so the
-   difference is exactly the compensation we need. The -8px baseline aligns
-   the ruler-dim button under the topbar's back-arrow when the rail is open.
-   The margin-left transition matches AppShell's grid-template-columns 180ms
-   ease so they stay in lockstep throughout the animation. */
+/* Center the page (with its rulers) horizontally within the editor column —
+   whatever width that column happens to be (it shrinks/grows as the side rails
+   open and close). `safe center` keeps the left edge reachable via horizontal
+   scroll when the editor area is narrower than the content, instead of
+   clipping it. The page sits ~28px right of the exact block centre because the
+   left ruler column is part of the centered block; the toolbar offsets to
+   match (see .tw-toolbar). */
 .tw-scroll {
   flex: 1;
   overflow-y: auto;
   overflow-x: auto;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  align-items: safe center;
   padding-left: 0;
   padding-bottom: 0;
 }
 .tw-scroll > * {
-  margin-left: -8px;
-  transition: margin-left 180ms ease;
+  margin-left: 0;
 }
 .editor-workspace__body--collapsed-left .tw-scroll > * {
-  /* Add the rail's natural width back so content's viewport-x stays put when
-     editor-center shifts left by (leftPanel + 8) during the rail collapse. */
-  margin-left: calc(var(--rail-left-natural-w, 0px) - 8px);
+  margin-left: 0;
 }
 
 /* ── Zoom wrapper (rulers + pages scale together) ── */
@@ -420,9 +414,14 @@
    `leftPanel + 8` (always the natural rail width, even when collapsed), so
    page-center = `var(--rail-left-natural-w) + 456px`. */
 .tw-toolbar {
-  position: fixed;
+  /* Absolute within .tw-outer (the editor area). .tw-outer doesn't scroll —
+     .tw-scroll inside it does — so this stays put while the page scrolls. The
+     centered content block is [56px ruler column | 816px page], so its midpoint
+     sits 28px (half the ruler column) left of the page's midpoint; offset the
+     toolbar by +28px to line it up with the page rather than the block. */
+  position: absolute;
   bottom: 56px;
-  left: calc(var(--rail-left-natural-w, 0px) + 456px);
+  left: calc(50% + 28px);
   transform: translateX(-50%);
   z-index: 40;
   display: flex;
@@ -459,13 +458,14 @@
   pointer-events: none;
 }
 
-/* ─────────────────── Toolbar toggle (top-right of document, under settings) ─────────────────── */
+/* ─────────────────── Toolbar toggle (top-right of document) ─────────────────── */
 /* Mirrors the corner ruler-dimension toggle: same modal-X-style button shape,
-   two-icon spin-swap. Anchored to the top-right of the editor body so it sits
-   just below the global settings button. The editor-center column already
-   adds padding-top: var(--editor-topbar-height), so `.tw-outer`'s top is at
-   viewport-y 46. Settings (top: 56, border-box height 30) ends at viewport-y
-   86 → flush position would be 40; add 6px breathing room → top: 46. */
+   two-icon spin-swap. Sits on the same horizontal line as the settings button
+   and the corner ruler toggle: the editor-center column adds
+   padding-top: var(--editor-topbar-height), so `.tw-outer`'s top is at
+   viewport-y 46; top: 10px puts this button at viewport-y 56 — level with the
+   settings button (top: 46 + 10) and the corner toggle. It's tucked just
+   inboard of the settings button (right: 52) so the two don't overlap. */
 .tw-toolcase-btn {
   position: absolute;
   top: 46px;
@@ -825,55 +825,103 @@
   break-inside: avoid;
 }
 
-/* Color picker */
-.tw-toolbar__color-wrap {
+/* ─── Colour pickers (text + highlight) ─── */
+/* Triggers reuse .tw-toolbar__btn; a thin bar under the glyph reflects the
+   current colour, and the palette below matches the hover submenus. */
+.tw-toolbar__color-btn {
   position: relative;
-  width: 30px;
-  height: 30px;
-  border-radius: 5px;
+  flex-direction: column;
+  gap: 2px;
+}
+.tw-toolbar__color-letter {
+  font-family: "Georgia", serif;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+}
+.tw-toolbar__color-bar {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  /* Subtle outline so light bars read against the dark toolbar. */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+/* Swatch popover — same chrome as .tw-toolbar__submenu, but a wrapping grid. */
+.tw-toolbar__palette {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--menu-dropdown-bg, #1a1a1a);
+  border: 1px solid var(--menu-dropdown-border, var(--menu-border, rgba(255, 255, 255, 0.08)));
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+/* Invisible bridge across the 6px gap (same trick as .tw-toolbar__submenu). */
+.tw-toolbar__palette::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: -16px;
+  right: -16px;
+  height: 8px;
+}
+.tw-toolbar__palette-reset {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--menu-border, rgba(255, 255, 255, 0.1));
+  border-radius: 5px;
+  background: transparent;
+  color: var(--menu-button, #ededed);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+  padding: 5px 8px;
   cursor: pointer;
-  flex-shrink: 0;
   transition: background 0.12s;
 }
-.tw-toolbar__color-wrap:hover { background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06)); }
-
-.tw-toolbar__color-icon {
-  font-size: 16px;
-  font-weight: 700;
-  font-family: "Georgia", serif;
-  pointer-events: none;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  line-height: 1;
+.tw-toolbar__palette-reset:hover {
+  background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06));
+}
+.tw-toolbar__swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 18px);
+  gap: 5px;
+}
+.tw-toolbar__swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.12s ease;
+}
+.tw-toolbar__swatch:hover {
+  transform: scale(1.12);
+}
+.tw-toolbar__swatch--active {
+  box-shadow: 0 0 0 2px var(--menu-dropdown-bg, #1a1a1a), 0 0 0 3px var(--app-accent, #7ea8ff);
+}
+/* "Custom…" — opens the OS picker; rainbow fill marks it as the full picker. */
+.tw-toolbar__swatch--custom {
+  background: conic-gradient(#f44336, #ff9800, #ffeb3b, #4caf50, #2196f3, #9c27b0, #f44336);
 }
 
-.tw-toolbar__color-input {
+/* Hidden native input, opened only by the "Custom…" swatch. */
+.tw-toolbar__color-input-hidden {
   position: absolute;
-  inset: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  height: 1px;
   opacity: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
+  pointer-events: none;
   border: none;
   padding: 0;
-}
-
-/* Highlighter swatch — same wrap as text color, but a marker icon tinted
-   with the current highlight colour (or the last-picked color when no
-   highlight is active in the selection). The active class lights up the
-   wrap when the cursor sits inside a highlighted run, signalling that
-   Cmd+Shift+H will toggle it off. */
-.tw-toolbar__highlight-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  line-height: 1;
-}
-.tw-toolbar__highlight-icon svg { display: block; }
-.tw-toolbar__color-wrap--active {
-  background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.08));
 }
