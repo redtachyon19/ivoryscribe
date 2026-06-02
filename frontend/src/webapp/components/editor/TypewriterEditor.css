@@ -913,15 +913,5 @@
   background: conic-gradient(#f44336, #ff9800, #ffeb3b, #4caf50, #2196f3, #9c27b0, #f44336);
 }
 
-/* Hidden native input, opened only by the "Custom…" swatch. */
-.tw-toolbar__color-input-hidden {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-  border: none;
-  padding: 0;
-}
+/* The custom colour picker styles live in ColorPicker.css (co-located with the
+   component) so they load wherever the picker is used, not just in the editor. */
