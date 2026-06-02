@@ -111,7 +111,12 @@
   outline: none;
   box-shadow: none;
   overflow: visible;
-  transition: color 120ms ease, background-color 120ms ease;
+  transition: color 120ms ease, background-color 120ms ease, opacity 280ms linear;
+}
+/* Fade out while typing, in sync with the global settings button. */
+.tw-corner-btn--typing {
+  opacity: 0;
+  pointer-events: none;
 }
 .tw-corner-btn:hover,
 .tw-corner-btn:focus-visible {
@@ -427,13 +432,19 @@
   opacity: 0.85;
 }
 
-/* Hidden state — fades out and stops accepting input. The toolcase button
-   stays visible so the user can bring the toolbar back. Opacity-only so the
-   transform stays consistent whether the toolbar is centered or dragged. */
+/* Hidden state — fades out and stops accepting input. Opacity-only so the
+   transform stays consistent whether the toolbar is centered or dragged.
+   280ms linear matches the settings button / toolbar toggle / ruler toggle so
+   all the auto-hiding chrome fades in and out together. */
 .tw-toolbar {
-  transition: opacity 220ms ease;
+  transition: opacity 280ms linear;
 }
 .tw-toolbar--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+/* Fade out while typing, in sync with the rest of the editor chrome. */
+.tw-toolbar--typing {
   opacity: 0;
   pointer-events: none;
 }
@@ -466,7 +477,12 @@
   outline: none;
   box-shadow: none;
   overflow: visible;
-  transition: color 120ms ease, background-color 120ms ease;
+  transition: color 120ms ease, background-color 120ms ease, opacity 280ms linear;
+}
+/* Fade out while typing, in sync with the global settings button. */
+.tw-toolcase-btn--typing {
+  opacity: 0;
+  pointer-events: none;
 }
 .tw-toolcase-btn:hover,
 .tw-toolcase-btn:focus-visible {
