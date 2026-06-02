@@ -14,6 +14,13 @@ import {
   type PinboardTool,
   type TextNode,
 } from "../utils/pinboardData"
+import { snapStrokeToShape } from "../utils/shapeRecognition"
+
+/** Hold the mouse still mid-stroke for this long (button still down) to snap
+ *  the freehand drawing to a recognized shape: straight line, ellipse,
+ *  rectangle, or triangle. The snapped shape previews immediately and commits
+ *  on release. */
+const SHAPE_SNAP_HOLD_MS = 2000
 
 type CommitBoard = (updater: (prev: PinboardData) => PinboardData) => void
 
@@ -55,8 +62,52 @@ export function usePinboardGestures({
   /* ── Freehand drawing ── */
   const [drawingPoints, setDrawingPoints] = useState<Array<{ x: number; y: number }>>([])
   const drawingPointsRef = useRef<Array<{ x: number; y: number }>>([])
+  const lastDrawingPointRef = useRef<{ x: number; y: number } | null>(null)
+  const drawingFrameRef = useRef<number | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const isDrawingRef = useRef(false)
+
+  /* ── Hold-to-snap-shape ── */
+  const snapHoldTimerRef = useRef<number | null>(null)
+  // True once the active stroke has snapped to a shape; further movement is
+  // ignored until release so the recognized shape stays put.
+  const strokeSnappedRef = useRef(false)
+
+  const scheduleDrawingUpdate = useCallback(() => {
+    if (drawingFrameRef.current !== null) return
+    drawingFrameRef.current = window.requestAnimationFrame(() => {
+      drawingFrameRef.current = null
+      setDrawingPoints(drawingPointsRef.current)
+    })
+  }, [])
+
+  const clearSnapHoldTimer = useCallback(() => {
+    if (snapHoldTimerRef.current !== null) {
+      window.clearTimeout(snapHoldTimerRef.current)
+      snapHoldTimerRef.current = null
+    }
+  }, [])
+
+  // (Re)start the hold timer. Called on each added stroke point, so it only
+  // fires once the pointer has been still (no new points) for the hold window.
+  const armSnapHoldTimer = useCallback(() => {
+    clearSnapHoldTimer()
+    snapHoldTimerRef.current = window.setTimeout(() => {
+      snapHoldTimerRef.current = null
+      if (!isDrawingRef.current || strokeSnappedRef.current) return
+      const snapped = snapStrokeToShape(drawingPointsRef.current)
+      if (snapped.length < 2 || snapped === drawingPointsRef.current) return
+      strokeSnappedRef.current = true
+      drawingPointsRef.current = snapped
+      lastDrawingPointRef.current = null
+      // Show the snapped shape right away (skip the rAF coalescing).
+      if (drawingFrameRef.current !== null) {
+        window.cancelAnimationFrame(drawingFrameRef.current)
+        drawingFrameRef.current = null
+      }
+      setDrawingPoints(snapped)
+    }, SHAPE_SNAP_HOLD_MS)
+  }, [clearSnapHoldTimer])
 
   /* ── Viewport ref (avoids recreating handlers on every pan) ── */
   const viewportRef = useRef(board.viewport)
@@ -84,6 +135,7 @@ export function usePinboardGestures({
       const pos = clientToCanvas(e.clientX, e.clientY)
 
       if (activeTool === "text") {
+        e.preventDefault()
         const newNode: TextNode = {
           id: createNodeId(),
           type: "text",
@@ -101,11 +153,15 @@ export function usePinboardGestures({
       }
 
       if (activeTool === "draw") {
+        e.preventDefault()
         setIsDrawing(true)
         isDrawingRef.current = true
+        strokeSnappedRef.current = false
         const pts = [pos]
-        setDrawingPoints(pts)
         drawingPointsRef.current = pts
+        lastDrawingPointRef.current = pos
+        setDrawingPoints(pts)
+        armSnapHoldTimer()
         return
       }
 
@@ -125,7 +181,7 @@ export function usePinboardGestures({
       setIsPanning(true)
       setPanStart({ px: e.clientX, py: e.clientY })
     },
-    [activeTool, clientToCanvas, commitBoard, onActiveToolChange],
+    [activeTool, clientToCanvas, commitBoard, onActiveToolChange, armSnapHoldTimer],
   )
 
   /* ── Global mouse-move / mouse-up listener ──
@@ -180,14 +236,26 @@ export function usePinboardGestures({
       }
 
       if (isDrawingRef.current) {
+        // Once the stroke has snapped to a shape, freeze it until release.
+        if (strokeSnappedRef.current) return
         const rect = canvasRef.current?.getBoundingClientRect()
         if (!rect) return
         const vp = viewportRef.current
         const x = (e.clientX - rect.left) / vp.zoom - vp.x
         const y = (e.clientY - rect.top) / vp.zoom - vp.y
-        const next = [...drawingPointsRef.current, { x, y }]
-        drawingPointsRef.current = next
-        setDrawingPoints(next)
+        const nextPoint = { x, y }
+        const previousPoint = lastDrawingPointRef.current
+        const shouldAddPoint =
+          previousPoint === null ||
+          ((previousPoint.x - x) ** 2 + (previousPoint.y - y) ** 2) >= 4
+
+        if (shouldAddPoint) {
+          drawingPointsRef.current = [...drawingPointsRef.current, nextPoint]
+          lastDrawingPointRef.current = nextPoint
+          scheduleDrawingUpdate()
+          // Pointer moved → restart the hold-to-snap countdown.
+          armSnapHoldTimer()
+        }
         return
       }
 
@@ -205,6 +273,8 @@ export function usePinboardGestures({
       setIsPanning(false)
       setDraggingNodeId(null)
       setResizingNodeId(null)
+      clearSnapHoldTimer()
+      strokeSnappedRef.current = false
 
       // Materialize a completed freehand drawing as a tight text node with
       // `[drawing:...]` content. The bounding rect of the path becomes the
@@ -227,9 +297,15 @@ export function usePinboardGestures({
         commitBoard((prev) => ({ ...prev, nodes: [...prev.nodes, drawNode] }))
       }
 
+      if (drawingFrameRef.current !== null) {
+        window.cancelAnimationFrame(drawingFrameRef.current)
+        drawingFrameRef.current = null
+      }
+
       isDrawingRef.current = false
       setIsDrawing(false)
       drawingPointsRef.current = []
+      lastDrawingPointRef.current = null
       setDrawingPoints([])
 
       if (isMarqueeRef.current) {
@@ -240,13 +316,16 @@ export function usePinboardGestures({
 
     window.addEventListener("mousemove", onMouseMove)
     window.addEventListener("mouseup", onMouseUp)
+    window.addEventListener("blur", onMouseUp)
     return () => {
       window.removeEventListener("mousemove", onMouseMove)
       window.removeEventListener("mouseup", onMouseUp)
+      window.removeEventListener("blur", onMouseUp)
+      clearSnapHoldTimer()
     }
   }, [
     isPanning, panStart, draggingNodeId, dragOffset, resizingNodeId, resizeStart,
-    clientToCanvas, commitBoard, canvasRef,
+    clientToCanvas, commitBoard, canvasRef, armSnapHoldTimer, clearSnapHoldTimer,
   ])
 
   /* ── Node mouse-down: start drag, or wire up a line connection ── */
@@ -384,8 +463,12 @@ export function usePinboardGestures({
   } as const
 }
 
-/** Render-friendly drawing-path string, or null when no path is active. */
+/** Render-friendly drawing-path string, or null when no path is active.
+ *  A single point (the initial mouse-down, before any movement) is duplicated
+ *  so the round-capped polyline paints a visible dot right away — the stroke
+ *  appears the instant the mouse is pressed, not only once it moves. */
 export function activeDrawingPath(isDrawing: boolean, drawingPoints: Array<{ x: number; y: number }>) {
-  if (!isDrawing || drawingPoints.length <= 1) return null
-  return drawingPoints.map((p) => `${p.x},${p.y}`).join(" ")
+  if (!isDrawing || drawingPoints.length === 0) return null
+  const pts = drawingPoints.length === 1 ? [drawingPoints[0], drawingPoints[0]] : drawingPoints
+  return pts.map((p) => `${p.x},${p.y}`).join(" ")
 }

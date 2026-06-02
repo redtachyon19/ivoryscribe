@@ -11,9 +11,13 @@
 //   • Manual save (File > Save Version, fires APP_SAVE_PROJECT_VERSION_EVENT):
 //     push a manual version (label = next roman numeral) onto the active
 //     project.
-//   • Autosave: after every projects[] state change, diff current word count
-//     against the most recent version's word count. If the delta crosses
-//     AUTOSAVE_WORD_DELTA, push an autosave version (label = next arabic).
+//   • Autosave (Books): after every projects[] state change, diff current
+//     word count against the most recent version's word count. If the delta
+//     crosses AUTOSAVE_WORD_DELTA, push an autosave version (label = arabic).
+//   • Autosave (Presentations): word counts don't fit a visual canvas, so a
+//     presentation snapshots on *structural* change instead — a debounced
+//     signature diff (viewport/pan-zoom excluded), throttled by a min gap.
+//     See presentationSignature + runPresentationAutosave below.
 //
 // Restore / duplicate replay the snapshot JSON stored on the version back
 // into projects[].
@@ -27,6 +31,7 @@ import {
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -41,6 +46,26 @@ import {
   type ProjectVersion,
 } from "../utils/projects"
 import { APP_SAVE_PROJECT_EVENT, APP_SAVE_PROJECT_VERSION_EVENT } from "../events/editorEvents"
+import { boardSignature } from "../../webapp/components/editor/utils/pinboardData"
+
+// ── Presentation autosave tuning ──
+// Presentations are visual canvases, so the books' word-count-delta rule is a
+// poor fit. Instead we snapshot on *structural* change (debounced): hold a
+// pause, and a single version captures the burst of edits since the last save.
+/** Snapshot this long after the last board change (idle debounce). */
+const PRESENTATION_AUTOSAVE_IDLE_MS = 5000
+/** Never autosave a presentation more often than this. */
+const PRESENTATION_AUTOSAVE_MIN_GAP_MS = 90000
+
+/** A change signature for a whole presentation: every slide's board signature
+ *  (viewport excluded, coords rounded), in a stable id order. Pan/zoom-only
+ *  edits leave this unchanged, so they never trigger an autosave. */
+function presentationSignature(project: Project): string {
+  return Object.keys(project.contentById)
+    .sort()
+    .map((id) => boardSignature(project.contentById[id] ?? ""))
+    .join("")
+}
 
 type VersionActionMessage = {
   type: "ivory:version-action"
@@ -170,6 +195,77 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
   // the second tick from firing.
   const lastSnapshotWordCountRef = useRef<Map<string, number>>(new Map())
 
+  // ── Presentation autosave (structural-change + debounce) ──
+  // Latest projects[] for the debounce-timer callbacks to read without
+  // re-subscribing.
+  const projectsRef = useRef(projects)
+  projectsRef.current = projects
+  // Signature of each presentation as of its last snapshot — change detection
+  // compares the live signature against this.
+  const lastSnapshotSignatureRef = useRef<Map<string, string>>(new Map())
+  // Wall-clock of each presentation's last autosave, to enforce the min gap.
+  const lastAutosaveAtRef = useRef<Map<string, number>>(new Map())
+  // Pending idle-debounce timers, keyed by project id.
+  const presentationTimersRef = useRef<Map<string, number>>(new Map())
+
+  // Fires after the idle debounce (and re-arms itself if the min-gap hasn't
+  // elapsed). Pushes one autosave version capturing the changes since the last
+  // snapshot, then records the new signature + timestamp.
+  const runPresentationAutosave = useCallback(
+    (projectId: string) => {
+      presentationTimersRef.current.delete(projectId)
+      const project = projectsRef.current.find((p) => p.id === projectId)
+      if (!project || project.deletedAt || project.archivedAt) return
+
+      const signature = presentationSignature(project)
+      // Settled back to the last-saved state (e.g. an edit was undone) → skip.
+      if (signature === lastSnapshotSignatureRef.current.get(projectId)) return
+
+      const now = Date.now()
+      const lastAt = lastAutosaveAtRef.current.get(projectId) ?? 0
+      const sinceLast = now - lastAt
+      if (sinceLast < PRESENTATION_AUTOSAVE_MIN_GAP_MS) {
+        // Too soon — wait out the remainder of the min gap, then retry.
+        const timer = window.setTimeout(
+          () => runPresentationAutosave(projectId),
+          PRESENTATION_AUTOSAVE_MIN_GAP_MS - sinceLast,
+        )
+        presentationTimersRef.current.set(projectId, timer)
+        return
+      }
+
+      const autosave = createProjectVersion(project, "autosave")
+      lastSnapshotSignatureRef.current.set(projectId, signature)
+      lastAutosaveAtRef.current.set(projectId, now)
+      pushVersionOntoProject(setProjects, projectId, autosave)
+    },
+    [setProjects],
+  )
+
+  // (Re)start the idle-debounce timer for a presentation. Called whenever a
+  // structural change is detected, so it only fires once edits pause.
+  const schedulePresentationAutosave = useCallback(
+    (projectId: string) => {
+      const existing = presentationTimersRef.current.get(projectId)
+      if (existing !== undefined) window.clearTimeout(existing)
+      const timer = window.setTimeout(
+        () => runPresentationAutosave(projectId),
+        PRESENTATION_AUTOSAVE_IDLE_MS,
+      )
+      presentationTimersRef.current.set(projectId, timer)
+    },
+    [runPresentationAutosave],
+  )
+
+  // Clear any pending timers on unmount.
+  useEffect(() => {
+    const timers = presentationTimersRef.current
+    return () => {
+      for (const timer of timers.values()) window.clearTimeout(timer)
+      timers.clear()
+    }
+  }, [])
+
   useEffect(() => {
     if (!isWorkspaceHydrated) return
 
@@ -179,11 +275,10 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
       if (project.archivedAt) continue
 
       const versions = project.versions ?? []
-      const currentWordCount = countProjectWords(project)
 
       // Baseline: empty version list ⇒ push a manual "I" so the user has a
-      // starting point. We also seed lastSnapshotWordCountRef so the next
-      // delta is measured from this baseline, not from 0.
+      // starting point. We also seed the trackers so the next change is
+      // measured from this baseline, not from scratch.
       if (versions.length === 0) {
         const baseline = createProjectVersion(project, "manual")
         lastSnapshotWordCountRef.current.set(project.id, baseline.wordCount)
@@ -191,11 +286,27 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
         return
       }
 
-      // Word-count delta check. The reference point is the most recent
-      // version's wordCount — which is what we just stored in
-      // lastSnapshotWordCountRef on the previous commit. Fall back to the
-      // versions list if the ref hasn't been seeded yet (first render
-      // after hydrate).
+      // ── Presentations: structural-change + debounce ──
+      if (project.kind === "Presentation") {
+        const signature = presentationSignature(project)
+        // First sweep for this project ⇒ treat the loaded state as the
+        // baseline (don't snapshot just because the hook mounted).
+        if (!lastSnapshotSignatureRef.current.has(project.id)) {
+          lastSnapshotSignatureRef.current.set(project.id, signature)
+          continue
+        }
+        // No meaningful change (or pan/zoom only) ⇒ nothing to do.
+        if (signature === lastSnapshotSignatureRef.current.get(project.id)) continue
+        // Real change ⇒ (re)arm the idle debounce.
+        schedulePresentationAutosave(project.id)
+        continue
+      }
+
+      // ── Books: word-count delta ──
+      // The reference point is the most recent version's wordCount — which is
+      // what we stored in lastSnapshotWordCountRef on the previous commit.
+      // Fall back to the versions list if the ref hasn't been seeded yet.
+      const currentWordCount = countProjectWords(project)
       const lastCount =
         lastSnapshotWordCountRef.current.get(project.id) ?? versions[0]?.wordCount ?? 0
       const delta = Math.abs(currentWordCount - lastCount)
@@ -204,12 +315,11 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
       const autosave = createProjectVersion(project, "autosave")
       lastSnapshotWordCountRef.current.set(project.id, autosave.wordCount)
       pushVersionOntoProject(setProjects, project.id, autosave)
-      // Only one autosave per sweep — pushing into setProjects re-runs this
-      // effect anyway, and snapshotting two projects in the same tick is
-      // never urgent enough to justify the complexity.
+      // Only one word-count autosave per sweep — pushing into setProjects
+      // re-runs this effect anyway.
       return
     }
-  }, [projects, isWorkspaceHydrated, setProjects])
+  }, [projects, isWorkspaceHydrated, setProjects, schedulePresentationAutosave])
 
   // ── Restore / duplicate (driven by postMessage from the popup) ─────────
   const restoreVersionIntoProject = (projectId: string, versionId: string): boolean => {

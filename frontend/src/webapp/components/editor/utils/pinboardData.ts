@@ -81,3 +81,83 @@ export function tryParseDrawingPoints(node: PinboardNode): Array<{ x: number; y:
     return null
   }
 }
+
+/** Human-readable text of a serialized board (text boxes, link labels, file
+ *  names), space-joined — or `null` if `raw` is not a pinboard document.
+ *
+ *  Used for word/character counting. Counting the raw serialized board would
+ *  treat every JSON key, node id, and coordinate as a "word" — and because a
+ *  freehand drawing is stored as a text node holding a `[drawing:...]` array
+ *  of point coordinates, each stroke would inflate the count by dozens of
+ *  bogus numeric "words". Drawing nodes are therefore excluded here. */
+export function pinboardPlainText(raw: string): string | null {
+  if (!raw) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !Array.isArray((parsed as PinboardData).nodes) ||
+    (parsed as PinboardData).viewport === undefined
+  ) {
+    return null
+  }
+
+  const parts: string[] = []
+  for (const node of (parsed as PinboardData).nodes) {
+    if (node.type === "text") {
+      if (typeof node.content === "string" && !node.content.startsWith("[drawing:")) {
+        parts.push(node.content)
+      }
+    } else if (node.type === "link") {
+      if (node.label) parts.push(node.label)
+    } else if (node.type === "file") {
+      if (node.fileName) parts.push(node.fileName)
+    }
+  }
+  return parts.join(" ")
+}
+
+/** A normalized "meaningful state" string for a serialized board, used to
+ *  detect real changes for presentation autosave/versioning.
+ *
+ *  Two differences from the raw content:
+ *   • `viewport` (pan/zoom) is excluded — panning or zooming must NOT count as
+ *     a change, so it can't mint autosave versions.
+ *   • node box coordinates are rounded to integers — sub-pixel drag jitter
+ *     doesn't register as a change.
+ *
+ *  Returns the raw string unchanged when `raw` is not a pinboard document, so
+ *  callers can use it as a generic content signature regardless of kind. */
+export function boardSignature(raw: string): string {
+  if (!raw) return ""
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return raw
+  }
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !Array.isArray((parsed as PinboardData).nodes) ||
+    (parsed as PinboardData).viewport === undefined
+  ) {
+    return raw
+  }
+
+  const board = parsed as PinboardData
+  const nodes = board.nodes.map((node) => ({
+    ...node,
+    x: Math.round(node.x),
+    y: Math.round(node.y),
+    width: Math.round(node.width),
+    height: Math.round(node.height),
+  }))
+  // `viewport` is deliberately omitted from the signature.
+  return JSON.stringify({ nodes, lines: board.lines })
+}
