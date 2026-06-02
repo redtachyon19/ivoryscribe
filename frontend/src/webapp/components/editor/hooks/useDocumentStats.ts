@@ -2,9 +2,9 @@
 // Editor.tsx.
 
 import { useEffect, useMemo, useState } from "react"
-import { countWordsFromContent } from "../../../../core/utils/markdown"
 import type { Project } from "../../../../core/utils/projects"
-import { flattenTabList, flattenTabWordStats, totalWordsAcrossTabs } from "../utils/documentStats"
+import { countWordsForContent, flattenTabList, flattenTabWordStats, totalWordsAcrossTabs } from "../utils/documentStats"
+import { pinboardPlainText } from "../utils/pinboardData"
 
 export function useDocumentStats(project: Project | null, activeContent: string) {
   const [selectedWordCount, setSelectedWordCount] = useState<number | null>(null)
@@ -12,8 +12,12 @@ export function useDocumentStats(project: Project | null, activeContent: string)
   const [isDetailedWordStatsOpen, setIsDetailedWordStatsOpen] = useState(false)
   const [includedTabsById, setIncludedTabsById] = useState<Record<string, boolean>>({})
 
-  const activeDocumentWordCount = useMemo(() => countWordsFromContent(activeContent), [activeContent])
-  const activeDocumentCharacterCount = useMemo(() => activeContent.length, [activeContent])
+  const activeDocumentWordCount = useMemo(() => countWordsForContent(activeContent), [activeContent])
+  const activeDocumentCharacterCount = useMemo(() => {
+    // For pinboards, count visible-text characters — not the JSON board blob.
+    const boardText = pinboardPlainText(activeContent)
+    return boardText !== null ? boardText.length : activeContent.length
+  }, [activeContent])
 
   // Cheap tab-structure list (id / title / depth, no word counts). `tabs` is
   // referentially stable across content keystrokes, so this — and everything
