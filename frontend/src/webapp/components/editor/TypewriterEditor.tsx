@@ -337,7 +337,7 @@ export default function TypewriterEditor({
       {/* bottom-left toolbar toggle (mirrors the corner ruler toggle) */}
       <button
         type="button"
-        className={`tw-toolcase-btn${!showToolbar ? " tw-toolcase-btn--off" : ""}`}
+        className={`tw-toolcase-btn${!showToolbar ? " tw-toolcase-btn--off" : ""}${isUiTyping ? " tw-toolcase-btn--typing" : ""}`}
         onClick={() => setShowToolbar((v) => !v)}
         title={showToolbar ? "Hide toolbar" : "Show toolbar"}
         aria-label={showToolbar ? "Hide toolbar" : "Show toolbar"}
@@ -354,6 +354,7 @@ export default function TypewriterEditor({
       <TypewriterToolbar
         editor={editor}
         showToolbar={showToolbar}
+        isUiTyping={isUiTyping}
         isDraggingToolbar={isDraggingToolbar}
         toolbarRef={toolbarRef}
         toolbarPos={toolbarPos}

@@ -39,6 +39,9 @@ type ColumnCount = 2 | 3 | 4
 type TypewriterToolbarProps = {
   editor: TiptapEditor | null
   showToolbar: boolean
+  /** Fade the toolbar out while the user is typing, in sync with the other
+   *  auto-hiding editor chrome (settings button, toolbar toggle, rulers). */
+  isUiTyping: boolean
   isDraggingToolbar: boolean
   toolbarRef: RefObject<HTMLDivElement | null>
   toolbarPos: { x: number; y: number } | null
@@ -52,6 +55,7 @@ type TypewriterToolbarProps = {
 export function TypewriterToolbar({
   editor,
   showToolbar,
+  isUiTyping,
   isDraggingToolbar,
   toolbarRef,
   toolbarPos,
@@ -230,7 +234,7 @@ export function TypewriterToolbar({
   return (
     <div
       ref={toolbarRef}
-      className={`tw-toolbar${isDraggingToolbar ? " tw-toolbar--dragging" : ""}${!showToolbar ? " tw-toolbar--hidden" : ""}`}
+      className={`tw-toolbar${isDraggingToolbar ? " tw-toolbar--dragging" : ""}${!showToolbar ? " tw-toolbar--hidden" : ""}${isUiTyping ? " tw-toolbar--typing" : ""}`}
       style={
         toolbarPos
           ? { left: toolbarPos.x, top: toolbarPos.y, bottom: "auto", transform: "none" }
