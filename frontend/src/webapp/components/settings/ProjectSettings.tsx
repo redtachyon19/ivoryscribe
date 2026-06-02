@@ -4,6 +4,7 @@ import type { ProjectKind } from "../../../core/utils/projects"
 import { extractEmojiTokens } from "../../../core/utils/libraryUtils"
 import { SharePanel } from "./ShareDialog"
 import Button from "../ui/Button"
+import { ColorPickerButton } from "../editor/components/ColorPickerButton"
 import "./ProjectSettings.css"
 
 type ProjectVersionListItem = {
@@ -124,12 +125,11 @@ export default function ProjectSettings({
       <div className={`${fieldClassName} project-preferences-fields__field`.trim()}>
         <span className="project-preferences-fields__label">Project Card Wallpaper</span>
         <div className="project-preferences-fields__wallpaper-row">
-          <input
-            className="project-preferences-fields__input project-preferences-fields__input--color"
-            type="color"
+          <ColorPickerButton
+            ariaLabel="Project card wallpaper color"
             value={resolvedProjectColor}
-            onChange={(event) => {
-              const nextValue = event.target.value.toUpperCase()
+            onChange={(hex) => {
+              const nextValue = hex.toUpperCase()
               onProjectColorChange(nextValue)
               setProjectColorHexDraft(nextValue)
             }}
