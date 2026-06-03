@@ -1,4 +1,5 @@
 import { AArrowDown, AArrowUp, ChevronDown, CornerDownRight, Palette } from "lucide-react"
+import { ColorPickerButton } from "../editor/components/ColorPickerButton"
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 
 type PaletteOption = {
@@ -381,13 +382,12 @@ export default function AppearanceSettings({
               <span>Custom Background Color</span>
             </span>
             <div className="global-settings__color-input-wrap">
-              <input
+              <ColorPickerButton
                 id="settings-custom-background"
-                className="global-settings__color-input"
-                type="color"
+                ariaLabel="Custom background color"
                 value={customPaletteBackground}
-                onChange={(event) => {
-                  const nextValue = event.target.value.toUpperCase()
+                onChange={(hex) => {
+                  const nextValue = hex.toUpperCase()
                   onCustomPaletteBackgroundChange(nextValue)
                   setCustomBackgroundHexDraft(nextValue)
                 }}
@@ -423,13 +423,12 @@ export default function AppearanceSettings({
               <span>Custom Accent Color</span>
             </span>
             <div className="global-settings__color-input-wrap">
-              <input
+              <ColorPickerButton
                 id="settings-custom-accent"
-                className="global-settings__color-input"
-                type="color"
+                ariaLabel="Custom accent color"
                 value={customPaletteAccent}
-                onChange={(event) => {
-                  const nextValue = event.target.value.toUpperCase()
+                onChange={(hex) => {
+                  const nextValue = hex.toUpperCase()
                   onCustomPaletteAccentChange(nextValue)
                   setCustomAccentHexDraft(nextValue)
                 }}
