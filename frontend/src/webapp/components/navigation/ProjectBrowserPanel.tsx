@@ -21,6 +21,7 @@ import Button from "../ui/Button"
 import MarqueeText from "../ui/MarqueeText"
 import usePanelMarquee from "./usePanelMarquee"
 import useProjectBulkActions from "./useProjectBulkActions"
+import "./navPanelShared.css"
 import "./ProjectBrowserPanel.css"
 
 type ProjectBrowserPanelProps = {
@@ -88,16 +89,10 @@ export default function ProjectBrowserPanel({
   const drag = useListDrag({ flatOnly: true })
   const sectionDrop = useSectionDrop({ folders, projects, setProjects, setFolders, onMoveProjectToCloud })
   const settings = useProjectSettings({ projects, setProjects })
-  // Every row here is a draggable <li> whose label is itself the selectable
-  // item, so a press on a row should start a marquee — NOT bail. We mirror the
-  // library grid's proven filter (only genuine text-entry controls suppress
-  // the marquee); crucially we do NOT bail on `button`, because the row label
-  // is a <button> and would otherwise swallow every drag. A plain click still
-  // opens the project (no drag past threshold); dragging past it marquee-
-  // selects; and native drag-to-reorder still fires dragstart independently.
-  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee({
-    ignoreSelector: "input, textarea, select",
-  })
+  // Same marquee setup as DocumentTabsPanel: the default ignore-selector bails
+  // on rows / `li` / draggable buttons, so pressing a row starts its native
+  // drag and only a press in the gaps / empty list space starts a marquee.
+  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee()
   const multiDragIdsRef = useRef<Set<string>>(new Set())
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)

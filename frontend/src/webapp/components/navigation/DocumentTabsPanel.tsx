@@ -18,6 +18,7 @@ import {
   findAncestorIds,
   moveNodes,
 } from "./tabTreeUtils"
+import "./navPanelShared.css"
 import "./DocumentTabsPanel.css"
 
 

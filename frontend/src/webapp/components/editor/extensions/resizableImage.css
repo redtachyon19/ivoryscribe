@@ -1,0 +1,85 @@
+/* Free-floating, resizable, croppable image node (see ImageNodeView.tsx).
+   Every image is absolutely positioned (left/top set inline from x/y). */
+
+/* The editor content box is the positioning context for the absolute images.
+   (Page cards and the caret overlay live outside .ProseMirror, so this doesn't
+   disturb them.) */
+.ProseMirror {
+  position: relative;
+}
+
+.ProseMirror .tw-image {
+  width: fit-content;
+  line-height: 0; /* kill the descender gap under the image */
+}
+
+.ProseMirror .tw-image__holder {
+  position: relative;
+  line-height: 0;
+}
+
+/* The image is the move handle (drag anywhere). */
+.ProseMirror .tw-image__img,
+.ProseMirror .tw-image__cropframe {
+  cursor: move;
+}
+
+.ProseMirror .tw-image__img {
+  display: block;
+  height: auto;
+  border-radius: 2px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Selection ring around the visible image box. */
+.ProseMirror .tw-image--selected .tw-image__holder {
+  outline: 2px solid var(--app-accent, #9ab8ff);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Bottom-right resize handle. */
+.ProseMirror .tw-image__handle {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--app-accent, #9ab8ff);
+  border: 2px solid var(--app-bg, #fff);
+  cursor: nwse-resize;
+  z-index: 3;
+  touch-action: none;
+}
+
+/* Crop frame (non-crop-mode clipped view) — sized inline. */
+.ProseMirror .tw-image__cropframe {
+  border-radius: 2px;
+}
+
+/* ── Crop stage ── */
+.ProseMirror .tw-image__cropstage {
+  cursor: default;
+  user-select: none;
+}
+.ProseMirror .tw-image__cropwindow {
+  outline: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+.ProseMirror .tw-image__crophandle {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px; /* center on the corner */
+  border-radius: 2px;
+  background: #fff;
+  border: 1px solid var(--app-accent, #9ab8ff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  z-index: 4;
+  touch-action: none;
+}
+.ProseMirror .tw-image__crophandle--tl { cursor: nwse-resize; }
+.ProseMirror .tw-image__crophandle--tr { cursor: nesw-resize; }
+.ProseMirror .tw-image__crophandle--bl { cursor: nesw-resize; }
+.ProseMirror .tw-image__crophandle--br { cursor: nwse-resize; }

@@ -22,6 +22,7 @@ import type { Extensions } from "@tiptap/react"
 import { FontSizeExtension } from "./typewriter/fontSize"
 import { ParaIndentExtension } from "./typewriter/paraIndent"
 import { ColumnsExtension } from "./typewriter/columns"
+import { ResizableImage } from "./resizableImage"
 
 export function sharedProseFormattingExtensions(): Extensions {
   return [
@@ -33,5 +34,8 @@ export function sharedProseFormattingExtensions(): Extensions {
     TextAlign.configure({ types: ["heading", "paragraph"] }),
     ParaIndentExtension,
     ColumnsExtension,
+    // Inline images (data-URL src), resizable + alignable. Shared so neither
+    // view strips images from the document.
+    ResizableImage,
   ]
 }
