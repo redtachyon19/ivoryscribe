@@ -270,6 +270,9 @@ export default function Library({
       id: createLocalId(),
       name: `Folder ${nextIndex}`,
       description: "Add a folder description here. You don't have the memory of an elephant.",
+      // Create the folder inside whatever folder is currently open (matches how
+      // createNewProject nests via openFolderId); null at the top level.
+      parentFolderId: openFolderId ?? null,
     }
     setFolders((current) => [newFolder, ...current])
   }
@@ -291,7 +294,9 @@ export default function Library({
       window.removeEventListener(PROJECTS_CREATE_BOOK_EVENT, handleCreateProject as EventListener)
       window.removeEventListener(PROJECTS_CREATE_FOLDER_EVENT, handleCreateFolder)
     }
-  }, [bookCounter, folders.length])
+    // openFolderId is included so the menu-bar "New Folder" closure creates the
+    // folder inside the currently-open folder, not a stale one.
+  }, [bookCounter, folders.length, openFolderId])
 
   const renderProjectCard = (project: Project) => (
     <ProjectCard

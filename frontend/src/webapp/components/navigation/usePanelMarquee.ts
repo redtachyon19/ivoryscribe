@@ -2,9 +2,10 @@ import { useCallback, useRef, useState } from "react"
 import useMarqueeSelection from "../shared/hooks/useMarqueeSelection"
 
 type UsePanelMarqueeOptions = {
-  /** Forwarded to useMarqueeSelection — see its `ignoreSelector`. Panels
-   *  whose rows are themselves the selectable items (so a press on a row
-   *  should start a marquee, not bail) pass a narrower selector. */
+  /** Forwarded to useMarqueeSelection — see its `ignoreSelector`. Both nav
+   *  panels rely on the default (which bails on rows / `li` / draggable
+   *  buttons), so a press on a row starts its native drag and only a press in
+   *  the gaps / empty list space starts a marquee. */
   ignoreSelector?: string
 }
 

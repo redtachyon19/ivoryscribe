@@ -23,6 +23,7 @@ import {
   Columns4,
   GripVertical,
   Highlighter,
+  Image as ImageIcon,
   Italic,
   PaintRoller,
   Underline as UnderlineIcon,
@@ -198,6 +199,21 @@ export function TypewriterToolbar({
     // Wrap the current block range in a fresh columns node.
     editor.chain().focus().wrapIn("columns", { count }).run()
   }, [editor, isInColumns, columnsWrapperPos])
+
+  const applyAlign = useCallback((mode: AlignMode) => {
+    editor?.chain().focus().setTextAlign(mode).run()
+  }, [editor])
+
+  /* ── Insert image (file picker → data URL) ── */
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const onImageFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = "" // allow re-selecting the same file
+    if (!file || !file.type.startsWith("image/") || !editor) return
+    const reader = new FileReader()
+    reader.onload = () => editor.chain().focus().setImage({ src: String(reader.result) }).run()
+    reader.readAsDataURL(file)
+  }, [editor])
 
   const curFontFamily = (editor?.getAttributes("textStyle").fontFamily as string | null) ?? ""
   const curColorRaw = (editor?.getAttributes("textStyle").color as string | null) ?? ""
@@ -557,7 +573,7 @@ export function TypewriterToolbar({
         <button
           type="button"
           className={`tw-toolbar__btn${isAlignLeft || isAlignCtr || isAlignRight ? " tw-toolbar__btn--active" : ""}`}
-          onClick={() => editor?.chain().focus().setTextAlign(defaultAlign).run()}
+          onClick={() => applyAlign(defaultAlign)}
           title={`Align ${defaultAlign} (hover for options)`}
           aria-label={`Align ${defaultAlign}`}
           aria-haspopup="menu"
@@ -580,7 +596,7 @@ export function TypewriterToolbar({
                     className={`tw-toolbar__submenu-item${active ? " tw-toolbar__submenu-item--active" : ""}`}
                     onMouseDown={(e) => {
                       e.preventDefault()
-                      editor?.chain().focus().setTextAlign(mode).run()
+                      applyAlign(mode)
                       setDefaultAlign(mode)
                       setAlignMenuOpen(false)
                     }}
@@ -664,6 +680,30 @@ export function TypewriterToolbar({
       >
         <PaintRoller size={15} />
       </button>
+
+      <span className="tw-toolbar__sep" aria-hidden="true" />
+
+      {/* Insert image — opens a file picker; the image embeds as a data URL.
+          You can also paste or drag-and-drop an image straight into the page. */}
+      <button
+        type="button"
+        className="tw-toolbar__btn"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => imageInputRef.current?.click()}
+        title="Insert image"
+        aria-label="Insert image"
+      >
+        <ImageIcon size={15} />
+      </button>
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={onImageFileChange}
+        aria-hidden="true"
+        tabIndex={-1}
+      />
 
       {/* Custom colour picker — portaled to <body> so it can't be clipped by
           the editor's overflow:hidden or mis-stacked behind page content.

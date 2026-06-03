@@ -1,0 +1,69 @@
+/* Shared drag / marquee-select / drop styling for the two navigation list
+   panels (DocumentTabsPanel + ProjectBrowserPanel). These two panels render the
+   same kind of draggable, marquee-selectable list, so the visuals live here
+   once instead of being duplicated in each panel's stylesheet. Panel-specific
+   layout (headers, labels, icons, section switcher, etc.) stays in the
+   per-panel CSS files. */
+
+/* ── Marquee (rubber-band) rectangle ── */
+.doc-tabs__list-shell--marquee,
+.project-browser__list-shell--marquee {
+  cursor: crosshair;
+  user-select: none;
+}
+
+.doc-tabs__marquee-selection,
+.project-browser__marquee-selection {
+  position: absolute;
+  z-index: 5;
+  border: 1.5px solid color-mix(in srgb, var(--app-accent, #7ea8ff) 75%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #7ea8ff) 10%, transparent);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* ── Marquee-selected row ── */
+.doc-tabs__row--marquee-selected,
+.project-browser__row--marquee-selected {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 60%, transparent);
+}
+
+.doc-tabs__row--marquee-selected:hover,
+.doc-tabs__row--active.doc-tabs__row--marquee-selected,
+.project-browser__row--marquee-selected:hover,
+.project-browser__row--active.project-browser__row--marquee-selected {
+  background: transparent;
+}
+
+/* ── Row being dragged (the class rides on the label in both panels) ── */
+.doc-tabs__row--dragging,
+.project-browser__label--dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+/* ── Drop-into-folder / parent highlight ── */
+.doc-tabs__item--drop-inside > .doc-tabs__row,
+.project-browser__item--drop-inside > .project-browser__row {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 65%, transparent);
+}
+
+/* ── Reorder drop-indicator line ── */
+.doc-tabs__drop-line,
+.project-browser__drop-line {
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 96%, white 4%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 52%, #0f0f0f),
+    0 0 10px color-mix(in srgb, var(--app-accent, #9ab8ff) 45%, transparent);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.doc-tabs__drop-line--visible,
+.project-browser__drop-line--visible {
+  opacity: 1;
+}
