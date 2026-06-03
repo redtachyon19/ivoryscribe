@@ -270,6 +270,9 @@ export default function Library({
       id: createLocalId(),
       name: `Folder ${nextIndex}`,
       description: "Add a folder description here. You don't have the memory of an elephant.",
+      // Nest under the folder currently being viewed (matches how new projects
+      // adopt openFolderId); null at the root.
+      parentFolderId: openFolderId ?? null,
     }
     setFolders((current) => [newFolder, ...current])
   }
