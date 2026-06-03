@@ -88,15 +88,15 @@ export default function ProjectBrowserPanel({
   const drag = useListDrag({ flatOnly: true })
   const sectionDrop = useSectionDrop({ folders, projects, setProjects, setFolders, onMoveProjectToCloud })
   const settings = useProjectSettings({ projects, setProjects })
-  // Every row here is a draggable <li> whose label is itself the selectable
-  // item, so a press on a row should start a marquee — NOT bail. We mirror the
-  // library grid's proven filter (only genuine text-entry controls suppress
-  // the marquee); crucially we do NOT bail on `button`, because the row label
-  // is a <button> and would otherwise swallow every drag. A plain click still
-  // opens the project (no drag past threshold); dragging past it marquee-
-  // selects; and native drag-to-reorder still fires dragstart independently.
+  // Rows are draggable <button>s. We don't bail on `button` (so the marquee
+  // can begin in the empty space between/below rows), but we MUST bail on
+  // draggable elements: the marquee's mousedown preventDefault (which stops
+  // text selection) also suppresses the browser's native drag, so pressing a
+  // row to drag a project would otherwise do nothing. Bailing on
+  // `[draggable='true']` lets a row-press start a native drag, while a drag
+  // from empty space still marquee-selects.
   const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee({
-    ignoreSelector: "input, textarea, select",
+    ignoreSelector: "input, textarea, select, [draggable='true']",
   })
   const multiDragIdsRef = useRef<Set<string>>(new Set())
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
