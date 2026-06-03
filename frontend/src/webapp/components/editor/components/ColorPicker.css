@@ -1,0 +1,112 @@
+/* Styles for the in-app ColorPicker + its swatch-button trigger. Co-located
+   with the component so it loads wherever the picker is used (typewriter
+   toolbar, settings, …) — not only when the editor mounts. */
+
+/* Popover chrome (portaled to <body>; position is set inline). */
+.tw-colorpicker-popover {
+  padding: 10px;
+  background: var(--menu-dropdown-bg, #1a1a1a);
+  border: 1px solid var(--menu-dropdown-border, var(--menu-border, rgba(255, 255, 255, 0.08)));
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.tw-colorpicker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 200px;
+}
+/* Saturation (x) × brightness (y) field. Background is layered in JS:
+   black→transparent (top), white→transparent (right), over the pure hue. */
+.tw-colorpicker__sv {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  border-radius: 6px;
+  cursor: crosshair;
+  touch-action: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.tw-colorpicker__sv-thumb {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.tw-colorpicker__hue {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: none;
+  background: linear-gradient(to right,
+    #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.tw-colorpicker__hue-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.tw-colorpicker__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tw-colorpicker__preview {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.tw-colorpicker__hex {
+  flex: 1;
+  min-width: 0;
+  background: var(--menu-bg, #141414);
+  border: 1px solid var(--menu-border, rgba(255, 255, 255, 0.1));
+  border-radius: 5px;
+  color: var(--menu-button, #ededed);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+}
+.tw-colorpicker__hex:focus {
+  border-color: var(--app-accent, #7ea8ff);
+}
+
+/* Swatch-button trigger (used where a click-to-open picker is wanted, e.g.
+   settings). Sized to match the native colour input it replaces (42×32). */
+.color-swatch-btn {
+  width: 42px;
+  height: 32px;
+  padding: 3px;
+  border: 1px solid var(--menu-dropdown-border, #2e2e2e);
+  border-radius: 8px;
+  background: var(--menu-bg, #1d1d1d);
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-flex;
+}
+.color-swatch-btn:hover {
+  border-color: var(--menu-border-hover, var(--app-accent, #7ea8ff));
+}
+.color-swatch-btn__fill {
+  flex: 1;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}

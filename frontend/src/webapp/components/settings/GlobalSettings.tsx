@@ -316,6 +316,14 @@ export default function GlobalSettings({
     }
 
     const getSectionForScrollPosition = () => {
+      // When the content is scrolled to the very bottom, snap to the last
+      // section. Its content is often too short to ever push its top past the
+      // activation offset, so otherwise the nav highlight could never reach it
+      // (e.g. Workspace as the final section).
+      if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) {
+        return sectionIds[sectionIds.length - 1]
+      }
+
       const activationOffset = 18
       const currentTop = scroller.scrollTop + activationOffset
       let nextSection: SectionId = sectionIds[0]

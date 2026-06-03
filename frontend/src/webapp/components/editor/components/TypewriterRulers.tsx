@@ -99,7 +99,7 @@ export function TypewriterRulerRow({
 
       <button
         type="button"
-        className="tw-corner-btn"
+        className={`tw-corner-btn${isUiTyping ? " tw-corner-btn--typing" : ""}`}
         onClick={onToggleRulers}
         title={showRulers ? "Hide rulers" : "Show rulers"}
         aria-label={showRulers ? "Hide rulers" : "Show rulers"}

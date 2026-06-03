@@ -9,7 +9,8 @@
 // events for the active-state highlights to stay current — TypewriterEditor
 // already bumps a counter to force this.
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react"
+import { createPortal } from "react-dom"
 import type { Editor as TiptapEditor } from "@tiptap/react"
 import {
   AlignCenter,
@@ -26,6 +27,7 @@ import {
   PaintRoller,
   Underline as UnderlineIcon,
 } from "lucide-react"
+import { ColorPicker } from "./ColorPicker"
 import {
   DEFAULT_FONT_SIZE_PT,
   FONT_OPTIONS,
@@ -36,9 +38,26 @@ import {
 type AlignMode = "left" | "center" | "right"
 type ColumnCount = 2 | 3 | 4
 
+/* Curated colour palettes for the text + highlight pickers. Using an in-app
+   swatch popover (instead of the OS colour dialog) keeps these controls in
+   line with the rest of the toolbar's design; "Custom…" still opens a full
+   picker for anything off-palette. */
+const TEXT_SWATCHES = [
+  "#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc",
+  "#cc0000", "#e06666", "#e69138", "#f1c232", "#6aa84f", "#45818e",
+  "#3d85c6", "#3c4fae", "#674ea7", "#a64d79", "#85200c",
+]
+const HIGHLIGHT_SWATCHES = [
+  "#fff475", "#fbbc04", "#f28b82", "#fdcfe8", "#d7aefb",
+  "#aecbfa", "#a7ffeb", "#ccff90", "#e6c9a8", "#e8eaed",
+]
+
 type TypewriterToolbarProps = {
   editor: TiptapEditor | null
   showToolbar: boolean
+  /** Fade the toolbar out while the user is typing, in sync with the other
+   *  auto-hiding editor chrome (settings button, toolbar toggle, rulers). */
+  isUiTyping: boolean
   isDraggingToolbar: boolean
   toolbarRef: RefObject<HTMLDivElement | null>
   toolbarPos: { x: number; y: number } | null
@@ -52,6 +71,7 @@ type TypewriterToolbarProps = {
 export function TypewriterToolbar({
   editor,
   showToolbar,
+  isUiTyping,
   isDraggingToolbar,
   toolbarRef,
   toolbarPos,
@@ -66,6 +86,15 @@ export function TypewriterToolbar({
   const fontFamilyComboRef = useRef<HTMLDivElement | null>(null)
   const [alignMenuOpen, setAlignMenuOpen] = useState(false)
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false)
+  const [textColorMenuOpen, setTextColorMenuOpen] = useState(false)
+  const [highlightMenuOpen, setHighlightMenuOpen] = useState(false)
+  const textColorCloseTimer = useRef<number | null>(null)
+  const highlightCloseTimer = useRef<number | null>(null)
+  // The in-app custom colour picker, opened from the "Custom…" swatch.
+  const [customPicker, setCustomPicker] = useState<null | "text" | "highlight">(null)
+  const textComboRef = useRef<HTMLDivElement | null>(null)
+  const highlightComboRef = useRef<HTMLDivElement | null>(null)
+  const pickerRef = useRef<HTMLDivElement | null>(null)
 
   /* ── Remembered defaults for the collapsed combo buttons ── */
   const [defaultAlign, setDefaultAlign] = useState<AlignMode>("left")
@@ -92,6 +121,39 @@ export function TypewriterToolbar({
       timer.current = null
     }, 180)
   }
+
+  /* Close the custom colour picker on outside click or Escape. */
+  useEffect(() => {
+    if (!customPicker) return
+    const onMouseDown = (e: MouseEvent) => {
+      const combo = customPicker === "text" ? textComboRef.current : highlightComboRef.current
+      const target = e.target as Node
+      // The picker is portaled to <body>, so it isn't inside the combo — check
+      // both so clicks within the picker don't dismiss it.
+      if (combo && !combo.contains(target) && !pickerRef.current?.contains(target)) {
+        setCustomPicker(null)
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCustomPicker(null)
+    }
+    // Attach the outside-click listener on the NEXT tick. The click that opens
+    // the picker unmounts the swatch palette (detaching its "Custom…" button),
+    // so if we listened immediately that same click would read as "outside"
+    // (the detached target is in neither the combo nor the picker) and close
+    // the picker instantly. Deferring lets the opening click finish first.
+    let mouseAttached = false
+    const armId = window.setTimeout(() => {
+      mouseAttached = true
+      document.addEventListener("mousedown", onMouseDown)
+    }, 0)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      window.clearTimeout(armId)
+      if (mouseAttached) document.removeEventListener("mousedown", onMouseDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [customPicker])
 
   /* ── Local font-size input (commits on Enter / blur) ── */
   const [fontSizeInput, setFontSizeInput] = useState<string>(String(DEFAULT_FONT_SIZE_PT))
@@ -230,7 +292,7 @@ export function TypewriterToolbar({
   return (
     <div
       ref={toolbarRef}
-      className={`tw-toolbar${isDraggingToolbar ? " tw-toolbar--dragging" : ""}${!showToolbar ? " tw-toolbar--hidden" : ""}`}
+      className={`tw-toolbar${isDraggingToolbar ? " tw-toolbar--dragging" : ""}${!showToolbar ? " tw-toolbar--hidden" : ""}${isUiTyping ? " tw-toolbar--typing" : ""}`}
       style={
         toolbarPos
           ? { left: toolbarPos.x, top: toolbarPos.y, bottom: "auto", transform: "none" }
@@ -375,46 +437,115 @@ export function TypewriterToolbar({
         <UnderlineIcon size={15} />
       </button>
 
-      <label className="tw-toolbar__color-wrap" title="Text color">
-        <span
-          className="tw-toolbar__color-icon"
-          style={{ color: curColor }}
-          aria-hidden="true"
-        >
-          A
-        </span>
-        <input
-          type="color"
-          className="tw-toolbar__color-input"
-          value={curColor}
-          onChange={(e) => editor?.chain().focus().setColor(e.target.value).run()}
-          aria-label="Text color"
-        />
-      </label>
-
-      <label
-        className={`tw-toolbar__color-wrap${isHighlightActive ? " tw-toolbar__color-wrap--active" : ""}`}
-        title={isHighlightActive ? "Highlight (Cmd+Shift+H to remove)" : "Highlight color"}
+      {/* Text colour — in-app swatch popover (matches the align/columns menus) */}
+      <div
+        ref={textComboRef}
+        className="tw-toolbar__submenu-combo"
+        onMouseEnter={openMenu(textColorCloseTimer, setTextColorMenuOpen)}
+        onMouseLeave={closeMenu(textColorCloseTimer, setTextColorMenuOpen)}
       >
-        <span
-          className="tw-toolbar__highlight-icon"
-          style={{ color: curHighlight }}
-          aria-hidden="true"
+        <button
+          type="button"
+          className="tw-toolbar__btn tw-toolbar__color-btn"
+          onClick={() => editor?.chain().focus().setColor(curColor).run()}
+          title="Text color"
+          aria-label="Text color"
+          aria-haspopup="menu"
+          aria-expanded={textColorMenuOpen}
         >
-          <Highlighter size={15} />
-        </span>
-        <input
-          type="color"
-          className="tw-toolbar__color-input"
-          value={curHighlight}
-          onChange={(e) => {
-            const next = e.target.value
-            setLastHighlightColor(next)
-            editor?.chain().focus().setHighlight({ color: next }).run()
-          }}
+          <span className="tw-toolbar__color-letter" aria-hidden="true">A</span>
+          <span className="tw-toolbar__color-bar" style={{ background: curColor }} aria-hidden="true" />
+        </button>
+        {textColorMenuOpen && customPicker !== "text" ? (
+          <div className="tw-toolbar__palette" role="menu" aria-label="Text color">
+            <button
+              type="button"
+              role="menuitem"
+              className="tw-toolbar__palette-reset"
+              onMouseDown={(e) => { e.preventDefault(); editor?.chain().focus().unsetColor().run(); setTextColorMenuOpen(false) }}
+            >
+              Default
+            </button>
+            <div className="tw-toolbar__swatch-grid">
+              {TEXT_SWATCHES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="menuitem"
+                  className={`tw-toolbar__swatch${c.toLowerCase() === curColor.toLowerCase() ? " tw-toolbar__swatch--active" : ""}`}
+                  style={{ background: c }}
+                  title={c}
+                  aria-label={c}
+                  onMouseDown={(e) => { e.preventDefault(); editor?.chain().focus().setColor(c).run(); setTextColorMenuOpen(false) }}
+                />
+              ))}
+              <button
+                type="button"
+                role="menuitem"
+                className="tw-toolbar__swatch tw-toolbar__swatch--custom"
+                title="Custom…"
+                aria-label="Custom color"
+                onMouseDown={(e) => { e.preventDefault(); setTextColorMenuOpen(false); setCustomPicker("text") }}
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Highlight colour — in-app swatch popover */}
+      <div
+        ref={highlightComboRef}
+        className="tw-toolbar__submenu-combo"
+        onMouseEnter={openMenu(highlightCloseTimer, setHighlightMenuOpen)}
+        onMouseLeave={closeMenu(highlightCloseTimer, setHighlightMenuOpen)}
+      >
+        <button
+          type="button"
+          className={`tw-toolbar__btn tw-toolbar__color-btn${isHighlightActive ? " tw-toolbar__btn--active" : ""}`}
+          onClick={() => { setLastHighlightColor(curHighlight); editor?.chain().focus().setHighlight({ color: curHighlight }).run() }}
+          title={isHighlightActive ? "Highlight (Cmd+Shift+H to remove)" : "Highlight color"}
           aria-label="Highlight color"
-        />
-      </label>
+          aria-haspopup="menu"
+          aria-expanded={highlightMenuOpen}
+        >
+          <Highlighter size={15} aria-hidden="true" />
+          <span className="tw-toolbar__color-bar" style={{ background: curHighlight }} aria-hidden="true" />
+        </button>
+        {highlightMenuOpen && customPicker !== "highlight" ? (
+          <div className="tw-toolbar__palette" role="menu" aria-label="Highlight color">
+            <button
+              type="button"
+              role="menuitem"
+              className="tw-toolbar__palette-reset"
+              onMouseDown={(e) => { e.preventDefault(); editor?.chain().focus().unsetHighlight().run(); setHighlightMenuOpen(false) }}
+            >
+              None
+            </button>
+            <div className="tw-toolbar__swatch-grid">
+              {HIGHLIGHT_SWATCHES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="menuitem"
+                  className={`tw-toolbar__swatch${c.toLowerCase() === curHighlight.toLowerCase() ? " tw-toolbar__swatch--active" : ""}`}
+                  style={{ background: c }}
+                  title={c}
+                  aria-label={c}
+                  onMouseDown={(e) => { e.preventDefault(); setLastHighlightColor(c); editor?.chain().focus().setHighlight({ color: c }).run(); setHighlightMenuOpen(false) }}
+                />
+              ))}
+              <button
+                type="button"
+                role="menuitem"
+                className="tw-toolbar__swatch tw-toolbar__swatch--custom"
+                title="Custom…"
+                aria-label="Custom highlight color"
+                onMouseDown={(e) => { e.preventDefault(); setHighlightMenuOpen(false); setCustomPicker("highlight") }}
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <span className="tw-toolbar__sep" aria-hidden="true" />
 
@@ -533,6 +664,46 @@ export function TypewriterToolbar({
       >
         <PaintRoller size={15} />
       </button>
+
+      {/* Custom colour picker — portaled to <body> so it can't be clipped by
+          the editor's overflow:hidden or mis-stacked behind page content.
+          Positioned just above its trigger button. */}
+      {customPicker && typeof document !== "undefined"
+        ? createPortal(
+            (() => {
+              const anchor = customPicker === "text" ? textComboRef.current : highlightComboRef.current
+              const rect = anchor?.getBoundingClientRect()
+              const style: CSSProperties = rect
+                ? {
+                    position: "fixed",
+                    left: rect.left + rect.width / 2,
+                    bottom: window.innerHeight - rect.top + 6,
+                    transform: "translateX(-50%)",
+                    zIndex: 1000,
+                  }
+                : { display: "none" }
+              return (
+                <div
+                  ref={pickerRef}
+                  className="tw-colorpicker-popover"
+                  style={style}
+                  role="dialog"
+                  aria-label={customPicker === "text" ? "Custom text color" : "Custom highlight color"}
+                >
+                  {customPicker === "text" ? (
+                    <ColorPicker value={curColor} onChange={(hex) => editor?.chain().setColor(hex).run()} />
+                  ) : (
+                    <ColorPicker
+                      value={curHighlight}
+                      onChange={(hex) => { setLastHighlightColor(hex); editor?.chain().setHighlight({ color: hex }).run() }}
+                    />
+                  )}
+                </div>
+              )
+            })(),
+            document.body,
+          )
+        : null}
     </div>
   )
 }

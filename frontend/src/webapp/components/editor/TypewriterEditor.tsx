@@ -15,6 +15,7 @@ import Underline from "@tiptap/extension-underline"
 import { DiffAddMark, DiffRemoveMark } from "../ai/diffMarks"
 import { ToolCase, X } from "lucide-react"
 import { useProseEditorBase } from "./hooks/useProseEditorBase"
+import { useEditorZoom } from "./hooks/useEditorZoom"
 import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
 import { useRulerDrag } from "./hooks/useRulerDrag"
 import { useFormatPainter } from "./hooks/useFormatPainter"
@@ -75,11 +76,16 @@ export default function TypewriterEditor({
 
   /* ── Refs ── */
   const outerRef      = useRef<HTMLDivElement | null>(null)
+  const scrollRef     = useRef<HTMLDivElement | null>(null)
+  const pagesStackRef = useRef<HTMLDivElement | null>(null)
   const rulerXRef     = useRef<HTMLDivElement | null>(null)
   const rulerYRef     = useRef<HTMLDivElement | null>(null)
 
   /* ── Toolbar drag ── */
-  const { toolbarRef, toolbarPos, isDragging: isDraggingToolbar, onGripMouseDown: handleToolbarGripDown } = useToolbarDrag()
+  // Parent-relative coords: the toolbar is positioned `absolute` inside
+  // `.tw-outer`, so drag offsets must be measured relative to that parent
+  // (not the viewport) to avoid a jump on first drag.
+  const { toolbarRef, toolbarPos, isDragging: isDraggingToolbar, onGripMouseDown: handleToolbarGripDown } = useToolbarDrag({ useParentRelativeCoords: true })
 
   /* ── Ruler visibility (persisted globally; default off) ── */
   const [showRulers, setShowRulers] = useState<boolean>(() => loadBoolPref(SHOW_RULERS_KEY))
@@ -92,6 +98,16 @@ export default function TypewriterEditor({
   /* ── Force re-render on selection/transaction so the toolbar's active-state
        highlights stay current. */
   const [, setEditorVer] = useState(0)
+
+  /* ── Trackpad-pinch / ctrl+scroll zoom toward the cursor ──
+       Zooms the whole page stack (pages + editor surface) via CSS `zoom`,
+       so the .tw-scroll container reflows and every page stays reachable.
+       Same gesture as the image/PDF viewers. */
+  // Snap-to-zoom: the page snaps to filling the full / half / quarter of the
+  // editor width. PAGE_W_PX is the unscaled page width; the 56px gutter is the
+  // vertical ruler column (36px ruler + 20px margin) so "full" keeps it visible
+  // instead of letting the page overflow and cover it.
+  useEditorZoom({ scrollRef, contentRef: pagesStackRef, enabledKey: documentId, snapPageWidthPx: PAGE_W_PX, snapGutterPx: 56 })
 
   /* ── Shared prose-editor base (TipTap setup, typing state/caret, lifecycle) ── */
   const { editor, editorSurfaceRef: editorSurfRef, caretRef, isUiTyping } = useProseEditorBase({
@@ -222,7 +238,16 @@ export default function TypewriterEditor({
       if (!surfEl) return
       const surfRect = surfEl.getBoundingClientRect()
 
-      const cursorStackY = (coords.top - surfRect.top) + mTopPx
+      // The page stack can be CSS-zoomed (snap-to-zoom), so coordsAtPos /
+      // getBoundingClientRect report *rendered* px while the page-geometry
+      // constants below are unzoomed. Calibrate with the surface's rendered-vs-
+      // natural width so all the math stays in natural px (ratio === 1 at 100%
+      // zoom, so this is a no-op there). Without this, off-100% zoom miscounts
+      // the fill paragraphs and drops the cursor into the middle of the page.
+      const naturalSurfW = PAGE_W_PX - mLeftPx - mRightPx
+      const renderScale = naturalSurfW > 0 && surfRect.width > 0 ? surfRect.width / naturalSurfW : 1
+
+      const cursorStackY = (coords.top - surfRect.top) / renderScale + mTopPx
       const stride = PAGE_H_PX + PAGE_GAP_PX
       const pageIdx = Math.floor(cursorStackY / stride)
       const currentPageContentBot = pageIdx * stride + (PAGE_H_PX - mBottomPx)
@@ -242,7 +267,7 @@ export default function TypewriterEditor({
 
     dom.addEventListener("keydown", handleKeyDown, true)
     return () => dom.removeEventListener("keydown", handleKeyDown, true)
-  }, [editor, mTopPx, mBottomPx, editorSurfRef])
+  }, [editor, mTopPx, mBottomPx, mLeftPx, mRightPx, editorSurfRef])
 
   /* ── Page breaks: push overflowing lines to the next page (via PM decorations) ── */
   useEffect(() => {
@@ -264,7 +289,11 @@ export default function TypewriterEditor({
     <div className="tw-outer" ref={outerRef}>
 
       {/* scroll container */}
-      <div className="tw-scroll">
+      <div className="tw-scroll" ref={scrollRef}>
+
+        {/* zoom wrapper: rulers + pages scale together so the margins (and the
+            ruler ticks that mark them) stay aligned to the page at any zoom. */}
+        <div className="tw-zoom-wrap" ref={pagesStackRef}>
 
         <TypewriterRulerRow
           isUiTyping={isUiTyping}
@@ -331,13 +360,15 @@ export default function TypewriterEditor({
           </div>
         </div>
 
+        </div>{/* /tw-zoom-wrap */}
+
         <div className="tw-scroll-spacer" aria-hidden="true" />
       </div>
 
       {/* bottom-left toolbar toggle (mirrors the corner ruler toggle) */}
       <button
         type="button"
-        className={`tw-toolcase-btn${!showToolbar ? " tw-toolcase-btn--off" : ""}`}
+        className={`tw-toolcase-btn${!showToolbar ? " tw-toolcase-btn--off" : ""}${isUiTyping ? " tw-toolcase-btn--typing" : ""}`}
         onClick={() => setShowToolbar((v) => !v)}
         title={showToolbar ? "Hide toolbar" : "Show toolbar"}
         aria-label={showToolbar ? "Hide toolbar" : "Show toolbar"}
@@ -354,6 +385,7 @@ export default function TypewriterEditor({
       <TypewriterToolbar
         editor={editor}
         showToolbar={showToolbar}
+        isUiTyping={isUiTyping}
         isDraggingToolbar={isDraggingToolbar}
         toolbarRef={toolbarRef}
         toolbarPos={toolbarPos}
