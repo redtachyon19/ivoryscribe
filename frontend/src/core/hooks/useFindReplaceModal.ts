@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import {
   APP_PROJECT_SEARCH_EVENT,
   requestAppProjectSearch,
+  requestAppProjectSearchClear,
   requestAppProjectSearchFocus,
 } from "../events/editorEvents"
 import { getPdfText } from "../pdf/pdfTextRegistry"
@@ -105,19 +106,18 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
 
     const markdownIdSet = new Set(getProjectMarkdownIds(project))
     const pinboardIdSet = new Set(project.pinboardIds ?? [])
-    const typewriterIdSet = new Set(project.typewriterIds ?? [])
     const plaintextIdSet = new Set(project.plaintextIds ?? [])
     const pdfIdSet = new Set(project.pdfIds ?? [])
     const nextResults: FindReplaceResult[] = []
 
     for (const tab of projectTabs) {
-      // Skip tabs we can't search through textually: pinboards (spatial)
-      // and typewriter (HTML wrapper differs). PDFs are searchable
-      // through the pdf-text registry — handled in the branch below.
+      // Skip tabs we can't search through textually: pinboards are spatial.
+      // PDFs are searchable through the pdf-text registry (handled below).
+      // Typewriter docs are prose HTML like the Draft editor, so they search
+      // and highlight through the same "text" path.
       if (
         nextResults.length >= FIND_REPLACE_RESULT_LIMIT
         || pinboardIdSet.has(tab.id)
-        || typewriterIdSet.has(tab.id)
       ) {
         continue
       }
@@ -223,6 +223,8 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
     } else {
       setCurrentIndex(-1)
       autoNavigateRef.current = false
+      // No matches (or query cleared): drop any lingering highlight.
+      requestAppProjectSearchClear()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalizedQuery, results.length])
@@ -281,6 +283,8 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
   const close = () => {
     setIsOpen(false)
     setExpanded(false)
+    // Remove the highlight decorations from the active editor on close.
+    requestAppProjectSearchClear()
   }
 
   const navigateToResult = (result: FindReplaceResult) => {

@@ -1,22 +1,23 @@
-// Listens for two cross-component navigation events and, when the active
-// document matches, scrolls the editor to the requested occurrence of a word
-// or query and selects it:
+// Listens for the spell-check navigation event and, when the active document
+// matches, scrolls the editor to the requested occurrence of a word and
+// selects it:
 //
 //   • APP_SPELL_CHECK_FOCUS_EVENT       — from the spell-check modal
-//   • APP_PROJECT_SEARCH_FOCUS_EVENT    — from find/replace and global search
 //
-// Both events carry a `documentId` and a `documentType`; the hook ignores
+// Find & Replace highlighting is handled separately by useEditorSearchHighlight
+// (decoration based) — a native selection flickered out whenever the Find box
+// reclaimed focus, so it no longer drives search jumps here.
+//
+// The event carries a `documentId` and a `documentType`; the hook ignores
 // events targeting other documents.
 
 import { useEffect } from "react"
 import type { Editor as TiptapEditor } from "@tiptap/react"
 import {
-  APP_PROJECT_SEARCH_FOCUS_EVENT,
   APP_SPELL_CHECK_FOCUS_EVENT,
-  type ProjectSearchFocusDetail,
   type SpellCheckFocusDetail,
 } from "../../../../core/events/editorEvents"
-import { applyTextHitSelection, findTextQueryHit, findTextWordHit } from "../utils/textHitFinder"
+import { applyTextHitSelection, findTextWordHit } from "../utils/textHitFinder"
 
 type UseEditorFocusJumpsParams = {
   editor: TiptapEditor | null
@@ -42,24 +43,10 @@ export function useEditorFocusJumps({ editor, documentId, documentType }: UseEdi
       applyTextHitSelection(hit, editorDom)
     }
 
-    const onProjectSearchFocus = (event: Event) => {
-      const detail = (event as CustomEvent<ProjectSearchFocusDetail>).detail
-      if (!detail || detail.documentType !== documentType || detail.documentId !== documentId) return
-
-      const editorDom = editor.view.dom
-      const hit = findTextQueryHit(editorDom, detail.query, detail.occurrenceIndex)
-      if (!hit) return
-
-      editor.commands.focus()
-      applyTextHitSelection(hit, editorDom)
-    }
-
     window.addEventListener(APP_SPELL_CHECK_FOCUS_EVENT, onSpellCheckFocus as EventListener)
-    window.addEventListener(APP_PROJECT_SEARCH_FOCUS_EVENT, onProjectSearchFocus as EventListener)
 
     return () => {
       window.removeEventListener(APP_SPELL_CHECK_FOCUS_EVENT, onSpellCheckFocus as EventListener)
-      window.removeEventListener(APP_PROJECT_SEARCH_FOCUS_EVENT, onProjectSearchFocus as EventListener)
     }
   }, [editor, documentId, documentType])
 }

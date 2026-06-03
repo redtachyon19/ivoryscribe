@@ -7,16 +7,14 @@ import {
 import { EditorContent, type Editor as TiptapEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Highlight from "@tiptap/extension-highlight"
-import TextAlign from "@tiptap/extension-text-align"
-import { TextStyle } from "@tiptap/extension-text-style"
-import FontFamily from "@tiptap/extension-font-family"
-import Color from "@tiptap/extension-color"
 import Underline from "@tiptap/extension-underline"
 import { DiffAddMark, DiffRemoveMark } from "../ai/diffMarks"
 import { ToolCase, X } from "lucide-react"
 import { useProseEditorBase } from "./hooks/useProseEditorBase"
 import { useEditorZoom } from "./hooks/useEditorZoom"
 import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
+import { useEditorSearchHighlight } from "./hooks/useEditorSearchHighlight"
+import { SearchHighlightExtension } from "./extensions/searchHighlight"
 import { useRulerDrag } from "./hooks/useRulerDrag"
 import { useFormatPainter } from "./hooks/useFormatPainter"
 import { useToolbarDrag } from "./hooks/useToolbarDrag"
@@ -31,10 +29,8 @@ import {
   saveMargins,
   type Margins,
 } from "./utils/typewriterMargins"
-import { FontSizeExtension } from "./extensions/typewriter/fontSize"
-import { ParaIndentExtension } from "./extensions/typewriter/paraIndent"
-import { ColumnsExtension } from "./extensions/typewriter/columns"
 import { PageBreakExtension, type PageBreakStorage } from "./extensions/typewriter/pageBreak"
+import { sharedProseFormattingExtensions } from "./extensions/sharedProseExtensions"
 import {
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE_PX,
@@ -45,6 +41,7 @@ import {
   saveBoolPref,
 } from "./utils/typewriterPrefs"
 import "./TypewriterEditor.css"
+import "./extensions/searchHighlight.css"
 
 
 /* ── Props ── */
@@ -118,15 +115,13 @@ export default function TypewriterEditor({
     extensions: [
       StarterKit,
       Highlight.configure({ multicolor: true }),
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-      TextStyle,
-      FontFamily,
-      Color,
       Underline,
-      FontSizeExtension,
-      ParaIndentExtension,
-      ColumnsExtension,
+      // Shared with DraftingEditor so both views keep an identical prose schema
+      // (font size/family/colour/alignment/indent/columns) — see
+      // sharedProseExtensions.ts.
+      ...sharedProseFormattingExtensions(),
       PageBreakExtension,
+      SearchHighlightExtension,
       DiffAddMark,
       DiffRemoveMark,
     ],
@@ -146,6 +141,7 @@ export default function TypewriterEditor({
        TipTap surface so the Edit menu works the same way it does in
        DraftingEditor. ── */
   useEditorCommandBus(editor)
+  useEditorSearchHighlight({ editor, documentId })
 
   /* ── Bump version for toolbar active states ── */
   useEffect(() => {
