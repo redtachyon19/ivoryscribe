@@ -10,6 +10,7 @@ export const APP_SPELL_CHECK_EVENT = "app:spell-check"
 export const APP_SPELL_CHECK_FOCUS_EVENT = "app:spell-check-focus"
 export const APP_PROJECT_SEARCH_EVENT = "app:project-search"
 export const APP_PROJECT_SEARCH_FOCUS_EVENT = "app:project-search-focus"
+export const APP_PROJECT_SEARCH_CLEAR_EVENT = "app:project-search-clear"
 export const APP_SAVE_PROJECT_EVENT = "app:save-project"
 export const APP_SAVE_PROJECT_VERSION_EVENT = "app:save-project-version"
 export const PROJECTS_CREATE_BOOK_EVENT = "projects:create-book"
@@ -209,6 +210,12 @@ export function requestAppProjectSearchFocus(detail: ProjectSearchFocusDetail) {
   })
 
   window.dispatchEvent(event)
+}
+
+/** Tell the active prose editor to drop its search-highlight decorations
+ *  (fired when the Find modal closes or the query is cleared). */
+export function requestAppProjectSearchClear() {
+  window.dispatchEvent(new Event(APP_PROJECT_SEARCH_CLEAR_EVENT))
 }
 
 export function requestAppSaveProject() {

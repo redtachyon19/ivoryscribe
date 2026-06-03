@@ -13,8 +13,12 @@ import { useEditorZoom } from "./hooks/useEditorZoom"
 import { useEditorFontEvents } from "./hooks/useEditorFontEvents"
 import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
 import { useEditorFocusJumps } from "./hooks/useEditorFocusJumps"
+import { useEditorSearchHighlight } from "./hooks/useEditorSearchHighlight"
+import { SearchHighlightExtension } from "./extensions/searchHighlight"
+import { sharedProseFormattingExtensions } from "./extensions/sharedProseExtensions"
 import { emitTipTapWordCounts } from "./utils/wordCount"
 import "./DraftingEditor.css"
+import "./extensions/searchHighlight.css"
 
 const MIN_FONT_SIZE = 10
 const MAX_FONT_SIZE = 84
@@ -78,6 +82,10 @@ export default function DraftingEditor({
       StarterKit,
       Highlight.configure({ multicolor: true }),
       Underline,
+      // Keep the prose schema in lockstep with TypewriterEditor so neither view
+      // strips the other's font/size/colour/alignment/indent/column formatting.
+      ...sharedProseFormattingExtensions(),
+      SearchHighlightExtension,
       DiffAddMark,
       DiffRemoveMark,
     ],
@@ -129,6 +137,7 @@ export default function DraftingEditor({
   useEditorFontEvents({ setFontSize, setFontFamily, minFontSize: MIN_FONT_SIZE, maxFontSize: MAX_FONT_SIZE })
   useEditorCommandBus(editor)
   useEditorFocusJumps({ editor, documentId, documentType: "text" })
+  useEditorSearchHighlight({ editor, documentId })
 
   /* ── Recompute caret position when typography changes alter layout ── */
   useEffect(() => {
