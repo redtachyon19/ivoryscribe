@@ -52,6 +52,26 @@ export function useListDrag(options: UseListDragOptions = {}) {
 
     event.dataTransfer.effectAllowed = "move"
     event.dataTransfer.setData("text/plain", id)
+
+    // Build the drag image from the whole row, not the default (the draggable
+    // element is the flex:1 label, which is narrower than the row and clips its
+    // right side). The live row has a transparent background, so a raw snapshot
+    // looks hollow — clone it off-screen with a solid palette-background fill
+    // (+ accent outline) so the dragged tile reads as a solid card. The clone
+    // is a sibling of the row so the palette CSS variables still resolve.
+    const row = (event.currentTarget as HTMLElement | null)?.closest<HTMLElement>("[data-selectable-id]")
+    if (row && row.parentElement) {
+      const rect = row.getBoundingClientRect()
+      const ghost = row.cloneNode(true) as HTMLElement
+      ghost.style.cssText =
+        `position:fixed;left:-10000px;top:0;width:${rect.width}px;margin:0;pointer-events:none;` +
+        `background:var(--app-bg, #1e1e1e);` +
+        `box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 60%, transparent);`
+      row.parentElement.appendChild(ghost)
+      event.dataTransfer.setDragImage(ghost, event.clientX - rect.left, event.clientY - rect.top)
+      window.setTimeout(() => ghost.remove(), 0)
+    }
+
     setDraggingId(id)
   }
 

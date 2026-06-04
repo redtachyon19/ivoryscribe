@@ -48,7 +48,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  /* Roomy enough that the empty strip between rows is a comfortable place to
+     press-and-drag a marquee selection (the rows themselves start a drag). */
+  gap: 8px;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -96,17 +98,8 @@
   transition: background-color 0ms linear, border-color 0ms linear;
 }
 
-.doc-tabs__row:hover {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
-}
-
-/* .doc-tabs__drop-line lives in navPanelShared.css */
-
-.doc-tabs__row--active {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
-  box-shadow: none;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 98%, #ffffff 2%);
-}
+/* .doc-tabs__drop-line, row hover, and the active/marquee/dragging "picked"
+   outline all live in navPanelShared.css */
 
 /* .doc-tabs__row--marquee-selected and --dragging live in navPanelShared.css */
 
