@@ -86,7 +86,9 @@
 .project-browser__list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  /* Roomy enough that the empty strip between rows is a comfortable place to
+     press-and-drag a marquee selection (the rows themselves start a drag). */
+  gap: 8px;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -114,15 +116,8 @@
   transition: background-color 0ms linear;
 }
 
-.project-browser__row:hover {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
-}
-
-.project-browser__row--active {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
-}
-
-/* .project-browser__row--marquee-selected lives in navPanelShared.css */
+/* Row hover and the active/marquee/dragging "picked" outline all live in
+   navPanelShared.css */
 
 .project-browser__label {
   font-family: var(--app-ui-font);

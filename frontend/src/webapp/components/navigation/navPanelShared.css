@@ -22,25 +22,37 @@
   pointer-events: none;
 }
 
-/* ── Marquee-selected row ── */
+/* ── Row hover + "picked" states ──
+   A row that is selected (active), marquee-selected, or being dragged gets an
+   accent outline with NO fill — the same look as the marquee rectangle. Only
+   rows that are NOT picked get a hover fill, so the outline never competes with
+   a hover background. The dragging modifier rides on the row's label in both
+   panels, so :has() lifts the outline up to the whole row. */
+.doc-tabs__row:not(.doc-tabs__row--active):not(.doc-tabs__row--marquee-selected):hover,
+.project-browser__row:not(.project-browser__row--active):not(.project-browser__row--marquee-selected):hover {
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
+}
+
+/* Marquee-selected + being-dragged rows: accent outline, no fill. */
 .doc-tabs__row--marquee-selected,
-.project-browser__row--marquee-selected {
+.doc-tabs__row:has(.doc-tabs__row--dragging),
+.project-browser__row--marquee-selected,
+.project-browser__row:has(.project-browser__label--dragging) {
   background: transparent;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 60%, transparent);
 }
 
-.doc-tabs__row--marquee-selected:hover,
-.doc-tabs__row--active.doc-tabs__row--marquee-selected,
-.project-browser__row--marquee-selected:hover,
-.project-browser__row--active.project-browser__row--marquee-selected {
-  background: transparent;
-}
-
-/* ── Row being dragged (the class rides on the label in both panels) ── */
-.doc-tabs__row--dragging,
-.project-browser__label--dragging {
-  opacity: 0.55;
-  cursor: grabbing;
+/* The current (active) tab/folder — the one we're on/in — is outlined in the
+   theme foreground (near-white on dark themes, near-black on light themes)
+   rather than the accent, so "where I am" reads differently from an accent
+   selection. Listed after the rule above so it wins when a row is both active
+   and marquee-selected. */
+.doc-tabs__row--active,
+.project-browser__row--active {
+  /* Subtle theme-foreground fill so the active tab reads as filled, plus a
+     faint (20%) foreground outline. */
+  background: color-mix(in srgb, var(--menu-button, #ededed) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--menu-button, #ededed) 20%, transparent);
 }
 
 /* ── Drop-into-folder / parent highlight ── */

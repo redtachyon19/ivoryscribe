@@ -597,7 +597,7 @@ export default function ProjectBrowserPanel({
                 type="button"
                 draggable
                 data-marquee-parent
-                className="project-browser__label"
+                className={`project-browser__label ${drag.draggingId === folder.id ? "project-browser__label--dragging" : ""}`.trim()}
                 onClick={() => toggleFolder(folder.id)}
                 onDragStart={(event) => {
                   // Drive both the native dataTransfer (so external/cross-pane
