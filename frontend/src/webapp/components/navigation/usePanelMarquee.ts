@@ -1,11 +1,10 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import useMarqueeSelection from "../shared/hooks/useMarqueeSelection"
 
 type UsePanelMarqueeOptions = {
-  /** Forwarded to useMarqueeSelection — see its `ignoreSelector`. Both nav
-   *  panels rely on the default (which bails on rows / `li` / draggable
-   *  buttons), so a press on a row starts its native drag and only a press in
-   *  the gaps / empty list space starts a marquee. */
+  /** Forwarded to useMarqueeSelection — see its `ignoreSelector`. Panels
+   *  whose rows are themselves the selectable items (so a press on a row
+   *  should start a marquee, not bail) pass a narrower selector. */
   ignoreSelector?: string
 }
 
@@ -39,6 +38,20 @@ export default function usePanelMarquee(options: UsePanelMarqueeOptions = {}) {
   })
 
   const liveSelectedIds = marquee.isActive ? marquee.selectedIds : marqueeSelectedIds
+
+  // Escape clears the current selection (consistent with text deselection).
+  // Skip while editing a field (rename, etc.) — Escape means "cancel edit"
+  // there — and only act when something is actually selected.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+      const active = document.activeElement as HTMLElement | null
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return
+      setMarqueeSelectedIds((current) => (current.size > 0 ? new Set() : current))
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [])
 
   return { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds }
 }
