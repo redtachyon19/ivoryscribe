@@ -75,6 +75,13 @@ declare global {
          *  is blocked by missing user-activation. */
         readText: () => Promise<string>
       }
+
+      print?: {
+        /** Render a self-contained export HTML document to PDF bytes via the
+         *  main process (hidden BrowserWindow + Chromium printToPDF). The
+         *  renderer receives a Uint8Array via structured-clone IPC. */
+        toPdf: (html: string) => Promise<Uint8Array>
+      }
     }
   }
 }
