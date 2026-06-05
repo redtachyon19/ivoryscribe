@@ -370,10 +370,21 @@ export function usePinboardGestures({
     [board.nodes],
   )
 
-  /* ── Keyboard: Backspace / Delete to remove the current selection ── */
+  /* ── Keyboard: Escape to deselect, Backspace / Delete to remove ── */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (editingNodeId) return
+
+      // Escape clears the current node selection (consistent with the rest of
+      // the app's deselect-on-Escape behaviour).
+      if (e.key === "Escape" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        if (selectedNodeId || selectedNodeIds.size > 0) {
+          setSelectedNodeId(null)
+          setSelectedNodeIds(new Set())
+        }
+        return
+      }
+
       if (e.key !== "Backspace" && e.key !== "Delete") return
 
       if (selectedNodeIds.size > 0) {

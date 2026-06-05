@@ -89,10 +89,16 @@ export default function ProjectBrowserPanel({
   const drag = useListDrag({ flatOnly: true })
   const sectionDrop = useSectionDrop({ folders, projects, setProjects, setFolders, onMoveProjectToCloud })
   const settings = useProjectSettings({ projects, setProjects })
-  // Same marquee setup as DocumentTabsPanel: the default ignore-selector bails
-  // on rows / `li` / draggable buttons, so pressing a row starts its native
-  // drag and only a press in the gaps / empty list space starts a marquee.
-  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee()
+  // Rows are draggable <button>s. We don't bail on `button` (so the marquee
+  // can begin in the empty space between/below rows), but we MUST bail on
+  // draggable elements: the marquee's mousedown preventDefault (which stops
+  // text selection) also suppresses the browser's native drag, so pressing a
+  // row to drag a project would otherwise do nothing. Bailing on
+  // `[draggable='true']` lets a row-press start a native drag, while a drag
+  // from empty space still marquee-selects.
+  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee({
+    ignoreSelector: "input, textarea, select, [draggable='true']",
+  })
   const multiDragIdsRef = useRef<Set<string>>(new Set())
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
