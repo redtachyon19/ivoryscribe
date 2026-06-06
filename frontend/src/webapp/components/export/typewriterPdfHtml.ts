@@ -107,6 +107,12 @@ function contentCss(textColor: string): string {
 .pdfx-prose p{margin-top:0;margin-bottom:1.25em;}
 .pdfx-prose p:last-child{margin-bottom:0;}
 .pdfx-prose br{margin:0;}
+/* Empty paragraphs (consecutive Enter presses) carry no children in getHTML's
+   <p></p>, so they'd generate no line box and collapse. The live editor only
+   shows them because ProseMirror injects a trailing <br>; that break isn't
+   serialized. Force a line box here so each blank line keeps its full
+   line-height row, matching the on-screen view and feeding pagination. */
+.pdfx-prose p:empty::after{content:"";display:inline-block;}
 .pdfx-prose h1{font-size:2em;font-weight:700;margin:12pt 0 4pt;}
 .pdfx-prose h2{font-size:1.5em;font-weight:700;margin:12pt 0 4pt;}
 .pdfx-prose h3{font-size:1.2em;font-weight:600;margin:12pt 0 4pt;}

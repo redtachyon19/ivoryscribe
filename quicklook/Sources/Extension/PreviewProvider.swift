@@ -9,6 +9,7 @@
 
 import QuickLookUI
 import AppKit
+import UniformTypeIdentifiers
 
 // TEMP DIAGNOSTIC — writes the preview lifecycle to /tmp so we can see what
 // the sandboxed extension actually does at runtime (its stdout/console is
@@ -29,6 +30,20 @@ final class PreviewProvider: QLPreviewProvider, QLPreviewingController {
         let url = request.fileURL
         let ext = url.pathExtension.lowercased()
         pdiag("providePreview called for \(url.lastPathComponent) ext=\(ext)")
+
+        // Preferred path: the file embeds a 1:1 PDF render of the document (the
+        // exact output of the in-app PDF export). Hand it to QuickLook as a
+        // native PDF — it renders every page, vector and scrollable, a true
+        // match of the typewriter view. No WebKit, no hand-drawing.
+        if let data = try? Data(contentsOf: url), let pdf = extractEmbeddedPdf(data: data) {
+            pdiag("embedded PDF found (\(pdf.count) bytes) — returning native PDF reply")
+            let reply = QLPreviewReply(dataOfContentType: .pdf,
+                                       contentSize: firstPdfPageSize(pdf)) { (_: QLPreviewReply) in
+                pdf
+            }
+            reply.title = url.lastPathComponent
+            return reply
+        }
 
         // Presentations preview landscape; books/markdown portrait. Pick a
         // generous canvas — QuickLook scales it into the panel.
