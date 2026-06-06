@@ -140,6 +140,39 @@ async function exportSeparatePdfZip(project: Project, sequence: ExportTab[]) {
   downloadBlob(zipBlob, `${slugifyFileName(project.name)}-chapters.zip`)
 }
 
+// Render the whole project (every tab, in order) to a 1:1 PDF and return it as
+// base64 — the same output as the combined PDF export. Used to embed a faithful
+// QuickLook preview inside the .tusk file. Electron-only: without the hidden
+// BrowserWindow + printToPDF there's no way to get bytes (the web path only
+// drives the print dialog), so this returns null on the web.
+export async function renderProjectPdfBase64(project: Project): Promise<string | null> {
+  const toPdf = window.electronAPI?.print?.toPdf
+  if (!toPdf) return null
+
+  const sequence = collectTabSequence(project.tabs)
+  const markdownIds = new Set(getProjectMarkdownIds(project))
+  const docs = sequence.map((tab) => toExportDoc(project, tab, markdownIds))
+  if (docs.length === 0) {
+    docs.push({ title: project.name, html: "<p></p>", margins: DEFAULT_MARGINS, kind: "prose" })
+  }
+
+  const html = buildCombinedExportHtml(docs)
+  const bytes = await toPdf(html)
+  if (!bytes || bytes.length === 0) return null
+  return uint8ToBase64(bytes)
+}
+
+// Chunked base64 of a byte array — avoids "Maximum call stack size exceeded"
+// from String.fromCharCode(...hugeArray) on large (image-heavy) PDFs.
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = ""
+  const CHUNK = 0x8000
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(binary)
+}
+
 export async function exportProjectAsPdf(project: Project, options: ExportProjectAsPdfOptions = {}) {
   const sequence = collectTabSequence(project.tabs)
   const plan = resolveExportPlan({

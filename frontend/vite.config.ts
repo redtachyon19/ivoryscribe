@@ -38,7 +38,10 @@ export default defineConfig(({ command }) => {
         : []),
     ],
     server: {
-      port: 5173,
+      port: 5180,
+      // Fail rather than silently drift to 5181+ if the port is taken, so the
+      // electron loadURL and the .claude/launch.json preview config stay valid.
+      strictPort: true,
     },
     base: command === 'build' && isElectron ? './' : '/',
   }

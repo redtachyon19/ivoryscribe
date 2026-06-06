@@ -173,3 +173,71 @@ func parseTuskPresentation(data: Data) throws -> TuskPresentationPreview {
     }
     return TuskPresentationPreview(name: delegate.name, color: delegate.color, slides: delegate.slides)
 }
+
+// ── Embedded 1:1 PDF preview ─────────────────────────────────────────────────
+//
+// The app embeds a base64 PDF render of the whole document (the same output the
+// in-app PDF export produces) as the last element before </tusk>:
+//
+//   <preview kind="pdf" pages="all">JVBERi0xLjcK…base64…</preview>
+//
+// When present, this IS the faithful typewriter render — so the thumbnail and
+// preview should display it directly (CoreGraphics for the icon, native PDF for
+// the Spacebar panel) instead of hand-drawing an approximation. We scan for it
+// with a forgiving substring search rather than a full XML parse: it lives at
+// the very end of the file, the payload is plain base64 (no XML-special chars),
+// and we never want a parse hiccup elsewhere to lose the preview.
+
+import CoreGraphics
+
+/// Pull the embedded `<preview kind="pdf">` payload out of a .tusk/.tusks file
+/// and base64-decode it to raw PDF bytes. Returns nil when absent/empty.
+func extractEmbeddedPdf(data: Data) -> Data? {
+    guard let s = String(data: data, encoding: .utf8) else { return nil }
+    // Search backwards — the preview is emitted last, and chapter CDATA could
+    // in theory contain the literal text "<preview".
+    guard let open = s.range(of: "<preview kind=\"pdf\"", options: .backwards) else { return nil }
+    guard let gt = s.range(of: ">", range: open.upperBound..<s.endIndex) else { return nil }
+    guard let close = s.range(of: "</preview>", range: gt.upperBound..<s.endIndex) else { return nil }
+    let b64 = s[gt.upperBound..<close.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+    if b64.isEmpty { return nil }
+    return Data(base64Encoded: b64, options: .ignoreUnknownCharacters)
+}
+
+/// First-page media-box size of a PDF, in points. Falls back to US-Letter.
+func firstPdfPageSize(_ pdfData: Data) -> CGSize {
+    guard let provider = CGDataProvider(data: pdfData as CFData),
+          let doc = CGPDFDocument(provider),
+          let page = doc.page(at: 1) else {
+        return CGSize(width: 612, height: 792)
+    }
+    let box = page.getBoxRect(.mediaBox)
+    return (box.width > 0 && box.height > 0) ? box.size : CGSize(width: 612, height: 792)
+}
+
+/// Draw page 1 of a PDF, aspect-fit and centered, into a CoreGraphics context
+/// whose origin is bottom-left and y-up (i.e. the QuickLook thumbnail/preview
+/// context BEFORE any AppKit flip). PDF user space is also y-up, so no flip is
+/// needed — the page renders upright. Returns false if the PDF can't be read.
+func drawEmbeddedPdfPage1(_ pdfData: Data, into cg: CGContext, size: CGSize) -> Bool {
+    guard let provider = CGDataProvider(data: pdfData as CFData),
+          let doc = CGPDFDocument(provider),
+          let page = doc.page(at: 1) else { return false }
+    let box = page.getBoxRect(.mediaBox)
+    guard box.width > 0, box.height > 0 else { return false }
+
+    cg.saveGState()
+    // Opaque white page so transparent PDF regions don't show the desktop.
+    cg.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+    cg.fill(CGRect(origin: .zero, size: size))
+
+    let scale = min(size.width / box.width, size.height / box.height)
+    let drawW = box.width * scale, drawH = box.height * scale
+    cg.translateBy(x: (size.width - drawW) / 2, y: (size.height - drawH) / 2)
+    cg.scaleBy(x: scale, y: scale)
+    cg.translateBy(x: -box.minX, y: -box.minY)
+    cg.interpolationQuality = .high
+    cg.drawPDFPage(page)
+    cg.restoreGState()
+    return true
+}

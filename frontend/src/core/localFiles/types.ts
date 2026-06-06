@@ -46,6 +46,12 @@ export type TuskBookFile = {
   /** Newest-first version snapshots embedded in the .tusk file. Missing on
    *  legacy v1 files; defaults to []. */
   versions?: ProjectVersion[]
+  /** Base64 of a 1:1 PDF render of the whole document (the same output the PDF
+   *  export produces). Embedded as <preview kind="pdf"> purely so the macOS
+   *  QuickLook thumbnail/preview extension can show a faithful page without the
+   *  app running. Not part of the editable model — the filesystem-sync layer
+   *  manages it out-of-band, so it never enters version snapshots. */
+  previewPdf?: string
 }
 
 // ── Presentation (.tusks) ────────────────────────────────────────────────
