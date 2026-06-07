@@ -127,6 +127,10 @@ export default function Library({
     () => readLastLibraryLocation()?.folderId ?? null,
   )
   const [shareDialogProjectId, setShareDialogProjectId] = useState<string | null>(null)
+  // True only while a dragged PROJECT card is hovering over the folder "back"
+  // button — drives the accent highlight so it shows on hover, not for the
+  // entire drag. (Folder drags keep their own constant highlight.)
+  const [isProjectOverBackButton, setIsProjectOverBackButton] = useState(false)
 
   // Persist the open folder whenever it changes (or clears).
   useEffect(() => {
@@ -365,21 +369,52 @@ export default function Library({
                 onFolderDrop={multiSelect.handleMultiFolderDrop}
                 getFolderDropClassName={drag.getFolderDropClassName}
                 getFolderReorderClassName={drag.getFolderReorderClassName}
-                isUnnestDropActive={!!drag.draggingFolderId}
+                // Folder drags: highlight for the whole drag (existing affordance).
+                // Project drags: highlight ONLY while the card is actually over
+                // the button (isProjectOverBackButton), not the entire drag.
+                isUnnestDropActive={!!drag.draggingFolderId || (!!drag.draggingProjectId && isProjectOverBackButton)}
                 onUnnestFolderDragOver={(e) => {
-                  if (!drag.draggingFolderId) return
-                  e.preventDefault()
-                  e.stopPropagation()
+                  if (drag.draggingFolderId) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    return
+                  }
+                  if (drag.draggingProjectId) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (!isProjectOverBackButton) setIsProjectOverBackButton(true)
+                  }
+                }}
+                onUnnestFolderDragLeave={(e) => {
+                  // Ignore leaves that just cross onto a child (icon/label) of
+                  // the button — only clear when the cursor truly exits it.
+                  if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+                  if (isProjectOverBackButton) setIsProjectOverBackButton(false)
                 }}
                 onUnnestFolderDrop={(e) => {
-                  if (!drag.draggingFolderId) return
-                  e.preventDefault()
-                  e.stopPropagation()
-                  // Un-nest: move the dragged folder so its parent is this
-                  // folder's parent (one level up). Cycle-safe by construction
-                  // because we're moving UP the tree.
-                  drag.moveFolderIntoFolder(drag.draggingFolderId, openFolder.parentFolderId ?? null)
-                  drag.handleFolderDragEnd()
+                  const target = openFolder.parentFolderId ?? null
+                  if (drag.draggingFolderId) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    // Un-nest the dragged folder one level up. Cycle-safe by
+                    // construction because we only move UP the tree.
+                    drag.moveFolderIntoFolder(drag.draggingFolderId, target)
+                    drag.handleFolderDragEnd()
+                    return
+                  }
+                  if (drag.draggingProjectId) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setIsProjectOverBackButton(false)
+                    // Move the dragged project (and any multi-selection) up one
+                    // level — the workspace root when this is a top-level folder.
+                    if (target === null) {
+                      multiSelect.handleMultiRootDrop("bottom")(e)
+                    } else {
+                      const parentFolder = folders.find((f) => f.id === target)
+                      if (parentFolder) multiSelect.handleMultiFolderDrop(parentFolder)(e)
+                    }
+                  }
                 }}
               />
             ) : (
