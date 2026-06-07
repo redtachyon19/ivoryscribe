@@ -513,11 +513,11 @@
 
 /* Back-arrow in folder-detail view becomes a "drop here to un-nest" target
  * during folder drag. */
-.project-hub__folder-back--drop-active {
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 16%, transparent);
-  outline: 1px dashed color-mix(in srgb, var(--app-accent, #9ab8ff) 55%, transparent);
-  outline-offset: 2px;
-  border-radius: 6px;
+/* Drop-target highlight: tint the label + arrow with the accent color (the
+   ArrowLeft icon inherits via currentColor). No pill/background/outline.
+   Doubled class so it wins over the `:hover` color rule during a drag. */
+.project-hub__folder-back.project-hub__folder-back--drop-active {
+  color: var(--app-accent, #9ab8ff);
 }
 
 /* ── Project Context Menu ── */

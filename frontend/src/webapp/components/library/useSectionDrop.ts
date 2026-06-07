@@ -112,7 +112,10 @@ export default function useSectionDrop({ folders, projects, setProjects, setFold
     const applySection = (p: Project): Project => {
       switch (section) {
         case "library":
-          return { ...p, archivedAt: null, deletedAt: null }
+          // Dropping onto the sidebar "Library" tab means "put this at the top
+          // level": clear archive/trash AND move it out of any folder to the
+          // workspace root (folderId null).
+          return { ...p, archivedAt: null, deletedAt: null, folderId: null, rootPosition: "top" as const }
         case "archive":
           return { ...p, archivedAt: p.archivedAt ?? now, deletedAt: null }
         case "trash":
