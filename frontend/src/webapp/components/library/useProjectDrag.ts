@@ -80,18 +80,32 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
   }
 
   /** Resolve the drop intent for a folder being dragged over `folderId`:
-   *    • outer 22% top edge → "before"
-   *    • outer 22% bottom edge → "after"
-   *    • middle ~55% → "inside" (nest)
-   *  Falls back to a simple ordering heuristic if we can't read element bounds. */
+   *    • leading 35% (left in a grid row / top in a list) → "before"
+   *    • trailing 35% (right / bottom) → "after"
+   *    • middle 30% → "inside" (nest)
+   *  The reorder axis follows the actual layout: horizontal when an adjacent
+   *  folder card shares this row (grid view), vertical otherwise (list view).
+   *  That makes "drop between" a natural, wide left/right target in the grid
+   *  instead of a hard-to-hit top/bottom sliver — which is what made reordering
+   *  feel fiddly. Falls back to an ordering heuristic if bounds can't be read. */
   const getFolderReorderPosition = (event: DragEvent<HTMLElement>, folderId: string): "before" | "after" | "inside" => {
     const targetElement = event.currentTarget as HTMLElement | null
-    if (targetElement && typeof event.clientY === "number") {
+    if (targetElement && typeof event.clientX === "number" && typeof event.clientY === "number") {
       const rect = targetElement.getBoundingClientRect()
-      if (rect.height > 0) {
-        const ratio = (event.clientY - rect.top) / rect.height
-        if (ratio < 0.22) return "before"
-        if (ratio > 0.78) return "after"
+      if (rect.width > 0 && rect.height > 0) {
+        // A sibling card on the same visual row ⇒ horizontal layout (grid) →
+        // reorder along X. Otherwise the cards are stacked (list) → along Y.
+        const sharesRow = (sib: Element | null) => {
+          if (!sib) return false
+          const sr = sib.getBoundingClientRect()
+          return Math.abs(sr.top - rect.top) < rect.height * 0.5
+        }
+        const horizontal = sharesRow(targetElement.previousElementSibling) || sharesRow(targetElement.nextElementSibling)
+        const ratio = horizontal
+          ? (event.clientX - rect.left) / rect.width
+          : (event.clientY - rect.top) / rect.height
+        if (ratio < 0.35) return "before"
+        if (ratio > 0.65) return "after"
         return "inside"
       }
     }
