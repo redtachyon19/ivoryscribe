@@ -68,12 +68,26 @@
   position: absolute;
   left: 0;
   right: 0;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
-  border: 0;
+  /* Match the global settings sidebar sliding-pill exactly
+     (.global-settings__section-nav-indicator): radius 10px, 88% hover-bg fill,
+     26% foreground border, identical slide easing/duration. */
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
   pointer-events: none;
   transition: top 240ms cubic-bezier(0.2, 0.85, 0.2, 1), height 240ms cubic-bezier(0.2, 0.85, 0.2, 1), opacity 160ms ease;
-  display: none;
+  /* Sit behind the rows (.doc-tabs__row is z-index:1) so text stays on top. */
+  z-index: 0;
+}
+
+/* The sliding pill (.doc-tabs__active-indicator) is now the active-tab
+   affordance, mirroring the global settings sidebar. Neutralize the shared
+   per-row active fill/outline (navPanelShared.css) for tabs only, so it doesn't
+   double up with the pill. Project Browser keeps the shared look. Scoped to
+   non-pending rows so the pending-edit green fill + left bar survives. */
+.doc-tabs__row--active:not(.doc-tabs__row--pending-edit) {
+  background: transparent;
+  box-shadow: none;
 }
 
 .doc-tabs__list--nested {

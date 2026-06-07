@@ -102,6 +102,12 @@ export function useListDrag(options: UseListDragOptions = {}) {
       if (!draggingId || itemIds.length === 0) return
 
       event.preventDefault()
+      // This list (and its item subtree) owns the drag while it's active, so
+      // claim the event before it can reach the panel's container-level
+      // dead-space clear and wipe a highlight a child just set (e.g. a dragover
+      // landing on a drop-line / li padding between rows). Stop on BOTH the
+      // early-return path (child owns it) and the zone-claim below.
+      event.stopPropagation()
       const targetElement = event.target as HTMLElement | null
       if (targetElement?.closest(`.${itemClassName}`)) return
 
@@ -137,6 +143,10 @@ export function useListDrag(options: UseListDragOptions = {}) {
     dropTarget,
     setDraggingId,
     setDropTarget,
+    // Null this hook's reorder/inside highlight. Used by the panel's
+    // container-level dead-space clear so the accent only ever marks the one
+    // live target. Additive: existing consumers (DocumentTabsPanel) ignore it.
+    clearDropTarget: () => setDropTarget(null),
     handleDragStart,
     handleDragEnd,
     handleRowDragOver,
