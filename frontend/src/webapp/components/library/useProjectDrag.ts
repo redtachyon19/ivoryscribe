@@ -432,6 +432,15 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     handleFolderDragStart,
     handleFolderDragEnd,
     updateProjectDropTarget,
+    // Clear EVERY drop highlight this hook owns (project reorder, folder, and
+    // both folder-root zones). Called when the drag is over dead space, over a
+    // target outside this hook (the back button), or has left the view — so the
+    // accent only ever marks the one live destination under the cursor.
+    clearDropTarget: () => {
+      setDropTarget(null)
+      setFolderDropTarget(null)
+      setFolderRootDropTarget(null)
+    },
     handleCardDrop,
     handleFolderItemDragOver,
     handleFolderItemDrop,
