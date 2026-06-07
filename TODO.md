@@ -1,6 +1,6 @@
 
 
-
+- emoji clicker & dragging emoji projects
 
 
 - create a mac helper tool: quicklook and default apps for .tusk and .tusks

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Archive, BookCopy, ChevronDown, Cloud, Folder, FolderPlus, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
 import { iconForProjectKind } from "../../../core/utils/projectIcons"
@@ -86,8 +86,33 @@ export default function ProjectBrowserPanel({
   onCreateFolder,
   rootFolderId = null,
 }: ProjectBrowserPanelProps) {
+  // Cross-pane (external) drag's "drop inside this folder" highlight. Declared
+  // before the drag hooks so onEnterSection / clearAllDropTargets can clear it.
+  const [externalFolderDropId, setExternalFolderDropId] = useState<string | null>(null)
   const drag = useListDrag({ flatOnly: true })
-  const sectionDrop = useSectionDrop({ folders, projects, setProjects, setFolders, onMoveProjectToCloud })
+  const sectionDrop = useSectionDrop({
+    folders,
+    projects,
+    setProjects,
+    setFolders,
+    onMoveProjectToCloud,
+    // Entering a section tab clears the tree highlights (mutual exclusion).
+    // References only stable setters — never `sectionDrop` itself (circular).
+    onEnterSection: () => {
+      drag.clearDropTarget()
+      setExternalFolderDropId(null)
+    },
+  })
+  // Single composite clear: nulls every highlight this panel owns — the tree
+  // reorder/inside target (useListDrag), the external folder target, and the
+  // section-tab target. Called over dead space and on leaving the panel. Plain
+  // function (not useCallback): `drag`/`sectionDrop` are fresh each render, so
+  // memoizing on them would never actually memoize.
+  const clearAllDropTargets = () => {
+    drag.clearDropTarget()
+    setExternalFolderDropId(null)
+    sectionDrop.setSectionDropTarget(null)
+  }
   const settings = useProjectSettings({ projects, setProjects })
   // Rows are draggable <button>s. We don't bail on `button` (so the marquee
   // can begin in the empty space between/below rows), but we MUST bail on
@@ -100,13 +125,37 @@ export default function ProjectBrowserPanel({
     ignoreSelector: "input, textarea, select, [draggable='true']",
   })
   const multiDragIdsRef = useRef<Set<string>>(new Set())
+  // Per-row element map (keyed by project id) for the sliding active-pill.
+  const rowRefs = useRef<Record<string, HTMLDivElement>>({})
+  const registerRowRef = (id: string, element: HTMLDivElement | null) => {
+    if (element) {
+      rowRefs.current[id] = element
+      return
+    }
+    delete rowRefs.current[id]
+  }
+  // Pill geometry is measured per-row (left/width as well as top/height) so it
+  // hugs nested rows, which are inset by `.project-browser__list--nested`
+  // (margin-left:10px per depth). A full-width pill would misalign for them.
+  const [activeIndicatorStyle, setActiveIndicatorStyle] = useState<{
+    top: number
+    left: number
+    width: number
+    height: number
+    visible: boolean
+  }>({
+    top: 0,
+    left: 0,
+    width: 0,
+    height: 0,
+    visible: false,
+  })
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null)
   const [folderSettingsId, setFolderSettingsId] = useState<string | null>(null)
   const folderSettingsTarget = folderSettingsId ? folders.find((f) => f.id === folderSettingsId) ?? null : null
   const [editingFolderName, setEditingFolderName] = useState("")
   const [pendingTrashFolderId, setPendingTrashFolderId] = useState<string | null>(null)
-  const [externalFolderDropId, setExternalFolderDropId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<BrowserContextMenuState | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
@@ -418,6 +467,75 @@ export default function ProjectBrowserPanel({
     setContextMenu({ x: event.clientX, y: event.clientY, kind: "background" })
   }, [])
 
+  // Sliding-pill indicator behind the active PROJECT row. Same mechanism as the
+  // global settings sidebar (GlobalSettings.tsx) and DocumentTabsPanel: measure
+  // the active row's rect relative to the list shell and drive an absolutely-
+  // positioned pill via top/left/width/height. useLayoutEffect so the first
+  // measurement lands before paint (no flash at 0,0 when a project first
+  // becomes active). Measured against `.project-browser__list-shell`
+  // (marqueeContainerRef) — the pill's positioned ancestor — NOT the inner
+  // <ul>, which is not positioned. left/width are measured (not full-width) so
+  // the pill hugs nested rows inset by `.project-browser__list--nested`.
+  useLayoutEffect(() => {
+    const shell = marqueeContainerRef.current
+    const activeRow = activeProjectId ? rowRefs.current[activeProjectId] : null
+    if (!shell || !activeRow) {
+      // No active project, or its row isn't mounted (e.g. inside a collapsed
+      // ancestor folder): hide the pill rather than stranding it at a stale spot.
+      setActiveIndicatorStyle((current) => (current.visible ? { ...current, visible: false } : current))
+      return
+    }
+
+    const syncActiveIndicator = () => {
+      const shellRect = shell.getBoundingClientRect()
+      const rowRect = activeRow.getBoundingClientRect()
+      // getBoundingClientRect is viewport-relative, so subtracting the two rects
+      // already nets out any scroll offset of an ancestor.
+      const top = rowRect.top - shellRect.top
+      const left = rowRect.left - shellRect.left
+      const width = rowRect.width
+      const height = rowRect.height
+
+      setActiveIndicatorStyle((current) => {
+        if (
+          current.top === top &&
+          current.left === left &&
+          current.width === width &&
+          current.height === height &&
+          current.visible
+        ) {
+          return current
+        }
+        return { top, left, width, height, visible: true }
+      })
+    }
+
+    syncActiveIndicator()
+    window.addEventListener("resize", syncActiveIndicator)
+
+    // Re-measure when the list reflows (project/folder added/removed/reordered
+    // shifts the active row's offset) or the active row itself resizes.
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncActiveIndicator) : null
+    resizeObserver?.observe(shell)
+    resizeObserver?.observe(activeRow)
+
+    // Keep the pill glued to the row when the surrounding panel scrolls. Capture
+    // phase so we catch whichever ancestor actually scrolls.
+    window.addEventListener("scroll", syncActiveIndicator, true)
+
+    return () => {
+      window.removeEventListener("resize", syncActiveIndicator)
+      window.removeEventListener("scroll", syncActiveIndicator, true)
+      resizeObserver?.disconnect()
+    }
+    // Deps: activeProjectId (pill follows active change); expandedFolders
+    // (collapsing the active row's ancestor unmounts its ref → !activeRow branch
+    // hides the pill; expanding remounts → re-measures); projects/folders
+    // (reorder/add/remove/rename reflows offsets and re-attaches the observer to
+    // the fresh activeRow element after any remount). marqueeContainerRef is a
+    // stable ref (from usePanelMarquee) — listed only to satisfy exhaustive-deps.
+  }, [activeProjectId, expandedFolders, projects, folders, marqueeContainerRef])
+
   const renderProject = (project: Project) => {
     const isActive = project.id === activeProjectId
     const isDragging = drag.draggingId === project.id || (drag.draggingId !== null && multiDragIdsRef.current.has(project.id))
@@ -434,10 +552,15 @@ export default function ProjectBrowserPanel({
         />
 
         <div
+          ref={(element) => registerRowRef(project.id, element)}
           data-selectable-id={project.id}
           className={`project-browser__row ${isActive ? "project-browser__row--active" : ""} ${isMarqueeSelected ? "project-browser__row--marquee-selected" : ""}`.trim()}
           onDragOver={(event) => {
             if (!drag.draggingId) return
+            // Mutual exclusion: a tree row is now the live target — drop any
+            // section-tab highlight crossed on the way here. (handleRowDragOver
+            // stops propagation, so the container clear won't fire here.)
+            if (sectionDrop.sectionDropTarget) sectionDrop.setSectionDropTarget(null)
             drag.handleRowDragOver(event, project.id)
           }}
           onDrop={(event) => {
@@ -527,16 +650,21 @@ export default function ProjectBrowserPanel({
           onDragOver={(event) => {
             event.preventDefault()
             event.stopPropagation()
+            // Mutual exclusion: a folder row is now the live target — drop any
+            // section-tab highlight crossed on the way here.
+            if (sectionDrop.sectionDropTarget) sectionDrop.setSectionDropTarget(null)
             if (drag.draggingId) {
               if (draggingIsFolder) {
                 if (drag.draggingId === folder.id) return
                 if (isCycleTarget) return
-                // Folder-over-folder: top 22% = before, bottom 22% = after,
-                // middle = inside (nest).
+                // Folder-over-folder reorder ease (mirrors the Library grid's
+                // wide between-zones): top 35% = before, bottom 35% = after,
+                // middle 30% = inside (nest). The sidebar is a vertical list, so
+                // the split is along Y.
                 const rect = event.currentTarget.getBoundingClientRect()
                 const ratio = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5
                 const mode: "before" | "after" | "inside" =
-                  ratio < 0.22 ? "before" : ratio > 0.78 ? "after" : "inside"
+                  ratio < 0.35 ? "before" : ratio > 0.65 ? "after" : "inside"
                 drag.setDropTarget({ targetId: folder.id, mode })
               } else {
                 drag.setDropTarget({ targetId: folder.id, mode: "inside" })
@@ -665,7 +793,27 @@ export default function ProjectBrowserPanel({
   }
 
   return (
-    <div className="project-browser" onContextMenu={handleBackgroundContextMenu}>
+    <div
+      className="project-browser"
+      onContextMenu={handleBackgroundContextMenu}
+      // Single-live-target invariant: every real drop target (section tabs,
+      // root list, rows, folders) calls stopPropagation, so this container-level
+      // dragover only fires over DEAD SPACE (header, dividers, list-shell /
+      // nested-list padding) — clear all highlights there so nothing stays
+      // accented where it won't drop.
+      onDragOver={() => {
+        if (!drag.draggingId && !externalFolderDropId && !sectionDrop.sectionDropTarget) return
+        clearAllDropTargets()
+      }}
+      // Leaving the panel entirely (e.g. onto the editor/main view) must also
+      // drop this panel's highlights, so only the target now under the cursor is
+      // accented. relatedTarget === null (left the window) → contains(null) is
+      // false → falls through and clears, which is correct.
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+        clearAllDropTargets()
+      }}
+    >
       <div className="project-browser__section-switcher" aria-label="Project browser sections">
         <div className="project-browser__section-divider" aria-hidden="true" />
         <div className="project-browser__section-buttons" role="tablist" aria-label="Project sections">
@@ -757,9 +905,27 @@ export default function ProjectBrowserPanel({
             }}
           />
         ) : null}
+        <div
+          className="project-browser__active-indicator"
+          style={{
+            top: `${activeIndicatorStyle.top}px`,
+            left: `${activeIndicatorStyle.left}px`,
+            width: `${activeIndicatorStyle.width}px`,
+            height: `${activeIndicatorStyle.height}px`,
+            opacity: activeIndicatorStyle.visible ? 1 : 0,
+          }}
+          aria-hidden="true"
+        />
         <ul
           className="project-browser__list"
-          onDragOver={rootListHandlers.onDragOver}
+          onDragOver={(event) => {
+            // Mutual exclusion: entering the root list's reorder zone is a live
+            // target — drop the section-tab and external-folder highlights.
+            // (Guarded no-op when bubbling through over a child row.)
+            if (sectionDrop.sectionDropTarget) sectionDrop.setSectionDropTarget(null)
+            if (externalFolderDropId) setExternalFolderDropId(null)
+            rootListHandlers.onDragOver(event)
+          }}
           onDrop={(event) => {
             // If a folder was being dragged and it lands on the root list
             // background (i.e. not on another folder/project row), un-nest
