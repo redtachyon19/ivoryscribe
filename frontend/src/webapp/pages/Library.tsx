@@ -127,10 +127,10 @@ export default function Library({
     () => readLastLibraryLocation()?.folderId ?? null,
   )
   const [shareDialogProjectId, setShareDialogProjectId] = useState<string | null>(null)
-  // True only while a dragged PROJECT card is hovering over the folder "back"
-  // button — drives the accent highlight so it shows on hover, not for the
-  // entire drag. (Folder drags keep their own constant highlight.)
-  const [isProjectOverBackButton, setIsProjectOverBackButton] = useState(false)
+  // True only while a dragged item (project OR folder) is hovering over the
+  // folder "back" button — drives the accent highlight so it shows on hover,
+  // not for the entire drag, for either drag type.
+  const [isOverBackButton, setIsOverBackButton] = useState(false)
 
   // Persist the open folder whenever it changes (or clears).
   useEffect(() => {
@@ -339,6 +339,23 @@ export default function Library({
           className={`project-hub__main-scroll ${multiSelect.scrollClassName}`}
           onMouseDown={multiSelect.handleMouseDown}
           onContextMenu={handleLibraryBackgroundContextMenu}
+          // Single-live-target invariant: every real drop target (cards,
+          // folders, root zones, back button) calls stopPropagation, so this
+          // container-level dragover only fires over DEAD SPACE — clear all
+          // highlights there so nothing stays accented where it won't drop.
+          onDragOver={() => {
+            if (!drag.draggingProjectId && !drag.draggingFolderId) return
+            drag.clearDropTarget()
+            if (isOverBackButton) setIsOverBackButton(false)
+          }}
+          // Leaving the library view entirely (e.g. onto the sidebar) must also
+          // drop this view's highlight, so only the target now under the cursor
+          // is accented.
+          onDragLeave={(e) => {
+            if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+            drag.clearDropTarget()
+            if (isOverBackButton) setIsOverBackButton(false)
+          }}
         >
           {multiSelect.isMarqueeActive && multiSelect.marqueeRect ? (
             <div
@@ -369,33 +386,31 @@ export default function Library({
                 onFolderDrop={multiSelect.handleMultiFolderDrop}
                 getFolderDropClassName={drag.getFolderDropClassName}
                 getFolderReorderClassName={drag.getFolderReorderClassName}
-                // Folder drags: highlight for the whole drag (existing affordance).
-                // Project drags: highlight ONLY while the card is actually over
-                // the button (isProjectOverBackButton), not the entire drag.
-                isUnnestDropActive={!!drag.draggingFolderId || (!!drag.draggingProjectId && isProjectOverBackButton)}
+                // Highlight ONLY while the dragged item is actually over the
+                // button — hover-driven for both project AND folder drags, never
+                // for the whole drag.
+                isUnnestDropActive={isOverBackButton}
                 onUnnestFolderDragOver={(e) => {
-                  if (drag.draggingFolderId) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    return
-                  }
-                  if (drag.draggingProjectId) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    if (!isProjectOverBackButton) setIsProjectOverBackButton(true)
-                  }
+                  if (!drag.draggingProjectId && !drag.draggingFolderId) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  // The back button is now the live destination: clear any other
+                  // target we crossed on the way here, then light it up.
+                  drag.clearDropTarget()
+                  if (!isOverBackButton) setIsOverBackButton(true)
                 }}
                 onUnnestFolderDragLeave={(e) => {
                   // Ignore leaves that just cross onto a child (icon/label) of
                   // the button — only clear when the cursor truly exits it.
                   if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
-                  if (isProjectOverBackButton) setIsProjectOverBackButton(false)
+                  if (isOverBackButton) setIsOverBackButton(false)
                 }}
                 onUnnestFolderDrop={(e) => {
                   const target = openFolder.parentFolderId ?? null
                   if (drag.draggingFolderId) {
                     e.preventDefault()
                     e.stopPropagation()
+                    setIsOverBackButton(false)
                     // Un-nest the dragged folder one level up. Cycle-safe by
                     // construction because we only move UP the tree.
                     drag.moveFolderIntoFolder(drag.draggingFolderId, target)
@@ -405,7 +420,7 @@ export default function Library({
                   if (drag.draggingProjectId) {
                     e.preventDefault()
                     e.stopPropagation()
-                    setIsProjectOverBackButton(false)
+                    setIsOverBackButton(false)
                     // Move the dragged project (and any multi-selection) up one
                     // level — the workspace root when this is a top-level folder.
                     if (target === null) {
