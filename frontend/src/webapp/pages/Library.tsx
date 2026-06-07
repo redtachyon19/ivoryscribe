@@ -283,7 +283,10 @@ export default function Library({
   useEffect(() => {
     const handleCreateProject = (event: Event) => {
       const detail = (event as CustomEvent<import("../../core/events/editorEvents").CreateProjectEventDetail>).detail
-      createNewProject(detail?.kind ?? "Book")
+      // Create inside the folder the user is currently viewing (not the root) —
+      // mirrors the right-click and folder-detail create paths. openFolderId is
+      // in the dep array below so this closure always sees the current folder.
+      createNewProject(detail?.kind ?? "Book", openFolderId ?? undefined)
     }
     const handleCreateFolder = () => createFolder()
 
@@ -294,8 +297,8 @@ export default function Library({
       window.removeEventListener(PROJECTS_CREATE_BOOK_EVENT, handleCreateProject as EventListener)
       window.removeEventListener(PROJECTS_CREATE_FOLDER_EVENT, handleCreateFolder)
     }
-    // openFolderId is included so the menu-bar "New Folder" closure creates the
-    // folder inside the currently-open folder, not a stale one.
+    // openFolderId is included so the menu-bar "New Project"/"New Folder"
+    // closures create inside the currently-open folder, not a stale one.
   }, [bookCounter, folders.length, openFolderId])
 
   const renderProjectCard = (project: Project) => (
