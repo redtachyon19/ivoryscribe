@@ -496,6 +496,22 @@
   transform: translateX(-50%);
 }
 
+/* List view: rows stack vertically, so the reorder indicator is a horizontal
+   line at the top (before) / bottom (after) edge instead of a side bar — keeping
+   the indicator consistent with the vertical drop axis used there. */
+.project-hub__list-row.project-folder--drop-before::after,
+.project-hub__list-row.project-folder--drop-after::after {
+  top: auto;
+  bottom: auto;
+  left: 10px;
+  right: 10px;
+  width: auto;
+  height: 3px;
+  transform: none;
+}
+.project-hub__list-row.project-folder--drop-before::after { top: -1px; }
+.project-hub__list-row.project-folder--drop-after::after { bottom: -1px; }
+
 .project-folder--drag-preview {
   opacity: 0.95;
   transform: scale(0.995);
