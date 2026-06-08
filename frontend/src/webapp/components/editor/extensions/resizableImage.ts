@@ -68,6 +68,16 @@ export const ResizableImage = Node.create({
   draggable: false, // we implement our own absolute-position pointer drag
   selectable: true,
 
+  addOptions() {
+    return {
+      // When false (the Drafting view), the React node view renders the image
+      // passive: it keeps its position but doesn't capture pointer events, so
+      // it can't be dragged, resized, cropped, or accidentally selected. The
+      // free-float interactions are a Typewriter (page-layout) affordance.
+      interactive: true,
+    }
+  },
+
   addAttributes() {
     return {
       src: { default: null },

@@ -35,7 +35,7 @@ function cropIsEmpty(c: CropRect) {
 }
 
 export function ImageNodeView(props: ReactNodeViewProps) {
-  const { node, updateAttributes, selected, editor, getPos } = props
+  const { node, updateAttributes, selected, editor, getPos, extension } = props
   const { src, alt, title } = node.attrs as { src: string; alt?: string; title?: string }
   const x = (node.attrs.x as number) ?? 0
   const y = (node.attrs.y as number) ?? 0
@@ -57,11 +57,16 @@ export function ImageNodeView(props: ReactNodeViewProps) {
   const visW = 1 - crop.left - crop.right
   const visH = 1 - crop.top - crop.bottom
   const hasCrop = crop.left > 0 || crop.right > 0 || crop.top > 0 || crop.bottom > 0
-  const editable = editor.isEditable
+  // The free-float drag / resize / crop interactions are a Typewriter
+  // (page-layout) affordance. The Drafting view configures the node with
+  // interactive:false, so there the image renders passive: it keeps its
+  // position but lets pointer events fall through to the reflowed text behind
+  // it, instead of grabbing a node selection on every stray click.
+  const interactive = editor.isEditable && ((extension.options?.interactive as boolean | undefined) ?? true)
 
   // ── Drag anywhere ──
   const onImagePointerDown = useCallback((event: ReactPointerEvent) => {
-    if (!editable || event.button !== 0 || cropMode) return
+    if (!interactive || event.button !== 0 || cropMode) return
     if (typeof getPos === "function") {
       const pos = getPos()
       if (pos != null) editor.commands.setNodeSelection(pos)
@@ -91,11 +96,11 @@ export function ImageNodeView(props: ReactNodeViewProps) {
     }
     window.addEventListener("pointermove", onMove)
     window.addEventListener("pointerup", onUp)
-  }, [editable, cropMode, x, y, getPos, editor, updateAttributes])
+  }, [interactive, cropMode, x, y, getPos, editor, updateAttributes])
 
   // ── Resize (bottom-right handle, aspect locked, zoom-aware) ──
   const onResizeDown = useCallback((event: ReactPointerEvent) => {
-    if (!editable) return
+    if (!interactive) return
     event.preventDefault()
     event.stopPropagation()
     const dom = editor.view.dom as HTMLElement
@@ -117,15 +122,15 @@ export function ImageNodeView(props: ReactNodeViewProps) {
     }
     window.addEventListener("pointermove", onMove)
     window.addEventListener("pointerup", onUp)
-  }, [editable, width, updateAttributes, editor])
+  }, [interactive, width, updateAttributes, editor])
 
   // ── Enter crop on double-click ──
   const enterCrop = useCallback(() => {
-    if (!editable) return
+    if (!interactive) return
     setDraftCrop(crop)
     draftCropRef.current = crop
     setCropMode(true)
-  }, [editable, crop])
+  }, [interactive, crop])
 
   // ── Crop corner handles (auto-save on release) ──
   const onCropCornerDown = useCallback(
@@ -200,7 +205,9 @@ export function ImageNodeView(props: ReactNodeViewProps) {
 
   const posX = livePos ? livePos.x : x
   const posY = livePos ? livePos.y : y
-  const wrapperStyle: CSSProperties = { position: "absolute", left: posX, top: posY, margin: 0, zIndex: 5 }
+  // pointer-events:none when passive (Drafting) so clicks fall through to the
+  // text behind the floating image instead of selecting it.
+  const wrapperStyle: CSSProperties = { position: "absolute", left: posX, top: posY, margin: 0, zIndex: 5, pointerEvents: interactive ? undefined : "none" }
 
   const renderImage = () => {
     if (!hasCrop || fullH == null) {
@@ -271,7 +278,7 @@ export function ImageNodeView(props: ReactNodeViewProps) {
   return (
     <NodeViewWrapper
       as="div"
-      className={`tw-image${selected ? " tw-image--selected" : ""}${cropMode ? " tw-image--cropping" : ""}`}
+      className={`tw-image${selected && interactive ? " tw-image--selected" : ""}${cropMode ? " tw-image--cropping" : ""}`}
       style={wrapperStyle}
     >
       {cropMode ? (
@@ -279,7 +286,7 @@ export function ImageNodeView(props: ReactNodeViewProps) {
       ) : (
         <div className="tw-image__holder">
           {renderImage()}
-          {selected && editable ? (
+          {selected && interactive ? (
             <span
               className="tw-image__handle"
               onPointerDown={onResizeDown}

@@ -84,7 +84,10 @@ export default function DraftingEditor({
       Underline,
       // Keep the prose schema in lockstep with TypewriterEditor so neither view
       // strips the other's font/size/colour/alignment/indent/column formatting.
-      ...sharedProseFormattingExtensions(),
+      // interactiveImages:false — images stay put but render passive here (the
+      // free-float drag/resize/crop is a Typewriter page-layout feature), so a
+      // floating image can't grab clicks meant for the reflowed draft text.
+      ...sharedProseFormattingExtensions({ interactiveImages: false }),
       SearchHighlightExtension,
       DiffAddMark,
       DiffRemoveMark,
