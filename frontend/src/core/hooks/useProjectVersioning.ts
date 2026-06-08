@@ -46,6 +46,7 @@ import {
   type ProjectVersion,
 } from "../utils/projects"
 import { APP_SAVE_PROJECT_EVENT, APP_SAVE_PROJECT_VERSION_EVENT } from "../events/editorEvents"
+import { emitSaveFlash } from "../events/saveEvents"
 import { boardSignature } from "../../webapp/components/editor/utils/pinboardData"
 
 // ── Presentation autosave tuning ──
@@ -143,12 +144,28 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
 
   // ── Manual save: File > Save Version ────────────────────────────────────
   useEffect(() => {
+    // Collapses a native-menu-accelerator + renderer-keydown double-fire of the
+    // same ⌘⇧S press into a single manual version (the renderer keydown lives in
+    // useManualSaveShortcut; the native "Save Version" accelerator may also fire).
+    let lastManualSaveAt = 0
+
     const handleSaveProject = () => {
-      // The "Save Project" event is decoupled from versioning in the
-      // embedded model — local files autosave through useLocalFilesystemSync,
-      // cloud projects sync through useWorkspaceHydration's push effect.
-      // Nothing for this hook to do here, but we keep the listener so
-      // existing keyboard shortcuts don't 404.
+      // ⌘S = autosave the active project right now: push an "autosave" version
+      // (the same kind the 500-word-delta sweep creates), regardless of how many
+      // words have changed. The version lands in projects[], which
+      // useLocalFilesystemSync writes to the .tusk file (versions embedded) — so
+      // the document is persisted too. The glow fires right after, below.
+      const currentProject = activeProjectRef.current
+      if (!currentProject) return
+      if (!projectKindSupportsVersions(currentProject.kind)) return
+      const autosave = createProjectVersion(currentProject, "autosave")
+      // Nothing changed since the latest version (e.g. ⌘S with no edits) → don't
+      // pile up an identical snapshot. The glow still fires as an ack.
+      const latest = currentProject.versions?.[0]
+      if (latest && latest.snapshot === autosave.snapshot) return
+      pushVersionOntoProject(setProjects, currentProject.id, autosave)
+      // The glow is part of the save — one white pulse, right here, after it.
+      emitSaveFlash("auto")
     }
 
     const handleSaveProjectVersion = () => {
@@ -157,13 +174,17 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
       // Don't snapshot kinds that have no version slot — silently bail so
       // the menu item / shortcut still appears to "work" without an error.
       if (!projectKindSupportsVersions(currentProject.kind)) return
+      // Collapse a native-accelerator + renderer-keydown double-fire into one.
+      const now = typeof performance !== "undefined" ? performance.now() : 0
+      if (now - lastManualSaveAt < 500) return
+      lastManualSaveAt = now
 
       const manualVersion = createProjectVersion(currentProject, "manual")
       pushVersionOntoProject(setProjects, currentProject.id, manualVersion)
 
-      if (typeof window !== "undefined") {
-        window.alert(`Saved version ${manualVersion.label}.`)
-      }
+      // Feedback only: the accent perimeter glow replaces the old popup alert.
+      // The version snapshot above is unchanged.
+      emitSaveFlash("manual")
     }
 
     window.addEventListener(APP_SAVE_PROJECT_EVENT, handleSaveProject)
@@ -238,6 +259,7 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
       lastSnapshotSignatureRef.current.set(projectId, signature)
       lastAutosaveAtRef.current.set(projectId, now)
       pushVersionOntoProject(setProjects, projectId, autosave)
+      emitSaveFlash("auto")
     },
     [setProjects],
   )
@@ -315,6 +337,7 @@ export function useProjectVersioning(params: UseProjectVersioningParams) {
       const autosave = createProjectVersion(project, "autosave")
       lastSnapshotWordCountRef.current.set(project.id, autosave.wordCount)
       pushVersionOntoProject(setProjects, project.id, autosave)
+      emitSaveFlash("auto")
       // Only one word-count autosave per sweep — pushing into setProjects
       // re-runs this effect anyway.
       return
