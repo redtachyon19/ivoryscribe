@@ -24,7 +24,10 @@ import { ParaIndentExtension } from "./typewriter/paraIndent"
 import { ColumnsExtension } from "./typewriter/columns"
 import { ResizableImage } from "./resizableImage"
 
-export function sharedProseFormattingExtensions(): Extensions {
+export function sharedProseFormattingExtensions(
+  options?: { interactiveImages?: boolean },
+): Extensions {
+  const interactiveImages = options?.interactiveImages ?? true
   return [
     // textStyle is the carrier mark; fontSize/fontFamily/colour ride on it.
     TextStyle,
@@ -35,7 +38,9 @@ export function sharedProseFormattingExtensions(): Extensions {
     ParaIndentExtension,
     ColumnsExtension,
     // Inline images (data-URL src), resizable + alignable. Shared so neither
-    // view strips images from the document.
-    ResizableImage,
+    // view strips images from the document. The Drafting view passes
+    // interactiveImages:false so images render passive there — the free-float
+    // drag/resize/crop is a Typewriter (page-layout) feature; see ImageNodeView.
+    ResizableImage.configure({ interactive: interactiveImages }),
   ]
 }
