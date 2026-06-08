@@ -64,6 +64,14 @@ export function ImageNodeView(props: ReactNodeViewProps) {
   // it, instead of grabbing a node selection on every stray click.
   const interactive = editor.isEditable && ((extension.options?.interactive as boolean | undefined) ?? true)
 
+  // In the passive (Drafting) view the image is positioned RELATIVE TO THE
+  // TEXT: it renders inline at its place in the document, flowing with the
+  // paragraphs, instead of being pinned to the Typewriter's page (x,y) pixels.
+  // Those pixels are a page-layout coordinate; once the text reflows into the
+  // narrower draft column they no longer line up and the image lands on top of
+  // unrelated paragraphs. Flowing inline keeps it anchored to the text around
+  // it (e.g. the gap between two paragraphs where it was inserted).
+
   // ── Drag anywhere ──
   const onImagePointerDown = useCallback((event: ReactPointerEvent) => {
     if (!interactive || event.button !== 0 || cropMode) return
@@ -205,9 +213,12 @@ export function ImageNodeView(props: ReactNodeViewProps) {
 
   const posX = livePos ? livePos.x : x
   const posY = livePos ? livePos.y : y
-  // pointer-events:none when passive (Drafting) so clicks fall through to the
-  // text behind the floating image instead of selecting it.
-  const wrapperStyle: CSSProperties = { position: "absolute", left: posX, top: posY, margin: 0, zIndex: 5, pointerEvents: interactive ? undefined : "none" }
+  // Typewriter floats the image at its page (x,y); Drafting flows it inline at
+  // its document position. pointer-events:none in the passive (Drafting) view
+  // keeps it non-interactive — it can't be dragged, resized, or selected there.
+  const wrapperStyle: CSSProperties = interactive
+    ? { position: "absolute", left: posX, top: posY, margin: 0, zIndex: 5 }
+    : { position: "relative", margin: "0.6em 0", pointerEvents: "none" }
 
   const renderImage = () => {
     if (!hasCrop || fullH == null) {
