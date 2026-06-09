@@ -26,6 +26,33 @@ import "./resizableImage.css"
 
 export type ImageCrop = { top: number; right: number; bottom: number; left: number }
 
+/** Mask shapes the crop tool can apply. "square" and "circle" lock the crop to
+ *  a 1:1 box; the rest stretch freely with the crop window. */
+export type ImageShape =
+  | "square"
+  | "circle"
+  | "ellipse"
+  | "pentagon"
+  | "hexagon"
+  | "astroid"
+  | "triangle"
+  | "rightTriangle"
+  | "heart"
+  | "squircle"
+
+export const IMAGE_SHAPES: ImageShape[] = [
+  "square", "circle", "ellipse", "pentagon", "hexagon", "astroid", "triangle",
+  "rightTriangle", "heart", "squircle",
+]
+
+/** Ephemeral handoff from the cropping image's node view to the editor chrome
+ *  (TypewriterEditor), so the formatting toolbar can swap in shape controls
+ *  while an image is in crop mode. Lives on the node's editor storage. */
+export type ImageCropSession = {
+  shape: ImageShape | null
+  setShape: (shape: ImageShape) => void
+} | null
+
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     resizableImage: {
@@ -114,7 +141,24 @@ export const ResizableImage = Node.create({
           return c ? { "data-crop": `${c.top},${c.right},${c.bottom},${c.left}` } : {}
         },
       },
+      shape: {
+        default: null,
+        parseHTML: (el: HTMLElement) => {
+          const s = el.getAttribute("data-shape")
+          return s && (IMAGE_SHAPES as string[]).includes(s) ? s : null
+        },
+        renderHTML: (attrs: Record<string, unknown>) => {
+          const s = attrs.shape as ImageShape | null
+          return s ? { "data-shape": s } : {}
+        },
+      },
     }
+  },
+
+  // Crop-mode handoff to the editor chrome (see ImageCropSession). One image
+  // crops at a time, so a single slot is enough.
+  addStorage() {
+    return { cropSession: null as ImageCropSession }
   },
 
   parseHTML() {

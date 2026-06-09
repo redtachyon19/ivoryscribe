@@ -19,6 +19,8 @@ import { useRulerDrag } from "./hooks/useRulerDrag"
 import { useFormatPainter } from "./hooks/useFormatPainter"
 import { useToolbarDrag } from "./hooks/useToolbarDrag"
 import { TypewriterToolbar } from "./components/TypewriterToolbar"
+import { CropToolbar } from "./components/CropToolbar"
+import type { ImageCropSession } from "./extensions/resizableImage"
 import { TypewriterRulerRow, TypewriterRulerY } from "./components/TypewriterRulers"
 import {
   PAGE_GAP_PX,
@@ -96,6 +98,12 @@ export default function TypewriterEditor({
        highlights stay current. */
   const [, setEditorVer] = useState(0)
 
+  /* ── Crop session: when an image enters crop mode it publishes a session on
+       the resizableImage node storage and fires a "tw-image-crop" event on the
+       editor DOM. We mirror it into state so the formatting toolbar can be
+       swapped for the shape picker (CropToolbar) while cropping. */
+  const [cropSession, setCropSession] = useState<ImageCropSession>(null)
+
   /* ── Trackpad-pinch / ctrl+scroll zoom toward the cursor ──
        Zooms the whole page stack (pages + editor surface) via CSS `zoom`,
        so the .tw-scroll container reflows and every page stays reachable.
@@ -150,6 +158,22 @@ export default function TypewriterEditor({
     editor.on("selectionUpdate", bump)
     editor.on("transaction", bump)
     return () => { editor.off("selectionUpdate", bump); editor.off("transaction", bump) }
+  }, [editor])
+
+  /* ── Track image crop sessions (see cropSession above) ── */
+  useEffect(() => {
+    if (!editor) return
+    let dom: HTMLElement
+    try { dom = editor.view.dom as HTMLElement } catch { return }
+    const sync = () => {
+      const storage = (editor.storage as Record<string, unknown>).resizableImage as
+        | { cropSession: ImageCropSession }
+        | undefined
+      setCropSession(storage?.cropSession ?? null)
+    }
+    dom.addEventListener("tw-image-crop", sync)
+    sync()
+    return () => dom.removeEventListener("tw-image-crop", sync)
   }, [editor])
 
   /* ── Load margins on document switch ── */
@@ -378,17 +402,29 @@ export default function TypewriterEditor({
         </span>
       </button>
 
-      <TypewriterToolbar
-        editor={editor}
-        showToolbar={showToolbar}
-        isUiTyping={isUiTyping}
-        isDraggingToolbar={isDraggingToolbar}
-        toolbarRef={toolbarRef}
-        toolbarPos={toolbarPos}
-        onGripMouseDown={handleToolbarGripDown}
-        isPaintFormatArmed={isPaintFormatArmed}
-        onPaintRollerClick={handlePaintRollerClick}
-      />
+      {cropSession ? (
+        <CropToolbar
+          shape={cropSession.shape}
+          onSelectShape={cropSession.setShape}
+          isUiTyping={isUiTyping}
+          isDraggingToolbar={isDraggingToolbar}
+          toolbarRef={toolbarRef}
+          toolbarPos={toolbarPos}
+          onGripMouseDown={handleToolbarGripDown}
+        />
+      ) : (
+        <TypewriterToolbar
+          editor={editor}
+          showToolbar={showToolbar}
+          isUiTyping={isUiTyping}
+          isDraggingToolbar={isDraggingToolbar}
+          toolbarRef={toolbarRef}
+          toolbarPos={toolbarPos}
+          onGripMouseDown={handleToolbarGripDown}
+          isPaintFormatArmed={isPaintFormatArmed}
+          onPaintRollerClick={handlePaintRollerClick}
+        />
+      )}
     </div>
   )
 }
