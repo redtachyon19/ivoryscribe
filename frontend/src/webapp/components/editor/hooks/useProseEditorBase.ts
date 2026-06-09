@@ -13,6 +13,7 @@
 
 import { useEffect, useRef } from "react"
 import { useEditor, type Editor as TiptapEditor, type Extensions } from "@tiptap/react"
+import { NodeSelection, Selection } from "@tiptap/pm/state"
 import { useTypingState } from "./useTypingState"
 import { useTypingCaret } from "./useTypingCaret"
 import { useEditorContentSync, useEditorReadOnly, useEditorReady } from "./useEditorLifecycle"
@@ -79,6 +80,19 @@ export function useProseEditorBase(config: ProseEditorBaseConfig) {
           : normalizePastedFormatting(html),
     },
     content: config.content || fallbackContent,
+    onCreate: ({ editor: currentEditor }) => {
+      // When a document begins with a selectable node (e.g. an image),
+      // ProseMirror's default `Selection.atStart` lands a NodeSelection on it.
+      // In Drafting that's invisible (images are non-interactive), but mounting
+      // a fresh interactive editor — e.g. toggling Draft → Typewriter — renders
+      // that auto-selection as a highlight ring. Collapse any initial node
+      // selection to a plain text cursor so nothing looks selected until the
+      // user actually clicks the image.
+      const { state, view } = currentEditor
+      if (!(state.selection instanceof NodeSelection)) return
+      const textSelection = Selection.findFrom(state.doc.resolve(0), 1, true)
+      if (textSelection) view.dispatch(state.tr.setSelection(textSelection))
+    },
     onUpdate: ({ editor: currentEditor }) => {
       config.onUpdateSideEffect?.(currentEditor)
       config.onContentChange(currentEditor.getHTML())

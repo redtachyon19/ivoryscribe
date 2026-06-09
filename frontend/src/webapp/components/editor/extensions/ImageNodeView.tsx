@@ -271,13 +271,20 @@ export function ImageNodeView(props: ReactNodeViewProps) {
           <img src={src} alt="" style={{ width, height: fh, position: "absolute", left: -left, top: -top, maxWidth: "none" }} draggable={false} />
         </div>
         {(["tl", "tr", "bl", "br"] as const).map((corner) => {
-          const cx = corner === "tl" || corner === "bl" ? left : left + winW
-          const cy = corner === "tl" || corner === "tr" ? top : top + winH
+          const isLeft = corner === "tl" || corner === "bl"
+          const isTop = corner === "tl" || corner === "tr"
+          const cx = isLeft ? left : left + winW
+          const cy = isTop ? top : top + winH
+          // Bias the handle one border-width (2.5px) toward the crop window
+          // interior so it straddles its corner exactly like the bottom-right
+          // resize grip, whose right/bottom:-7px sits 2.5px inside the edge.
+          const hx = cx + (isLeft ? 2.5 : -2.5)
+          const hy = cy + (isTop ? 2.5 : -2.5)
           return (
             <span
               key={corner}
               className={`tw-image__crophandle tw-image__crophandle--${corner}`}
-              style={{ position: "absolute", left: cx, top: cy }}
+              style={{ position: "absolute", left: hx, top: hy }}
               onPointerDown={onCropCornerDown(corner)}
             />
           )
