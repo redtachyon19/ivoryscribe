@@ -124,6 +124,18 @@
 .ProseMirror .tw-image--match-h .tw-image__holder::before { left: -3px; border-right: none; }
 .ProseMirror .tw-image--match-h .tw-image__holder::after  { right: -3px; border-left: none; }
 
+/* Smart alignment guides drawn (imperatively) on the editor surface while
+   dragging an image — a thin accent line wherever an edge/centre aligns with
+   another image or the page centre. */
+.tw-editor-surf .tw-align-guide {
+  position: absolute;
+  z-index: 10;
+  background: var(--app-accent, #9ab8ff);
+  pointer-events: none;
+}
+.tw-editor-surf .tw-align-guide--v { width: 1px; }
+.tw-editor-surf .tw-align-guide--h { height: 1px; }
+
 /* ── Crop stage ── */
 .ProseMirror .tw-image__cropstage {
   cursor: default;

@@ -31,6 +31,10 @@ const MIN_CROP_FRAC = 0.08
 // How close (displayed px) a resize must get to another image's width/height
 // before it snaps to match it and shows the equal-size indicator.
 const SIZE_SNAP_PX = 6
+// How close (displayed px) a dragged image's edge/centre must get to an
+// alignment line (another image's edge/centre, or the page centre) before it
+// snaps and the guide line is drawn.
+const ALIGN_SNAP_PX = 5
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
@@ -169,39 +173,74 @@ export function ImageNodeView(props: ReactNodeViewProps) {
     const startY = y
     const startClientX = event.clientX
     const startClientY = event.clientY
-    // Page bounds, in the image's content-px coordinate space (origin =
-    // .ProseMirror top-left). The image floats freely over the whole page —
-    // including the margins — but not off it, so we clamp to the page card(s):
-    // left/right of the first card, top of the first to bottom of the last.
-    // Falls back to unclamped if the page layout isn't found (e.g. Drafting).
+    // All geometry below is in the image's content-px space (origin =
+    // .ProseMirror top-left), the same space x/y live in.
+    const toCX = (c: number) => (c - domRect.left) / scale
+    const toCY = (c: number) => (c - domRect.top) / scale
+    const selfWrap = (event.currentTarget as HTMLElement).closest(".tw-image") as HTMLElement | null
+    const wrapRect = selfWrap?.getBoundingClientRect()
+    const selfW = wrapRect ? wrapRect.width / scale : width
+    const selfH = wrapRect ? wrapRect.height / scale : width
+    // Page bounds (the image floats over the whole page incl. margins, but not
+    // off it) and alignment-guide candidates: other images' edges/centres plus
+    // the page centre lines. Falls back to unclamped/no-guides without a page.
     let minX = -Infinity, maxX = Infinity, minY = -Infinity, maxY = Infinity
-    const cards = dom.closest(".tw-pages-stack")?.querySelectorAll(".tw-page-card")
-    if (cards && cards.length) {
-      const wrapRect = (event.currentTarget as HTMLElement).closest(".tw-image")?.getBoundingClientRect()
-      const imgW = wrapRect ? wrapRect.width / scale : width
-      const imgH = wrapRect ? wrapRect.height / scale : width
-      const first = cards[0].getBoundingClientRect()
-      const last = cards[cards.length - 1].getBoundingClientRect()
-      minX = (first.left - domRect.left) / scale
-      maxX = (first.right - domRect.left) / scale - imgW
-      minY = (first.top - domRect.top) / scale
-      maxY = (last.bottom - domRect.top) / scale - imgH
+    let pageTop = 0, pageBottom = 0, pageLeft = 0, pageRight = 0
+    const vGuides: number[] = [] // x: other left/centre/right + page centre-x
+    const hGuides: number[] = [] // y: other top/centre/bottom + each page centre-y
+    const cards = dom.closest(".tw-pages-stack")?.querySelectorAll<HTMLElement>(".tw-page-card")
+    const hasPage = !!(cards && cards.length)
+    if (hasPage) {
+      const first = cards![0].getBoundingClientRect()
+      const last = cards![cards!.length - 1].getBoundingClientRect()
+      pageLeft = toCX(first.left); pageRight = toCX(first.right)
+      pageTop = toCY(first.top); pageBottom = toCY(last.bottom)
+      minX = pageLeft; maxX = pageRight - selfW
+      minY = pageTop; maxY = pageBottom - selfH
+      vGuides.push((pageLeft + pageRight) / 2)
+      for (const c of Array.from(cards!)) { const r = c.getBoundingClientRect(); hGuides.push((toCY(r.top) + toCY(r.bottom)) / 2) }
     }
+    for (const el of Array.from(dom.querySelectorAll<HTMLElement>(".tw-image"))) {
+      if (el === selfWrap) continue
+      const r = el.getBoundingClientRect()
+      const L = toCX(r.left), T = toCY(r.top), W = r.width / scale, H = r.height / scale
+      vGuides.push(L, L + W / 2, L + W)
+      hGuides.push(T, T + H / 2, T + H)
+    }
+    // Guide-line overlay, appended to the editor surface (NOT .ProseMirror, to
+    // avoid disturbing PM's DOM). offX/offY map content-px into the surface.
+    const surf = dom.closest(".tw-editor-surf") as HTMLElement | null
+    const surfRect = surf?.getBoundingClientRect()
+    const offX = surfRect ? (domRect.left - surfRect.left) / scale : 0
+    const offY = surfRect ? (domRect.top - surfRect.top) / scale : 0
+    const vLine = document.createElement("div"); vLine.className = "tw-align-guide tw-align-guide--v"; vLine.style.display = "none"
+    const hLine = document.createElement("div"); hLine.className = "tw-align-guide tw-align-guide--h"; hLine.style.display = "none"
+    if (surf && hasPage) { surf.appendChild(vLine); surf.appendChild(hLine) }
     let moved = false
     const onMove = (e: PointerEvent) => {
       const dx = (e.clientX - startClientX) / scale
       const dy = (e.clientY - startClientY) / scale
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true
-      // Float freely over the page (margins included), but clamped to the page
-      // bounds above so it can't be dragged off into the gutter / scroll area.
-      setLivePos({
-        x: clamp(Math.round(startX + dx), minX, maxX),
-        y: clamp(Math.round(startY + dy), minY, maxY),
-      })
+      let nx = Math.round(startX + dx), ny = Math.round(startY + dy)
+      // Snap left/centre/right to the closest vertical guide; top/centre/bottom
+      // to the closest horizontal guide (each axis independent).
+      let gx: number | null = null, gxd = ALIGN_SNAP_PX, gxAdj = 0
+      for (const g of vGuides) for (const p of [nx, nx + selfW / 2, nx + selfW]) { const d = Math.abs(p - g); if (d < gxd) { gxd = d; gxAdj = g - p; gx = g } }
+      if (gx != null) nx = Math.round(nx + gxAdj)
+      let gy: number | null = null, gyd = ALIGN_SNAP_PX, gyAdj = 0
+      for (const g of hGuides) for (const p of [ny, ny + selfH / 2, ny + selfH]) { const d = Math.abs(p - g); if (d < gyd) { gyd = d; gyAdj = g - p; gy = g } }
+      if (gy != null) ny = Math.round(ny + gyAdj)
+      nx = clamp(nx, minX, maxX); ny = clamp(ny, minY, maxY)
+      setLivePos({ x: nx, y: ny })
+      if (gx != null) { vLine.style.display = "block"; vLine.style.left = `${gx + offX}px`; vLine.style.top = `${pageTop + offY}px`; vLine.style.height = `${pageBottom - pageTop}px` }
+      else vLine.style.display = "none"
+      if (gy != null) { hLine.style.display = "block"; hLine.style.top = `${gy + offY}px`; hLine.style.left = `${pageLeft + offX}px`; hLine.style.width = `${pageRight - pageLeft}px` }
+      else hLine.style.display = "none"
     }
     const onUp = () => {
       window.removeEventListener("pointermove", onMove)
       window.removeEventListener("pointerup", onUp)
+      vLine.remove(); hLine.remove()
       setLivePos((p) => {
         if (moved && p) updateAttributes({ x: p.x, y: p.y })
         return null
