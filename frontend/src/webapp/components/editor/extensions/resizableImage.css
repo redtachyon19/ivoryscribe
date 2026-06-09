@@ -92,24 +92,46 @@
   cursor: default;
   user-select: none;
 }
+/* Crop window: same offset ring as a selected image (see
+   .tw-image--selected .tw-image__holder), rendered in white to match the
+   white corner handles. */
 .ProseMirror .tw-image__cropwindow {
-  outline: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 2px var(--app-bg, #fff),
+    0 0 0 3.5px #fff;
+  transition: box-shadow 0.15s ease;
+}
+@supports (background: color-mix(in srgb, red, blue)) {
+  .ProseMirror .tw-image__cropwindow {
+    box-shadow:
+      0 0 0 2px var(--app-bg, #fff),
+      0 0 0 3.5px #fff,
+      0 6px 22px -8px color-mix(in srgb, #fff 28%, transparent);
+  }
 }
 .ProseMirror .tw-image__crophandle {
-  width: 15px;
-  height: 15px;
-  margin: -7.5px 0 0 -7.5px; /* center on the corner */
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%); /* straddle the corner point, like the resize grip */
   border-radius: 50%;
   background: var(--app-bg, #fff);
-  border: 2.5px solid var(--app-accent, #9ab8ff);
+  border: 2.5px solid #fff;
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
   z-index: 4;
   touch-action: none;
   transition: transform 0.1s ease;
+  /* Same pop-in as the bottom-right resize grip, but translate-preserving so
+     the corner-straddle centering holds during the animation. */
+  animation: tw-image-crophandle-pop-in 0.14s ease-out;
 }
 .ProseMirror .tw-image__crophandle:hover {
-  transform: scale(1.18);
+  transform: translate(-50%, -50%) scale(1.18);
+}
+
+@keyframes tw-image-crophandle-pop-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 .ProseMirror .tw-image__crophandle--tl { cursor: nwse-resize; }
 .ProseMirror .tw-image__crophandle--tr { cursor: nesw-resize; }
