@@ -107,7 +107,11 @@
   display: flex;
   align-items: center;
   border: 1px solid transparent;
-  border-radius: 6px;
+  /* 10px to match the active-tab sliding pill (.doc-tabs__active-indicator), so
+     the accent marquee-select / drag / drop-into outlines — which inherit this
+     radius via their inset box-shadow (navPanelShared.css) — read with the same
+     roundedness as the pill instead of looking squarer. */
+  border-radius: 10px;
   color: var(--menu-button, #ededed);
   transition: background-color 0ms linear, border-color 0ms linear;
 }
