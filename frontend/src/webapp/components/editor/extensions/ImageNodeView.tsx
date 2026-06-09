@@ -28,6 +28,9 @@ const NO_CROP: CropRect = { top: 0, right: 0, bottom: 0, left: 0 }
 const MIN_WIDTH = 40
 const MAX_WIDTH = 2000
 const MIN_CROP_FRAC = 0.08
+// How close (displayed px) a resize must get to another image's width/height
+// before it snaps to match it and shows the equal-size indicator.
+const SIZE_SNAP_PX = 6
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v))
@@ -118,6 +121,10 @@ export function ImageNodeView(props: ReactNodeViewProps) {
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null)
   const [liveWidth, setLiveWidth] = useState<number | null>(null)
   const [livePos, setLivePos] = useState<{ x: number; y: number } | null>(null)
+  // Which dimensions the current resize is snapped to (another image's width
+  // and/or height) — drives the bracket marks on this image; matched images are
+  // marked imperatively during the drag.
+  const [sizeSnap, setSizeSnap] = useState<{ w: boolean; h: boolean } | null>(null)
   const [cropMode, setCropMode] = useState(false)
   const [draftCrop, setDraftCrop] = useState<CropRect>(crop)
   const draftCropRef = useRef<CropRect>(crop)
@@ -214,13 +221,57 @@ export function ImageNodeView(props: ReactNodeViewProps) {
     const scale = dom.offsetWidth > 0 ? domRect.width / dom.offsetWidth : 1
     const startX = event.clientX
     const startW = width
+    // Snap targets: the displayed size of every OTHER image in the doc. Resize
+    // is aspect-locked, so a height match maps back to a target full-width too.
+    const selfWrapper = (event.currentTarget as HTMLElement).closest(".tw-image") as HTMLElement | null
+    const others = selfWrapper
+      ? Array.from(dom.querySelectorAll<HTMLElement>(".tw-image"))
+          .filter((el) => el !== selfWrapper)
+          .map((el) => { const r = el.getBoundingClientRect(); return { el, w: r.width / scale, h: r.height / scale } })
+      : []
+    const clearMarks = () => { for (const o of others) o.el.classList.remove("tw-image--match-w", "tw-image--match-h") }
     const onMove = (e: PointerEvent) => {
-      const delta = (e.clientX - startX) / scale
-      setLiveWidth(clamp(Math.round(startW + delta), MIN_WIDTH, MAX_WIDTH))
+      let w = clamp(Math.round(startW + (e.clientX - startX) / scale), MIN_WIDTH, MAX_WIDTH)
+      // Find the closest width/height match within the snap threshold, then snap.
+      let best: { w: number; dist: number } | null = null
+      const renderedW = w * visW
+      for (const o of others) {
+        const d = Math.abs(renderedW - o.w)
+        if (d <= SIZE_SNAP_PX && (!best || d < best.dist)) best = { w: o.w / visW, dist: d }
+      }
+      if (naturalAspect != null) {
+        const renderedH = w * naturalAspect * visH
+        for (const o of others) {
+          const d = Math.abs(renderedH - o.h)
+          if (d <= SIZE_SNAP_PX && (!best || d < best.dist)) best = { w: o.h / (naturalAspect * visH), dist: d }
+        }
+      }
+      clearMarks()
+      if (best) {
+        w = Math.round(best.w)
+        // Mark EVERY other image sharing the snapped width and/or height — width
+        // match → left/right brackets, height match → top/bottom brackets.
+        const myW = w * visW
+        const myH = naturalAspect != null ? w * naturalAspect * visH : null
+        let sw = false, sh = false
+        for (const o of others) {
+          const wm = Math.abs(o.w - myW) <= 1.5
+          const hm = myH != null && Math.abs(o.h - myH) <= 1.5
+          if (wm) o.el.classList.add("tw-image--match-w")
+          if (hm) o.el.classList.add("tw-image--match-h")
+          sw = sw || wm; sh = sh || hm
+        }
+        setSizeSnap({ w: sw, h: sh })
+      } else {
+        setSizeSnap(null)
+      }
+      setLiveWidth(w)
     }
     const onUp = () => {
       window.removeEventListener("pointermove", onMove)
       window.removeEventListener("pointerup", onUp)
+      clearMarks()
+      setSizeSnap(null)
       setLiveWidth((committed) => {
         if (committed != null) updateAttributes({ width: committed })
         return null
@@ -228,7 +279,7 @@ export function ImageNodeView(props: ReactNodeViewProps) {
     }
     window.addEventListener("pointermove", onMove)
     window.addEventListener("pointerup", onUp)
-  }, [interactive, width, updateAttributes, editor])
+  }, [interactive, width, updateAttributes, editor, visW, visH, naturalAspect])
 
   // ── Enter crop on double-click ──
   const enterCrop = useCallback(() => {
@@ -266,32 +317,78 @@ export function ImageNodeView(props: ReactNodeViewProps) {
       if (!frame) return
       const rect = frame.getBoundingClientRect()
       const startCrop = draftCropRef.current
+      // Other images' displayed sizes, to snap the crop window to (the window
+      // size IS the resulting image size). Matched images get a WHITE outline
+      // (to match the crop chrome), unlike the accent outline used when resizing.
+      const dom = editor.view.dom as HTMLElement
+      const dRect = dom.getBoundingClientRect()
+      const scale = dom.offsetWidth > 0 ? dRect.width / dom.offsetWidth : 1
+      const self = frame.closest(".tw-image")
+      const others = Array.from(dom.querySelectorAll<HTMLElement>(".tw-image"))
+        .filter((el) => el !== self)
+        .map((el) => { const r = el.getBoundingClientRect(); return { el, w: r.width / scale, h: r.height / scale } })
+      const clearMarks = () => { for (const o of others) o.el.classList.remove("tw-image--match-w", "tw-image--match-h", "tw-image--match-white") }
+      const movesLeft = corner === "tl" || corner === "bl"
+      const movesTop = corner === "tl" || corner === "tr"
       const onMove = (e: PointerEvent) => {
         const fx = clamp((e.clientX - rect.left) / rect.width, 0, 1)
         const fy = clamp((e.clientY - rect.top) / rect.height, 0, 1)
-        setDraftCrop((c) => {
-          const next = { ...c }
-          if (corner === "tl" || corner === "bl") next.left = Math.min(fx, 1 - c.right - MIN_CROP_FRAC)
-          if (corner === "tr" || corner === "br") next.right = Math.min(1 - fx, 1 - c.left - MIN_CROP_FRAC)
-          if (corner === "tl" || corner === "tr") next.top = Math.min(fy, 1 - c.bottom - MIN_CROP_FRAC)
-          if (corner === "bl" || corner === "br") next.bottom = Math.min(1 - fy, 1 - c.top - MIN_CROP_FRAC)
-          next.left = clamp(next.left, 0, 1); next.right = clamp(next.right, 0, 1)
-          next.top = clamp(next.top, 0, 1); next.bottom = clamp(next.bottom, 0, 1)
-          // Keep the window square for 1:1 shapes (square / circle).
-          const squared = lockAspect && fullH != null ? squareifyDrag(next, corner, width, fullH) : next
-          draftCropRef.current = squared
-          return squared
-        })
+        const c = draftCropRef.current
+        const next = { ...c }
+        if (movesLeft) next.left = Math.min(fx, 1 - c.right - MIN_CROP_FRAC)
+        if (corner === "tr" || corner === "br") next.right = Math.min(1 - fx, 1 - c.left - MIN_CROP_FRAC)
+        if (movesTop) next.top = Math.min(fy, 1 - c.bottom - MIN_CROP_FRAC)
+        if (corner === "bl" || corner === "br") next.bottom = Math.min(1 - fy, 1 - c.top - MIN_CROP_FRAC)
+        next.left = clamp(next.left, 0, 1); next.right = clamp(next.right, 0, 1)
+        next.top = clamp(next.top, 0, 1); next.bottom = clamp(next.bottom, 0, 1)
+        // Snap the dragged edges so the window matches another image's width or
+        // height (skipped for 1:1 shapes — the square constraint governs there).
+        if (others.length && fullH != null && !lockAspect) {
+          const winW = width * (1 - next.left - next.right)
+          let bw: number | null = null, bwd = SIZE_SNAP_PX
+          for (const o of others) { const d = Math.abs(winW - o.w); if (d <= bwd) { bw = o.w; bwd = d } }
+          if (bw != null) {
+            const sum = clamp(1 - bw / width, 0, 1)
+            if (movesLeft) next.left = clamp(sum - next.right, 0, 1 - next.right - MIN_CROP_FRAC)
+            else next.right = clamp(sum - next.left, 0, 1 - next.left - MIN_CROP_FRAC)
+          }
+          const winH = fullH * (1 - next.top - next.bottom)
+          let bh: number | null = null, bhd = SIZE_SNAP_PX
+          for (const o of others) { const d = Math.abs(winH - o.h); if (d <= bhd) { bh = o.h; bhd = d } }
+          if (bh != null) {
+            const sum = clamp(1 - bh / fullH, 0, 1)
+            if (movesTop) next.top = clamp(sum - next.bottom, 0, 1 - next.bottom - MIN_CROP_FRAC)
+            else next.bottom = clamp(sum - next.top, 0, 1 - next.top - MIN_CROP_FRAC)
+          }
+        }
+        // Keep the window square for 1:1 shapes (square / circle).
+        const squared = lockAspect && fullH != null ? squareifyDrag(next, corner, width, fullH) : next
+        draftCropRef.current = squared
+        setDraftCrop(squared)
+        // Mark every other image matching the final window width/height with
+        // white brackets on the matched side(s).
+        clearMarks()
+        if (fullH != null) {
+          const finalW = width * (1 - squared.left - squared.right)
+          const finalH = fullH * (1 - squared.top - squared.bottom)
+          for (const o of others) {
+            const wm = Math.abs(o.w - finalW) <= 1.5
+            const hm = Math.abs(o.h - finalH) <= 1.5
+            if (wm) o.el.classList.add("tw-image--match-w", "tw-image--match-white")
+            if (hm) o.el.classList.add("tw-image--match-h", "tw-image--match-white")
+          }
+        }
       }
       const onUp = () => {
         window.removeEventListener("pointermove", onMove)
         window.removeEventListener("pointerup", onUp)
+        clearMarks()
         commitCrop(startCrop)
       }
       window.addEventListener("pointermove", onMove)
       window.addEventListener("pointerup", onUp)
     },
-    [commitCrop, lockAspect, width, fullH],
+    [commitCrop, lockAspect, width, fullH, editor],
   )
 
   // ── Pan the crop window over the image (drag the window itself, not a
@@ -512,7 +609,7 @@ export function ImageNodeView(props: ReactNodeViewProps) {
   return (
     <NodeViewWrapper
       as="div"
-      className={`tw-image${selected && interactive ? " tw-image--selected" : ""}${cropMode ? " tw-image--cropping" : ""}`}
+      className={`tw-image${selected && interactive ? " tw-image--selected" : ""}${cropMode ? " tw-image--cropping" : ""}${sizeSnap?.w ? " tw-image--match-w" : ""}${sizeSnap?.h ? " tw-image--match-h" : ""}`}
       style={wrapperStyle}
     >
       {shape === "heart" ? (
