@@ -32,26 +32,54 @@
   -webkit-user-drag: none;
 }
 
-/* Selection ring around the visible image box. */
+/* Selection ring around the visible image box: a thin accent ring set off from
+   the image by a hairline of background. The accent glow is layered on
+   separately so an engine without color-mix still gets the crisp ring. */
 .ProseMirror .tw-image--selected .tw-image__holder {
-  outline: 2px solid var(--app-accent, #9ab8ff);
-  outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 2px var(--app-bg, #fff),
+    0 0 0 3.5px var(--app-accent, #9ab8ff);
+  transition: box-shadow 0.15s ease;
+}
+@supports (background: color-mix(in srgb, red, blue)) {
+  .ProseMirror .tw-image--selected .tw-image__holder {
+    box-shadow:
+      0 0 0 2px var(--app-bg, #fff),
+      0 0 0 3.5px var(--app-accent, #9ab8ff),
+      0 6px 22px -8px color-mix(in srgb, var(--app-accent, #9ab8ff) 55%, transparent);
+  }
 }
 
-/* Bottom-right resize handle. */
+/* Bottom-right resize grip: a small round handle that pops in when selected and
+   grows slightly under the cursor. */
 .ProseMirror .tw-image__handle {
   position: absolute;
-  right: -6px;
-  bottom: -6px;
-  width: 13px;
-  height: 13px;
-  border-radius: 3px;
-  background: var(--app-accent, #9ab8ff);
-  border: 2px solid var(--app-bg, #fff);
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--app-bg, #fff);
+  border: 2.5px solid var(--app-accent, #9ab8ff);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
   cursor: nwse-resize;
   z-index: 3;
   touch-action: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  animation: tw-image-pop-in 0.14s ease-out;
+}
+.ProseMirror .tw-image__handle:hover {
+  transform: scale(1.2);
+  box-shadow: 0 2px 9px rgba(0, 0, 0, 0.28);
+}
+.ProseMirror .tw-image__handle:active {
+  transform: scale(1.06);
+}
+
+@keyframes tw-image-pop-in {
+  from { opacity: 0; transform: scale(0.3); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 /* Crop frame (non-crop-mode clipped view) — sized inline. */
@@ -69,15 +97,19 @@
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
 }
 .ProseMirror .tw-image__crophandle {
-  width: 14px;
-  height: 14px;
-  margin: -7px 0 0 -7px; /* center on the corner */
-  border-radius: 2px;
-  background: #fff;
-  border: 1px solid var(--app-accent, #9ab8ff);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  width: 15px;
+  height: 15px;
+  margin: -7.5px 0 0 -7.5px; /* center on the corner */
+  border-radius: 50%;
+  background: var(--app-bg, #fff);
+  border: 2.5px solid var(--app-accent, #9ab8ff);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
   z-index: 4;
   touch-action: none;
+  transition: transform 0.1s ease;
+}
+.ProseMirror .tw-image__crophandle:hover {
+  transform: scale(1.18);
 }
 .ProseMirror .tw-image__crophandle--tl { cursor: nwse-resize; }
 .ProseMirror .tw-image__crophandle--tr { cursor: nesw-resize; }
