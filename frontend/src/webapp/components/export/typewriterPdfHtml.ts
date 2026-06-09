@@ -61,6 +61,86 @@ function resolveThemeColors(): { text: string; paper: string } {
   }
 }
 
+// ── White-paper export colour remap ─────────────────────────────────────────
+// The PDF is always a standard white document, even when the editor is authored
+// on a dark page with white ink. So we force a dark default ink and, per-span,
+// invert the achromatic (grayscale) text/highlight colours the toolbar picker
+// applied: a near-white text pick becomes dark (visible on white), and a
+// near-white highlight flips to a dark marker with light text. Chromatic picks
+// (red, pastel yellow, …) are left exactly as the author set them.
+const EXPORT_DARK_INK = "#15110b"
+const EXPORT_LIGHT_INK = "#f5f5f5"
+const NEAR_WHITE_LUMINANCE = 0.65
+
+type Rgb = { r: number; g: number; b: number }
+
+function parseCssColor(value: string): Rgb | null {
+  const v = value.trim().toLowerCase()
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(v)
+  if (hex) {
+    let s = hex[1]
+    if (s.length === 3) s = s.split("").map((c) => c + c).join("")
+    return { r: parseInt(s.slice(0, 2), 16), g: parseInt(s.slice(2, 4), 16), b: parseInt(s.slice(4, 6), 16) }
+  }
+  const rgb = /^rgba?\(([^)]+)\)$/.exec(v)
+  if (rgb) {
+    const parts = rgb[1].split(/[,\s/]+/).filter(Boolean).map((p) => parseFloat(p))
+    if (parts.length >= 3 && parts.slice(0, 3).every((n) => Number.isFinite(n))) {
+      return { r: parts[0], g: parts[1], b: parts[2] }
+    }
+  }
+  return null
+}
+
+function luminance({ r, g, b }: Rgb): number {
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255
+}
+
+// Grayscale-ish: low chroma. Only these "white/black" picks get inverted; a
+// coloured pick keeps its hue.
+function isAchromatic({ r, g, b }: Rgb): boolean {
+  return Math.max(r, g, b) - Math.min(r, g, b) <= 24
+}
+
+function ensureDarkInk(color: string): string {
+  const rgb = parseCssColor(color)
+  if (!rgb) return EXPORT_DARK_INK
+  return luminance(rgb) > 0.5 ? EXPORT_DARK_INK : color
+}
+
+function remapInlineColorsForWhitePaper(html: string): string {
+  if (typeof DOMParser === "undefined") return html
+  const doc = new DOMParser().parseFromString(html, "text/html")
+
+  // Pass 1 — highlights. A near-white marker is invisible on white paper: flip
+  // it to a dark marker and flag the run so its text is lightened in pass 2
+  // (rather than darkened like ordinary text on the white page).
+  doc.body.querySelectorAll<HTMLElement>("[style]").forEach((el) => {
+    const bg = parseCssColor(el.style.backgroundColor || "")
+    if (bg && isAchromatic(bg) && luminance(bg) >= NEAR_WHITE_LUMINANCE) {
+      el.style.backgroundColor = EXPORT_DARK_INK
+      el.style.color = EXPORT_LIGHT_INK
+      el.setAttribute("data-pdfx-inv", "1")
+    }
+  })
+
+  // Pass 2 — text colours. Inside an inverted (now-dark) highlight, achromatic
+  // dark text must become light; everywhere else on the white page, near-white
+  // text must become dark. Order-independent thanks to the pass-1 flag.
+  doc.body.querySelectorAll<HTMLElement>("[style]").forEach((el) => {
+    const fg = parseCssColor(el.style.color || "")
+    if (!fg || !isAchromatic(fg)) return
+    if (el.closest("[data-pdfx-inv]")) {
+      if (luminance(fg) < 0.5) el.style.color = EXPORT_LIGHT_INK
+    } else if (luminance(fg) >= NEAR_WHITE_LUMINANCE) {
+      el.style.color = EXPORT_DARK_INK
+    }
+  })
+
+  doc.body.querySelectorAll("[data-pdfx-inv]").forEach((el) => el.removeAttribute("data-pdfx-inv"))
+  return doc.body.innerHTML
+}
+
 // The CSS custom properties the ported markdown-preview rules reference. We
 // re-declare their live values on :root in the print document so var()/color-mix
 // resolve to the same colours and fonts as the on-screen preview.
@@ -73,7 +153,7 @@ const MARKDOWN_VARS: Array<[name: string, fallback: string]> = [
   ["--menu-dropdown-border", "#2a2a2a"],
 ]
 
-function resolveRootVars(): string {
+function resolveRootVars(inkOverride?: string): string {
   let root: CSSStyleDeclaration | null = null
   try {
     root = getComputedStyle(document.documentElement)
@@ -81,6 +161,10 @@ function resolveRootVars(): string {
     root = null
   }
   const decls = MARKDOWN_VARS.map(([name, fallback]) => {
+    // On white paper the body ink must be dark, so the live (possibly light,
+    // dark-theme) --editor-text is overridden — otherwise markdown body text
+    // would render light-on-white and vanish.
+    if (name === "--editor-text" && inkOverride) return `${name}:${inkOverride};`
     const live = root ? root.getPropertyValue(name).trim() : ""
     return `${name}:${live || fallback};`
   }).join("")
@@ -386,15 +470,22 @@ function pxMargins(m: Margins) {
 }
 
 function buildHtml(docs: ExportDoc[]): string {
-  const { text, paper } = resolveThemeColors()
+  // Always a white-paper document, regardless of the editor theme: authoring on
+  // a dark page still yields a printable black-on-white PDF. Force a dark
+  // default ink and invert achromatic (white/black) inline picks per span.
+  const paper = "#ffffff"
+  const text = ensureDarkInk(resolveThemeColors().text)
   const includeMarkdown = docs.some((d) => d.kind === "markdown")
-  const markdownStyles = includeMarkdown ? `${resolveRootVars()}${MARKDOWN_CSS}${hljsCss}${katexCss}` : ""
+  const markdownStyles = includeMarkdown ? `${resolveRootVars(text)}${MARKDOWN_CSS}${hljsCss}${katexCss}` : ""
   const head = `<style>${GOOGLE_FONTS_IMPORT}${pageCss(paper)}${contentCss(text)}${markdownStyles}</style>`
   const sections = docs
     .map((d) => {
       const m = pxMargins(d.margins)
-      const body = d.html && d.html.trim() ? d.html : "<p></p>"
+      const rawBody = d.html && d.html.trim() ? d.html : "<p></p>"
       const kind = d.kind === "markdown" ? "markdown" : "prose"
+      // Markdown colours come from CSS (handled via the --editor-text override);
+      // only prose carries the toolbar's inline color/highlight picks.
+      const body = kind === "prose" ? remapInlineColorsForWhitePaper(rawBody) : rawBody
       return `<section class="pdfx-doc" data-kind="${kind}" data-ml="${m.l}" data-mr="${m.r}" data-mt="${m.t}" data-mb="${m.b}">${body}</section>`
     })
     .join("")

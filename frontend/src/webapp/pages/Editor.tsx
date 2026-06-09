@@ -8,6 +8,7 @@ import { useFindReplaceModal } from "../../core/hooks/useFindReplaceModal"
 import { useLibraryNavigation } from "../components/library/useLibraryNavigation"
 import { useTabViewMode } from "../components/editor/hooks/useTabViewMode"
 import { useTabMarkdownViewMode } from "../components/editor/hooks/useTabMarkdownViewMode"
+import { useViewModeShortcuts } from "../components/editor/hooks/useViewModeShortcuts"
 import { useDocumentStats } from "../components/editor/hooks/useDocumentStats"
 import { useProjectExport } from "../components/editor/hooks/useProjectExport"
 import { useProposedEditReview } from "../components/editor/hooks/useProposedEditReview"
@@ -199,6 +200,15 @@ export default function Editor({
     if (markdownIds.includes(activeTabId)) return "markdown"
     return "prose"
   }, [activeTabId, projectTabs, projectPinboardIds, projectPdfIds, projectImageIds, projectPlaintextIds, projectMarkdownIds, projectMarkdownEditorEnabled])
+
+  /* ── ⌘/Ctrl + 1/2/3 view switching. Prose: Draft / Typewriter. Markdown:
+       Editor / Both / View. ── */
+  useViewModeShortcuts({
+    enabled: view === "editor" && !!project?.activeId,
+    activeDocumentType,
+    setProseViewMode: viewModeState.setViewMode,
+    setMarkdownViewMode: markdownViewModeState.setMarkdownViewMode,
+  })
 
   const activeTabPath = useMemo(() => {
     if (!activeTabId || !projectTabs) {
