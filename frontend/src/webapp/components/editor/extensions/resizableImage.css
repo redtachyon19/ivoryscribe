@@ -27,7 +27,6 @@
 .ProseMirror .tw-image__img {
   display: block;
   height: auto;
-  border-radius: 2px;
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -82,9 +81,9 @@
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* Crop frame (non-crop-mode clipped view) — sized inline. */
+/* Crop frame (non-crop-mode clipped view) — sized inline. Square corners. */
 .ProseMirror .tw-image__cropframe {
-  border-radius: 2px;
+  border-radius: 0;
 }
 
 /* ── Crop stage ── */

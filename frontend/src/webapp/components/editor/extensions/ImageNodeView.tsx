@@ -162,12 +162,35 @@ export function ImageNodeView(props: ReactNodeViewProps) {
     const startY = y
     const startClientX = event.clientX
     const startClientY = event.clientY
+    // Page bounds, in the image's content-px coordinate space (origin =
+    // .ProseMirror top-left). The image floats freely over the whole page —
+    // including the margins — but not off it, so we clamp to the page card(s):
+    // left/right of the first card, top of the first to bottom of the last.
+    // Falls back to unclamped if the page layout isn't found (e.g. Drafting).
+    let minX = -Infinity, maxX = Infinity, minY = -Infinity, maxY = Infinity
+    const cards = dom.closest(".tw-pages-stack")?.querySelectorAll(".tw-page-card")
+    if (cards && cards.length) {
+      const wrapRect = (event.currentTarget as HTMLElement).closest(".tw-image")?.getBoundingClientRect()
+      const imgW = wrapRect ? wrapRect.width / scale : width
+      const imgH = wrapRect ? wrapRect.height / scale : width
+      const first = cards[0].getBoundingClientRect()
+      const last = cards[cards.length - 1].getBoundingClientRect()
+      minX = (first.left - domRect.left) / scale
+      maxX = (first.right - domRect.left) / scale - imgW
+      minY = (first.top - domRect.top) / scale
+      maxY = (last.bottom - domRect.top) / scale - imgH
+    }
     let moved = false
     const onMove = (e: PointerEvent) => {
       const dx = (e.clientX - startClientX) / scale
       const dy = (e.clientY - startClientY) / scale
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true
-      setLivePos({ x: Math.max(0, Math.round(startX + dx)), y: Math.max(0, Math.round(startY + dy)) })
+      // Float freely over the page (margins included), but clamped to the page
+      // bounds above so it can't be dragged off into the gutter / scroll area.
+      setLivePos({
+        x: clamp(Math.round(startX + dx), minX, maxX),
+        y: clamp(Math.round(startY + dy), minY, maxY),
+      })
     }
     const onUp = () => {
       window.removeEventListener("pointermove", onMove)
@@ -179,7 +202,7 @@ export function ImageNodeView(props: ReactNodeViewProps) {
     }
     window.addEventListener("pointermove", onMove)
     window.addEventListener("pointerup", onUp)
-  }, [interactive, cropMode, x, y, getPos, editor, updateAttributes])
+  }, [interactive, cropMode, x, y, getPos, editor, updateAttributes, width])
 
   // ── Resize (bottom-right handle, aspect locked, zoom-aware) ──
   const onResizeDown = useCallback((event: ReactPointerEvent) => {
