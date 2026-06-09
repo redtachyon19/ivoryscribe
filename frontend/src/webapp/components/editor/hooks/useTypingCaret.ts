@@ -7,13 +7,41 @@ type UseTypingCaretParams = {
   markUiTypingActivity: () => void
 }
 
-const CARET_FOLLOW_FACTOR = 0.12 //0.22
-const CARET_FOLLOW_SNAP_DISTANCE = 0.01 //0.35
+// Spring tuning for the custom caret (the native caret is hidden via
+// `caret-color: transparent`, so THIS element is the visible cursor).
+// FACTOR = fraction of the remaining distance covered per animation frame;
+// SNAP_DISTANCE = how close (px) before we lock onto the target and stop the
+// RAF loop. These were briefly detuned to 0.12 / 0.01 in commit 0228d8d
+// ("project card size alterations"), which made the caret crawl asymptotically
+// for ~50 frames (~0.9s) after every keystroke — the "cursor jumping / not
+// seamless" regression. Restored to the original tuned values.
+const CARET_FOLLOW_FACTOR = 0.22
+const CARET_FOLLOW_SNAP_DISTANCE = 0.35
 
 // How long after the last keystroke we keep the caret's `--typing` class on.
 // Kept in sync with TYPING_IDLE_MS in useTypingState.ts so chrome auto-hide
 // and the caret's typing-state visuals end on the same beat.
 const CARET_TYPING_IDLE_MS = 2000 //2000
+
+// Effective CSS `zoom` applied to `start` and its ancestors. useEditorZoom sets
+// `zoom` as an inline style on the zoomed element (the page-stack wrapper in
+// Typewriter, the editor surface itself in Draft), and CSS `zoom` multiplies
+// through nesting — so we walk up from the surface and accumulate it. The caret
+// lives inside that zoomed box, so its coords come back in rendered px while a
+// transform on it is re-scaled by this zoom; dividing by it converts back to
+// the natural px the transform actually needs. Returns 1 when nothing is
+// zoomed, so this is a no-op at 100%. Uses getPropertyValue (not `.style.zoom`)
+// because `zoom` isn't in the typed CSSStyleDeclaration.
+function getEffectiveZoom(start: HTMLElement | null): number {
+  let zoom = 1
+  let node: HTMLElement | null = start
+  while (node) {
+    const inline = parseFloat(node.style.getPropertyValue("zoom") || "")
+    if (Number.isFinite(inline) && inline > 0) zoom *= inline
+    node = node.parentElement
+  }
+  return zoom
+}
 
 export function useTypingCaret({
   editor,
@@ -161,11 +189,18 @@ export function useTypingCaret({
         return
       }
 
-      const left = coords.left - surfaceRect.left
-      const top = coords.top - surfaceRect.top
+      // The surface (or an ancestor) is CSS-`zoom`ed and the caret is a child of
+      // it, so coords/rects come back in RENDERED px while a transform set on the
+      // caret is re-scaled by that zoom. Divide by the effective zoom to convert
+      // to the natural px the transform needs, so the caret tracks the text at
+      // any zoom level — in BOTH Typewriter (zoom on an ancestor) and Draft (zoom
+      // on the surface itself). No-op at 100% zoom (renderScale === 1).
+      const renderScale = getEffectiveZoom(editorSurface)
+      const left = (coords.left - surfaceRect.left) / renderScale
+      const top = (coords.top - surfaceRect.top) / renderScale
       // Track the actual line height reported by ProseMirror; clamp only to
-       // a tiny minimum to guard against zero-height edge cases.
-      const height = Math.max(coords.bottom - coords.top, 12)
+      // a tiny minimum to guard against zero-height edge cases.
+      const height = Math.max((coords.bottom - coords.top) / renderScale, 12)
 
       caretMotion.targetLeft = left
       caretMotion.targetTop = top
@@ -209,6 +244,20 @@ export function useTypingCaret({
       }
       scheduleCaretUpdate()
     }
+    // The page stack rescales via CSS `zoom` during a pinch. The spring is for
+    // cursor *movement* (typing/clicking); animating it across a zoom step makes
+    // the caret chase a teleporting target and visibly glitch. Cancel the
+    // in-flight spring and force a snap (initialized = false → updateCaret sets
+    // current = target directly) so the caret stays glued to the text as the
+    // page scales.
+    const onZoom = () => {
+      if (followFrameId) {
+        window.cancelAnimationFrame(followFrameId)
+        followFrameId = 0
+      }
+      caretMotion.initialized = false
+      scheduleCaretUpdate()
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) {
         return
@@ -231,6 +280,7 @@ export function useTypingCaret({
     window.addEventListener("resize", onWindowResize)
     window.addEventListener("scroll", onWindowScroll, true)
     window.addEventListener("tw:pagebreak", onPageBreak)
+    window.addEventListener("tw:zoom", onZoom)
 
     const editorDom = getEditorView()?.dom ?? null
     editorDom?.addEventListener("keydown", onKeyDown)
@@ -254,6 +304,7 @@ export function useTypingCaret({
       window.removeEventListener("resize", onWindowResize)
       window.removeEventListener("scroll", onWindowScroll, true)
       window.removeEventListener("tw:pagebreak", onPageBreak)
+      window.removeEventListener("tw:zoom", onZoom)
       editorDom?.removeEventListener("keydown", onKeyDown)
     }
   }, [editor, editorSurfaceRef, markUiTypingActivity])

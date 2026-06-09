@@ -126,12 +126,14 @@ export const ResizableImage = Node.create({
       x: {
         default: 0,
         parseHTML: (el: HTMLElement) => { const v = parseFloat(el.getAttribute("data-x") || ""); return Number.isNaN(v) ? 0 : v },
-        renderHTML: (attrs: Record<string, unknown>) => ({ "data-x": String(Math.round((attrs.x as number) || 0)) }),
+        // Keep 2 decimals (not integer) so a snapped, flush alignment survives a
+        // save/reload instead of drifting by up to half a pixel.
+        renderHTML: (attrs: Record<string, unknown>) => ({ "data-x": String(Math.round(((attrs.x as number) || 0) * 100) / 100) }),
       },
       y: {
         default: 0,
         parseHTML: (el: HTMLElement) => { const v = parseFloat(el.getAttribute("data-y") || ""); return Number.isNaN(v) ? 0 : v },
-        renderHTML: (attrs: Record<string, unknown>) => ({ "data-y": String(Math.round((attrs.y as number) || 0)) }),
+        renderHTML: (attrs: Record<string, unknown>) => ({ "data-y": String(Math.round(((attrs.y as number) || 0) * 100) / 100) }),
       },
       crop: {
         default: null,
