@@ -181,6 +181,12 @@ export function ImageNodeView(props: ReactNodeViewProps) {
     const wrapRect = selfWrap?.getBoundingClientRect()
     const selfW = wrapRect ? wrapRect.width / scale : width
     const selfH = wrapRect ? wrapRect.height / scale : width
+    // The image's MEASURED top-left in content space. We snap against this (not
+    // the stored x/y) and apply the resulting delta back to the position, so the
+    // on-screen edges land exactly on the guides regardless of any sub-pixel /
+    // rendering offset between the stored coordinate and where it actually draws.
+    const selfLeft0 = wrapRect ? toCX(wrapRect.left) : startX
+    const selfTop0 = wrapRect ? toCY(wrapRect.top) : startY
     // Page bounds (the image floats over the whole page incl. margins, but not
     // off it) and alignment-guide candidates: other images' edges/centres plus
     // the page centre lines. Falls back to unclamped/no-guides without a page.
@@ -221,17 +227,19 @@ export function ImageNodeView(props: ReactNodeViewProps) {
       const dx = (e.clientX - startClientX) / scale
       const dy = (e.clientY - startClientY) / scale
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true
-      let nx = Math.round(startX + dx), ny = Math.round(startY + dy)
-      // Snap left/centre/right to the closest vertical guide; top/centre/bottom
-      // to the closest horizontal guide (each axis independent).
+      // Work from the MEASURED edges (selfLeft0/selfTop0 + delta). Snap each
+      // axis to the closest guide, clamp to the page, then convert the measured
+      // result back to a stored position via the delta. No rounding — so a
+      // snapped edge sits EXACTLY on the guide / other image's edge (flush).
+      let mLeft = selfLeft0 + dx, mTop = selfTop0 + dy
       let gx: number | null = null, gxd = ALIGN_SNAP_PX, gxAdj = 0
-      for (const g of vGuides) for (const p of [nx, nx + selfW / 2, nx + selfW]) { const d = Math.abs(p - g); if (d < gxd) { gxd = d; gxAdj = g - p; gx = g } }
-      if (gx != null) nx = Math.round(nx + gxAdj)
+      for (const g of vGuides) for (const p of [mLeft, mLeft + selfW / 2, mLeft + selfW]) { const d = Math.abs(p - g); if (d < gxd) { gxd = d; gxAdj = g - p; gx = g } }
+      mLeft += gxAdj
       let gy: number | null = null, gyd = ALIGN_SNAP_PX, gyAdj = 0
-      for (const g of hGuides) for (const p of [ny, ny + selfH / 2, ny + selfH]) { const d = Math.abs(p - g); if (d < gyd) { gyd = d; gyAdj = g - p; gy = g } }
-      if (gy != null) ny = Math.round(ny + gyAdj)
-      nx = clamp(nx, minX, maxX); ny = clamp(ny, minY, maxY)
-      setLivePos({ x: nx, y: ny })
+      for (const g of hGuides) for (const p of [mTop, mTop + selfH / 2, mTop + selfH]) { const d = Math.abs(p - g); if (d < gyd) { gyd = d; gyAdj = g - p; gy = g } }
+      mTop += gyAdj
+      mLeft = clamp(mLeft, minX, maxX); mTop = clamp(mTop, minY, maxY)
+      setLivePos({ x: startX + (mLeft - selfLeft0), y: startY + (mTop - selfTop0) })
       if (gx != null) { vLine.style.display = "block"; vLine.style.left = `${gx + offX}px`; vLine.style.top = `${pageTop + offY}px`; vLine.style.height = `${pageBottom - pageTop}px` }
       else vLine.style.display = "none"
       if (gy != null) { hLine.style.display = "block"; hLine.style.top = `${gy + offY}px`; hLine.style.left = `${pageLeft + offX}px`; hLine.style.width = `${pageRight - pageLeft}px` }
@@ -548,6 +556,11 @@ export function ImageNodeView(props: ReactNodeViewProps) {
 
   const posX = livePos ? livePos.x : x
   const posY = livePos ? livePos.y : y
+  // While actively dragging, hide the selection ring + resize grip. They're a
+  // box-shadow / absolutely-positioned overlay that sit OUTSIDE the image's
+  // layout box (which is what alignment snaps to), so leaving them on makes a
+  // snapped image look a few px misaligned against the guide / other image.
+  const dragging = livePos != null
   // In crop mode the stage shows the FULL image, but the cropped content sits
   // at (x,y). Shift the stage up/left by the crop's top-left offset so the crop
   // window lines up exactly with where the cropped image is — otherwise the
@@ -648,7 +661,7 @@ export function ImageNodeView(props: ReactNodeViewProps) {
   return (
     <NodeViewWrapper
       as="div"
-      className={`tw-image${selected && interactive ? " tw-image--selected" : ""}${cropMode ? " tw-image--cropping" : ""}${sizeSnap?.w ? " tw-image--match-w" : ""}${sizeSnap?.h ? " tw-image--match-h" : ""}`}
+      className={`tw-image${selected && interactive && !dragging ? " tw-image--selected" : ""}${cropMode ? " tw-image--cropping" : ""}${sizeSnap?.w ? " tw-image--match-w" : ""}${sizeSnap?.h ? " tw-image--match-h" : ""}`}
       style={wrapperStyle}
     >
       {shape === "heart" ? (
@@ -668,7 +681,7 @@ export function ImageNodeView(props: ReactNodeViewProps) {
       ) : (
         <div className="tw-image__holder">
           {renderImage()}
-          {selected && interactive ? (
+          {selected && interactive && !dragging ? (
             <span
               className="tw-image__handle"
               onPointerDown={onResizeDown}
