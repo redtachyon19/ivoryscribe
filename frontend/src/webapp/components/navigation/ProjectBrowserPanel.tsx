@@ -241,7 +241,7 @@ export default function ProjectBrowserPanel({
     return ids
   }, [projects, folders, expandedFolders, topRootProjects, bottomRootProjects, rootFolderId])
 
-  const rootListHandlers = drag.createRootListHandlers(visibleItemIds, "project-browser__item")
+  const rootListHandlers = drag.createRootListHandlers(visibleItemIds)
 
   const moveProjectsToFolder = useCallback((projectIds: string[], folderId: string) => {
     if (projectIds.length === 0) return
