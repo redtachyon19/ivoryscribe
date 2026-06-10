@@ -121,7 +121,12 @@ export default function TypewriterEditor({
     readOnly,
     placeholder: "Start writing...",
     extensions: [
-      StarterKit,
+      // heading:false — the app intentionally has no heading blocks (there's no
+      // toolbar control for them). StarterKit ships Heading ENABLED, which
+      // silently let the "# " markdown input rule, ⌃⌥1, and paste create <h1>s
+      // that then rendered bold via the editor's heading CSS. Both prose editors
+      // must disable it identically so their shared schema stays in sync.
+      StarterKit.configure({ heading: false }),
       Highlight.configure({ multicolor: true }),
       Underline,
       // Shared with DraftingEditor so both views keep an identical prose schema

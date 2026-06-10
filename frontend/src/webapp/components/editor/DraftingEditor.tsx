@@ -79,7 +79,11 @@ export default function DraftingEditor({
     readOnly,
     placeholder: BODY_PLACEHOLDER,
     extensions: [
-      StarterKit,
+      // heading:false — kept identical to TypewriterEditor so the two editors
+      // share one schema. The app has no heading UI; disabling Heading removes
+      // the node plus the "# " input rule and ⌃⌥1 shortcut that were silently
+      // creating bold <h1>s. See TypewriterEditor for the full rationale.
+      StarterKit.configure({ heading: false }),
       Highlight.configure({ multicolor: true }),
       Underline,
       // Keep the prose schema in lockstep with TypewriterEditor so neither view
