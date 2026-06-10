@@ -34,7 +34,10 @@ export function sharedProseFormattingExtensions(
     FontSizeExtension,
     FontFamily,
     Color,
-    TextAlign.configure({ types: ["heading", "paragraph"] }),
+    // Only paragraphs — headings are disabled in StarterKit (no heading blocks
+    // in this app), so listing "heading" here would reference a node that no
+    // longer exists in the schema.
+    TextAlign.configure({ types: ["paragraph"] }),
     ParaIndentExtension,
     ColumnsExtension,
     // Inline images (data-URL src), resizable + alignable. Shared so neither

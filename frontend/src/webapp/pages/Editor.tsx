@@ -257,6 +257,7 @@ export default function Editor({
       isEditorTyping={isEditorTyping}
       view={view}
       project={project}
+      activeDocumentType={activeDocumentType}
       activeFolderName={activeFolderName}
       canGoBack={canGoBack}
       canGoForward={canGoForward}
