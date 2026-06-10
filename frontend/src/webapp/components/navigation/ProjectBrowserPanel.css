@@ -90,6 +90,10 @@
    (margin-left:10px per depth); a full-width pill would overhang them. */
 .project-browser__active-indicator {
   position: absolute;
+  /* border-box so the 1px border is drawn inside the JS-measured left/width/
+     top/height (a border-box measurement of the row), instead of adding ~2px
+     all round and reading bigger than the rows / marquee outlines. */
+  box-sizing: border-box;
   border-radius: 10px;
   background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
@@ -143,8 +147,16 @@
   width: 100%;
   display: flex;
   align-items: center;
+  /* border-box so the row's 1px border is internal — keeps its outer box equal
+     to the container width and lets the active pill (also border-box) match it
+     exactly in both dimensions. */
+  box-sizing: border-box;
   border: 1px solid transparent;
-  border-radius: 6px;
+  /* 10px to match the active-project sliding pill (.project-browser__active-indicator)
+     and the document-tabs rows, so the accent marquee-select / drag / drop-into
+     outlines — which inherit this radius via their inset box-shadow
+     (navPanelShared.css) — read with the same roundedness in both panels. */
+  border-radius: 10px;
   color: var(--menu-button, #ededed);
   transition: background-color 0ms linear;
 }

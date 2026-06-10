@@ -74,6 +74,17 @@ export default function DocumentTabsPanel({
   const [expandedById, setExpandedById] = useState<Record<string, boolean>>({})
   const [contextMenu, setContextMenu] = useState<TabsContextMenuState | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
+
+  // Opening a tab (plain click) collapses any marquee multi-selection — the same
+  // "click off" expectation as clicking empty space. Drag uses dragstart (which
+  // never fires a click), so a multi-drag still reads the selection intact.
+  const handleSelectTab = useCallback(
+    (id: string) => {
+      setMarqueeSelectedIds((current) => (current.size > 0 ? new Set() : current))
+      onSelect(id)
+    },
+    [onSelect, setMarqueeSelectedIds],
+  )
   const rootListRef = useRef<HTMLUListElement | null>(null)
   const rowRefs = useRef<Record<string, HTMLDivElement>>({})
   const [activeIndicatorStyle, setActiveIndicatorStyle] = useState<{ top: number; height: number; visible: boolean }>({
@@ -470,7 +481,7 @@ export default function DocumentTabsPanel({
               editingId={editingId}
               editingTitle={editingTitle}
               pendingEditTabIds={pendingEditTabIds}
-              onSelect={onSelect}
+              onSelect={handleSelectTab}
               onOpenInNewTab={onOpenTabInNewTab}
               onDragStart={(event, id) => {
                 handleTabDragStart(event, id)
