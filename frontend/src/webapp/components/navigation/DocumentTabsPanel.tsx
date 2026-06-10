@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Copy, ExternalLink, FileCode, FilePlus2, FileType, Pencil, Presentation, Trash2 } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type Project, type ProjectKind } from "../../../core/utils/projects"
 import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
-import { useListDrag, type DropMode } from "../shared/hooks/useListDrag"
+import { useListDrag, nearestRowBoundary, type DropMode } from "../shared/hooks/useListDrag"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"
@@ -378,32 +378,19 @@ export default function DocumentTabsPanel({
   }, [closeContextMenu, deleteTabsAndSyncSelection, selectedRootIds])
 
   const handleRootListDragOver = (event: DragEvent<HTMLUListElement>) => {
-    // Supports dropping into empty list spaces by snapping to first/last tab edges.
     if (!draggingId || tabs.length === 0) {
       return
     }
 
     event.preventDefault()
 
-    const targetElement = event.target as HTMLElement | null
-    if (targetElement?.closest(".doc-tabs__item")) {
-      return
-    }
-
-    const firstTabId = tabs[0]?.id
-    const lastTabId = tabs[tabs.length - 1]?.id
-    if (!firstTabId || !lastTabId) {
-      return
-    }
-
-    const listRect = event.currentTarget.getBoundingClientRect()
-    const relativeY = event.clientY - listRect.top
-    const isTopZone = relativeY < listRect.height * 0.5
-
-    setDropTarget({
-      targetId: isTopZone ? firstTabId : lastTabId,
-      mode: isTopZone ? "before" : "after",
-    })
+    // Rows stopPropagation, so we only reach here over the dead space between
+    // rows (the flex gap + the invisible drop-line strips) or the empty area
+    // below the list. Resolve the cursor to the nearest row boundary so the
+    // between-rows indicator stays lit across that whole band, rather than
+    // snapping to the first/last tab.
+    const boundary = nearestRowBoundary(event.currentTarget, event.clientY)
+    if (boundary) setDropTarget(boundary)
   }
 
   const handleRootListDrop = (event: DragEvent<HTMLUListElement>) => {

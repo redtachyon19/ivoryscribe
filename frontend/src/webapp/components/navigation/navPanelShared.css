@@ -79,3 +79,33 @@
 .project-browser__drop-line--visible {
   opacity: 1;
 }
+
+/* One indicator per gap, centered between the two rows.
+   The lines sit in normal flow — a row's --bottom line directly under it and the
+   next row's --top line directly above it, separated by the 8px list gap. That
+   put "drop after A" and "drop before B" (the SAME slot) at two different spots.
+   Pull each toward the gap's midpoint with translateY (offset = half the 8px gap
+   + half the 3px line = 5.5px), so both land on the exact same line — and use a
+   transform (not margin) so row spacing is unchanged. */
+.doc-tabs__drop-line--top,
+.project-browser__drop-line--top {
+  transform: translateY(-5.5px);
+}
+.doc-tabs__drop-line--bottom,
+.project-browser__drop-line--bottom {
+  transform: translateY(5.5px);
+}
+
+/* The very first row has no row above and the very last none below, so their
+   "before" / "after" lines have no gap to center in — keep them at the row edge
+   instead of pushing past the top of the list or into empty space below.
+   :first/last-of-type targets the first/last <li> even past the sibling active
+   pill, and applies per nested list too. */
+.doc-tabs__item:first-of-type > .doc-tabs__drop-line--top,
+.project-browser__item:first-of-type > .project-browser__drop-line--top {
+  transform: none;
+}
+.doc-tabs__item:last-of-type > .doc-tabs__drop-line--bottom,
+.project-browser__item:last-of-type > .project-browser__drop-line--bottom {
+  transform: none;
+}
