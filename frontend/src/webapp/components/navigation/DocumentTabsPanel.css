@@ -66,6 +66,11 @@
 
 .doc-tabs__active-indicator {
   position: absolute;
+  /* border-box so the 1px border is drawn INSIDE the measured row height/width
+     (getBoundingClientRect is a border-box measurement) instead of adding ~2px
+     all round — that overflow is what made the pill read bigger than the rows /
+     marquee outlines. */
+  box-sizing: border-box;
   left: 0;
   right: 0;
   /* Match the global settings sidebar sliding-pill exactly
@@ -106,6 +111,10 @@
   width: 100%;
   display: flex;
   align-items: center;
+  /* border-box so the row's 1px border is internal — keeps its outer box equal
+     to the container width and lets the active pill (also border-box) match it
+     exactly in both dimensions. */
+  box-sizing: border-box;
   border: 1px solid transparent;
   /* 10px to match the active-tab sliding pill (.doc-tabs__active-indicator), so
      the accent marquee-select / drag / drop-into outlines — which inherit this
