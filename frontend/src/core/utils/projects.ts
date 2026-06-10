@@ -571,6 +571,20 @@ export function setActiveTabContent(project: Project, nextContent: string): Proj
   }
 }
 
+/** Set content for a SPECIFIC document id rather than whichever tab happens to
+ *  be active. The prose editors debounce their saves, so a flush can land after
+ *  the user has already switched tabs — targeting the editor's own captured id
+ *  (not `activeId`) guarantees that trailing write goes to the right document
+ *  instead of clobbering the newly-active one. No-op for an empty id or when the
+ *  id is not a tab in this project. */
+export function setTabContentById(project: Project, documentId: string | null, nextContent: string): Project {
+  if (!documentId || !(documentId in project.contentById)) return project
+  return {
+    ...project,
+    contentById: { ...project.contentById, [documentId]: nextContent },
+  }
+}
+
 // ── Word counting ──────────────────────────────────────────────────────────
 //
 // Lives here (rather than in core/utils/markdown.ts where countWords is)

@@ -11,12 +11,30 @@ type UseTypingCaretParams = {
 // `caret-color: transparent`, so THIS element is the visible cursor).
 // FACTOR = fraction of the remaining distance covered per animation frame;
 // SNAP_DISTANCE = how close (px) before we lock onto the target and stop the
-// RAF loop. These were briefly detuned to 0.12 / 0.01 in commit 0228d8d
-// ("project card size alterations"), which made the caret crawl asymptotically
-// for ~50 frames (~0.9s) after every keystroke — the "cursor jumping / not
-// seamless" regression. Restored to the original tuned values.
-const CARET_FOLLOW_FACTOR = 0.22
-const CARET_FOLLOW_SNAP_DISTANCE = 0.35
+// RAF loop. A LOW factor + a tiny snap distance is what gives the caret its
+// signature "buttery" trail: it glides languidly toward the target over many
+// frames instead of darting there. LOWER factor = the indicator hangs back
+// FURTHER behind the text (longer trail); higher = it catches up sooner. The
+// snappy 0.22 / 0.35 pairing (briefly reinstated by the zoom-fix commit
+// 73e54ca) caught up in ~13 frames and read as abrupt. These are the intended
+// floaty values — tuned for a generous trail.
+const CARET_FOLLOW_FACTOR = 0.09
+const CARET_FOLLOW_SNAP_DISTANCE = 0.01  //0.01
+// Maximum distance (px per ~60fps animation frame) the caret may travel toward
+// the cursor in a single frame. While the gap is small the spring above governs
+// (buttery ease-in). Once the gap is big enough that the spring step would
+// exceed this, the caret PINS to this top speed — so typing faster than the
+// caret can travel lets the cursor pull ahead and the trail keeps growing (you
+// can "out-type" it); slow down and it reels back in. Lower = easier to out-run
+// (and a slower glide to far clicks); higher = harder to out-run (snappier
+// clicks). Caps horizontal+vertical position only; height keeps the plain spring.
+const CARET_MAX_FOLLOW_SPEED = 1.4
+// Maximum distance (px) the caret may trail BEHIND the cursor while typing — a
+// hard ceiling on how far a fast burst can out-run it. Past this the caret is
+// pulled forward to hold exactly this gap (so it then tracks at typing speed and
+// can't fall further behind). Only applies to capped typing motion, not to
+// discrete darts. Lower = shorter leash. ~10 characters at the default font.
+const CARET_MAX_FOLLOW_DISTANCE = 90
 
 // How long after the last keystroke we keep the caret's `--typing` class on.
 // Kept in sync with TYPING_IDLE_MS in useTypingState.ts so chrome auto-hide
@@ -78,6 +96,15 @@ export function useTypingCaret({
     let frameId = 0
     let followFrameId = 0
     let typingTimeoutId = 0
+    // Set by a typing/edit keystroke (character incl. SPACE, Backspace, Delete)
+    // and consumed by the next updateCaret. Forces that update to stay capped
+    // even when the keystroke wraps to a new line — a wrap looks geometrically
+    // identical to a deliberate Enter, so only the key distinguishes them.
+    let typingMove = false
+    // Set by an Enter keystroke and consumed by the next updateCaret: snap the
+    // caret straight to the new line (no glide, no crawl) so a deliberate line
+    // break is instant and the following typing trails cleanly from there.
+    let snapNextMove = false
     const caretMotion = {
       currentLeft: 0,
       currentTop: 0,
@@ -86,6 +113,12 @@ export function useTypingCaret({
       targetTop: 0,
       targetHeight: 26,
       initialized: false,
+      // When true, the speed cap is lifted for the current glide — set when the
+      // target makes a big DISCRETE jump (line break, click, page-break) so the
+      // caret darts straight there instead of crawling at the typing cap; reset
+      // once it settles. Small per-keystroke jumps leave it false (capped, so a
+      // fast burst can still out-run the trail).
+      uncapped: false,
     }
 
     const applyCaretPosition = () => {
@@ -100,9 +133,37 @@ export function useTypingCaret({
       const topDelta = caretMotion.targetTop - caretMotion.currentTop
       const heightDelta = caretMotion.targetHeight - caretMotion.currentHeight
 
-      caretMotion.currentLeft += leftDelta * CARET_FOLLOW_FACTOR
-      caretMotion.currentTop += topDelta * CARET_FOLLOW_FACTOR
+      // Spring step toward the target, then cap the position travel to a top
+      // speed so a fast typing burst can out-run the caret (see
+      // CARET_MAX_FOLLOW_SPEED). Height keeps the uncapped spring.
+      let stepLeft = leftDelta * CARET_FOLLOW_FACTOR
+      let stepTop = topDelta * CARET_FOLLOW_FACTOR
+      if (!caretMotion.uncapped) {
+        const stepDist = Math.hypot(stepLeft, stepTop)
+        if (stepDist > CARET_MAX_FOLLOW_SPEED) {
+          const scale = CARET_MAX_FOLLOW_SPEED / stepDist
+          stepLeft *= scale
+          stepTop *= scale
+        }
+      }
+      caretMotion.currentLeft += stepLeft
+      caretMotion.currentTop += stepTop
       caretMotion.currentHeight += heightDelta * CARET_FOLLOW_FACTOR
+
+      // Cap the trailing DISTANCE while typing: the caret may not fall more than
+      // CARET_MAX_FOLLOW_DISTANCE behind the cursor. Past that, pull it forward
+      // to hold exactly that gap (so it tracks at typing speed and can't lag
+      // further). Skipped for discrete darts, which glide freely.
+      if (!caretMotion.uncapped) {
+        const gapLeft = caretMotion.targetLeft - caretMotion.currentLeft
+        const gapTop = caretMotion.targetTop - caretMotion.currentTop
+        const gapDist = Math.hypot(gapLeft, gapTop)
+        if (gapDist > CARET_MAX_FOLLOW_DISTANCE) {
+          const pull = (gapDist - CARET_MAX_FOLLOW_DISTANCE) / gapDist
+          caretMotion.currentLeft += gapLeft * pull
+          caretMotion.currentTop += gapTop * pull
+        }
+      }
 
       applyCaretPosition()
 
@@ -115,6 +176,7 @@ export function useTypingCaret({
         caretMotion.currentLeft = caretMotion.targetLeft
         caretMotion.currentTop = caretMotion.targetTop
         caretMotion.currentHeight = caretMotion.targetHeight
+        caretMotion.uncapped = false
         applyCaretPosition()
         return
       }
@@ -202,6 +264,39 @@ export function useTypingCaret({
       // a tiny minimum to guard against zero-height edge cases.
       const height = Math.max((coords.bottom - coords.top) / renderScale, 12)
 
+      // A deliberate Enter snaps the caret straight to the new line (initialized
+      // = false routes to the teleport branch below) so it's instant rather than
+      // gliding/crawling across the break.
+      if (snapNextMove) {
+        caretMotion.initialized = false
+        snapNextMove = false
+      }
+
+      // Decide whether this move keeps the speed cap (typing → trail, so you can
+      // out-run it) or lifts it (discrete navigation → dart straight there).
+      if (caretMotion.initialized) {
+        if (typingMove) {
+          // Typing/edit keystroke (incl. SPACE) — always capped, even when it
+          // wraps to a new line. The key signal is the ONLY reliable tell: a
+          // wrap and a deliberate Enter are geometrically identical.
+          caretMotion.uncapped = false
+        } else {
+          // Non-typing trigger (Enter, click, arrow nav, page-break, scroll):
+          // dart if the target jumped far — scaled to line height so it's
+          // font/zoom-independent (>½-line vertical = line change; >2-line total
+          // = click/navigation). Tiny/zero moves leave the flag alone so a
+          // click's follow-up zero-jump events don't re-cap a dart mid-flight.
+          const topJump = Math.abs(top - caretMotion.targetTop)
+          const jumpDist = Math.hypot(left - caretMotion.targetLeft, top - caretMotion.targetTop)
+          if (topJump > height * 0.5 || jumpDist > height * 2) {
+            caretMotion.uncapped = true
+          } else if (jumpDist > 0.5) {
+            caretMotion.uncapped = false
+          }
+        }
+      }
+      typingMove = false
+
       caretMotion.targetLeft = left
       caretMotion.targetTop = top
       caretMotion.targetHeight = height
@@ -211,6 +306,7 @@ export function useTypingCaret({
         caretMotion.currentTop = top
         caretMotion.currentHeight = height
         caretMotion.initialized = true
+        caretMotion.uncapped = false
         applyCaretPosition()
       } else {
         scheduleCaretFollow()
@@ -269,6 +365,14 @@ export function useTypingCaret({
       if (isCharacter || isEditingKey) {
         markCaretTypingActivity()
         markUiTypingActivity()
+      }
+
+      // Flag this as a typing move so its caret update stays capped even if it
+      // wraps. Enter is deliberately EXCLUDED — it gets the instant snap instead.
+      if (isCharacter || event.key === "Backspace" || event.key === "Delete") {
+        typingMove = true
+      } else if (event.key === "Enter") {
+        snapNextMove = true
       }
     }
 

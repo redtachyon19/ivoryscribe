@@ -18,6 +18,7 @@ import {
   getProjectEntryTerms,
   renameTabTitle,
   setActiveTabContent,
+  setTabContentById,
   type Project,
 } from "../../../core/utils/projects"
 import type { TabViewMode } from "./utils/viewModePrefs"
@@ -164,7 +165,12 @@ export default function EditorWorkspace({
             onTypingStateChange={onEditorTypingStateChange}
             onContentChange={(nextContent) => {
               if (isEditOnActiveTab) return
-              onProjectChange((currentProject) => setActiveTabContent(currentProject, nextContent))
+              // Capture THIS editor's document id: the save is debounced in
+              // useProseEditorBase, so a trailing flush can fire after the user
+              // has switched tabs. Writing to the captured id (not activeId)
+              // keeps the late write on the right document.
+              const docId = project.activeId
+              onProjectChange((currentProject) => setTabContentById(currentProject, docId, nextContent))
             }}
           />
           {isEditOnActiveTab ? (
@@ -263,7 +269,12 @@ export default function EditorWorkspace({
             }}
             onContentChange={(nextContent) => {
               if (isEditOnActiveTab) return
-              onProjectChange((currentProject) => setActiveTabContent(currentProject, nextContent))
+              // Capture THIS editor's document id: the save is debounced in
+              // useProseEditorBase, so a trailing flush can fire after the user
+              // has switched tabs. Writing to the captured id (not activeId)
+              // keeps the late write on the right document.
+              const docId = project.activeId
+              onProjectChange((currentProject) => setTabContentById(currentProject, docId, nextContent))
             }}
           />
           {isEditOnActiveTab ? (
