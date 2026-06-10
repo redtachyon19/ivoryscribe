@@ -84,6 +84,8 @@ echo "[helper] compiling preview extension …"
     -framework Foundation \
     -framework AppKit \
     -framework QuickLookUI \
+    -framework CoreGraphics \
+    -framework UniformTypeIdentifiers \
     -Xlinker -e -Xlinker _NSExtensionMain \
     -o "$APPEX_MACOS/IvoryscribeMacHelper" \
     "$SRC_EXT/TuskParser.swift" \
@@ -104,6 +106,7 @@ echo "[helper] compiling thumbnail extension …"
     -framework Foundation \
     -framework AppKit \
     -framework QuickLookThumbnailing \
+    -framework CoreGraphics \
     -Xlinker -e -Xlinker _NSExtensionMain \
     -o "$THUMB_MACOS/IvoryscribeThumbnail" \
     "$SRC_EXT/TuskParser.swift" \

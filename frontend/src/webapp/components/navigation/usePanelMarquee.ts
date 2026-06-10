@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import useMarqueeSelection from "../shared/hooks/useMarqueeSelection"
 
 type UsePanelMarqueeOptions = {
@@ -38,6 +38,40 @@ export default function usePanelMarquee(options: UsePanelMarqueeOptions = {}) {
   })
 
   const liveSelectedIds = marquee.isActive ? marquee.selectedIds : marqueeSelectedIds
+
+  // Escape clears the current selection (consistent with text deselection).
+  // Skip while editing a field (rename, etc.) — Escape means "cancel edit"
+  // there — and only act when something is actually selected.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
+      const active = document.activeElement as HTMLElement | null
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)) return
+      setMarqueeSelectedIds((current) => (current.size > 0 ? new Set() : current))
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [])
+
+  // "Click off" clears the committed selection: a plain left-press that lands
+  // OUTSIDE the list (the editor, panel chrome, another panel, anywhere) drops
+  // it. Presses inside the list are handled elsewhere — empty space starts a new
+  // marquee, and a row's own open handler collapses the selection — so we ignore
+  // those here. Modifier-clicks (extend) and presses inside a popover/menu are
+  // left alone so they don't fight selection or context-menu actions.
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey) return
+      const container = marqueeContainerRef.current
+      const target = e.target instanceof Element ? e.target : null
+      if (!container || !target) return
+      if (container.contains(target)) return
+      if (target.closest('[role="menu"], [role="menuitem"], [role="dialog"], .project-context-menu')) return
+      setMarqueeSelectedIds((current) => (current.size > 0 ? new Set() : current))
+    }
+    document.addEventListener("mousedown", onMouseDown, true)
+    return () => document.removeEventListener("mousedown", onMouseDown, true)
+  }, [])
 
   return { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds }
 }

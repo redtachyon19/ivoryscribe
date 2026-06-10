@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import { Copy, ExternalLink, FileCode, FilePlus2, FileType, Pencil, Presentation, Trash2 } from "lucide-react"
 import { collectTabIds, getProjectEntryTerms, type DocumentTab, type Project, type ProjectKind } from "../../../core/utils/projects"
 import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
-import { useListDrag, type DropMode } from "../shared/hooks/useListDrag"
+import { useListDrag, nearestRowBoundary, type DropMode } from "../shared/hooks/useListDrag"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"
@@ -18,6 +18,7 @@ import {
   findAncestorIds,
   moveNodes,
 } from "./tabTreeUtils"
+import "./navPanelShared.css"
 import "./DocumentTabsPanel.css"
 
 
@@ -73,6 +74,17 @@ export default function DocumentTabsPanel({
   const [expandedById, setExpandedById] = useState<Record<string, boolean>>({})
   const [contextMenu, setContextMenu] = useState<TabsContextMenuState | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
+
+  // Opening a tab (plain click) collapses any marquee multi-selection — the same
+  // "click off" expectation as clicking empty space. Drag uses dragstart (which
+  // never fires a click), so a multi-drag still reads the selection intact.
+  const handleSelectTab = useCallback(
+    (id: string) => {
+      setMarqueeSelectedIds((current) => (current.size > 0 ? new Set() : current))
+      onSelect(id)
+    },
+    [onSelect, setMarqueeSelectedIds],
+  )
   const rootListRef = useRef<HTMLUListElement | null>(null)
   const rowRefs = useRef<Record<string, HTMLDivElement>>({})
   const [activeIndicatorStyle, setActiveIndicatorStyle] = useState<{ top: number; height: number; visible: boolean }>({
@@ -165,7 +177,12 @@ export default function DocumentTabsPanel({
     delete rowRefs.current[id]
   }
 
-  useEffect(() => {
+  // Sliding-pill indicator behind the active tab. Same mechanism as the global
+  // settings sidebar (GlobalSettings.tsx): measure the active row's rect
+  // relative to the list and drive an absolutely-positioned pill via top/height.
+  // useLayoutEffect (not useEffect) so the first measurement lands before paint,
+  // avoiding a flash of the pill at top:0 when a tab first becomes active.
+  useLayoutEffect(() => {
     if (!isVisible) {
       setActiveIndicatorStyle((current) => (current.visible ? { top: 0, height: 0, visible: false } : current))
       return
@@ -174,6 +191,8 @@ export default function DocumentTabsPanel({
     const rootList = rootListRef.current
     const activeRow = activeId ? rowRefs.current[activeId] : null
     if (!rootList || !activeRow) {
+      // No active tab (or its row isn't mounted, e.g. collapsed ancestor): hide
+      // the pill rather than stranding it at a stale position.
       setActiveIndicatorStyle((current) => (current.visible ? { top: 0, height: 0, visible: false } : current))
       return
     }
@@ -181,6 +200,8 @@ export default function DocumentTabsPanel({
     const syncActiveIndicator = () => {
       const listRect = rootList.getBoundingClientRect()
       const rowRect = activeRow.getBoundingClientRect()
+      // getBoundingClientRect is viewport-relative, so subtracting the two rects
+      // already nets out any scroll offset of an ancestor.
       const top = rowRect.top - listRect.top
       const height = rowRect.height
 
@@ -189,26 +210,29 @@ export default function DocumentTabsPanel({
           return current
         }
 
-        return {
-          top,
-          height,
-          visible: true,
-        }
+        return { top, height, visible: true }
       })
     }
 
     syncActiveIndicator()
     window.addEventListener("resize", syncActiveIndicator)
 
+    // Re-measure when the list reflows (tab added/removed/reordered changes the
+    // active row's offset) or the active row itself resizes (rename/marquee).
     const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncActiveIndicator) : null
     resizeObserver?.observe(rootList)
     resizeObserver?.observe(activeRow)
 
+    // Keep the pill glued to the row when the surrounding panel scrolls. Listen
+    // in capture phase so we catch whichever ancestor actually scrolls.
+    window.addEventListener("scroll", syncActiveIndicator, true)
+
     return () => {
       window.removeEventListener("resize", syncActiveIndicator)
+      window.removeEventListener("scroll", syncActiveIndicator, true)
       resizeObserver?.disconnect()
     }
-  }, [activeId, isVisible, tabs])
+  }, [activeId, isVisible, tabs, expandedById])
 
   const startRename = (id: string, currentTitle: string) => {
     setEditingId(id)
@@ -354,32 +378,19 @@ export default function DocumentTabsPanel({
   }, [closeContextMenu, deleteTabsAndSyncSelection, selectedRootIds])
 
   const handleRootListDragOver = (event: DragEvent<HTMLUListElement>) => {
-    // Supports dropping into empty list spaces by snapping to first/last tab edges.
     if (!draggingId || tabs.length === 0) {
       return
     }
 
     event.preventDefault()
 
-    const targetElement = event.target as HTMLElement | null
-    if (targetElement?.closest(".doc-tabs__item")) {
-      return
-    }
-
-    const firstTabId = tabs[0]?.id
-    const lastTabId = tabs[tabs.length - 1]?.id
-    if (!firstTabId || !lastTabId) {
-      return
-    }
-
-    const listRect = event.currentTarget.getBoundingClientRect()
-    const relativeY = event.clientY - listRect.top
-    const isTopZone = relativeY < listRect.height * 0.5
-
-    setDropTarget({
-      targetId: isTopZone ? firstTabId : lastTabId,
-      mode: isTopZone ? "before" : "after",
-    })
+    // Rows stopPropagation, so we only reach here over the dead space between
+    // rows (the flex gap + the invisible drop-line strips) or the empty area
+    // below the list. Resolve the cursor to the nearest row boundary so the
+    // between-rows indicator stays lit across that whole band, rather than
+    // snapping to the first/last tab.
+    const boundary = nearestRowBoundary(event.currentTarget, event.clientY)
+    if (boundary) setDropTarget(boundary)
   }
 
   const handleRootListDrop = (event: DragEvent<HTMLUListElement>) => {
@@ -457,7 +468,7 @@ export default function DocumentTabsPanel({
               editingId={editingId}
               editingTitle={editingTitle}
               pendingEditTabIds={pendingEditTabIds}
-              onSelect={onSelect}
+              onSelect={handleSelectTab}
               onOpenInNewTab={onOpenTabInNewTab}
               onDragStart={(event, id) => {
                 handleTabDragStart(event, id)

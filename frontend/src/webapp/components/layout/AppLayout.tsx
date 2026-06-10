@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
 import type { MenuItem } from "../../../core/utils/menu"
 import WebMenu from "./WebMenu"
+import SaveGlowOverlay from "./SaveGlowOverlay"
 
 type AppLayoutProps = {
   palette: string
@@ -96,6 +97,8 @@ export default function AppLayout({
           {children}
         </div>
       </main>
+      {/* Perimeter save glow (white = autosave, accent = manual ⌘S). */}
+      <SaveGlowOverlay />
     </div>
   )
 }

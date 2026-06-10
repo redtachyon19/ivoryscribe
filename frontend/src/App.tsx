@@ -1,6 +1,8 @@
 import "./App.css"
 import { type ReactNode } from "react"
 import { useAppOrchestration } from "./core/hooks/useAppOrchestration"
+import { useEscapeToDeselect } from "./core/hooks/useEscapeToDeselect"
+import { useManualSaveShortcut } from "./core/hooks/useManualSaveShortcut"
 import { useLocalRoot } from "./core/electron/localWorkspace"
 import AppLayout from "./webapp/components/layout/AppLayout"
 import GlobalSettings from "./webapp/components/settings/GlobalSettings"
@@ -21,6 +23,10 @@ export default function App() {
   const app = useAppOrchestration()
   const isElectron = Boolean(window.electronAPI)
   const localRoot = useLocalRoot()
+  // Escape clears any active text selection, everywhere in the app.
+  useEscapeToDeselect()
+  // ⌘/Ctrl+S triggers a manual save (and the accent perimeter glow).
+  useManualSaveShortcut()
 
   let content: ReactNode = null
 

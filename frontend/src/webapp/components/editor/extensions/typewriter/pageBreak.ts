@@ -110,6 +110,25 @@ export const PageBreakExtension = Extension.create<unknown, PageBreakStorage>({
             void dom.offsetHeight
 
             const pmRect = dom.getBoundingClientRect()
+
+            // The page stack is CSS-`zoom`ed (snap-to-fit), so getClientRects()
+            // returns RENDERED (zoomed) px while the page geometry below
+            // (pageH / mTop / stride / contentBotInPage) is in NATURAL px.
+            // Divide every measured offset by the live scale so all the
+            // comparisons happen in natural px. Without this, any zoom != 100%
+            // makes pages break early (zoomed in) or lets text spill past the
+            // bottom margin (zoomed out). Mirrors the renderScale calibration
+            // in TypewriterEditor's Cmd+Enter handler. No-op at 100% zoom.
+            const surfEl = dom.closest(".tw-editor-surf") as HTMLElement | null
+            let renderScale = 1
+            if (surfEl) {
+              const naturalW = parseFloat(surfEl.style.width || "")
+              const renderedW = surfEl.getBoundingClientRect().width
+              if (Number.isFinite(naturalW) && naturalW > 0 && renderedW > 0) {
+                renderScale = renderedW / naturalW
+              }
+            }
+
             type Push = { pos: number; pushPx: number }
             const pushes: Push[] = []
             let cumPush = 0  // total pushes accumulated above the current line
@@ -131,10 +150,10 @@ export const PageBreakExtension = Extension.create<unknown, PageBreakStorage>({
               if (textNodes.length === 0 || textNodes.every((t) => !t.length)) {
                 const r = block.getBoundingClientRect()
                 if (r.height < 1) continue
-                const stackY = (r.top - pmRect.top) + mTop + cumPush
+                const stackY = (r.top - pmRect.top) / renderScale + mTop + cumPush
                 const pageIdx = Math.floor(stackY / stride)
                 const posInPage = stackY - pageIdx * stride
-                const lineH = r.height
+                const lineH = r.height / renderScale
                 const overflowsBot = posInPage + lineH > contentBotInPage + 0.5
                 const inTopMargin = pageIdx > 0 && posInPage < mTop - 0.5
                 if (!(overflowsBot || inTopMargin)) continue
@@ -157,10 +176,10 @@ export const PageBreakExtension = Extension.create<unknown, PageBreakStorage>({
                 const rects = Array.from(range.getClientRects())
                 for (const rect of rects) {
                   if (rect.height < 1 || rect.width < 1) continue
-                  const stackY = (rect.top - pmRect.top) + mTop + cumPush
+                  const stackY = (rect.top - pmRect.top) / renderScale + mTop + cumPush
                   const pageIdx = Math.floor(stackY / stride)
                   const posInPage = stackY - pageIdx * stride
-                  const lineH = rect.height
+                  const lineH = rect.height / renderScale
                   const overflowsBot = posInPage + lineH > contentBotInPage + 0.5
                   const inTopMargin = pageIdx > 0 && posInPage < mTop - 0.5
                   if (!(overflowsBot || inTopMargin)) continue

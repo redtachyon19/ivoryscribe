@@ -19,9 +19,9 @@
    whatever width that column happens to be (it shrinks/grows as the side rails
    open and close). `safe center` keeps the left edge reachable via horizontal
    scroll when the editor area is narrower than the content, instead of
-   clipping it. The page sits ~28px right of the exact block centre because the
-   left ruler column is part of the centered block; the toolbar offsets to
-   match (see .tw-toolbar). */
+   clipping it. The page itself centres on the column: the left ruler gutter is
+   balanced by matching right padding on .tw-zoom-wrap, so equal space sits on
+   each side of the page regardless of how narrow the column gets. */
 .tw-scroll {
   flex: 1;
   overflow-y: auto;
@@ -48,6 +48,17 @@
 .tw-zoom-wrap {
   flex-shrink: 0;
   width: fit-content;
+  /* The wrapper's content is [56px ruler gutter | 816px page], so when the
+     scroll container centers it the *page* lands 28px (half the gutter) right
+     of the column centre. With wide side rails that bias is invisible, but with
+     both rails open the editor column is narrow and the bias eats the entire
+     right-hand gap (visible empty space on the left, none on the right). Adding
+     a matching 56px of space on the right balances the block around the page so
+     it centres at every zoom and panel state. content-box (the app sets no
+     border-box reset) means this adds to the wrapper's width; the padding sits
+     inside the zoomed element so it scales with the gutter automatically. */
+  box-sizing: content-box;
+  padding-right: 56px;
 }
 
 /* ── Bottom spacer (so toolbar never covers last line) ── */
@@ -406,22 +417,14 @@
 .typing-caret--typing   { opacity: 1; }
 
 /* ─────────────────── Floating toolbar (matches pinboard toolbar) ─────────────────── */
-/* Pinned to the viewport via `position: fixed` so it doesn't drift when either
-   rail toggles (which would otherwise resize `.tw-outer` and shift its 50%
-   point). Anchored on the page card's center: the page sits at viewport-x =
-   leftPanel + 56 (vert-ruler width 36 + margin-right 20), with width 816 →
-   page-center = leftPanel + 464. AppShell exposes `--rail-left-natural-w` =
-   `leftPanel + 8` (always the natural rail width, even when collapsed), so
-   page-center = `var(--rail-left-natural-w) + 456px`. */
 .tw-toolbar {
   /* Absolute within .tw-outer (the editor area). .tw-outer doesn't scroll —
      .tw-scroll inside it does — so this stays put while the page scrolls. The
-     centered content block is [56px ruler column | 816px page], so its midpoint
-     sits 28px (half the ruler column) left of the page's midpoint; offset the
-     toolbar by +28px to line it up with the page rather than the block. */
+     page is centred on the column (see .tw-zoom-wrap), so the toolbar lines up
+     with the page at plain 50% with no gutter offset. */
   position: absolute;
   bottom: 56px;
-  left: calc(50% + 28px);
+  left: 50%;
   transform: translateX(-50%);
   z-index: 40;
   display: flex;

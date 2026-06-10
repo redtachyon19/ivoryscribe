@@ -34,5 +34,13 @@ export function useTabViewMode(project: Project | null) {
     }))
   }
 
-  return { activeViewMode, toggleViewMode }
+  // Set the active prose tab to a specific view (e.g. from the ⌘1/⌘2 shortcuts),
+  // rather than just flipping it.
+  const setViewMode = (mode: TabViewMode) => {
+    const id = project?.activeId
+    if (!id) return
+    setViewModeByTabId((current) => ({ ...current, [id]: mode }))
+  }
+
+  return { activeViewMode, toggleViewMode, setViewMode }
 }

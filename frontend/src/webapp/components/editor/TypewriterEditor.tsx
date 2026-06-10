@@ -7,20 +7,20 @@ import {
 import { EditorContent, type Editor as TiptapEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Highlight from "@tiptap/extension-highlight"
-import TextAlign from "@tiptap/extension-text-align"
-import { TextStyle } from "@tiptap/extension-text-style"
-import FontFamily from "@tiptap/extension-font-family"
-import Color from "@tiptap/extension-color"
 import Underline from "@tiptap/extension-underline"
 import { DiffAddMark, DiffRemoveMark } from "../ai/diffMarks"
 import { ToolCase, X } from "lucide-react"
 import { useProseEditorBase } from "./hooks/useProseEditorBase"
 import { useEditorZoom } from "./hooks/useEditorZoom"
 import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
+import { useEditorSearchHighlight } from "./hooks/useEditorSearchHighlight"
+import { SearchHighlightExtension } from "./extensions/searchHighlight"
 import { useRulerDrag } from "./hooks/useRulerDrag"
 import { useFormatPainter } from "./hooks/useFormatPainter"
 import { useToolbarDrag } from "./hooks/useToolbarDrag"
 import { TypewriterToolbar } from "./components/TypewriterToolbar"
+import { CropToolbar } from "./components/CropToolbar"
+import type { ImageCropSession } from "./extensions/resizableImage"
 import { TypewriterRulerRow, TypewriterRulerY } from "./components/TypewriterRulers"
 import {
   PAGE_GAP_PX,
@@ -31,10 +31,8 @@ import {
   saveMargins,
   type Margins,
 } from "./utils/typewriterMargins"
-import { FontSizeExtension } from "./extensions/typewriter/fontSize"
-import { ParaIndentExtension } from "./extensions/typewriter/paraIndent"
-import { ColumnsExtension } from "./extensions/typewriter/columns"
 import { PageBreakExtension, type PageBreakStorage } from "./extensions/typewriter/pageBreak"
+import { sharedProseFormattingExtensions } from "./extensions/sharedProseExtensions"
 import {
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE_PX,
@@ -45,6 +43,7 @@ import {
   saveBoolPref,
 } from "./utils/typewriterPrefs"
 import "./TypewriterEditor.css"
+import "./extensions/searchHighlight.css"
 
 
 /* ── Props ── */
@@ -99,6 +98,12 @@ export default function TypewriterEditor({
        highlights stay current. */
   const [, setEditorVer] = useState(0)
 
+  /* ── Crop session: when an image enters crop mode it publishes a session on
+       the resizableImage node storage and fires a "tw-image-crop" event on the
+       editor DOM. We mirror it into state so the formatting toolbar can be
+       swapped for the shape picker (CropToolbar) while cropping. */
+  const [cropSession, setCropSession] = useState<ImageCropSession>(null)
+
   /* ── Trackpad-pinch / ctrl+scroll zoom toward the cursor ──
        Zooms the whole page stack (pages + editor surface) via CSS `zoom`,
        so the .tw-scroll container reflows and every page stays reachable.
@@ -118,15 +123,13 @@ export default function TypewriterEditor({
     extensions: [
       StarterKit,
       Highlight.configure({ multicolor: true }),
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-      TextStyle,
-      FontFamily,
-      Color,
       Underline,
-      FontSizeExtension,
-      ParaIndentExtension,
-      ColumnsExtension,
+      // Shared with DraftingEditor so both views keep an identical prose schema
+      // (font size/family/colour/alignment/indent/columns) — see
+      // sharedProseExtensions.ts.
+      ...sharedProseFormattingExtensions(),
       PageBreakExtension,
+      SearchHighlightExtension,
       DiffAddMark,
       DiffRemoveMark,
     ],
@@ -146,6 +149,7 @@ export default function TypewriterEditor({
        TipTap surface so the Edit menu works the same way it does in
        DraftingEditor. ── */
   useEditorCommandBus(editor)
+  useEditorSearchHighlight({ editor, documentId })
 
   /* ── Bump version for toolbar active states ── */
   useEffect(() => {
@@ -154,6 +158,22 @@ export default function TypewriterEditor({
     editor.on("selectionUpdate", bump)
     editor.on("transaction", bump)
     return () => { editor.off("selectionUpdate", bump); editor.off("transaction", bump) }
+  }, [editor])
+
+  /* ── Track image crop sessions (see cropSession above) ── */
+  useEffect(() => {
+    if (!editor) return
+    let dom: HTMLElement
+    try { dom = editor.view.dom as HTMLElement } catch { return }
+    const sync = () => {
+      const storage = (editor.storage as Record<string, unknown>).resizableImage as
+        | { cropSession: ImageCropSession }
+        | undefined
+      setCropSession(storage?.cropSession ?? null)
+    }
+    dom.addEventListener("tw-image-crop", sync)
+    sync()
+    return () => dom.removeEventListener("tw-image-crop", sync)
   }, [editor])
 
   /* ── Load margins on document switch ── */
@@ -382,17 +402,29 @@ export default function TypewriterEditor({
         </span>
       </button>
 
-      <TypewriterToolbar
-        editor={editor}
-        showToolbar={showToolbar}
-        isUiTyping={isUiTyping}
-        isDraggingToolbar={isDraggingToolbar}
-        toolbarRef={toolbarRef}
-        toolbarPos={toolbarPos}
-        onGripMouseDown={handleToolbarGripDown}
-        isPaintFormatArmed={isPaintFormatArmed}
-        onPaintRollerClick={handlePaintRollerClick}
-      />
+      {cropSession ? (
+        <CropToolbar
+          shape={cropSession.shape}
+          onSelectShape={cropSession.setShape}
+          isUiTyping={isUiTyping}
+          isDraggingToolbar={isDraggingToolbar}
+          toolbarRef={toolbarRef}
+          toolbarPos={toolbarPos}
+          onGripMouseDown={handleToolbarGripDown}
+        />
+      ) : (
+        <TypewriterToolbar
+          editor={editor}
+          showToolbar={showToolbar}
+          isUiTyping={isUiTyping}
+          isDraggingToolbar={isDraggingToolbar}
+          toolbarRef={toolbarRef}
+          toolbarPos={toolbarPos}
+          onGripMouseDown={handleToolbarGripDown}
+          isPaintFormatArmed={isPaintFormatArmed}
+          onPaintRollerClick={handlePaintRollerClick}
+        />
+      )}
     </div>
   )
 }

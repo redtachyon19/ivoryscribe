@@ -425,6 +425,61 @@ ipcMain.handle("clipboard:readText", () => {
   return clipboard.readText()
 })
 
+// Render a self-contained export HTML document to a PDF, faithfully, via a
+// hidden BrowserWindow + Chromium's printToPDF. The HTML embeds a runtime that
+// paginates the typewriter layout and sets `window.__pdfxReady` when done; we
+// wait on that (and on web-font loading) before printing. Returns the raw PDF
+// bytes (a Buffer, received by the renderer as a Uint8Array).
+ipcMain.handle("print:toPdf", async (_event, html: string): Promise<Buffer> => {
+  const win = new BrowserWindow({
+    show: false,
+    width: 816,
+    height: 1056,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      offscreen: false,
+    },
+  })
+
+  // A temp file avoids the data: URL length ceiling (documents can embed large
+  // base64 images).
+  const tmpPath = path.join(app.getPath("temp"), `ivoryscribe-export-${Date.now()}-${Math.round(Math.random() * 1e9)}.html`)
+
+  try {
+    await fsp.writeFile(tmpPath, html, "utf-8")
+    await win.loadFile(tmpPath)
+
+    // Wait until fonts have loaded AND the embedded pagination runtime finished
+    // (it sets window.__pdfxReady). Poll with an overall timeout so a failure to
+    // signal can't hang the export.
+    await win.webContents.executeJavaScript(
+      `new Promise((resolve) => {
+        const deadline = Date.now() + 10000
+        const fontsReady = (window.document.fonts && window.document.fonts.ready)
+          ? window.document.fonts.ready
+          : Promise.resolve()
+        const tick = () => {
+          if (window.__pdfxReady === true || Date.now() > deadline) { resolve(true); return }
+          setTimeout(tick, 50)
+        }
+        fontsReady.finally(() => tick())
+      })`,
+    )
+
+    const data = await win.webContents.printToPDF({
+      preferCSSPageSize: true,
+      printBackground: true,
+      margins: { marginType: "none" },
+    })
+    return data
+  } finally {
+    win.destroy()
+    fsp.unlink(tmpPath).catch(() => {})
+  }
+})
+
 
 
 /**

@@ -33,14 +33,24 @@ final class ThumbnailProvider: QLThumbnailProvider {
         // CGContext-block variant exposed a pixel-vs-point mismatch that
         // pushed the drawing into a corner.)
         let reply = QLThumbnailReply(contextSize: size) { () -> Bool in
-            // The QL current context is correctly point-sized but uses a
-            // bottom-left origin and is NOT flipped. Our layout is top-down,
-            // and AppKit text orientation follows the NSGraphicsContext
-            // `isFlipped` flag (not just the CTM). So: flip the CTM AND wrap
-            // the same CGContext in a flipped NSGraphicsContext — that pairing
-            // gives both correct positioning (fills the canvas) and upright
-            // text.
             guard let cg = NSGraphicsContext.current?.cgContext else { return false }
+
+            // Preferred path: the file embeds a 1:1 PDF render of the document
+            // (the exact output of the in-app PDF export). Draw page 1 of it
+            // directly — this is a true pixel-for-pixel match of the typewriter
+            // view, not an approximation. PDF user space is y-up like the
+            // native QL context, so we draw BEFORE any AppKit flip.
+            if let data = try? Data(contentsOf: url),
+               let pdf = extractEmbeddedPdf(data: data),
+               drawEmbeddedPdfPage1(pdf, into: cg, size: size) {
+                return true
+            }
+
+            // Fallback (legacy files with no embedded preview): the hand-drawn
+            // mini-render. The QL context is point-sized, bottom-left origin,
+            // NOT flipped; our AppKit layout is top-down, and text orientation
+            // follows NSGraphicsContext.isFlipped — so flip the CTM AND wrap in
+            // a flipped NSGraphicsContext for correct positioning + upright text.
             cg.translateBy(x: 0, y: size.height)
             cg.scaleBy(x: 1, y: -1)
             let flippedCtx = NSGraphicsContext(cgContext: cg, flipped: true)

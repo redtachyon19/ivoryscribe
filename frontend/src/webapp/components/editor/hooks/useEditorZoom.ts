@@ -102,6 +102,11 @@ export function useEditorZoom({ scrollRef, contentRef, enabledKey, snapPageWidth
       ;(content.style as any).zoom = String(newZoom)
       scroller.scrollLeft = cursorX * (r - 1) + oldScrollLeft * r
       scroller.scrollTop = cursorY * (r - 1) + oldScrollTop * r
+
+      // Notify overlays that live INSIDE the zoomed surface (the Typewriter's
+      // custom typing caret) so they re-read against the new scale and snap to
+      // the right spot instead of springing across the zoom step.
+      window.dispatchEvent(new CustomEvent("tw:zoom"))
     }
 
     // The detent levels (full / half / quarter of the live editor width), or
