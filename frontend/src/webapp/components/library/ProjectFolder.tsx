@@ -120,6 +120,7 @@ type FolderDetailViewProps = {
    *  level). */
   onUnnestFolderDrop?: (event: DragEvent<HTMLElement>) => void
   onUnnestFolderDragOver?: (event: DragEvent<HTMLElement>) => void
+  onUnnestFolderDragLeave?: (event: DragEvent<HTMLElement>) => void
   isUnnestDropActive?: boolean
 }
 
@@ -141,6 +142,7 @@ export function FolderDetailView({
   getFolderReorderClassName,
   onUnnestFolderDrop,
   onUnnestFolderDragOver,
+  onUnnestFolderDragLeave,
   isUnnestDropActive,
 }: FolderDetailViewProps) {
   const isEmpty = folderProjects.length === 0 && subFolders.length === 0
@@ -153,6 +155,7 @@ export function FolderDetailView({
           onClick={onBack}
           aria-label={`Back to ${backLabel}`}
           onDragOver={onUnnestFolderDragOver}
+          onDragLeave={onUnnestFolderDragLeave}
           onDrop={onUnnestFolderDrop}
         >
           <ArrowLeft size={16} aria-hidden={true} />

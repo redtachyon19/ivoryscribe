@@ -76,7 +76,14 @@ export function serializeTuskBook(file: TuskBookFile): string {
   // git diffs sane and the parse path simpler.
   const versionsBlock = emitVersionsBlock(file.versions ?? [], 1)
 
-  return `${XML_PROLOG}${head}${meta}${chaptersOpen}${chaptersBody}${chaptersClose}${versionsBlock}</tusk>\n`
+  // Optional 1:1 PDF render for QuickLook (see TuskBookFile.previewPdf). The
+  // value is base64 (A–Z a–z 0–9 + / =) — none of which are XML-special — so
+  // it's emitted as plain element text with no escaping or CDATA needed.
+  const previewBlock = file.previewPdf
+    ? `${indent(1)}<preview kind="pdf" pages="all">${file.previewPdf}</preview>\n`
+    : ""
+
+  return `${XML_PROLOG}${head}${meta}${chaptersOpen}${chaptersBody}${chaptersClose}${versionsBlock}${previewBlock}</tusk>\n`
 }
 
 // ── Parsing ────────────────────────────────────────────────────────────────
@@ -173,6 +180,13 @@ export function parseTuskBook(xml: string): TuskBookFile {
   // begins accruing fresh on next save.
   const versions = parseVersionsBlock(root.versions as RawNode | undefined)
 
+  // Optional QuickLook PDF render (see serializeTuskBook). Absent on most
+  // files; parsed back so the sync layer can keep it across content writes
+  // and avoid regenerating an unchanged document's preview on every open.
+  const previewNode = root.preview as RawNode | undefined
+  const previewText = readText(previewNode).trim()
+  const previewPdf = previewText.length > 0 ? previewText : undefined
+
   return {
     version,
     id,
@@ -184,5 +198,6 @@ export function parseTuskBook(xml: string): TuskBookFile {
     activeChapterId,
     chapters,
     versions,
+    previewPdf,
   }
 }

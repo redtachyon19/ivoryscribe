@@ -496,6 +496,22 @@
   transform: translateX(-50%);
 }
 
+/* List view: rows stack vertically, so the reorder indicator is a horizontal
+   line at the top (before) / bottom (after) edge instead of a side bar — keeping
+   the indicator consistent with the vertical drop axis used there. */
+.project-hub__list-row.project-folder--drop-before::after,
+.project-hub__list-row.project-folder--drop-after::after {
+  top: auto;
+  bottom: auto;
+  left: 10px;
+  right: 10px;
+  width: auto;
+  height: 3px;
+  transform: none;
+}
+.project-hub__list-row.project-folder--drop-before::after { top: -1px; }
+.project-hub__list-row.project-folder--drop-after::after { bottom: -1px; }
+
 .project-folder--drag-preview {
   opacity: 0.95;
   transform: scale(0.995);
@@ -513,11 +529,11 @@
 
 /* Back-arrow in folder-detail view becomes a "drop here to un-nest" target
  * during folder drag. */
-.project-hub__folder-back--drop-active {
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 16%, transparent);
-  outline: 1px dashed color-mix(in srgb, var(--app-accent, #9ab8ff) 55%, transparent);
-  outline-offset: 2px;
-  border-radius: 6px;
+/* Drop-target highlight: tint the label + arrow with the accent color (the
+   ArrowLeft icon inherits via currentColor). No pill/background/outline.
+   Doubled class so it wins over the `:hover` color rule during a drag. */
+.project-hub__folder-back.project-hub__folder-back--drop-active {
+  color: var(--app-accent, #9ab8ff);
 }
 
 /* ── Project Context Menu ── */

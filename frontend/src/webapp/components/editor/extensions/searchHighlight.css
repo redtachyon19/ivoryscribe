@@ -1,0 +1,18 @@
+/* Find & Replace decoration highlights (see searchHighlight.ts).
+   Loaded by both prose editors (Draft + Typewriter). The spans are injected by
+   ProseMirror as inline decorations, so they live inside `.ProseMirror`. */
+
+.ProseMirror .search-hit {
+  /* All matches: soft amber wash. color-mix keeps it legible on both the dark
+     app background and the light typewriter page. */
+  background-color: color-mix(in srgb, #ffd54a 38%, transparent);
+  border-radius: 2px;
+  /* Paint the highlight behind glyphs without nudging layout. */
+  box-shadow: 0 0 0 1px color-mix(in srgb, #ffd54a 20%, transparent);
+}
+
+.ProseMirror .search-hit--active {
+  /* The match the counter ("3 of 12") points at: stronger orange + ring. */
+  background-color: color-mix(in srgb, #ff8c1a 70%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #ff8c1a 55%, transparent);
+}

@@ -20,17 +20,30 @@ type UseSectionDropOptions = {
    *  a folder containing local projects). Undefined disables the
    *  cloud drop target entirely. */
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
+  /** Called when a drag first enters a section tab, so the panel can clear the
+   *  tree's reorder/inside highlights — keeping a single live target. Optional;
+   *  if omitted, mutual exclusion with the tree is the caller's responsibility. */
+  onEnterSection?: () => void
 }
 
-export default function useSectionDrop({ folders, projects, setProjects, setFolders, onMoveProjectToCloud }: UseSectionDropOptions) {
+export default function useSectionDrop({ folders, projects, setProjects, setFolders, onMoveProjectToCloud, onEnterSection }: UseSectionDropOptions) {
   const [sectionDropTarget, setSectionDropTarget] = useState<SectionTarget>(null)
 
   const handleSectionDragOver = (section: DroppableSection) => (event: DragEvent<HTMLElement>) => {
-    // Disable cloud drop highlight when there's no handler wired up
-    // (cloud-mode, or before the orchestration is ready).
+    // Disable cloud drop highlight when there's no handler wired up (cloud-mode,
+    // or before the orchestration is ready). Don't claim the event in that case
+    // — let it bubble to the container's dead-space clear.
     if (section === "cloud" && !onMoveProjectToCloud) return
     event.preventDefault()
-    if (sectionDropTarget !== section) setSectionDropTarget(section)
+    // This tab IS the live target: claim the event so the container-level
+    // dead-space clear doesn't fire over the tab and wipe our highlight.
+    event.stopPropagation()
+    if (sectionDropTarget !== section) {
+      // Entering a new tab clears the tree's reorder/inside highlights
+      // (mutual exclusion) before lighting this tab.
+      onEnterSection?.()
+      setSectionDropTarget(section)
+    }
   }
 
   const handleSectionDragLeave = (event: DragEvent<HTMLElement>) => {
@@ -112,7 +125,10 @@ export default function useSectionDrop({ folders, projects, setProjects, setFold
     const applySection = (p: Project): Project => {
       switch (section) {
         case "library":
-          return { ...p, archivedAt: null, deletedAt: null }
+          // Dropping onto the sidebar "Library" tab means "put this at the top
+          // level": clear archive/trash AND move it out of any folder to the
+          // workspace root (folderId null).
+          return { ...p, archivedAt: null, deletedAt: null, folderId: null, rootPosition: "top" as const }
         case "archive":
           return { ...p, archivedAt: p.archivedAt ?? now, deletedAt: null }
         case "trash":
@@ -143,7 +159,7 @@ export default function useSectionDrop({ folders, projects, setProjects, setFold
   const getSectionDropClass = (section: DroppableSection) =>
     sectionDropTarget === section ? "project-browser__section-btn--drop-target" : ""
 
-  return { sectionDropTarget, handleSectionDragOver, handleSectionDragLeave, handleSectionDrop, getSectionDropClass }
+  return { sectionDropTarget, setSectionDropTarget, handleSectionDragOver, handleSectionDragLeave, handleSectionDrop, getSectionDropClass }
 }
 
 /** Lightweight drag-start handler for cross-section project moves (used by Archive, Trash, Recent pages). */

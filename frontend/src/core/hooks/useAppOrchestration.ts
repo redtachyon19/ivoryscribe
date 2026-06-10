@@ -15,7 +15,7 @@ import { exportProjectAsPdf } from "../../webapp/components/export/pdfExport"
 import { buildDuplicateProjectName, createLocalId } from "../utils/libraryUtils"
 import { createProject, createId, generateUntitledName, normalizeProjectAfterTabs, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, removeProjectVersions, type Project } from "../utils/projects"
 import { mapVersionsForSettings, openVersionPreviewWindow, parseVersionSnapshot, restoreProjectFromVersion, type VersionSettingsEntry } from "../state/versioning"
-import { readLastEditorLocation, writeLastEditorLocation } from "../state/lastLocationStorage"
+import { readLastEditorLocation, readLastLibraryLocation, writeLastEditorLocation } from "../state/lastLocationStorage"
 import { useSession } from "./useSession"
 import { useRouting } from "./useRouting"
 import { useAppStyle } from "./useAppStyle"
@@ -781,7 +781,12 @@ export function useAppOrchestration() {
     onCreateProject: (kind: import("../utils/projects").ProjectKind) => {
       const nextName = generateUntitledName(projects, kind)
       const nextProject = createProject(nextName, kind)
-      setProjects((cur) => [{ ...nextProject, folderId: null, rootPosition: "top" }, ...cur])
+      // Nest into the folder currently open in the Library so creating from the
+      // sidebar/nav respects where the user is — the Library persists its open
+      // folder to localStorage. Guard against a stale id (deleted folder).
+      const openFolderId = readLastLibraryLocation()?.folderId ?? null
+      const targetFolderId = openFolderId && folders.some((f) => f.id === openFolderId) ? openFolderId : null
+      setProjects((cur) => [{ ...nextProject, folderId: targetFolderId, rootPosition: targetFolderId ? nextProject.rootPosition : "top" }, ...cur])
       setActiveProjectId(nextProject.id)
       // The baseline "Manual I" snapshot is created by the versioning hook's
       // sweep effect as soon as it observes a version-supporting project
@@ -790,7 +795,11 @@ export function useAppOrchestration() {
     },
     onCreateFolder: () => {
       const nextIndex = folders.length + 1
-      setFolders((current) => [{ id: createLocalId(), name: `Folder ${nextIndex}`, description: "Add a folder description here. You don't have the memory of an elephant." }, ...current])
+      // Same nesting rule as onCreateProject: a new folder goes inside the
+      // folder the user is currently viewing in the Library, else the root.
+      const openFolderId = readLastLibraryLocation()?.folderId ?? null
+      const parentFolderId = openFolderId && folders.some((f) => f.id === openFolderId) ? openFolderId : null
+      setFolders((current) => [{ id: createLocalId(), name: `Folder ${nextIndex}`, description: "Add a folder description here. You don't have the memory of an elephant.", parentFolderId }, ...current])
     },
     onOpenProjectSettings: (projectId: string) => {
       setActiveProjectId(projectId)

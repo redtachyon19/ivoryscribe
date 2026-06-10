@@ -1,0 +1,188 @@
+/* Free-floating, resizable, croppable image node (see ImageNodeView.tsx).
+   Every image is absolutely positioned (left/top set inline from x/y). */
+
+/* The editor content box is the positioning context for the absolute images.
+   (Page cards and the caret overlay live outside .ProseMirror, so this doesn't
+   disturb them.) */
+.ProseMirror {
+  position: relative;
+}
+
+.ProseMirror .tw-image {
+  width: fit-content;
+  line-height: 0; /* kill the descender gap under the image */
+}
+
+.ProseMirror .tw-image__holder {
+  position: relative;
+  line-height: 0;
+}
+
+/* The image is the move handle (drag anywhere). */
+.ProseMirror .tw-image__img,
+.ProseMirror .tw-image__cropframe {
+  cursor: move;
+}
+
+.ProseMirror .tw-image__img {
+  display: block;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Selection ring around the visible image box: a thin accent ring set off from
+   the image by a hairline of background. The accent glow is layered on
+   separately so an engine without color-mix still gets the crisp ring. */
+.ProseMirror .tw-image--selected .tw-image__holder {
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 2px var(--app-bg, #fff),
+    0 0 0 3.5px var(--app-accent, #9ab8ff);
+  transition: box-shadow 0.15s ease;
+}
+@supports (background: color-mix(in srgb, red, blue)) {
+  .ProseMirror .tw-image--selected .tw-image__holder {
+    box-shadow:
+      0 0 0 2px var(--app-bg, #fff),
+      0 0 0 3.5px var(--app-accent, #9ab8ff),
+      0 6px 22px -8px color-mix(in srgb, var(--app-accent, #9ab8ff) 55%, transparent);
+  }
+}
+
+/* Bottom-right resize grip: a small round handle that pops in when selected and
+   grows slightly under the cursor. */
+.ProseMirror .tw-image__handle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--app-bg, #fff);
+  border: 2.5px solid var(--app-accent, #9ab8ff);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+  cursor: nwse-resize;
+  z-index: 3;
+  touch-action: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  animation: tw-image-pop-in 0.14s ease-out;
+}
+.ProseMirror .tw-image__handle:hover {
+  transform: scale(1.2);
+  box-shadow: 0 2px 9px rgba(0, 0, 0, 0.28);
+}
+.ProseMirror .tw-image__handle:active {
+  transform: scale(1.06);
+}
+
+@keyframes tw-image-pop-in {
+  from { opacity: 0; transform: scale(0.3); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Crop frame (non-crop-mode clipped view) — sized inline. Square corners. */
+.ProseMirror .tw-image__cropframe {
+  border-radius: 0;
+}
+
+/* Equal-size indicators. Instead of a full box outline, draw bracket marks only
+   on the sides that span the matched dimension: top + bottom bars for a width
+   match, left + right ([ ]) brackets for a height match. Accent by default;
+   white while cropping (via --match-color). Width bars live on the wrapper's
+   pseudos; height brackets on the holder's, so an image matching BOTH shows all
+   four. */
+.ProseMirror .tw-image--match-white { --match-color: #fff; }
+
+/* Width match → top & bottom bars (the horizontal span). */
+.ProseMirror .tw-image--match-w::before,
+.ProseMirror .tw-image--match-w::after {
+  content: "";
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 8px;
+  border: 2px solid var(--match-color, var(--app-accent, #9ab8ff));
+  pointer-events: none;
+  z-index: 6;
+}
+.ProseMirror .tw-image--match-w::before { top: -3px; border-bottom: none; }
+.ProseMirror .tw-image--match-w::after  { bottom: -3px; border-top: none; }
+
+/* Height match → left & right brackets ([ ]) (the vertical span). */
+.ProseMirror .tw-image--match-h .tw-image__holder::before,
+.ProseMirror .tw-image--match-h .tw-image__holder::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 8px;
+  border: 2px solid var(--match-color, var(--app-accent, #9ab8ff));
+  pointer-events: none;
+  z-index: 6;
+}
+.ProseMirror .tw-image--match-h .tw-image__holder::before { left: -3px; border-right: none; }
+.ProseMirror .tw-image--match-h .tw-image__holder::after  { right: -3px; border-left: none; }
+
+/* Smart alignment guides drawn (imperatively) on the editor surface while
+   dragging an image — a thin accent line wherever an edge/centre aligns with
+   another image or the page centre. */
+.tw-editor-surf .tw-align-guide {
+  position: absolute;
+  z-index: 10;
+  background: var(--app-accent, #9ab8ff);
+  pointer-events: none;
+}
+.tw-editor-surf .tw-align-guide--v { width: 1px; }
+.tw-editor-surf .tw-align-guide--h { height: 1px; }
+
+/* ── Crop stage ── */
+.ProseMirror .tw-image__cropstage {
+  cursor: default;
+  user-select: none;
+}
+/* Crop window: same offset ring as a selected image (see
+   .tw-image--selected .tw-image__holder), rendered in white to match the
+   white corner handles. */
+.ProseMirror .tw-image__cropwindow {
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 2px var(--app-bg, #fff),
+    0 0 0 3.5px #fff;
+  transition: box-shadow 0.15s ease;
+}
+@supports (background: color-mix(in srgb, red, blue)) {
+  .ProseMirror .tw-image__cropwindow {
+    box-shadow:
+      0 0 0 2px var(--app-bg, #fff),
+      0 0 0 3.5px #fff,
+      0 6px 22px -8px color-mix(in srgb, #fff 28%, transparent);
+  }
+}
+.ProseMirror .tw-image__crophandle {
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%); /* straddle the corner point, like the resize grip */
+  border-radius: 50%;
+  background: var(--app-bg, #fff);
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+  z-index: 4;
+  touch-action: none;
+  transition: transform 0.1s ease;
+  /* Same pop-in as the bottom-right resize grip, but translate-preserving so
+     the corner-straddle centering holds during the animation. */
+  animation: tw-image-crophandle-pop-in 0.14s ease-out;
+}
+.ProseMirror .tw-image__crophandle:hover {
+  transform: translate(-50%, -50%) scale(1.18);
+}
+
+@keyframes tw-image-crophandle-pop-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.ProseMirror .tw-image__crophandle--tl { cursor: nwse-resize; }
+.ProseMirror .tw-image__crophandle--tr { cursor: nesw-resize; }
+.ProseMirror .tw-image__crophandle--bl { cursor: nesw-resize; }
+.ProseMirror .tw-image__crophandle--br { cursor: nwse-resize; }
