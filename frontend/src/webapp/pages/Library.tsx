@@ -10,7 +10,6 @@ import { exportProjectAsTxt } from "../components/export/txtExport"
 import { collectTabIds, createProject, generateUntitledName, type Project } from "../../core/utils/projects"
 import { createLocalId, duplicateProject } from "../../core/utils/libraryUtils"
 import type { VersionSettingsEntry } from "../../core/state/versioning"
-import { readLastLibraryLocation, writeLastLibraryLocation } from "../../core/state/lastLocationStorage"
 import ProjectSettings from "../components/settings/ProjectSettings"
 import ProjectCard from "../components/library/ProjectCard"
 import { FolderDetailView } from "../components/library/ProjectFolder"
@@ -62,6 +61,11 @@ export type LibraryProps = {
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
+  /** The open library folder (null = root). Owned by useLibraryNavigation so it
+   *  survives the editor view and the top-bar back/forward history can restore
+   *  it; this component reads + sets it but no longer holds it. */
+  openFolderId: string | null
+  setOpenFolderId: Dispatch<SetStateAction<string | null>>
   pendingShareRequests: PendingShareRequest[]
   onAcceptShareRequest: (shareId: string) => void
   onRejectShareRequest: (shareId: string) => void
@@ -101,6 +105,8 @@ export default function Library({
   setProjects,
   setFolders,
   setActiveProjectId,
+  openFolderId,
+  setOpenFolderId,
   pendingShareRequests,
   onAcceptShareRequest,
   onRejectShareRequest,
@@ -121,21 +127,11 @@ export default function Library({
   const [editingFolderName, setEditingFolderName] = useState("")
   const { viewMode, toggle: toggleView } = useViewMode()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-  // Seed the open folder from the last session so a reload keeps the user
-  // inside the folder they were browsing instead of snapping to the root.
-  const [openFolderId, setOpenFolderId] = useState<string | null>(
-    () => readLastLibraryLocation()?.folderId ?? null,
-  )
   const [shareDialogProjectId, setShareDialogProjectId] = useState<string | null>(null)
   // True only while a dragged item (project OR folder) is hovering over the
   // folder "back" button — drives the accent highlight so it shows on hover,
   // not for the entire drag, for either drag type.
   const [isOverBackButton, setIsOverBackButton] = useState(false)
-
-  // Persist the open folder whenever it changes (or clears).
-  useEffect(() => {
-    writeLastLibraryLocation({ folderId: openFolderId })
-  }, [openFolderId])
 
   const activeProjects = projects.filter((p) => !p.archivedAt && !p.deletedAt)
   // Guard against a stale stored folder id (folder deleted / not yet loaded):
@@ -144,7 +140,7 @@ export default function Library({
     if (openFolderId && folders.length > 0 && !folders.some((f) => f.id === openFolderId)) {
       setOpenFolderId(null)
     }
-  }, [openFolderId, folders])
+  }, [openFolderId, folders, setOpenFolderId])
 
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null
   const folderProjects = openFolderId ? activeProjects.filter((p) => p.folderId === openFolderId) : []

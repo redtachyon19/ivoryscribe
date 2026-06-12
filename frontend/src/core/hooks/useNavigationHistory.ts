@@ -6,41 +6,49 @@ type NavEntry = {
   view: "projects" | "editor"
   activeId?: string | null
   librarySection?: LibrarySection
+  /** Which library folder was open (null = library root). Only meaningful for
+   *  the "projects" view, "library" section — the other sections have no folder
+   *  browser. */
+  openFolderId?: string | null
 }
 
 type UseNavigationHistoryOptions = {
   view: "projects" | "editor"
   activeId: string | null
   librarySection: LibrarySection
+  openFolderId: string | null
   onOpenProject: (projectId: string) => void
   onReturnToDashboard: () => void
   onProjectChange: (updater: <T extends { activeId: string | null }>(project: T) => T) => void
   onLibrarySectionChange: (section: LibrarySection) => void
+  onOpenFolder: (folderId: string | null) => void
   activeProjectId: string | null
 }
 
 function entriesMatch(a: NavEntry, b: NavEntry) {
   if (a.view !== b.view) return false
   if (a.view === "editor") return a.activeId === b.activeId
-  return a.librarySection === b.librarySection
+  return a.librarySection === b.librarySection && (a.openFolderId ?? null) === (b.openFolderId ?? null)
 }
 
 export function useNavigationHistory({
   view,
   activeId,
   librarySection,
+  openFolderId,
   onOpenProject,
   onReturnToDashboard,
   onProjectChange,
   onLibrarySectionChange,
+  onOpenFolder,
   activeProjectId,
 }: UseNavigationHistoryOptions) {
   const buildCurrentEntry = useCallback((): NavEntry => {
     if (view === "editor") {
       return { view: "editor", activeId: activeId ?? null }
     }
-    return { view: "projects", librarySection }
-  }, [view, activeId, librarySection])
+    return { view: "projects", librarySection, openFolderId: openFolderId ?? null }
+  }, [view, activeId, librarySection, openFolderId])
 
   const navHistoryRef = useRef<NavEntry[]>([buildCurrentEntry()])
   const navHistoryIndexRef = useRef(0)
@@ -66,7 +74,7 @@ export function useNavigationHistory({
 
     setCanGoBack(navHistoryIndexRef.current > 0)
     setCanGoForward(false)
-  }, [view, activeId, librarySection, buildCurrentEntry])
+  }, [view, activeId, librarySection, openFolderId, buildCurrentEntry])
 
   const restoreEntry = useCallback((entry: NavEntry) => {
     if (entry.view === "editor" && entry.activeId) {
@@ -82,8 +90,9 @@ export function useNavigationHistory({
         onReturnToDashboard()
       }
       onLibrarySectionChange(entry.librarySection ?? "library")
+      onOpenFolder(entry.openFolderId ?? null)
     }
-  }, [view, activeProjectId, onOpenProject, onReturnToDashboard, onProjectChange, onLibrarySectionChange])
+  }, [view, activeProjectId, onOpenProject, onReturnToDashboard, onProjectChange, onLibrarySectionChange, onOpenFolder])
 
   const goBack = useCallback(() => {
     const index = navHistoryIndexRef.current
