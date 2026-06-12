@@ -225,6 +225,7 @@ export default function EditorWorkspace({
           workspaceRoot={workspaceRoot ?? null}
           relativePath={activeContent}
           projectId={project.id}
+          documentId={project.activeId}
           matchPalette={matchPdfToPalette}
         />
       ) : activeDocumentType === "image" ? (
