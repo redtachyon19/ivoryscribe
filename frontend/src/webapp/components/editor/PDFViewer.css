@@ -64,17 +64,6 @@
   background: var(--app-bg, #111);
 }
 
-/* Brief flash when find/replace navigates to this page. Fades out
-   after ~600ms so the user can see which page contains the match
-   without the highlight lingering. */
-@keyframes pdf-viewer-page-flash {
-  0%   { box-shadow: 0 0 0 2px color-mix(in srgb, var(--menu-accent, #7ea8ff) 80%, transparent), 0 8px 24px rgba(0, 0, 0, 0.55); }
-  100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--menu-border, #2b2b2b) 60%, transparent), 0 8px 24px rgba(0, 0, 0, 0.55); }
-}
-.pdf-viewer__page-wrapper--flash {
-  animation: pdf-viewer-page-flash 800ms ease-out;
-}
-
 .pdf-viewer__page {
   display: block;
   /* `height: auto` is the safety net — the JS only sets `style.width`
@@ -161,6 +150,19 @@
 }
 .pdf-viewer__text-layer ::-moz-selection {
   background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
+  color: transparent;
+}
+
+/* Find-in-PDF highlights (CSS Custom Highlight API; ranges registered in
+   PDFViewer.tsx). Every match is painted, with the current/active one in the
+   accent and all the others in a translucent grey. color: transparent keeps the
+   canvas glyph showing through the highlight box. */
+.pdf-viewer__text-layer ::highlight(pdf-find) {
+  background-color: rgba(140, 140, 140, 0.32);
+  color: transparent;
+}
+.pdf-viewer__text-layer ::highlight(pdf-find-active) {
+  background-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
   color: transparent;
 }
 

@@ -20,6 +20,7 @@ import { registerPdfText, unregisterPdfText, type PdfPageText } from "../../../c
 import {
   APP_COLOR_PALETTE_CHANGE_EVENT,
   APP_PROJECT_SEARCH_FOCUS_EVENT,
+  APP_PROJECT_SEARCH_CLEAR_EVENT,
   EDITOR_COMMAND_EVENT,
   type EditorCommand,
   type ProjectSearchFocusDetail,
@@ -37,10 +38,15 @@ type PDFViewerProps = {
   /** Path of the PDF relative to the workspace root, e.g.
    *  `"Subfolder/Document.pdf"`. Stored on the project at hydrate. */
   relativePath: string
-  /** Project id for the open PDF. Used to register the extracted text
-   *  with `pdfTextRegistry` so find/replace can search this document,
-   *  and to match incoming "go to this page" focus events. */
+  /** Project id for the open PDF. Used to register the extracted text with
+   *  `pdfTextRegistry` (keyed by project id) so find/replace can search this
+   *  document. */
   projectId: string
+  /** The open PDF's *document* (tab) id. This — NOT the project id — is what
+   *  the Find modal stamps on its "go to this match" focus events
+   *  (result.documentId === the pdf tab id), so the viewer matches against it.
+   *  A PDF project's `id` and its tab id are different (see pdfFileToProject). */
+  documentId: string | null
   /** Settings toggle. When true, pdf.js rasterises each page with the
    *  app's palette background and text colour instead of the PDF's
    *  own. Implemented via pdf.js's `pageColors` render option — text
@@ -53,22 +59,17 @@ type PDFViewerProps = {
 const MIN_ZOOM = 0.25
 const MAX_ZOOM = 8
 
-/** Walk an element's text nodes, find the Nth case-insensitive
- *  occurrence of `needle` across the full concatenation, and apply
- *  it as a browser Selection range. Returns true if a selection
- *  was made.
+/** Walk an element's text nodes and return a Range for EVERY case-insensitive
+ *  occurrence of `needle` across the full text concatenation, in document
+ *  order. Used to paint search highlights over the text layer.
  *
- *  Why "across the full concatenation": pdf.js's text layer often
- *  splits a single visual word into adjacent spans (per glyph run),
- *  so the match might span multiple text nodes. We build a virtual
- *  string out of all text nodes and a parallel index that maps
- *  global offsets back to (node, offset) pairs. */
-function selectNthOccurrenceInElement(
-  container: HTMLElement,
-  needle: string,
-  occurrenceIndex: number,
-): boolean {
-  if (!needle) return false
+ *  Why "across the full concatenation": pdf.js's text layer often splits a
+ *  single visual word into adjacent spans (per glyph run), so a match can span
+ *  multiple text nodes. We build a virtual string out of all text nodes plus a
+ *  parallel index mapping global offsets back to (node, offset) pairs. */
+function collectMatchRanges(container: HTMLElement, needle: string): Range[] {
+  const ranges: Range[] = []
+  if (!needle) return ranges
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
   type Slot = { node: Text; start: number; len: number }
   const slots: Slot[] = []
@@ -82,38 +83,31 @@ function selectNthOccurrenceInElement(
     }
     current = walker.nextNode() as Text | null
   }
-  if (slots.length === 0) return false
+  if (slots.length === 0) return ranges
 
   const haystack = slots.map((s) => s.node.nodeValue ?? "").join("").toLowerCase()
   const needleLower = needle.toLowerCase()
 
   let fromIndex = 0
-  let occurrence = 0
-  while (fromIndex < haystack.length) {
+  while (fromIndex <= haystack.length - needleLower.length) {
     const idx = haystack.indexOf(needleLower, fromIndex)
-    if (idx === -1) return false
-    if (occurrence === occurrenceIndex) {
-      const startSlot = slots.find((s) => idx >= s.start && idx <= s.start + s.len)
-      const endOffset = idx + needle.length
-      const endSlot = slots.find((s) => endOffset >= s.start && endOffset <= s.start + s.len)
-      if (!startSlot || !endSlot) return false
+    if (idx === -1) break
+    const endOffset = idx + needleLower.length
+    const startSlot = slots.find((s) => idx >= s.start && idx <= s.start + s.len)
+    const endSlot = slots.find((s) => endOffset >= s.start && endOffset <= s.start + s.len)
+    if (startSlot && endSlot) {
       try {
         const range = document.createRange()
         range.setStart(startSlot.node, idx - startSlot.start)
         range.setEnd(endSlot.node, endOffset - endSlot.start)
-        const selection = window.getSelection()
-        if (!selection) return false
-        selection.removeAllRanges()
-        selection.addRange(range)
-        return true
+        ranges.push(range)
       } catch {
-        return false
+        // Skip ranges whose mapped offsets are momentarily invalid.
       }
     }
-    occurrence += 1
-    fromIndex = idx + Math.max(1, needle.length)
+    fromIndex = idx + Math.max(1, needleLower.length)
   }
-  return false
+  return ranges
 }
 
 // We rasterize each page at this multiple of the fit-to-width size. The
@@ -174,7 +168,7 @@ function applyZoomToPdfWrapper(
   }
 }
 
-export default function PDFViewer({ workspaceRoot, relativePath, projectId, matchPalette = false }: PDFViewerProps) {
+export default function PDFViewer({ workspaceRoot, relativePath, projectId, documentId, matchPalette = false }: PDFViewerProps) {
   // Resolve to an absolute path at render time, using whatever the user
   // has chosen as their workspace right now. Changing the workspace in
   // settings re-renders this component and reroots automatically. We
@@ -254,6 +248,49 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
         applyZoomToPdfWrapper(wrapper, baseW, baseH, zoom)
       }
     }
+  }, [])
+
+  // ── Find-in-PDF highlights ──────────────────────────────────────────
+  // The Find modal dispatches APP_PROJECT_SEARCH_FOCUS_EVENT (the query + the
+  // active match's page and per-page occurrence) on every navigation, and
+  // APP_PROJECT_SEARCH_CLEAR_EVENT when the query clears / the modal closes.
+  // We paint EVERY match across the rendered text layers with the CSS Custom
+  // Highlight API: the active match in `pdf-find-active` (accent), all the
+  // others in `pdf-find` (translucent grey). Because the viewer is virtualized,
+  // the highlights are also rebuilt whenever a text layer renders/unrenders.
+  const searchQueryRef = useRef("")
+  const activeMatchRef = useRef<{ pageNumber: number; occurrenceInPage: number } | null>(null)
+  const scheduleHighlightRefreshRef = useRef<(() => void) | null>(null)
+
+  const rebuildSearchHighlights = useCallback((): Range | null => {
+    if (typeof CSS === "undefined" || !CSS.highlights || typeof Highlight === "undefined") return null
+    const pagesEl = pagesRef.current
+    const query = searchQueryRef.current
+    if (!pagesEl || !query) {
+      CSS.highlights.delete("pdf-find")
+      CSS.highlights.delete("pdf-find-active")
+      return null
+    }
+    const active = activeMatchRef.current
+    const allHl = new Highlight()
+    const activeHl = new Highlight()
+    let activeRange: Range | null = null
+    for (const textLayer of pagesEl.querySelectorAll<HTMLElement>(".pdf-viewer__text-layer")) {
+      const wrapper = textLayer.closest<HTMLElement>(".pdf-viewer__page-wrapper")
+      const pageNumber = wrapper ? Number(wrapper.dataset.pageNumber) : NaN
+      collectMatchRanges(textLayer, query).forEach((range, i) => {
+        if (active && pageNumber === active.pageNumber && i === active.occurrenceInPage) {
+          activeHl.add(range)
+          activeRange = range
+        } else {
+          allHl.add(range)
+        }
+      })
+    }
+    // `pdf-find-active` is registered last so it paints on top where they meet.
+    CSS.highlights.set("pdf-find", allHl)
+    CSS.highlights.set("pdf-find-active", activeHl)
+    return activeRange
   }, [])
 
   // ── Load the PDF document ─────────────────────────────────────────────
@@ -342,56 +379,87 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
   // apply a native browser Selection range to it. Selection styling
   // is themed via .pdf-viewer__text-layer ::selection in the CSS.
   useEffect(() => {
-    const onFocus = (event: Event) => {
-      const customEvent = event as CustomEvent<ProjectSearchFocusDetail>
-      const detail = customEvent.detail
-      if (!detail || detail.documentType !== "pdf" || detail.documentId !== projectId) return
+    const pagesEl = pagesRef.current
+    const scrollEl = scrollRef.current
+    if (!pagesEl || !scrollEl) return
 
-      const pageNumber = detail.start
-      const occurrenceInPage = detail.end
-      const pagesEl = pagesRef.current
-      const scrollEl = scrollRef.current
-      if (!pagesEl || !scrollEl) return
+    // Text layers render/unrender rapidly while scrolling, so coalesce highlight
+    // rebuilds to one per frame. renderPage/unrenderPage call this via the ref.
+    let rafId: number | null = null
+    const scheduleRefresh = () => {
+      if (rafId != null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        rebuildSearchHighlights()
+      })
+    }
+    scheduleHighlightRefreshRef.current = scheduleRefresh
+
+    const onFocus = (event: Event) => {
+      const detail = (event as CustomEvent<ProjectSearchFocusDetail>).detail
+      if (!detail || detail.documentType !== "pdf" || detail.documentId !== documentId) return
+
+      searchQueryRef.current = detail.query
+      activeMatchRef.current = { pageNumber: detail.start, occurrenceInPage: detail.end }
 
       const wrapper = pagesEl.querySelector<HTMLDivElement>(
-        `.pdf-viewer__page-wrapper[data-page-number="${pageNumber}"]`,
+        `.pdf-viewer__page-wrapper[data-page-number="${detail.start}"]`,
       )
       if (!wrapper) return
-      wrapper.scrollIntoView({ behavior: "smooth", block: "start" })
 
-      // Brief outline pulse on the page wrapper as a wayfinding cue
-      // — independent of the text-level selection below.
-      wrapper.classList.remove("pdf-viewer__page-wrapper--flash")
-      void wrapper.offsetWidth
-      wrapper.classList.add("pdf-viewer__page-wrapper--flash")
-
-      // ── Per-match Selection highlight ──
-      // Build a virtual concatenation of the page's text-layer text
-      // (walking all text nodes inside .pdf-viewer__text-layer), find
-      // the Nth occurrence of the query, then map the character
-      // offsets back to (node, offset) pairs to build a Range. The
-      // browser draws the selection using our themed ::selection CSS.
+      // Only scroll the page into view when it isn't already rendered — i.e.
+      // when jumping to a new page. For the next/prev match on a page that's
+      // already on screen we skip straight to centring the match, so rapid
+      // navigation doesn't snap the page to the top.
       //
-      // With virtualized rendering the target page may still be a bare
-      // placeholder at this instant — scrolling it into view is what makes
-      // the IntersectionObserver rasterise it and build the text layer. So
-      // retry across a few frames until the text layer exists and the match
-      // is found (bounded so a missing page / no-match gives up cleanly).
-      let attempts = 0
-      const trySelect = () => {
-        const textLayer = wrapper.querySelector<HTMLDivElement>(".pdf-viewer__text-layer")
-        if (textLayer && selectNthOccurrenceInElement(textLayer, detail.query, occurrenceInPage)) return
-        if (++attempts > 180) return // ~3s of frames
-        requestAnimationFrame(trySelect)
+      // Scroll ONLY the PDF's own container, never `wrapper.scrollIntoView()`:
+      // that walks every scroll-ancestor and aligns the page to the document
+      // top, which scrolls the whole editor up and clips the top bar.
+      if (!wrapper.querySelector(".pdf-viewer__text-layer")) {
+        const wr = wrapper.getBoundingClientRect()
+        const sr = scrollEl.getBoundingClientRect()
+        scrollEl.scrollTop += wr.top - sr.top
       }
-      trySelect()
+
+      // The target page may still be a bare placeholder — retry across frames
+      // until its text layer renders, then paint the highlights and bring the
+      // active match to the centre of the viewport.
+      let attempts = 0
+      const apply = () => {
+        const activeRange = rebuildSearchHighlights()
+        if (activeRange) {
+          const rr = activeRange.getBoundingClientRect()
+          if (rr.height > 0 || rr.width > 0) {
+            const sr = scrollEl.getBoundingClientRect()
+            scrollEl.scrollBy({ top: rr.top + rr.height / 2 - (sr.top + sr.height / 2), behavior: "smooth" })
+          }
+          return
+        }
+        if (++attempts > 180) return // ~3s of frames
+        requestAnimationFrame(apply)
+      }
+      apply()
+    }
+
+    const onClear = () => {
+      searchQueryRef.current = ""
+      activeMatchRef.current = null
+      rebuildSearchHighlights()
     }
 
     window.addEventListener(APP_PROJECT_SEARCH_FOCUS_EVENT, onFocus as EventListener)
+    window.addEventListener(APP_PROJECT_SEARCH_CLEAR_EVENT, onClear)
     return () => {
       window.removeEventListener(APP_PROJECT_SEARCH_FOCUS_EVENT, onFocus as EventListener)
+      window.removeEventListener(APP_PROJECT_SEARCH_CLEAR_EVENT, onClear)
+      scheduleHighlightRefreshRef.current = null
+      if (rafId != null) cancelAnimationFrame(rafId)
+      // Drop any lingering highlights when the doc changes / the viewer unmounts.
+      searchQueryRef.current = ""
+      activeMatchRef.current = null
+      rebuildSearchHighlights()
     }
-  }, [projectId])
+  }, [doc, projectId, documentId, rebuildSearchHighlights])
 
   // Cmd/Ctrl+A inside the PDF viewer selects every text-layer span
   // across every page. The browser's default Cmd+A behaviour selects
@@ -747,6 +815,8 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
       } catch {
         // No text layer (image-only page). Canvas alone is fine.
       }
+      // A freshly-built text layer means new search matches to paint.
+      scheduleHighlightRefreshRef.current?.()
     }
 
     // Release a page's canvas + text layer (keeping the sized placeholder) and
@@ -770,6 +840,8 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
         canvas.remove()
       }
       wrapper.querySelector(".pdf-viewer__text-layer")?.remove()
+      // Its match ranges are gone now — rebuild without them.
+      scheduleHighlightRefreshRef.current?.()
     }
 
     // Rasterise pages within ~1.5 viewports of the visible area; free the rest.
@@ -831,6 +903,11 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
     // floods the worker ahead of the visible-page renders.
     const extractAllText = async () => {
       const extractedPageText: PdfPageText[] = []
+      // Publish in batches so a long PDF (e.g. a ~450-page novel) is searchable
+      // for its early pages within a second or two, rather than only after the
+      // whole document has been extracted. Each keystroke in Find re-queries the
+      // registry, so newly-published pages are picked up as the user types.
+      const PUBLISH_EVERY = 8
       for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
         if (cancelled) return
         let page: PDFPageProxy
@@ -848,6 +925,9 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
           extractedPageText.push({ pageNumber, text: pageText })
         } catch {
           // No text (image-only page).
+        }
+        if (!cancelled && extractedPageText.length > 0 && pageNumber % PUBLISH_EVERY === 0) {
+          registerPdfText(projectId, [...extractedPageText])
         }
       }
       if (!cancelled && extractedPageText.length > 0) {
