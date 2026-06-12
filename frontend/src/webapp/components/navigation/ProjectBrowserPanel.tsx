@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Archive, BookCopy, ChevronDown, Cloud, Folder, FolderPlus, LibraryBig, ScrollText, Trash2, UserRoundPlus } from "lucide-react"
 import { iconForProjectKind } from "../../../core/utils/projectIcons"
@@ -19,7 +19,7 @@ import ShareDialog from "../settings/ShareDialog"
 import Modal from "../ui/Modal"
 import Button from "../ui/Button"
 import MarqueeText from "../ui/MarqueeText"
-import usePanelMarquee from "./usePanelMarquee"
+import usePanelSelection from "./usePanelSelection"
 import useProjectBulkActions from "./useProjectBulkActions"
 import "./navPanelShared.css"
 import "./ProjectBrowserPanel.css"
@@ -114,6 +114,12 @@ export default function ProjectBrowserPanel({
     sectionDrop.setSectionDropTarget(null)
   }
   const settings = useProjectSettings({ projects, setProjects })
+  // Every selectable id (projects + folders) — drives the hook's prune of
+  // vanished ids from the selection.
+  const selectableIds = useMemo(
+    () => [...projects.map((p) => p.id), ...folders.map((f) => f.id)],
+    [projects, folders],
+  )
   // Rows are draggable <button>s. We don't bail on `button` (so the marquee
   // can begin in the empty space between/below rows), but we MUST bail on
   // draggable elements: the marquee's mousedown preventDefault (which stops
@@ -121,8 +127,30 @@ export default function ProjectBrowserPanel({
   // row to drag a project would otherwise do nothing. Bailing on
   // `[draggable='true']` lets a row-press start a native drag, while a drag
   // from empty space still marquee-selects.
-  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee({
-    ignoreSelector: "input, textarea, select, [draggable='true']",
+  // Shared click / shift-click / double-click / arrow-key / Delete selection
+  // model (also used by DocumentTabsPanel). arrowActivates is false: a plain
+  // arrow moves an accent selection cursor without opening, since opening a
+  // project would navigate away from the library.
+  const {
+    marqueeContainerRef,
+    marqueeSelectedIds,
+    setMarqueeSelectedIds,
+    marquee,
+    liveSelectedIds,
+    selectSingle,
+    selectRange,
+    armSelection,
+    handleKeyDown,
+  } = usePanelSelection({
+    marqueeIgnoreSelector: "input, textarea, select, [draggable='true']",
+    getOrderedIds: () => visibleItemIds,
+    getActiveId: () => activeProjectId,
+    allIds: selectableIds,
+    onActivate: (id) => {
+      if (folderIdSet.has(id)) toggleFolder(id)
+      else onOpenProject(id)
+    },
+    onDelete: (ids) => deleteProjectsByIds([...ids].filter((id) => !folderIdSet.has(id))),
   })
   const multiDragIdsRef = useRef<Set<string>>(new Set())
   // Per-row element map (keyed by project id) for the sliding active-pill.
@@ -184,31 +212,7 @@ export default function ProjectBrowserPanel({
   const topRootProjects = projects.filter((p) => (p.folderId ?? null) === rootFolderId && p.rootPosition === "top")
   const bottomRootProjects = projects.filter((p) => (p.folderId ?? null) === rootFolderId && p.rootPosition === "bottom")
 
-  useEffect(() => {
-    const validIds = new Set<string>([
-      ...projects.map((project) => project.id),
-      ...folders.map((folder) => folder.id),
-    ])
-
-    setMarqueeSelectedIds((current) => {
-      if (current.size === 0) return current
-
-      let changed = false
-      const next = new Set<string>()
-      for (const id of current) {
-        if (validIds.has(id)) {
-          next.add(id)
-        } else {
-          changed = true
-        }
-      }
-
-      return changed ? next : current
-    })
-  }, [projects, folders, setMarqueeSelectedIds])
-
   const { deleteProjectsByIds, archiveProjectsByIds, duplicateProjectsByIds, shareProjectsByIds } = useProjectBulkActions({
-    selectedProjectIds,
     setProjects,
     setMarqueeSelectedIds,
     projectDocumentMap,
@@ -591,7 +595,15 @@ export default function ProjectBrowserPanel({
               onClick={(event) => {
                 if ((event.metaKey || event.ctrlKey) && onOpenProjectInNewTab) {
                   onOpenProjectInNewTab(project.id)
+                } else if (event.shiftKey) {
+                  // Range-select — don't let the browser select label text too.
+                  event.preventDefault()
+                  selectRange(project.id)
+                } else if (project.id === activeProjectId) {
+                  // Clicking the project you're already in arms it (accent).
+                  armSelection(project.id)
                 } else {
+                  selectSingle(project.id)
                   onOpenProject(project.id)
                 }
               }}
@@ -732,7 +744,15 @@ export default function ProjectBrowserPanel({
                 draggable
                 data-marquee-parent
                 className={`project-browser__label ${drag.draggingId === folder.id ? "project-browser__label--dragging" : ""}`.trim()}
-                onClick={() => toggleFolder(folder.id)}
+                onClick={(event) => {
+                  if (event.shiftKey) {
+                    event.preventDefault()
+                    selectRange(folder.id)
+                  } else {
+                    selectSingle(folder.id)
+                    toggleFolder(folder.id)
+                  }
+                }}
                 onDragStart={(event) => {
                   // Drive both the native dataTransfer (so external/cross-pane
                   // drops still receive the id) and useListDrag's internal
@@ -892,7 +912,9 @@ export default function ProjectBrowserPanel({
       <div
         ref={marqueeContainerRef}
         className={`project-browser__list-shell ${marquee.isActive ? "project-browser__list-shell--marquee" : ""}`.trim()}
+        tabIndex={-1}
         onMouseDown={marquee.handleMouseDown}
+        onKeyDown={handleKeyDown}
       >
         {marquee.isActive && marquee.rect ? (
           <div
