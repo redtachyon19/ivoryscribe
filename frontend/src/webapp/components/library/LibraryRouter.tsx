@@ -23,6 +23,10 @@ type LibraryRouterProps = {
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
+  /** Open library folder (null = root) — lifted to useLibraryNavigation so the
+   *  top-bar back/forward history can record + restore it. */
+  openFolderId: string | null
+  setOpenFolderId: Dispatch<SetStateAction<string | null>>
   onOpenProject: (projectId: string) => void
   onOpenProjectInNewTab: (projectId: string) => void
   onProjectCreated?: (project: Project) => void
@@ -60,6 +64,8 @@ export default function LibraryRouter({
   setProjects,
   setFolders,
   setActiveProjectId,
+  openFolderId,
+  setOpenFolderId,
   onOpenProject,
   onOpenProjectInNewTab,
   onProjectCreated,
@@ -132,6 +138,8 @@ export default function LibraryRouter({
       setProjects={setProjects}
       setFolders={setFolders}
       setActiveProjectId={setActiveProjectId}
+      openFolderId={openFolderId}
+      setOpenFolderId={setOpenFolderId}
       pendingShareRequests={pendingShareRequests}
       onAcceptShareRequest={onAcceptShareRequest}
       onRejectShareRequest={onRejectShareRequest}
