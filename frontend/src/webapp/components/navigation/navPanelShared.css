@@ -55,6 +55,39 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--menu-button, #ededed) 20%, transparent);
 }
 
+/* ── Native focus ring / tap-highlight removal ──
+   The row labels are <button>s; a click used to flash the WebKit amber focus
+   glow (the "awkward orange"). Selection / active state are shown with the
+   accent and the sliding pill instead, so suppress the native ring on the
+   labels and on the programmatically-focused (tabIndex -1) shells. */
+.doc-tabs__label,
+.project-browser__label {
+  -webkit-tap-highlight-color: transparent;
+}
+.doc-tabs__label:focus,
+.doc-tabs__label:focus-visible,
+.project-browser__label:focus,
+.project-browser__label:focus-visible,
+.doc-tabs__list-shell:focus,
+.doc-tabs__list-shell:focus-visible,
+.project-browser__list-shell:focus,
+.project-browser__list-shell:focus-visible {
+  outline: none;
+}
+
+/* ── Current item selected for an action ──
+   When the active (current) row is ALSO in the action-selection — via shift
+   select, shift+arrows, double-click, or a marquee that swept it up — recolour
+   its sliding pill from the neutral white to the accent, so the selection reads
+   on the current row the same way the accent --marquee-selected outline reads on
+   the other selected rows. The pill's top/height/left/width/opacity are set
+   inline; border + background are not, so these (specificity 0,4,0) win. */
+.doc-tabs__list-shell:has(.doc-tabs__row--active.doc-tabs__row--marquee-selected) .doc-tabs__active-indicator,
+.project-browser__list-shell:has(.project-browser__row--active.project-browser__row--marquee-selected) .project-browser__active-indicator {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 12%, transparent);
+  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 60%, transparent);
+}
+
 /* ── Drop-into-folder / parent highlight ── */
 .doc-tabs__item--drop-inside > .doc-tabs__row,
 .project-browser__item--drop-inside > .project-browser__row {

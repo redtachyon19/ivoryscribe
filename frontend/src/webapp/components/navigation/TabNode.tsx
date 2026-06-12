@@ -18,8 +18,6 @@ export type TabNodeProps = {
   editingTitle: string
   pendingEditTabIds?: Set<string>
   onSelect: (id: string, modifiers?: { shiftKey?: boolean }) => void
-  /** Double-click: arm this single tab as the action selection (accent). */
-  onSelectForAction: (id: string) => void
   onOpenInNewTab?: (id: string) => void
   onDragStart: (event: DragEvent<HTMLButtonElement>, id: string) => void
   onDragEnd: () => void
@@ -48,7 +46,6 @@ export default function TabNode({
   editingTitle,
   pendingEditTabIds,
   onSelect,
-  onSelectForAction,
   onOpenInNewTab,
   onDragStart,
   onDragEnd,
@@ -191,12 +188,6 @@ export default function TabNode({
                   onSelect(tab.id, { shiftKey: event.shiftKey })
                 }
               }}
-              onDoubleClick={(event) => {
-                // Arm this single tab for an action (accent outline) without
-                // opening anything new — the click(s) already opened it.
-                event.preventDefault()
-                onSelectForAction(tab.id)
-              }}
               onDragStart={(event) => {
                 onDragStart(event, tab.id)
               }}
@@ -287,7 +278,6 @@ export default function TabNode({
               editingTitle={editingTitle}
               pendingEditTabIds={pendingEditTabIds}
               onSelect={onSelect}
-              onSelectForAction={onSelectForAction}
               onOpenInNewTab={onOpenInNewTab}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}

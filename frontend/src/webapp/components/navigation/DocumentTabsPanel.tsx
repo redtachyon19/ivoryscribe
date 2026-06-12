@@ -8,7 +8,7 @@ import Button from "../ui/Button"
 import Modal from "../ui/Modal"
 import MarqueeText from "../ui/MarqueeText"
 import TabNode from "./TabNode"
-import usePanelMarquee from "./usePanelMarquee"
+import usePanelSelection from "./usePanelSelection"
 import {
   findNode,
   collectDescendantTitles,
@@ -67,14 +67,30 @@ export default function DocumentTabsPanel({
 }: DocumentTabsProps) {
   const drag = useListDrag()
   const { draggingId, dropTarget, setDraggingId, setDropTarget } = drag
-  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee()
+  const tabIds = useMemo(() => collectTabIds(tabs), [tabs])
+  // Shared click / shift-click / double-click / arrow-key / Delete selection
+  // model (also used by ProjectBrowserPanel). It owns the selection set (shared
+  // with the marquee), the anchor/lead, and the shell key handler.
+  const {
+    marqueeContainerRef,
+    marqueeSelectedIds,
+    setMarqueeSelectedIds,
+    marquee,
+    liveSelectedIds,
+    selectSingle,
+    selectRange,
+    armSelection,
+    handleKeyDown,
+  } = usePanelSelection({
+    getOrderedIds: () => flattenVisibleTabIds(tabs, expandedById),
+    getActiveId: () => activeId,
+    // Every tab is openable, so a plain arrow navigates (opens) like a click.
+    arrowActivates: true,
+    allIds: tabIds,
+    onActivate: onSelect,
+    onDelete: (ids) => deleteTabsAndSyncSelection(Array.from(ids)),
+  })
   const multiDragIdsRef = useRef<string[]>([])
-  // Click/keyboard multi-selection: `anchor` is the fixed end of a shift-range,
-  // `lead` is the moving end (where the keyboard cursor is). Refs, not state —
-  // they steer selection but don't themselves need to paint. The selection set
-  // they drive is `marqueeSelectedIds` (shared with the rubber-band marquee).
-  const selectionAnchorRef = useRef<string | null>(null)
-  const selectionLeadRef = useRef<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
@@ -82,49 +98,27 @@ export default function DocumentTabsPanel({
   const [contextMenu, setContextMenu] = useState<TabsContextMenuState | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
-  // Click selection. The selection set (shared with the marquee) is what reads
-  // as "selected for an action" — the accent outline, and what Delete acts on.
-  //  • Plain click  → navigate only: open the tab (the white "current" pill) and
-  //    DROP any action-selection. The anchor is kept so a following Shift+click /
-  //    Shift+Arrow ranges from here. Arming a single tab is a double-click
-  //    (handleArmTabSelection).
-  //  • Shift+click  → range-select from the anchor to the clicked row in visible
-  //    order, WITHOUT changing which document is open — so click-then-shift-click
-  //    builds a multi-selection the Delete key can act on.
-  // (Cmd/Ctrl+click is handled upstream in TabNode as "open in new tab".)
+  // Click on a tab:
+  //  • Shift+click             → range-select.
+  //  • click the tab you're on → arm it (accent selection) so Delete can act on
+  //    it — clicking the current row is the single-tab "select for an action".
+  //  • click another tab       → navigate: open it (white "current" pill) and
+  //    drop any action-selection.
+  // Cmd/Ctrl+click is handled upstream in TabNode as "open in new tab".
   const handleSelectTab = useCallback(
     (id: string, modifiers?: { shiftKey?: boolean }) => {
-      if (modifiers?.shiftKey && selectionAnchorRef.current) {
-        const order = flattenVisibleTabIds(tabs, expandedById)
-        const anchorIndex = order.indexOf(selectionAnchorRef.current)
-        const targetIndex = order.indexOf(id)
-        if (anchorIndex !== -1 && targetIndex !== -1) {
-          const [lo, hi] = anchorIndex <= targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex]
-          setMarqueeSelectedIds(new Set(order.slice(lo, hi + 1)))
-          selectionLeadRef.current = id
-          return
-        }
+      if (modifiers?.shiftKey) {
+        selectRange(id)
+        return
       }
-
-      selectionAnchorRef.current = id
-      selectionLeadRef.current = id
-      setMarqueeSelectedIds(new Set())
+      if (id === activeId) {
+        armSelection(id)
+        return
+      }
+      selectSingle(id)
       onSelect(id)
     },
-    [expandedById, onSelect, setMarqueeSelectedIds, tabs],
-  )
-
-  // Double-click "arms" a single tab for an action: it becomes the sole action
-  // selection, so its outline turns accent (the accent pill when it's also the
-  // open tab) and the Delete key can act on it. The preceding click already
-  // opened it, so this only flips the selection, never the open document.
-  const handleArmTabSelection = useCallback(
-    (id: string) => {
-      selectionAnchorRef.current = id
-      selectionLeadRef.current = id
-      setMarqueeSelectedIds(new Set([id]))
-    },
-    [setMarqueeSelectedIds],
+    [activeId, armSelection, onSelect, selectRange, selectSingle],
   )
   const rootListRef = useRef<HTMLUListElement | null>(null)
   const rowRefs = useRef<Record<string, HTMLDivElement>>({})
@@ -136,11 +130,9 @@ export default function DocumentTabsPanel({
   const { singular, plural } = getProjectEntryTerms(projectKind)
   const deleteEntryNoun = singular.toLowerCase()
   const subEntryLabel = `sub ${plural.toLowerCase()}`
-  const tabIds = useMemo(() => collectTabIds(tabs), [tabs])
   const pendingDeleteNode = pendingDeleteId ? findNode(tabs, pendingDeleteId) : null
   const pendingDeleteDescendantTitles = pendingDeleteNode ? collectDescendantTitles(pendingDeleteNode) : []
 
-  const selectedRootIds = useMemo(() => collectSelectedRootIds(tabs, marqueeSelectedIds), [tabs, marqueeSelectedIds])
   const draggingIds = useMemo(() => {
     if (!draggingId) {
       return new Set<string>()
@@ -162,27 +154,6 @@ export default function DocumentTabsPanel({
       return next
     })
   }, [tabIds])
-
-  useEffect(() => {
-    const validIds = new Set(tabIds)
-
-    setMarqueeSelectedIds((current) => {
-      if (current.size === 0) return current
-
-      let changed = false
-      const next = new Set<string>()
-
-      for (const id of current) {
-        if (validIds.has(id)) {
-          next.add(id)
-        } else {
-          changed = true
-        }
-      }
-
-      return changed ? next : current
-    })
-  }, [tabIds, setMarqueeSelectedIds])
 
   useEffect(() => {
     if (!activeId) {
@@ -217,13 +188,6 @@ export default function DocumentTabsPanel({
 
     delete rowRefs.current[id]
   }
-
-  // Move keyboard focus to a row's label button (arrow nav, post-marquee) without
-  // scrolling the panel around it.
-  const focusTabLabel = useCallback((id: string) => {
-    const button = rowRefs.current[id]?.querySelector<HTMLButtonElement>("button.doc-tabs__label")
-    button?.focus({ preventScroll: true })
-  }, [])
 
   // Sliding-pill indicator behind the active tab. Same mechanism as the global
   // settings sidebar (GlobalSettings.tsx): measure the active row's rect
@@ -340,8 +304,6 @@ export default function DocumentTabsPanel({
 
     onTabsChange(() => nextTabs)
     setMarqueeSelectedIds(new Set())
-    selectionAnchorRef.current = null
-    selectionLeadRef.current = null
     multiDragIdsRef.current = []
     setDropTarget(null)
     setDraggingId(null)
@@ -404,111 +366,6 @@ export default function DocumentTabsPanel({
     setDropTarget(null)
   }, [getDragSourceIds, onTabsChange, setDraggingId, setDropTarget])
 
-  // Keyboard control for the tab list. Handled on the list shell (tabIndex -1),
-  // so it only fires while focus is on a tab button or the shell itself — these
-  // keys can never reach the editor or another panel (in particular, Delete can
-  // never trash the tab you're typing in). Plain click focuses the button; a
-  // finished marquee focuses the shell (effect below):
-  //   • Up/Down           move the single selection + focus to the adjacent
-  //                       visible tab (does NOT open it — Enter/click opens)
-  //   • Shift+Up/Down     extend the selection from the anchor to the new lead
-  //   • Enter             open the focused tab
-  //   • Delete/Backspace  trash the current selection
-  const handleShellKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement
-    // Let the rename input own its keys (Delete, arrows, Enter, Escape).
-    if (target.closest("input, textarea")) {
-      return
-    }
-
-    if (event.key === "Delete" || event.key === "Backspace") {
-      if (selectedRootIds.length === 0) {
-        return
-      }
-      event.preventDefault()
-      cancelRename()
-      closeDeleteModal()
-      closeContextMenu()
-      deleteTabsAndSyncSelection(selectedRootIds)
-      return
-    }
-
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      const order = flattenVisibleTabIds(tabs, expandedById)
-      if (order.length === 0) {
-        return
-      }
-      event.preventDefault()
-
-      const lead = selectionLeadRef.current ?? activeId
-      const leadIndex = lead ? order.indexOf(lead) : -1
-      const step = event.key === "ArrowDown" ? 1 : -1
-      const nextIndex =
-        leadIndex === -1
-          ? event.key === "ArrowDown"
-            ? 0
-            : order.length - 1
-          : Math.min(order.length - 1, Math.max(0, leadIndex + step))
-      const nextId = order[nextIndex]
-      if (!nextId) {
-        return
-      }
-
-      if (event.shiftKey) {
-        // Extend the range from the fixed anchor to the new lead.
-        let anchorIndex = selectionAnchorRef.current ? order.indexOf(selectionAnchorRef.current) : -1
-        if (anchorIndex === -1) {
-          anchorIndex = leadIndex === -1 ? nextIndex : leadIndex
-          selectionAnchorRef.current = order[anchorIndex] ?? nextId
-        }
-        const [lo, hi] = anchorIndex <= nextIndex ? [anchorIndex, nextIndex] : [nextIndex, anchorIndex]
-        setMarqueeSelectedIds(new Set(order.slice(lo, hi + 1)))
-      } else {
-        // Plain move = navigate: open the adjacent tab (white "current" pill)
-        // and drop any action-selection, the same as single-clicking it.
-        selectionAnchorRef.current = nextId
-        setMarqueeSelectedIds(new Set())
-        onSelect(nextId)
-      }
-
-      selectionLeadRef.current = nextId
-      focusTabLabel(nextId)
-      return
-    }
-
-    if (event.key === "Enter") {
-      const lead = selectionLeadRef.current
-      if (!lead) {
-        return
-      }
-      event.preventDefault()
-      selectionAnchorRef.current = lead
-      setMarqueeSelectedIds(new Set())
-      onSelect(lead)
-    }
-  }
-
-  // After a marquee (rubber-band) selection settles, pull focus into the panel
-  // and seed the anchor/lead from the selection so the keyboard (Delete,
-  // Shift+Arrow) picks up where the drag left off.
-  const wasMarqueeActiveRef = useRef(false)
-  useEffect(() => {
-    const wasActive = wasMarqueeActiveRef.current
-    wasMarqueeActiveRef.current = marquee.isActive
-    if (!wasActive || marquee.isActive || marqueeSelectedIds.size === 0) {
-      return
-    }
-
-    const order = flattenVisibleTabIds(tabs, expandedById)
-    const selectedInOrder = order.filter((id) => marqueeSelectedIds.has(id))
-    if (selectedInOrder.length === 0) {
-      return
-    }
-
-    selectionAnchorRef.current = selectedInOrder[0]
-    selectionLeadRef.current = selectedInOrder[selectedInOrder.length - 1]
-    marqueeContainerRef.current?.focus({ preventScroll: true })
-  }, [marquee.isActive, marqueeSelectedIds, tabs, expandedById, marqueeContainerRef])
 
   const handleRootListDragOver = (event: DragEvent<HTMLUListElement>) => {
     if (!draggingId || tabs.length === 0) {
@@ -565,7 +422,7 @@ export default function DocumentTabsPanel({
         className={`doc-tabs__list-shell ${marquee.isActive ? "doc-tabs__list-shell--marquee" : ""}`.trim()}
         tabIndex={-1}
         onMouseDown={marquee.handleMouseDown}
-        onKeyDown={handleShellKeyDown}
+        onKeyDown={handleKeyDown}
       >
         {marquee.isActive && marquee.rect ? (
           <div
@@ -604,7 +461,6 @@ export default function DocumentTabsPanel({
               editingTitle={editingTitle}
               pendingEditTabIds={pendingEditTabIds}
               onSelect={handleSelectTab}
-              onSelectForAction={handleArmTabSelection}
               onOpenInNewTab={onOpenTabInNewTab}
               onDragStart={(event, id) => {
                 handleTabDragStart(event, id)
