@@ -371,10 +371,20 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
       // the Nth occurrence of the query, then map the character
       // offsets back to (node, offset) pairs to build a Range. The
       // browser draws the selection using our themed ::selection CSS.
-      const textLayer = wrapper.querySelector<HTMLDivElement>(".pdf-viewer__text-layer")
-      if (textLayer) {
-        selectNthOccurrenceInElement(textLayer, detail.query, occurrenceInPage)
+      //
+      // With virtualized rendering the target page may still be a bare
+      // placeholder at this instant — scrolling it into view is what makes
+      // the IntersectionObserver rasterise it and build the text layer. So
+      // retry across a few frames until the text layer exists and the match
+      // is found (bounded so a missing page / no-match gives up cleanly).
+      let attempts = 0
+      const trySelect = () => {
+        const textLayer = wrapper.querySelector<HTMLDivElement>(".pdf-viewer__text-layer")
+        if (textLayer && selectNthOccurrenceInElement(textLayer, detail.query, occurrenceInPage)) return
+        if (++attempts > 180) return // ~3s of frames
+        requestAnimationFrame(trySelect)
       }
+      trySelect()
     }
 
     window.addEventListener(APP_PROJECT_SEARCH_FOCUS_EVENT, onFocus as EventListener)
@@ -561,219 +571,280 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
     }
   }, [applyZoom])
 
-  // ── Render pages whenever doc or container width changes ─────────────
+  // ── Virtualized page rendering ───────────────────────────────────────
   //
-  // Strategy: clear the pages column, then walk the document one page at
-  // a time, scaling each page's natural width to the container's inner
-  // width. Each page renders to its own canvas (devicePixelRatio for
-  // crispness) and is appended as soon as it's ready, so the user sees
-  // progressive loading rather than a long blank wait.
+  // We build a correctly-sized placeholder wrapper for EVERY page up front
+  // (cheap — only page dimensions), but rasterise a <canvas> + build the
+  // selectable text layer only for pages near the viewport, releasing both
+  // again once a page scrolls far off-screen. Without this, a long PDF (e.g.
+  // a ~450-page novel) rasterises every page into a ~40 MB canvas at once —
+  // gigabytes of canvas memory that exhaust the renderer and freeze the app.
+  // With it, only a handful of pages hold canvases at any moment, so memory
+  // stays flat no matter how long the document is.
   //
-  // A monotonically-increasing `generation` token guards against
-  // overlapping renders during fast resizes — only the latest render's
-  // appends are kept; older ones bail out.
+  // A separate background pass extracts each page's text (data only — no
+  // canvas, no DOM) for the find/replace registry, so search still covers the
+  // whole document. A monotonically-increasing `generation` token guards
+  // against overlapping rebuilds during fast resizes.
   useEffect(() => {
     if (!doc) return
     const pagesContainer = pagesRef.current
     const scrollContainer = scrollRef.current
     if (!pagesContainer || !scrollContainer) return
 
+    let cancelled = false
     let generation = 0
     const activeRenderTasks = new Set<RenderTask>()
+    // page number → its render task (key present means rasterised / rasterising;
+    // absent means placeholder only). The value is null between claiming the
+    // slot and the task actually starting.
+    const renderedTasks = new Map<number, RenderTask | null>()
+    const dpr = window.devicePixelRatio || 1
 
-    const render = async () => {
+    const wrapperFor = (pageNumber: number) =>
+      pagesContainer.querySelector<HTMLDivElement>(
+        `.pdf-viewer__page-wrapper[data-page-number="${pageNumber}"]`,
+      )
+
+    // Resolve palette colours from the live document CSS (vars are scoped to
+    // `.app`, not `:root`, so walk up to the `.app` host). Recomputed per page
+    // so a palette change mid-scroll picks up the new colours.
+    const resolvePageColors = (): { background: string; foreground: string } | undefined => {
+      if (!matchPalette) return undefined
+      const paletteHost = scrollContainer.closest(".app") ?? document.body
+      const cs = getComputedStyle(paletteHost)
+      const background = cs.getPropertyValue("--app-bg").trim() || "#111111"
+      const foreground = cs.getPropertyValue("--editor-text").trim() || "#f5f5f5"
+      return { background, foreground }
+    }
+
+    // Rasterise one page's canvas + text layer into its placeholder wrapper.
+    const renderPage = async (pageNumber: number, myGen: number) => {
+      if (cancelled || myGen !== generation) return
+      if (renderedTasks.has(pageNumber)) return // already rendered / rendering
+      const wrapper = wrapperFor(pageNumber)
+      if (!wrapper) return
+      renderedTasks.set(pageNumber, null) // claim the slot to avoid double-render
+
+      let page: PDFPageProxy
+      try {
+        page = await doc.getPage(pageNumber)
+      } catch {
+        renderedTasks.delete(pageNumber)
+        return
+      }
+      // Bail if a rebuild happened, or the page was scrolled out of the render
+      // window (unrenderPage deletes our claimed slot) during the await.
+      if (cancelled || myGen !== generation || !renderedTasks.has(pageNumber)) {
+        renderedTasks.delete(pageNumber)
+        return
+      }
+
+      const containerWidth = pagesContainer.clientWidth
+      if (containerWidth === 0) {
+        renderedTasks.delete(pageNumber)
+        return
+      }
+
+      // Fit to container width, then ×OVERSAMPLE so the canvas stays crisp
+      // through CSS zoom-in. Rasterise once; live zoom is a paint-time op.
+      const baseViewport = page.getViewport({ scale: 1 })
+      const fitScale = containerWidth / baseViewport.width
+      const viewport = page.getViewport({ scale: fitScale * OVERSAMPLE })
+      const displayViewport = page.getViewport({ scale: fitScale })
+      const baseW = Math.floor(displayViewport.width)
+      const baseH = Math.floor(displayViewport.height)
+      // Correct the placeholder's stored base dims (it may have used page 1's
+      // size) and re-apply the current zoom.
+      wrapper.dataset.baseWidth = String(baseW)
+      wrapper.dataset.baseHeight = String(baseH)
+      applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
+
+      const canvas = document.createElement("canvas")
+      canvas.className = "pdf-viewer__page"
+      canvas.width = Math.floor(viewport.width * dpr)
+      canvas.height = Math.floor(viewport.height * dpr)
+      canvas.style.width = `${baseW}px`
+
+      const ctx = canvas.getContext("2d")
+      if (!ctx) {
+        renderedTasks.delete(pageNumber)
+        return
+      }
+
+      const renderTask = page.render({
+        canvas,
+        canvasContext: ctx,
+        viewport,
+        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+        pageColors: resolvePageColors(),
+      })
+      renderedTasks.set(pageNumber, renderTask)
+      activeRenderTasks.add(renderTask)
+      try {
+        await renderTask.promise
+      } catch {
+        // Cancelled (scrolled away / resize) or render error.
+        activeRenderTasks.delete(renderTask)
+        renderedTasks.delete(pageNumber)
+        return
+      }
+      activeRenderTasks.delete(renderTask)
+      if (cancelled || myGen !== generation) return
+
+      // Canvas goes first; the text layer overlays it.
+      wrapper.insertBefore(canvas, wrapper.firstChild)
+
+      // ── Text layer for selection / copy ──
+      try {
+        const textContent = await page.getTextContent()
+        if (cancelled || myGen !== generation) return
+        const textLayerDiv = document.createElement("div")
+        textLayerDiv.className = "pdf-viewer__text-layer"
+        textLayerDiv.style.width = `${baseW}px`
+        textLayerDiv.style.height = `${baseH}px`
+        wrapper.appendChild(textLayerDiv)
+
+        const textLayer = new TextLayer({
+          textContentSource: textContent,
+          container: textLayerDiv,
+          viewport: displayViewport,
+        })
+        await textLayer.render()
+        if (cancelled || myGen !== generation) return
+        // Re-apply zoom now the text layer exists so it scales with the canvas.
+        applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
+      } catch {
+        // No text layer (image-only page). Canvas alone is fine.
+      }
+    }
+
+    // Release a page's canvas + text layer (keeping the sized placeholder) and
+    // free the canvas backing store immediately so memory drops right away.
+    const unrenderPage = (pageNumber: number) => {
+      const task = renderedTasks.get(pageNumber)
+      if (task === undefined) return
+      if (task) {
+        try { task.cancel() } catch { /* ignore */ }
+        activeRenderTasks.delete(task)
+      }
+      renderedTasks.delete(pageNumber)
+      const wrapper = wrapperFor(pageNumber)
+      if (!wrapper) return
+      const canvas = wrapper.querySelector<HTMLCanvasElement>(".pdf-viewer__page")
+      if (canvas) {
+        // Zeroing the dimensions drops the GPU/CPU backing store now rather
+        // than waiting for GC.
+        canvas.width = 0
+        canvas.height = 0
+        canvas.remove()
+      }
+      wrapper.querySelector(".pdf-viewer__text-layer")?.remove()
+    }
+
+    // Rasterise pages within ~1.5 viewports of the visible area; free the rest.
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const pageNumber = Number((entry.target as HTMLElement).dataset.pageNumber)
+          if (!pageNumber) continue
+          if (entry.isIntersecting) void renderPage(pageNumber, generation)
+          else unrenderPage(pageNumber)
+        }
+      },
+      { root: scrollContainer, rootMargin: "150% 0px" },
+    )
+
+    // Build a sized placeholder for every page, then let the IntersectionObserver
+    // rasterise the visible window. Rebuilt on width changes (re-fit).
+    const build = async () => {
       const myGen = ++generation
-      // Cancel any still-running renders from the previous generation —
-      // they would write into stale canvases we're about to discard.
       for (const t of activeRenderTasks) {
         try { t.cancel() } catch { /* ignore */ }
       }
       activeRenderTasks.clear()
+      renderedTasks.clear()
+      io.disconnect()
 
       const containerWidth = pagesContainer.clientWidth
       if (containerWidth === 0) return
 
-      const dpr = window.devicePixelRatio || 1
+      // Size placeholders from page 1; each page's real size is applied when it
+      // rasterises. Uniform documents — most books — never shift.
+      let assumedW = Math.floor(containerWidth)
+      let assumedH = Math.floor(containerWidth * 1.2941) // US-letter fallback ratio
+      try {
+        const first = await doc.getPage(1)
+        const bv = first.getViewport({ scale: 1 })
+        const dv = first.getViewport({ scale: containerWidth / bv.width })
+        assumedW = Math.floor(dv.width)
+        assumedH = Math.floor(dv.height)
+      } catch { /* keep the letter-ratio guess */ }
+      if (cancelled || myGen !== generation) return
 
-      // Resolve palette colours from the live document CSS so the
-      // rasterised pages match whatever palette the user has chosen
-      // *right now*. The palette vars are scoped to `.app` (see
-      // App.css), NOT `:root` — reading off `documentElement` returns
-      // empty strings and the fallback grey leaks through. Walk up
-      // from the scroll container to find the `.app` ancestor that
-      // actually carries the vars.
-      let pageColors: { background: string; foreground: string } | undefined
-      if (matchPalette) {
-        const paletteHost = scrollContainer.closest(".app") ?? document.body
-        const cs = getComputedStyle(paletteHost)
-        const background = cs.getPropertyValue("--app-bg").trim() || "#111111"
-        const foreground = cs.getPropertyValue("--editor-text").trim() || "#f5f5f5"
-        pageColors = { background, foreground }
-      }
-
-      // Snapshot the currently-rendered page wrappers. We swap each
-      // page in-place when its new version is ready — the old wrapper
-      // stays visible until the new one is fully painted and ready
-      // to take its place. Flicker-free zoom: we never empty the
-      // container, we only replace one node at a time.
-      const oldPageEls = Array.from(pagesContainer.children) as HTMLDivElement[]
-
-      // Collected page text for the find/replace registry. We populate
-      // this lazily inside the loop and publish to the registry once
-      // the render completes.
-      const extractedPageText: PdfPageText[] = []
-
+      pagesContainer.replaceChildren()
       for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
-        if (myGen !== generation) return
+        const wrapper = document.createElement("div")
+        wrapper.className = "pdf-viewer__page-wrapper"
+        wrapper.dataset.pageNumber = String(pageNumber)
+        wrapper.dataset.baseWidth = String(assumedW)
+        wrapper.dataset.baseHeight = String(assumedH)
+        applyZoomToPdfWrapper(wrapper, assumedW, assumedH, pendingZoomRef.current)
+        pagesContainer.appendChild(wrapper)
+        io.observe(wrapper)
+      }
+    }
+
+    // Background pass: extract every page's text for the find/replace registry
+    // (data only — no canvas, no DOM), so search covers the whole document
+    // without holding a canvas for every page. One page at a time, so it never
+    // floods the worker ahead of the visible-page renders.
+    const extractAllText = async () => {
+      const extractedPageText: PdfPageText[] = []
+      for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber++) {
+        if (cancelled) return
         let page: PDFPageProxy
         try {
           page = await doc.getPage(pageNumber)
         } catch {
           continue
         }
-        if (myGen !== generation) return
-
-        // Fit each page to the container's inner width, then multiply by
-        // OVERSAMPLE so the canvas has enough resolution to stay crisp
-        // under CSS zoom-in. We rasterize ONCE at this resolution; the
-        // user's live zoom is a paint-time CSS operation on top.
-        const baseViewport = page.getViewport({ scale: 1 })
-        const fitScale = containerWidth / baseViewport.width
-        const viewport = page.getViewport({ scale: fitScale * OVERSAMPLE })
-        // The text layer is positioned at the *display* size, not the
-        // oversampled raster size — that's where the user's mouse
-        // actually clicks. Same scale as the visible canvas.
-        const displayViewport = page.getViewport({ scale: fitScale })
-
-        // Wrapper: a relatively-positioned container holding the
-        // canvas (block) and the text layer (absolutely positioned
-        // on top of it) so they overlap exactly.
-        const wrapper = document.createElement("div")
-        wrapper.className = "pdf-viewer__page-wrapper"
-        wrapper.dataset.pageNumber = String(pageNumber)
-        // Stash the fit-to-width base dimensions on the wrapper itself
-        // so the wheel handler's `applyZoom` can iterate every page
-        // and rewrite its display size without re-querying pdf.js.
-        const baseW = Math.floor(displayViewport.width)
-        const baseH = Math.floor(displayViewport.height)
-        wrapper.dataset.baseWidth = String(baseW)
-        wrapper.dataset.baseHeight = String(baseH)
-        // Initial size = base × 1; `applyZoomToPdfWrapper` below
-        // overwrites this with the actual current zoom after the
-        // canvas + text layer are attached.
-        wrapper.style.width = `${baseW}px`
-
-        const canvas = document.createElement("canvas")
-        canvas.className = "pdf-viewer__page"
-        canvas.width = Math.floor(viewport.width * dpr)
-        canvas.height = Math.floor(viewport.height * dpr)
-        canvas.style.width = `${Math.floor(displayViewport.width)}px`
-
-        const ctx = canvas.getContext("2d")
-        if (!ctx) continue
-
-        const renderTask = page.render({
-          canvas,
-          canvasContext: ctx,
-          viewport,
-          transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
-          // When defined, pdf.js re-tints text glyphs to `foreground`
-          // and fills the page surface with `background`. Embedded
-          // images are not affected. Undefined → original colours.
-          pageColors,
-        })
-        activeRenderTasks.add(renderTask)
-
-        try {
-          await renderTask.promise
-        } catch {
-          // Cancelled by a newer generation, or render error. Discard
-          // the half-painted canvas; the old wrapper stays in place.
-          activeRenderTasks.delete(renderTask)
-          continue
-        }
-        activeRenderTasks.delete(renderTask)
-        if (myGen !== generation) return
-
-        wrapper.appendChild(canvas)
-
-        // ── Text layer for selection / copy ──
-        // Render an invisible HTML overlay of selectable text spans
-        // positioned over the canvas. PDF.js's `TextLayer` class does
-        // the work — we just give it the page's text content and a
-        // viewport that matches the display size. Wrapped in try/catch
-        // because some PDFs (scanned image-only) have no text content
-        // and we don't want a render glitch to crash the whole page.
+        if (cancelled) return
         try {
           const textContent = await page.getTextContent()
-          if (myGen !== generation) return
-
-          const textLayerDiv = document.createElement("div")
-          textLayerDiv.className = "pdf-viewer__text-layer"
-          textLayerDiv.style.width = `${Math.floor(displayViewport.width)}px`
-          textLayerDiv.style.height = `${Math.floor(displayViewport.height)}px`
-          wrapper.appendChild(textLayerDiv)
-
-          const textLayer = new TextLayer({
-            textContentSource: textContent,
-            container: textLayerDiv,
-            viewport: displayViewport,
-          })
-          await textLayer.render()
-          if (myGen !== generation) return
-
-          // Build a plain-text representation of the page for the
-          // find/replace registry. Item strings are space-joined —
-          // not pixel-perfect to the visual layout but good enough
-          // for substring search.
           const pageText = textContent.items
             .map((item) => (("str" in item) ? item.str : ""))
             .join(" ")
           extractedPageText.push({ pageNumber, text: pageText })
         } catch {
-          // No text layer (image-only page). Canvas alone is fine.
-        }
-
-        // Apply the user's current zoom level to this freshly-built
-        // wrapper before inserting it, so the in-place swap below
-        // doesn't briefly show a fit-to-width-sized page when the
-        // user is already zoomed in. Uses the same helper the wheel
-        // handler calls so all pages stay in sync.
-        applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
-
-        // Atomic in-place swap: the new wrapper appears in the same
-        // DOM position as the old one in a single paint frame.
-        const oldEl = oldPageEls[pageNumber - 1]
-        if (oldEl && oldEl.parentNode === pagesContainer) {
-          pagesContainer.replaceChild(wrapper, oldEl)
-        } else {
-          pagesContainer.appendChild(wrapper)
+          // No text (image-only page).
         }
       }
-
-      if (myGen === generation && extractedPageText.length > 0) {
+      if (!cancelled && extractedPageText.length > 0) {
         registerPdfText(projectId, extractedPageText)
       }
     }
 
-    // Initial render + re-render on container width changes.
-    const ro = new ResizeObserver(() => { void render() })
+    // ResizeObserver fires immediately on observe (initial build) and on every
+    // width change (re-fit).
+    const ro = new ResizeObserver(() => { void build() })
     ro.observe(scrollContainer)
+    void extractAllText()
 
     return () => {
+      cancelled = true
       generation = -1
       for (const t of activeRenderTasks) {
         try { t.cancel() } catch { /* ignore */ }
       }
       activeRenderTasks.clear()
+      io.disconnect()
       ro.disconnect()
     }
-    // NB: `zoom` is intentionally NOT in this dep list — zoom is a CSS
-    // operation only. We rasterize once and live-zoom via paint.
-    // `matchPalette` and `paletteNonce` IS in the list — toggling the
-    // setting OR switching the palette CSS vars underneath both need
-    // a fresh rasterise to pick up the new pageColors.
-  }, [doc, matchPalette, paletteNonce])
+    // `zoom` is intentionally NOT a dep — zoom is a paint-time CSS op. Toggling
+    // `matchPalette` or switching the palette underneath needs a fresh rasterise,
+    // so both are deps.
+  }, [doc, matchPalette, paletteNonce, projectId])
 
   if (error) {
     return (
