@@ -537,30 +537,54 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
 
       // ── Zoom toward the cursor ──
       //
-      // Goal: the page point under the cursor stays under the cursor
-      // after the zoom. With explicit pixel sizing, the scroll
-      // container's scroll dimensions scale by the same factor as the
-      // pages (because every wrapper's width/height multiplies by r),
-      // so the math is identical to the old CSS-`zoom` version.
-      // Let `r = newZoom/oldZoom` and (cx, cy) be the cursor's offset
-      // inside the scroll viewport. The new scroll position that
-      // keeps the same content under the cursor is:
-      //   newScroll = cursorOffset * (r - 1) + oldScroll * r
-      const r = newZoom / oldZoom
-      const rect = el.getBoundingClientRect()
-      const cursorX = event.clientX - rect.left
-      const cursorY = event.clientY - rect.top
-      const oldScrollLeft = el.scrollLeft
-      const oldScrollTop = el.scrollTop
+      // The content does NOT scale uniformly about the scroll origin — the
+      // inter-page gaps and the page padding are fixed, and the pages are
+      // centered — so a `newScroll = offset*(r-1) + oldScroll*r` formula drifts
+      // (worse deeper in the document) and can't anchor horizontally. Instead,
+      // anchor to the actual page wrapper under the cursor: record the cursor's
+      // fractional position within it, apply the zoom, then re-scroll so that
+      // same fractional point lands back under the cursor. Measuring real
+      // positions makes it exact regardless of gaps/padding/centering.
+      const cx = event.clientX
+      const cy = event.clientY
 
-      // Direct DOM write — `applyZoom` rewrites every page wrapper's
-      // pixel dimensions and the scroll-position adjustment below
-      // lands in the same frame. No CSS `zoom`, no transform on the
-      // container; just explicit sizes that Chromium lays out
-      // synchronously.
+      // The wrapper under the cursor, or the nearest rendered page when the
+      // cursor sits in a gap/gutter.
+      let anchorEl =
+        (document.elementFromPoint(cx, cy) as HTMLElement | null)?.closest<HTMLElement>(".pdf-viewer__page-wrapper") ?? null
+      if (!anchorEl) {
+        let bestDy = Infinity
+        for (const w of pagesEl.querySelectorAll<HTMLElement>(".pdf-viewer__page-wrapper:has(.pdf-viewer__page)")) {
+          const wr = w.getBoundingClientRect()
+          const dy = cy < wr.top ? wr.top - cy : cy > wr.bottom ? cy - wr.bottom : 0
+          if (dy < bestDy) {
+            bestDy = dy
+            anchorEl = w
+          }
+        }
+      }
+
+      // Cursor's fractional position within the anchor wrapper, BEFORE zoom.
+      let fx = 0.5
+      let fy = 0.5
+      if (anchorEl) {
+        const wr = anchorEl.getBoundingClientRect()
+        if (wr.width > 0 && wr.height > 0) {
+          fx = (cx - wr.left) / wr.width
+          fy = (cy - wr.top) / wr.height
+        }
+      }
+
+      // Resize every page to the new zoom (the read below forces a synchronous
+      // reflow, so the new wrapper rect is up to date).
       applyZoom(newZoom)
-      el.scrollLeft = cursorX * (r - 1) + oldScrollLeft * r
-      el.scrollTop = cursorY * (r - 1) + oldScrollTop * r
+
+      // Re-scroll so the recorded fractional point sits back under the cursor.
+      if (anchorEl) {
+        const wr = anchorEl.getBoundingClientRect()
+        el.scrollLeft += wr.left + fx * wr.width - cx
+        el.scrollTop += wr.top + fy * wr.height - cy
+      }
     }
 
     // passive:false so preventDefault() actually blocks the browser's
