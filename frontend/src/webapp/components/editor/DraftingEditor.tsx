@@ -123,10 +123,13 @@ export default function DraftingEditor({
     handleRemoveFlag,
   } = useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef })
 
-  // Trackpad-pinch / ctrl+scroll zoom toward the cursor — scales the whole
-  // editor surface (same gesture as the image/PDF viewers). Re-attaches when
-  // the document changes so the listener binds to the live surface.
-  useEditorZoom({ contentRef: editorSurfaceRef, enabledKey: documentId })
+  // Trackpad-pinch / ctrl+scroll zoom toward the cursor — a *true* visual zoom
+  // of the whole draft column (same gesture as the image/PDF viewers). The
+  // column is fluid (width: 100%), so `fluidContentWidth` freezes it to an
+  // absolute px width first; otherwise CSS `zoom` only reflows the text into a
+  // narrower measure and reads as a font-size bump. Re-attaches when the
+  // document changes so the listener binds to the live surface.
+  useEditorZoom({ contentRef: editorSurfaceRef, enabledKey: documentId, fluidContentWidth: true })
 
   /* ── Initial empty-state + word count ── */
   useEffect(() => {

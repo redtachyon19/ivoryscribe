@@ -101,10 +101,6 @@ export function useTypingCaret({
     // even when the keystroke wraps to a new line — a wrap looks geometrically
     // identical to a deliberate Enter, so only the key distinguishes them.
     let typingMove = false
-    // Set by an Enter keystroke and consumed by the next updateCaret: snap the
-    // caret straight to the new line (no glide, no crawl) so a deliberate line
-    // break is instant and the following typing trails cleanly from there.
-    let snapNextMove = false
     const caretMotion = {
       currentLeft: 0,
       currentTop: 0,
@@ -264,14 +260,6 @@ export function useTypingCaret({
       // a tiny minimum to guard against zero-height edge cases.
       const height = Math.max((coords.bottom - coords.top) / renderScale, 12)
 
-      // A deliberate Enter snaps the caret straight to the new line (initialized
-      // = false routes to the teleport branch below) so it's instant rather than
-      // gliding/crawling across the break.
-      if (snapNextMove) {
-        caretMotion.initialized = false
-        snapNextMove = false
-      }
-
       // Decide whether this move keeps the speed cap (typing → trail, so you can
       // out-run it) or lifts it (discrete navigation → dart straight there).
       if (caretMotion.initialized) {
@@ -367,12 +355,13 @@ export function useTypingCaret({
         markUiTypingActivity()
       }
 
-      // Flag this as a typing move so its caret update stays capped even if it
-      // wraps. Enter is deliberately EXCLUDED — it gets the instant snap instead.
+      // Flag character/edit keystrokes as a typing move so the caret stays capped
+      // (buttery trail) even when they wrap to a new line. Enter is deliberately
+      // EXCLUDED: leaving typingMove false routes it through the non-typing branch
+      // in updateCaret, which lifts the speed cap so the caret darts SMOOTHLY to
+      // the new line — neither crawling (capped) nor teleporting (the old snap).
       if (isCharacter || event.key === "Backspace" || event.key === "Delete") {
         typingMove = true
-      } else if (event.key === "Enter") {
-        snapNextMove = true
       }
     }
 
