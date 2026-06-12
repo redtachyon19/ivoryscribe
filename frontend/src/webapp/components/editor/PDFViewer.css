@@ -96,6 +96,18 @@
      canvas behind. */
   pointer-events: none;
   user-select: text;
+  /* pdf.js v5 sizes its selectable text spans via these custom properties —
+     font-size is calc(--text-scale-factor * --font-height). Without them the
+     spans fall back to a default font-size and the selection no longer lines
+     up with the rasterised glyphs (the "highlights the wrong thing / nothing
+     copyable" bug). --total-scale-factor (the page's display scale) is set per
+     page in JS; --min-font-size and the per-span --font-height/--scale-x/
+     --rotate are set by pdf.js's TextLayer. Mirrors the upstream .textLayer
+     rules in node_modules/pdfjs-dist/web/pdf_viewer.css for our class name. */
+  --total-scale-factor: 1;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
 }
 
 /* pdf.js v5 wraps groups of text spans in `<span class="markedContent">`
@@ -111,8 +123,7 @@
   display: contents;
 }
 
-.pdf-viewer__text-layer span:not(.markedContent),
-.pdf-viewer__text-layer br {
+.pdf-viewer__text-layer :is(span, br) {
   position: absolute;
   white-space: pre;
   /* Glyphs are transparent — the canvas is what the user sees.
@@ -120,17 +131,31 @@
      so selection geometry lines up. */
   color: transparent;
   cursor: text;
-  transform-origin: 0% 0%;
+  transform-origin: 0 0;
   pointer-events: auto;
+}
+
+/* The actual text spans (not the markedContent wrappers): size + skew them
+   exactly as pdf.js's upstream .textLayer rules do, consuming the per-span
+   custom properties TextLayer.render() sets. This is what makes the invisible
+   selection boxes match the visible glyphs. */
+.pdf-viewer__text-layer > :not(.markedContent),
+.pdf-viewer__text-layer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
 }
 
 /* Selection highlight — light overlay on top of the canvas. */
 .pdf-viewer__text-layer ::selection {
-  background: color-mix(in srgb, var(--menu-accent, #7ea8ff) 50%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
   color: transparent;
 }
 .pdf-viewer__text-layer ::-moz-selection {
-  background: color-mix(in srgb, var(--menu-accent, #7ea8ff) 50%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
   color: transparent;
 }
 

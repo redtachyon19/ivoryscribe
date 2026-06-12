@@ -3,6 +3,18 @@
   --page-content-gutter: 24px;
 }
 
+/* Text selection everywhere — the live palette accent at 50% opacity.
+   `--app-accent` is defined on `.app` (and re-defined per palette), so a
+   selection inside the app picks up the current accent; the fallback covers
+   anything outside it. Per-context rules (PDF text layer, editor title) keep
+   their own text `color` but reuse this same background. */
+::selection {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
+}
+::-moz-selection {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
+}
+
 .app {
   --palette-transition-duration: 380ms;
   --palette-transition-easing: ease;
