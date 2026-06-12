@@ -171,7 +171,7 @@ export default function TypewriterEditor({
     let dom: HTMLElement
     try { dom = editor.view.dom as HTMLElement } catch { return }
     const sync = () => {
-      const storage = (editor.storage as Record<string, unknown>).resizableImage as
+      const storage = (editor.storage as unknown as Record<string, unknown>).resizableImage as
         | { cropSession: ImageCropSession }
         | undefined
       setCropSession(storage?.cropSession ?? null)

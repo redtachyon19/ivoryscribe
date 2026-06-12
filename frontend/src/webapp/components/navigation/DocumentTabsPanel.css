@@ -62,6 +62,13 @@
   padding-bottom: 352px;
 }
 
+/* The shell is programmatically focused (tabIndex -1) so the keyboard can drive
+   the list after a marquee drag; it is not itself an affordance, so no ring. */
+.doc-tabs__list-shell:focus,
+.doc-tabs__list-shell:focus-visible {
+  outline: none;
+}
+
 /* Marquee shell + selection rectangle live in navPanelShared.css */
 
 .doc-tabs__active-indicator {
@@ -93,6 +100,17 @@
 .doc-tabs__row--active:not(.doc-tabs__row--pending-edit) {
   background: transparent;
   box-shadow: none;
+}
+
+/* When the current (active) tab is ALSO selected for an action — via shift
+   select, shift+arrows, double-click, or a marquee that swept it up — recolour
+   its sliding pill from the neutral white to the app accent, so the selection
+   is visible on the current tab the same way it is on the other selected rows
+   (which carry the accent --marquee-selected outline). The pill's top/height/
+   opacity are set inline; border + background are not, so these win. */
+.doc-tabs__list-shell:has(.doc-tabs__row--active.doc-tabs__row--marquee-selected) .doc-tabs__active-indicator {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 12%, transparent);
+  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 60%, transparent);
 }
 
 .doc-tabs__list--nested {
@@ -201,6 +219,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Kill the native focus ring / tap-highlight on this <button>. Clicking a tab
+     used to flash the WebKit amber focus glow (the "awkward orange"); selection
+     and keyboard focus are now shown with the app accent (rules below). */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.doc-tabs__label:focus,
+.doc-tabs__label:focus-visible {
+  outline: none;
 }
 
 .doc-tabs__type-icon {
