@@ -825,9 +825,21 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
       }
     }
 
-    // ResizeObserver fires immediately on observe (initial build) and on every
-    // width change (re-fit).
-    const ro = new ResizeObserver(() => { void build() })
+    // Rebuild only when the container WIDTH changes — that's the only thing that
+    // changes the fit-to-width scale. Do NOT rebuild on height-only changes:
+    // zooming in widens the content, which toggles the horizontal scrollbar and
+    // changes the container's content-box HEIGHT; rebuilding there would
+    // replaceChildren and reset the scroll position mid-zoom (the "zoom also
+    // scrolls" bug). The vertical scrollbar is always present on a multi-page
+    // doc, so width stays stable across zoom. `lastWidth = -1` so the observer's
+    // initial fire (real width !== -1) performs the first build.
+    let lastWidth = -1
+    const ro = new ResizeObserver(() => {
+      const width = scrollContainer.clientWidth
+      if (width === lastWidth) return
+      lastWidth = width
+      void build()
+    })
     ro.observe(scrollContainer)
     void extractAllText()
 
