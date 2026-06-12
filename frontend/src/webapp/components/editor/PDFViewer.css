@@ -25,7 +25,12 @@
 .pdf-viewer__pages {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* `safe center` centers the pages when they fit, but falls back to start
+     (left) alignment once a page is wider than the viewport (zoomed in) — so
+     the overflowing left side stays reachable by horizontal scroll instead of
+     being clipped, which also lets zoom-toward-cursor land anywhere on the
+     page. */
+  align-items: safe center;
   /* Generous gap between pages — reads as the dark page background. */
   gap: 18px;
   /* Horizontal gutter scales with viewport so wide screens get room
