@@ -27,12 +27,25 @@ const DEFAULT_FONT_FAMILY = '"Times", "Times New Roman", serif'
 const DEFAULT_DOCUMENT_CONTENT = "<p></p>"
 const BODY_PLACEHOLDER = "Start your epic..."
 
-/* ── Empty-state attribute on the editor DOM (drives the placeholder text) ── */
+/* ── Empty-state attribute on the editor DOM (drives the placeholder text) ──
+   Only show the body placeholder when the sole/first top-level block is a
+   paragraph. `editor.isEmpty` is RECURSIVE in TipTap v3, so an empty bullet or
+   numbered list (doc → list → item → empty paragraph) also reports as empty —
+   and our floated `::before` placeholder would then render under the first
+   bullet/number. Requiring the first block to be a paragraph keeps the
+   placeholder for the pristine empty doc but drops it the moment a list (or any
+   other block) is started. */
+function isBodyPlaceholderVisible(currentEditor: TiptapEditor): boolean {
+  if (!currentEditor.isEmpty) return false
+  const firstBlock = currentEditor.state.doc.firstChild
+  return !!firstBlock && firstBlock.type.name === "paragraph"
+}
+
 function syncEmptyState(currentEditor: TiptapEditor) {
   try {
     const editorDom = currentEditor.view?.dom
     if (!editorDom) return
-    editorDom.setAttribute("data-empty", currentEditor.isEmpty ? "true" : "false")
+    editorDom.setAttribute("data-empty", isBodyPlaceholderVisible(currentEditor) ? "true" : "false")
   } catch {
     // TipTap can momentarily expose an editor instance before internals are fully ready.
   }

@@ -890,7 +890,7 @@
 }
 
 .project-card__rename-input::selection {
-  background: rgba(255, 255, 255, 0.24);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
   color: #ffffff;
 }
 

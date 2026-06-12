@@ -703,6 +703,12 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, matc
         textLayerDiv.className = "pdf-viewer__text-layer"
         textLayerDiv.style.width = `${baseW}px`
         textLayerDiv.style.height = `${baseH}px`
+        // pdf.js v5 sizes its text spans via `calc(--total-scale-factor * …)`;
+        // it sets the per-span vars but NOT this one, so we set it to the page's
+        // display scale (the spans are laid out at that scale; the wrapper's
+        // transform handles user zoom on top). Without it the selectable spans
+        // collapse to a default font-size and the selection misaligns.
+        textLayerDiv.style.setProperty("--total-scale-factor", String(displayViewport.scale))
         wrapper.appendChild(textLayerDiv)
 
         const textLayer = new TextLayer({
