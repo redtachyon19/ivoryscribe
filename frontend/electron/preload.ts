@@ -89,7 +89,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   print: {
     /** Render a self-contained export HTML document to PDF bytes via the main
      *  process (hidden BrowserWindow + Chromium printToPDF). */
-    toPdf: (html: string) => ipcRenderer.invoke("print:toPdf", html) as Promise<Uint8Array>,
+    toPdf: (html: string) =>
+      ipcRenderer.invoke("print:toPdf", html) as Promise<{ pdf: Uint8Array; chapterStartPages: number[] }>,
   },
 })
 

@@ -1,10 +1,11 @@
 import JSZip from "jszip"
-import { DEFAULT_DOCUMENT_CONTENT, collectTabSequence, getProjectMarkdownIds, type Project } from "../../../core/utils/projects"
+import { DEFAULT_DOCUMENT_CONTENT, collectTabSequence, getProjectMarkdownIds, type DocumentTab, type Project } from "../../../core/utils/projects"
 import { renderMarkdownToHtml } from "../../../core/utils/markdown"
 import { loadMargins, DEFAULT_MARGINS } from "../editor/utils/typewriterMargins"
 import { buildCombinedExportHtml, buildSingleExportHtml, type ExportDoc } from "./typewriterPdfHtml"
 import { resolveExportPlan, type ExportMode } from "./exportSelection"
 import { downloadBlob, sanitizeZipEntryName, slugifyFileName } from "./exportUtils"
+import type { PdfBookmark } from "../../../core/pdf/pdfBookmarkStore"
 
 export type PdfExportMode = ExportMode
 
@@ -47,13 +48,67 @@ function pdfFileName(project: Project): string {
 // programmatic PDF API, so we fall back to the browser's native print dialog
 // (vector + selectable, same layout) and return null — callers that need the
 // bytes (the ZIP path) degrade to a combined print on web.
-async function htmlToPdfBytes(html: string): Promise<Uint8Array | null> {
+async function htmlToPdfBytes(
+  html: string,
+): Promise<{ bytes: Uint8Array; chapterStartPages: number[] } | null> {
   const toPdf = window.electronAPI?.print?.toPdf
   if (toPdf) {
-    return await toPdf(html)
+    const { pdf, chapterStartPages } = await toPdf(html)
+    return { bytes: pdf, chapterStartPages }
   }
   await printHtmlViaIframe(html)
   return null
+}
+
+// Mirror the chapter hierarchy as a nested PDF outline. Walks the project's tab
+// tree; each tab that was actually exported (i.e. has a recorded start page)
+// becomes a bookmark carrying its own exported children. A tab that wasn't
+// exported but has exported descendants is skipped and its descendants promoted
+// up, so a partial-selection export still produces a coherent tree.
+function buildBookmarkTree(tabs: DocumentTab[], pageByTabId: Map<string, number>): PdfBookmark[] {
+  const nodes: PdfBookmark[] = []
+  for (const tab of tabs) {
+    const children = buildBookmarkTree(tab.children, pageByTabId)
+    const page = pageByTabId.get(tab.id)
+    if (page != null) {
+      nodes.push({ id: tab.id, title: tab.title?.trim() || "Untitled", pageNumber: page, children })
+    } else if (children.length > 0) {
+      nodes.push(...children)
+    }
+  }
+  return nodes
+}
+
+// Attach a nested PDF outline (one bookmark per exported chapter, mirroring the
+// chapter tree) pointing at the page each chapter starts on. `exportTabs` is the
+// flat, in-order list that was paginated, aligned 1:1 with `chapterStartPages`.
+// Best-effort: if the outline can't be written, return the original bytes so the
+// export still succeeds without bookmarks.
+async function withChapterBookmarks(
+  bytes: Uint8Array,
+  project: Project,
+  exportTabs: ExportTab[],
+  chapterStartPages: number[],
+): Promise<Uint8Array> {
+  if (!chapterStartPages || chapterStartPages.length === 0 || exportTabs.length === 0) {
+    return bytes
+  }
+  const pageByTabId = new Map<string, number>()
+  exportTabs.forEach((tab, index) => {
+    const page = chapterStartPages[index]
+    if (page != null) pageByTabId.set(tab.id, page)
+  })
+  const bookmarks = buildBookmarkTree(project.tabs, pageByTabId)
+  if (bookmarks.length === 0) {
+    return bytes
+  }
+  try {
+    const { buildPdfWithOutline } = await import("../../../core/pdf/pdfOutlineWriter")
+    return await buildPdfWithOutline(bytes, bookmarks)
+  } catch (err) {
+    console.error("[pdfExport] Could not add chapter bookmarks; exporting without them.", err)
+    return bytes
+  }
 }
 
 // Web fallback: print the export HTML via a hidden iframe. The embedded runtime
@@ -101,8 +156,9 @@ async function exportCombinedPdf(project: Project, tabs: ExportTab[]) {
     docs.push({ title: project.name, html: "<p></p>", margins: DEFAULT_MARGINS, kind: "prose" })
   }
   const html = buildCombinedExportHtml(docs)
-  const bytes = await htmlToPdfBytes(html)
-  if (bytes) {
+  const result = await htmlToPdfBytes(html)
+  if (result) {
+    const bytes = await withChapterBookmarks(result.bytes, project, tabs, result.chapterStartPages)
     downloadBlob(new Blob([bytes.slice()], { type: "application/pdf" }), pdfFileName(project))
   }
 }
@@ -130,9 +186,9 @@ async function exportSeparatePdfZip(project: Project, sequence: ExportTab[]) {
     for (let index = 0; index < sequence.length; index += 1) {
       const tab = sequence[index]
       const html = buildSingleExportHtml(toExportDoc(project, tab, markdownIds))
-      const bytes = await toPdf(html)
+      const { pdf } = await toPdf(html)
       const fileName = `${String(index + 1).padStart(2, "0")}-${slugifyFileName(tab.title)}.pdf`
-      zip.file(`${folderName}/${fileName}`, bytes.slice())
+      zip.file(`${folderName}/${fileName}`, pdf.slice())
     }
   }
 
@@ -157,9 +213,9 @@ export async function renderProjectPdfBase64(project: Project): Promise<string |
   }
 
   const html = buildCombinedExportHtml(docs)
-  const bytes = await toPdf(html)
-  if (!bytes || bytes.length === 0) return null
-  return uint8ToBase64(bytes)
+  const { pdf } = await toPdf(html)
+  if (!pdf || pdf.length === 0) return null
+  return uint8ToBase64(pdf)
 }
 
 // Chunked base64 of a byte array — avoids "Maximum call stack size exceeded"
