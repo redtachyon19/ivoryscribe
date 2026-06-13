@@ -80,10 +80,13 @@ declare global {
       }
 
       print?: {
-        /** Render a self-contained export HTML document to PDF bytes via the
-         *  main process (hidden BrowserWindow + Chromium printToPDF). The
-         *  renderer receives a Uint8Array via structured-clone IPC. */
-        toPdf: (html: string) => Promise<Uint8Array>
+        /** Render a self-contained export HTML document to PDF via the main
+         *  process (hidden BrowserWindow + Chromium printToPDF). Returns the PDF
+         *  bytes (Uint8Array over structured-clone IPC) plus the 1-based start
+         *  page of each chapter/section, in order, so the renderer can attach a
+         *  per-chapter outline. `chapterStartPages` is empty if the pagination
+         *  runtime didn't report them. */
+        toPdf: (html: string) => Promise<{ pdf: Uint8Array; chapterStartPages: number[] }>
       }
     }
   }

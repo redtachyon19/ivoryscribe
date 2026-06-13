@@ -441,7 +441,7 @@ ipcMain.handle("clipboard:readText", () => {
 // paginates the typewriter layout and sets `window.__pdfxReady` when done; we
 // wait on that (and on web-font loading) before printing. Returns the raw PDF
 // bytes (a Buffer, received by the renderer as a Uint8Array).
-ipcMain.handle("print:toPdf", async (_event, html: string): Promise<Buffer> => {
+ipcMain.handle("print:toPdf", async (_event, html: string): Promise<{ pdf: Buffer; chapterStartPages: number[] }> => {
   const win = new BrowserWindow({
     show: false,
     width: 816,
@@ -479,12 +479,20 @@ ipcMain.handle("print:toPdf", async (_event, html: string): Promise<Buffer> => {
       })`,
     )
 
+    // The pagination runtime records the 1-based start page of each chapter
+    // (section) in window.__pdfxChapterStartPages. Read it so the renderer can
+    // attach a per-chapter PDF outline. Empty array if the runtime didn't set it
+    // (e.g. it errored), in which case the renderer simply skips the outline.
+    const chapterStartPages = (await win.webContents
+      .executeJavaScript("Array.isArray(window.__pdfxChapterStartPages) ? window.__pdfxChapterStartPages : []")
+      .catch(() => [])) as number[]
+
     const data = await win.webContents.printToPDF({
       preferCSSPageSize: true,
       printBackground: true,
       margins: { marginType: "none" },
     })
-    return data
+    return { pdf: data, chapterStartPages }
   } finally {
     win.destroy()
     fsp.unlink(tmpPath).catch(() => {})

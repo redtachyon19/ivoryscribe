@@ -456,7 +456,15 @@ function paginationScript(): string {
       var src=document.getElementById('pdfx-src');
       var out=document.getElementById('pdfx-out');
       var sections=Array.prototype.slice.call(src.querySelectorAll('.pdfx-doc'));
-      for(var s=0;s<sections.length;s++){ await processDoc(sections[s], out); }
+      // Each section (chapter) appends its pages to #pdfx-out in order, so the
+      // 1-based page a chapter starts on is just the page count already emitted
+      // + 1. Recorded for the per-chapter PDF outline added after printing.
+      var startPages=[];
+      for(var s=0;s<sections.length;s++){
+        startPages.push(out.children.length + 1);
+        await processDoc(sections[s], out);
+      }
+      window.__pdfxChapterStartPages=startPages;
     }catch(e){ if(window.console && console.error) console.error('pdfx pagination failed', e); }
     window.__pdfxReady=true;
   }
