@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import { Copy, ExternalLink, FileCode, FilePlus2, FileType, Pencil, Presentation, Trash2 } from "lucide-react"
-import { collectTabIds, getProjectEntryTerms, type DocumentTab, type Project, type ProjectKind } from "../../../core/utils/projects"
+import { collectTabIds, getProjectEntryTerms, type DocumentTab, type Project, type ProjectEntryTerms, type ProjectKind } from "../../../core/utils/projects"
 import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
 import { useListDrag, nearestRowBoundary, type DropMode } from "../shared/hooks/useListDrag"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
@@ -33,6 +33,10 @@ type DocumentTabsProps = {
   activeId: string | null
   isVisible?: boolean
   pendingEditTabIds?: Set<string>
+  /** Override the per-kind entry nouns (heading + trash copy). PDFs reuse this
+   *  panel for their bookmarks and pass {singular:"Bookmark", …} so the UI reads
+   *  "Bookmarks" instead of the kind's default "Documents". */
+  entryTerms?: ProjectEntryTerms
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
   onSelect: (id: string) => void
   /** Create the project's primary entry: a Chapter in a Book, a Pinboard
@@ -57,6 +61,7 @@ export default function DocumentTabsPanel({
   activeId,
   isVisible = true,
   pendingEditTabIds,
+  entryTerms,
   onTabsChange,
   onSelect,
   onCreateEntry,
@@ -127,7 +132,7 @@ export default function DocumentTabsPanel({
     height: 0,
     visible: false,
   })
-  const { singular, plural } = getProjectEntryTerms(projectKind)
+  const { singular, plural } = entryTerms ?? getProjectEntryTerms(projectKind)
   const deleteEntryNoun = singular.toLowerCase()
   const subEntryLabel = `sub ${plural.toLowerCase()}`
   const pendingDeleteNode = pendingDeleteId ? findNode(tabs, pendingDeleteId) : null

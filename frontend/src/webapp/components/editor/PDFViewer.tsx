@@ -18,12 +18,21 @@ import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from "pdfjs-dist"
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url"
 import { registerPdfText, unregisterPdfText, type PdfPageText } from "../../../core/pdf/pdfTextRegistry"
 import {
+  initPdfBookmarks,
+  clearPdfBookmarks,
+  reportCurrentPage,
+  createBookmarkId,
+  type PdfBookmark,
+} from "../../../core/pdf/pdfBookmarkStore"
+import {
   APP_COLOR_PALETTE_CHANGE_EVENT,
   APP_PROJECT_SEARCH_FOCUS_EVENT,
   APP_PROJECT_SEARCH_CLEAR_EVENT,
+  APP_PDF_BOOKMARK_NAVIGATE_EVENT,
   EDITOR_COMMAND_EVENT,
   type EditorCommand,
   type ProjectSearchFocusDetail,
+  type PdfBookmarkNavigateDetail,
 } from "../../../core/events/editorEvents"
 import "./PDFViewer.css"
 
@@ -371,6 +380,133 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
   useEffect(() => {
     return () => { unregisterPdfText(projectId) }
   }, [projectId])
+
+  // ── Read the PDF's built-in bookmarks (outline) ─────────────────────────
+  //
+  // pdf.js exposes the outline as a nested tree of items, each carrying a
+  // `dest` that points somewhere in the document. We resolve every dest to a
+  // 1-indexed page (named destinations need an extra getDestination hop) and
+  // publish the resolved tree to the bookmark store, which the sidebar
+  // (a reused DocumentTabsPanel) renders + edits. The store owns persistence
+  // (writing edits back into the .pdf), so the viewer only ever *reads* here.
+  useEffect(() => {
+    if (!doc || !documentId) return
+    let cancelled = false
+
+    // Minimal shape of a pdf.js outline item — its types don't export this
+    // cleanly, and we only touch three fields.
+    type RawOutlineItem = { title: string; dest: string | unknown[] | null; items?: RawOutlineItem[] }
+
+    const resolveDestPage = async (dest: RawOutlineItem["dest"]): Promise<number | null> => {
+      try {
+        const explicit = typeof dest === "string" ? await doc.getDestination(dest) : dest
+        if (!Array.isArray(explicit) || explicit.length === 0) return null
+        const ref = explicit[0]
+        if (!ref || typeof ref !== "object") return null
+        const pageIndex = await doc.getPageIndex(ref as Parameters<PDFDocumentProxy["getPageIndex"]>[0])
+        return pageIndex + 1
+      } catch {
+        return null
+      }
+    }
+
+    const buildTree = async (items: RawOutlineItem[]): Promise<PdfBookmark[]> => {
+      const out: PdfBookmark[] = []
+      for (const item of items) {
+        if (cancelled) break
+        const pageNumber = await resolveDestPage(item.dest)
+        const children = item.items && item.items.length > 0 ? await buildTree(item.items) : []
+        out.push({
+          id: createBookmarkId(),
+          title: item.title?.trim() || "Untitled bookmark",
+          // Items whose dest doesn't resolve (URL/action-only, or broken refs)
+          // fall back to page 1 so the row still navigates somewhere sane.
+          pageNumber: pageNumber ?? 1,
+          children,
+        })
+      }
+      return out
+    }
+
+    void (async () => {
+      let tree: PdfBookmark[] = []
+      try {
+        const outline = (await doc.getOutline()) as RawOutlineItem[] | null
+        if (cancelled) return
+        if (outline && outline.length > 0) tree = await buildTree(outline)
+      } catch {
+        // No outline / read failure → empty, editable bookmark set.
+      }
+      if (cancelled) return
+      initPdfBookmarks(documentId, filePath, tree)
+    })()
+
+    return () => {
+      cancelled = true
+      clearPdfBookmarks(documentId)
+    }
+  }, [doc, documentId, filePath])
+
+  // ── Report the current top-of-viewport page ─────────────────────────────
+  //
+  // The store reads this only when the user adds a bookmark, to anchor the new
+  // entry to wherever they're looking. Throttled to one read per frame.
+  useEffect(() => {
+    if (!doc || !documentId) return
+    const scrollEl = scrollRef.current
+    const pagesEl = pagesRef.current
+    if (!scrollEl || !pagesEl) return
+
+    let rafId: number | null = null
+    const compute = () => {
+      rafId = null
+      const sr = scrollEl.getBoundingClientRect()
+      let topPage = 1
+      for (const wrapper of pagesEl.querySelectorAll<HTMLElement>(".pdf-viewer__page-wrapper")) {
+        const wr = wrapper.getBoundingClientRect()
+        // First page whose bottom is still below the container top is the one
+        // occupying the top of the viewport.
+        if (wr.bottom > sr.top + 1) {
+          topPage = Number(wrapper.dataset.pageNumber) || 1
+          break
+        }
+      }
+      reportCurrentPage(documentId, topPage)
+    }
+    const onScroll = () => {
+      if (rafId == null) rafId = requestAnimationFrame(compute)
+    }
+    compute()
+    scrollEl.addEventListener("scroll", onScroll, { passive: true })
+    return () => {
+      scrollEl.removeEventListener("scroll", onScroll)
+      if (rafId != null) cancelAnimationFrame(rafId)
+    }
+  }, [doc, documentId])
+
+  // ── Scroll to a page when a bookmark is clicked in the sidebar ───────────
+  useEffect(() => {
+    if (!documentId) return
+    const onNavigate = (event: Event) => {
+      const detail = (event as CustomEvent<PdfBookmarkNavigateDetail>).detail
+      if (!detail || detail.documentId !== documentId) return
+      const pagesEl = pagesRef.current
+      const scrollEl = scrollRef.current
+      if (!pagesEl || !scrollEl) return
+      const wrapper = pagesEl.querySelector<HTMLDivElement>(
+        `.pdf-viewer__page-wrapper[data-page-number="${detail.pageNumber}"]`,
+      )
+      if (!wrapper) return
+      // Scroll ONLY the PDF's own container (never scrollIntoView, which walks
+      // every scroll-ancestor and shoves the whole editor up — see the
+      // find/replace handler for the same caveat).
+      const wr = wrapper.getBoundingClientRect()
+      const sr = scrollEl.getBoundingClientRect()
+      scrollEl.scrollTo({ top: scrollEl.scrollTop + (wr.top - sr.top), behavior: "smooth" })
+    }
+    window.addEventListener(APP_PDF_BOOKMARK_NAVIGATE_EVENT, onNavigate as EventListener)
+    return () => window.removeEventListener(APP_PDF_BOOKMARK_NAVIGATE_EVENT, onNavigate as EventListener)
+  }, [documentId])
 
   // Listen for find/replace "go to result" events. The event carries a
   // page number (1-indexed) and a 0-indexed per-page occurrence; we

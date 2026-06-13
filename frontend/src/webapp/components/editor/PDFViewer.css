@@ -153,6 +153,36 @@
   color: transparent;
 }
 
+/* pdf.js inserts an absolutely-positioned <br> per line break in the text layer.
+   Those <br>s must NOT take the selection colour — otherwise a multi-line
+   selection paints a stack of accent boxes at the line-break positions (the
+   left edge of the page). Upstream pdf.js sets this transparent; our partial
+   copy of its .textLayer rules had omitted it. */
+.pdf-viewer__text-layer br::selection {
+  background: transparent;
+}
+.pdf-viewer__text-layer br::-moz-selection {
+  background: transparent;
+}
+
+/* pdf.js's selection-helper element. It must sit below the content
+   (`inset: 100% 0 0`) and only cover the layer while a drag is in progress
+   (the `.selecting` class pdf.js toggles), and never be selectable itself.
+   Without these (mirrored from upstream .textLayer) it renders as a stray
+   block at the layer's top-left and interferes with selection geometry. */
+.pdf-viewer__text-layer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pdf-viewer__text-layer.selecting .endOfContent {
+  top: 0;
+}
+
 /* Find-in-PDF highlights (CSS Custom Highlight API; ranges registered in
    PDFViewer.tsx). Every match is painted, with the current/active one in the
    accent and all the others in a translucent grey. color: transparent keeps the

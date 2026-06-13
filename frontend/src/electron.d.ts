@@ -44,6 +44,9 @@ declare global {
         /** Binary read for non-utf-8 files (PDFs, images). */
         readFileBinary: (filePath: string) => Promise<Uint8Array>
         writeFile: (filePath: string, contents: string) => Promise<void>
+        /** Binary write for non-utf-8 files (e.g. saving edited bookmarks back
+         *  into a PDF). */
+        writeFileBinary: (filePath: string, data: Uint8Array) => Promise<void>
         listDirectory: (dirPath: string) => Promise<FsEntry[]>
         mkdir: (dirPath: string) => Promise<void>
         rename: (oldPath: string, newPath: string) => Promise<void>
