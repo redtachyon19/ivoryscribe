@@ -11,6 +11,10 @@ export const APP_SPELL_CHECK_FOCUS_EVENT = "app:spell-check-focus"
 export const APP_PROJECT_SEARCH_EVENT = "app:project-search"
 export const APP_PROJECT_SEARCH_FOCUS_EVENT = "app:project-search-focus"
 export const APP_PROJECT_SEARCH_CLEAR_EVENT = "app:project-search-clear"
+/** Sidebar → PDFViewer: scroll the open PDF to a 1-indexed page. Fired when
+ *  the user clicks a bookmark in the sidebar. The viewer matches on
+ *  `documentId` (the pdf tab id) so a background PDF in another tab ignores it. */
+export const APP_PDF_BOOKMARK_NAVIGATE_EVENT = "app:pdf-bookmark-navigate"
 export const APP_SAVE_PROJECT_EVENT = "app:save-project"
 export const APP_SAVE_PROJECT_VERSION_EVENT = "app:save-project-version"
 export const PROJECTS_CREATE_BOOK_EVENT = "projects:create-book"
@@ -99,6 +103,13 @@ export type ProjectSearchFocusDetail =
     start: number
     end: number
   }
+
+export type PdfBookmarkNavigateDetail = {
+  /** The pdf tab (document) id the viewer is rendering. */
+  documentId: string
+  /** 1-indexed page to scroll to the top of. */
+  pageNumber: number
+}
 
 type FontSizeChangeDetail = {
   delta: number
@@ -216,6 +227,11 @@ export function requestAppProjectSearchFocus(detail: ProjectSearchFocusDetail) {
  *  (fired when the Find modal closes or the query is cleared). */
 export function requestAppProjectSearchClear() {
   window.dispatchEvent(new Event(APP_PROJECT_SEARCH_CLEAR_EVENT))
+}
+
+/** Ask the open PDFViewer to scroll a 1-indexed page to the top. */
+export function requestPdfBookmarkNavigate(detail: PdfBookmarkNavigateDetail) {
+  window.dispatchEvent(new CustomEvent<PdfBookmarkNavigateDetail>(APP_PDF_BOOKMARK_NAVIGATE_EVENT, { detail }))
 }
 
 export function requestAppSaveProject() {

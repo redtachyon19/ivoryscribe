@@ -370,6 +370,17 @@ ipcMain.handle("fs:writeFile", async (_event, filePath: string, contents: string
   await fsp.rename(tmp, filePath)
 })
 
+// Binary write for files where utf-8 would corrupt the bytes (PDFs after a
+// bookmark edit, etc.). `data` arrives as a Uint8Array over Electron's
+// structured-clone IPC; Buffer.from wraps it without copying. Same atomic
+// tmp+rename as the utf-8 path so a crash mid-save can't truncate the file.
+ipcMain.handle("fs:writeFileBinary", async (_event, filePath: string, data: Uint8Array) => {
+  await fsp.mkdir(path.dirname(filePath), { recursive: true })
+  const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`
+  await fsp.writeFile(tmp, Buffer.from(data))
+  await fsp.rename(tmp, filePath)
+})
+
 type FsEntry = {
   name: string
   path: string

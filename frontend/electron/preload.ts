@@ -47,6 +47,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("fs:readFileBinary", filePath) as Promise<Uint8Array>,
     writeFile: (filePath: string, contents: string) =>
       ipcRenderer.invoke("fs:writeFile", filePath, contents),
+    // Binary write for PDFs / other non-utf-8 files (e.g. persisting edited
+    // bookmarks back into a .pdf). The Uint8Array is structured-cloned to the
+    // main process.
+    writeFileBinary: (filePath: string, data: Uint8Array) =>
+      ipcRenderer.invoke("fs:writeFileBinary", filePath, data) as Promise<void>,
     listDirectory: (dirPath: string) =>
       ipcRenderer.invoke("fs:listDirectory", dirPath),
     mkdir: (dirPath: string) =>
