@@ -126,7 +126,10 @@ export default function TypewriterEditor({
       // silently let the "# " markdown input rule, ⌃⌥1, and paste create <h1>s
       // that then rendered bold via the editor's heading CSS. Both prose editors
       // must disable it identically so their shared schema stays in sync.
-      StarterKit.configure({ heading: false }),
+      // horizontalRule:false — its `---` input rule clashes with the smart em
+      // dash and the six-hyphen divider; HorizontalRuleSixDashes (in the shared
+      // list) supplies the hr node + the `------` rule instead.
+      StarterKit.configure({ heading: false, horizontalRule: false }),
       Highlight.configure({ multicolor: true }),
       Underline,
       // Shared with DraftingEditor so both views keep an identical prose schema

@@ -23,6 +23,7 @@ import { FontSizeExtension } from "./typewriter/fontSize"
 import { ParaIndentExtension } from "./typewriter/paraIndent"
 import { ColumnsExtension } from "./typewriter/columns"
 import { ResizableImage } from "./resizableImage"
+import { SmartTypographyExtension, HorizontalRuleSixDashes } from "./smartTypography"
 
 export function sharedProseFormattingExtensions(
   options?: { interactiveImages?: boolean },
@@ -45,5 +46,11 @@ export function sharedProseFormattingExtensions(
     // interactiveImages:false so images render passive there — the free-float
     // drag/resize/crop is a Typewriter (page-layout) feature; see ImageNodeView.
     ResizableImage.configure({ interactive: interactiveImages }),
+    // Smart dashes / minus, and the six-hyphen horizontal-rule divider. The HR
+    // node lives here (not StarterKit) so both editors share the exact same hr
+    // node + input rule; the editors disable StarterKit's HR to avoid defining
+    // the node twice (and to drop its clashing `---` rule). See smartTypography.
+    HorizontalRuleSixDashes,
+    SmartTypographyExtension,
   ]
 }
