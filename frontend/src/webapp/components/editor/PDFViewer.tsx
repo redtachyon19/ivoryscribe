@@ -993,9 +993,67 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       { root: scrollContainer, rootMargin: "150% 0px" },
     )
 
+    // The scroll "anchor" = which page sits at the viewport top and how far into
+    // it. Re-fitting to a new width rescales every page, so a raw scrollTop would
+    // land on the wrong page; we capture before a refit/rebuild and restore by
+    // (page, fraction) after — which keeps the view put across a width change
+    // (e.g. the side panel opening/closing).
+    type ScrollAnchor = { page: number; fraction: number }
+    const captureScrollAnchor = (): ScrollAnchor => {
+      const top = scrollContainer.getBoundingClientRect().top
+      for (const w of pagesContainer.querySelectorAll<HTMLElement>(".pdf-viewer__page-wrapper")) {
+        const wr = w.getBoundingClientRect()
+        if (wr.bottom > top + 1) {
+          return {
+            page: Number(w.dataset.pageNumber) || 0,
+            fraction: wr.height > 0 ? Math.min(Math.max((top - wr.top) / wr.height, 0), 1) : 0,
+          }
+        }
+      }
+      return { page: 0, fraction: 0 }
+    }
+    const restoreScrollAnchor = (anchor: ScrollAnchor) => {
+      if (anchor.page <= 0) return
+      const el = pagesContainer.querySelector<HTMLDivElement>(
+        `.pdf-viewer__page-wrapper[data-page-number="${anchor.page}"]`,
+      )
+      if (!el) return
+      const ar = el.getBoundingClientRect()
+      const sr = scrollContainer.getBoundingClientRect()
+      scrollContainer.scrollTop += (ar.top - sr.top) + anchor.fraction * ar.height
+    }
+
+    // Re-fit every page to the new container width IN PLACE — update each
+    // wrapper's base dimensions (keeping its aspect ratio) and let
+    // `applyZoomToPdfWrapper` CSS-scale the already-rendered canvas + text layer.
+    // No teardown, so the viewer never blanks (the "blink" the destructive
+    // rebuild caused on every panel toggle). The 2x oversample keeps canvases
+    // crisp across a panel-sized change, and the IntersectionObserver
+    // re-rasterises pages at full resolution as they scroll into view.
+    const refitInPlace = () => {
+      const containerWidth = pagesContainer.clientWidth
+      if (containerWidth <= 0) return
+      const anchor = captureScrollAnchor()
+      const newW = Math.floor(containerWidth)
+      for (const wrapper of pagesContainer.querySelectorAll<HTMLDivElement>(".pdf-viewer__page-wrapper")) {
+        const oldW = parseFloat(wrapper.dataset.baseWidth || "0")
+        const oldH = parseFloat(wrapper.dataset.baseHeight || "0")
+        if (oldW <= 0 || oldH <= 0) continue
+        const newH = Math.floor(newW * (oldH / oldW))
+        wrapper.dataset.baseWidth = String(newW)
+        wrapper.dataset.baseHeight = String(newH)
+        applyZoomToPdfWrapper(wrapper, newW, newH, pendingZoomRef.current)
+      }
+      restoreScrollAnchor(anchor)
+    }
+
     // Build a sized placeholder for every page, then let the IntersectionObserver
-    // rasterise the visible window. Rebuilt on width changes (re-fit).
+    // rasterise the visible window. Used for first paint and palette re-rasterise;
+    // width changes go through refitInPlace instead (no blink). Captures/restores
+    // the scroll anchor so a palette re-rasterise keeps the reader's place.
     const build = async () => {
+      const anchor = captureScrollAnchor()
+
       const myGen = ++generation
       for (const t of activeRenderTasks) {
         try { t.cancel() } catch { /* ignore */ }
@@ -1031,6 +1089,10 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
         pagesContainer.appendChild(wrapper)
         io.observe(wrapper)
       }
+
+      // Restore to the same page + fractional offset so a rebuild keeps the
+      // reader's place (no-op on first paint, where there's nothing to anchor).
+      restoreScrollAnchor(anchor)
     }
 
     // Background pass: extract every page's text for the find/replace registry
@@ -1071,20 +1133,28 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       }
     }
 
-    // Rebuild only when the container WIDTH changes — that's the only thing that
-    // changes the fit-to-width scale. Do NOT rebuild on height-only changes:
-    // zooming in widens the content, which toggles the horizontal scrollbar and
-    // changes the container's content-box HEIGHT; rebuilding there would
-    // replaceChildren and reset the scroll position mid-zoom (the "zoom also
-    // scrolls" bug). The vertical scrollbar is always present on a multi-page
-    // doc, so width stays stable across zoom. `lastWidth = -1` so the observer's
-    // initial fire (real width !== -1) performs the first build.
+    // React only to container WIDTH changes — the only thing that changes the
+    // fit-to-width scale. Do NOT react to height-only changes: zooming in widens
+    // the content, which toggles the horizontal scrollbar and changes the
+    // container's content-box HEIGHT; rebuilding there would reset scroll mid-zoom
+    // (the "zoom also scrolls" bug). The vertical scrollbar is always present on a
+    // multi-page doc, so width stays stable across zoom.
+    //
+    // First fire builds the placeholders (`lastWidth = -1` → real width differs).
+    // Every later width change (e.g. a side-panel toggle, which animates the grid
+    // width over ~180ms and so fires this repeatedly) re-fits the pages IN PLACE
+    // rather than tearing them down — that's what stops the viewer blinking.
     let lastWidth = -1
     const ro = new ResizeObserver(() => {
       const width = scrollContainer.clientWidth
-      if (width === lastWidth) return
+      if (width === lastWidth || width === 0) return
+      const isFirstBuild = lastWidth === -1
       lastWidth = width
-      void build()
+      if (isFirstBuild) {
+        void build()
+      } else {
+        refitInPlace()
+      }
     })
     ro.observe(scrollContainer)
     void extractAllText()
