@@ -134,6 +134,17 @@
   background-color: transparent !important;
 }
 
+/* …but the Find highlight is ALSO an inline span, so the strip above was wiping
+   it — that's why Cmd+F matches showed in Typewriter but not Draft. Re-assert it
+   with higher specificity + !important so matches stay visible here too. Colours
+   must mirror searchHighlight.css / the PDF find (grey, then app-accent active). */
+.editor-container .ProseMirror span.search-hit {
+  background-color: rgba(140, 140, 140, 0.32) !important;
+}
+.editor-container .ProseMirror span.search-hit--active {
+  background-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent) !important;
+}
+
 /* Block-level indents / alignment (ParaIndent extension uses inline margins,
    TextAlign uses inline text-align — both already handled above; this rule
    covers any class-based variant). */
