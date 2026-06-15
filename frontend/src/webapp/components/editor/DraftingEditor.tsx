@@ -96,7 +96,10 @@ export default function DraftingEditor({
       // share one schema. The app has no heading UI; disabling Heading removes
       // the node plus the "# " input rule and ⌃⌥1 shortcut that were silently
       // creating bold <h1>s. See TypewriterEditor for the full rationale.
-      StarterKit.configure({ heading: false }),
+      // horizontalRule:false — its `---` input rule clashes with the smart em
+      // dash and the six-hyphen divider; HorizontalRuleSixDashes (in the shared
+      // list) supplies the hr node + the `------` rule instead.
+      StarterKit.configure({ heading: false, horizontalRule: false }),
       Highlight.configure({ multicolor: true }),
       Underline,
       // Keep the prose schema in lockstep with TypewriterEditor so neither view
