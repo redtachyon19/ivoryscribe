@@ -186,6 +186,18 @@
   margin: 0;
 }
 
+/* Six-hyphen divider (HorizontalRuleSixDashes). Symmetric vertical margins that
+   match the paragraph rhythm (p margin-bottom: 1.25em) so the rule sits centred
+   between the lines above and below, instead of hugging the line below it (the
+   gap above otherwise collapses to the paragraph's 1.25em while the gap below
+   was only the hr's small default margin). Clean 1px line, not the browser's
+   beveled default. */
+.ProseMirror hr {
+  border: none;
+  border-top: 2px solid color-mix(in srgb, var(--editor-text, #888) 42%, transparent);
+  margin: 1.25em 0;
+}
+
 .ProseMirror ::spelling-error {
   text-decoration: underline wavy #e55353;
   text-decoration-thickness: 1.5px;
