@@ -1023,34 +1023,15 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       scrollContainer.scrollTop += (ar.top - sr.top) + anchor.fraction * ar.height
     }
 
-    // Re-fit every page to the new container width IN PLACE — update each
-    // wrapper's base dimensions (keeping its aspect ratio) and let
-    // `applyZoomToPdfWrapper` CSS-scale the already-rendered canvas + text layer.
-    // No teardown, so the viewer never blanks (the "blink" the destructive
-    // rebuild caused on every panel toggle). The 2x oversample keeps canvases
-    // crisp across a panel-sized change, and the IntersectionObserver
-    // re-rasterises pages at full resolution as they scroll into view.
-    const refitInPlace = () => {
-      const containerWidth = pagesContainer.clientWidth
-      if (containerWidth <= 0) return
-      const anchor = captureScrollAnchor()
-      const newW = Math.floor(containerWidth)
-      for (const wrapper of pagesContainer.querySelectorAll<HTMLDivElement>(".pdf-viewer__page-wrapper")) {
-        const oldW = parseFloat(wrapper.dataset.baseWidth || "0")
-        const oldH = parseFloat(wrapper.dataset.baseHeight || "0")
-        if (oldW <= 0 || oldH <= 0) continue
-        const newH = Math.floor(newW * (oldH / oldW))
-        wrapper.dataset.baseWidth = String(newW)
-        wrapper.dataset.baseHeight = String(newH)
-        applyZoomToPdfWrapper(wrapper, newW, newH, pendingZoomRef.current)
-      }
-      restoreScrollAnchor(anchor)
-    }
-
     // Build a sized placeholder for every page, then let the IntersectionObserver
-    // rasterise the visible window. Used for first paint and palette re-rasterise;
-    // width changes go through refitInPlace instead (no blink). Captures/restores
-    // the scroll anchor so a palette re-rasterise keeps the reader's place.
+    // rasterise the visible window. Runs on first paint, on a palette
+    // re-rasterise, AND on every container WIDTH change. A width change re-fits
+    // the page to a new scale, and the selectable text layer MUST be re-rendered
+    // at that scale — its invisible spans are laid out for a specific
+    // `--total-scale-factor`, so CSS-scaling them to a new width drifts them out
+    // of alignment with the rasterised glyphs and breaks selection / find
+    // highlighting. Captures/restores the scroll anchor so the rebuild keeps the
+    // reader's place.
     const build = async () => {
       const anchor = captureScrollAnchor()
 
@@ -1141,20 +1122,16 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
     // multi-page doc, so width stays stable across zoom.
     //
     // First fire builds the placeholders (`lastWidth = -1` → real width differs).
-    // Every later width change (e.g. a side-panel toggle, which animates the grid
-    // width over ~180ms and so fires this repeatedly) re-fits the pages IN PLACE
-    // rather than tearing them down — that's what stops the viewer blinking.
+    // Every later width change (e.g. a side-panel toggle) rebuilds too — that
+    // re-renders the text layer at the new scale so selection / find highlights
+    // stay aligned with the glyphs. (A CSS-only in-place re-fit avoided a brief
+    // blink here, but left the text layer mis-scaled and broke PDF highlighting.)
     let lastWidth = -1
     const ro = new ResizeObserver(() => {
       const width = scrollContainer.clientWidth
       if (width === lastWidth || width === 0) return
-      const isFirstBuild = lastWidth === -1
       lastWidth = width
-      if (isFirstBuild) {
-        void build()
-      } else {
-        refitInPlace()
-      }
+      void build()
     })
     ro.observe(scrollContainer)
     void extractAllText()

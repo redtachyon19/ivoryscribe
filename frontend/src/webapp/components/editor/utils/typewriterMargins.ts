@@ -15,7 +15,7 @@ const STORAGE_KEY = "ivoryscribe:typewriter-margins:"
 
 export type Margins = { top: number; bottom: number; left: number; right: number }
 
-export const DEFAULT_MARGINS: Margins = { top: 1, bottom: 1, left: 1.25, right: 1.25 }
+export const DEFAULT_MARGINS: Margins = { top: 1, bottom: 1, left: 1, right: 1 }
 
 export function inToPx(inches: number) {
   return Math.round(inches * 96)

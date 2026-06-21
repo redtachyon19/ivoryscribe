@@ -366,7 +366,9 @@ function paginationScript(): string {
         if(!(ofb||itop)) continue;
         var tgt=ofb?(pIdx+1)*STRIDE+mTop:pIdx*STRIDE+mTop;
         var push=Math.round(tgt-sY); if(push<=0) continue;
-        pushes.push({type:'block', node:block, push:push}); cum+=push; continue;
+        // brk = the page index this block starts when it overflows onto a fresh
+        // page (0 = a same-page top-margin nudge, not a page boundary).
+        pushes.push({type:'block', node:block, push:push, brk:ofb?(pIdx+1):0}); cum+=push; continue;
       }
       for(var t=0;t<tns.length;t++){
         var tn=tns[t]; if(!tn.length) continue;
@@ -383,7 +385,7 @@ function paginationScript(): string {
           var ci=firstCharOnLine(tn, rect.top); if(ci<0) continue;
           var last=pushes[pushes.length-1];
           if(last && last.type==='text' && last.node===tn && last.charIndex===ci) continue;
-          pushes.push({type:'text', node:tn, charIndex:ci, push:pu}); cum+=pu;
+          pushes.push({type:'text', node:tn, charIndex:ci, push:pu, brk:o2?(pi+1):0}); cum+=pu;
         }
       }
     }
@@ -396,6 +398,9 @@ function paginationScript(): string {
       var p=pushes[i];
       var spacer=document.createElement('div');
       spacer.setAttribute('data-pdfx-spacer','');
+      // Mark page-boundary spacers so each page can be anchored independently
+      // (see trimBeforeBreak). data-pdfx-break holds the 1-based stack page idx.
+      if(p.brk) spacer.setAttribute('data-pdfx-break', String(p.brk));
       spacer.style.cssText='display:block;width:100%;height:'+p.push+'px;margin:0;padding:0;';
       if(p.type==='block'){
         if(p.node.parentNode) p.node.parentNode.insertBefore(spacer, p.node);
@@ -405,6 +410,26 @@ function paginationScript(): string {
         if(tail.parentNode) tail.parentNode.insertBefore(spacer, tail);
       }
     }
+  }
+
+  // Drop everything (and the boundary spacer itself) that precedes page k's
+  // first line, so that line becomes the clone's first content. Walks up from
+  // the boundary spacer to the host, removing every earlier sibling at each
+  // level — this dissolves the partial paragraph the page break split, leaving
+  // only its tail. Returns false (caller falls back to the STRIDE offset) when
+  // no boundary marker exists for k.
+  function trimBeforeBreak(root, k){
+    var sp=root.querySelector('[data-pdfx-break="'+k+'"]');
+    if(!sp) return false;
+    var node=sp, parent=sp.parentNode;
+    while(node.previousSibling) parent.removeChild(node.previousSibling);
+    parent.removeChild(sp); node=parent;
+    while(node && node!==root){
+      parent=node.parentNode;
+      while(node.previousSibling) parent.removeChild(node.previousSibling);
+      node=parent;
+    }
+    return true;
   }
 
   async function processDoc(section, out){
@@ -434,14 +459,37 @@ function paginationScript(): string {
     for(var k=0;k<numPages;k++){
       var page=document.createElement('div'); page.className='pdfx-page';
       var surf=document.createElement('div'); surf.className=cls;
-      var offTop=mT-k*STRIDE;
-      surf.style.cssText='position:absolute;left:'+mL+'px;top:'+offTop+'px;width:'+contentW+'px;';
       // cloneNode (not innerHTML) so block spacers inside <p> survive verbatim.
       var clone=host.cloneNode(true);
+      // Anchor each page independently: trim everything before page k's boundary
+      // so its first line is the clone's first content, sitting at the top
+      // margin. The whole-surface STRIDE offset (below) relied on the cloned flow
+      // measuring identically at print time, but on HiDPI/Retina the live layout
+      // snaps line boxes to a finer device grid than printToPDF uses, so a
+      // sub-pixel per-line gap accumulated down the surface and shoved each later
+      // page's content past the top (and bottom) margin. Anchoring resets that
+      // accumulation every page. Fallback to the offset for any page that lacks a
+      // boundary marker (e.g. trailing blank pages from the scrollHeight ceil).
+      var offTop, shift;
+      if(k>0 && trimBeforeBreak(clone, k)){ offTop=mT; shift=k*STRIDE; }
+      else { offTop=mT-k*STRIDE; shift=0; }
+      if(shift>0){
+        // The trimmed leading block (e.g. a heading carried onto a new page)
+        // would add its own top margin; drop it so the text lands exactly at mT.
+        var fk=clone.firstElementChild;
+        while(fk && fk.getAttribute && fk.getAttribute('data-pdfx-spacer')!=null) fk=fk.nextElementSibling;
+        if(fk && fk.style) fk.style.marginTop='0';
+      }
+      surf.style.cssText='position:absolute;left:'+mL+'px;top:'+offTop+'px;width:'+contentW+'px;';
       while(clone.firstChild) surf.appendChild(clone.firstChild);
       for(var ii=0;ii<images.length;ii++){
-        var im=images[ii]; var pageY=offTop+im.top;
-        if(pageY+im.height>0 && pageY<PAGE_H) surf.appendChild(im.el.cloneNode(true));
+        // Images are absolutely positioned in the surface's coordinates; when the
+        // text was shifted up by "shift", move the image to match. pageY is the
+        // unchanged on-page position (mT - k*STRIDE + im.top) either way.
+        var im=images[ii]; var imTop=im.top-shift; var pageY=offTop+imTop;
+        if(pageY+im.height>0 && pageY<PAGE_H){
+          var ic=im.el.cloneNode(true); ic.style.top=imTop+'px'; surf.appendChild(ic);
+        }
       }
       page.appendChild(surf); out.appendChild(page);
     }
