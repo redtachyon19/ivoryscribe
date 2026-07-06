@@ -1,0 +1,5 @@
+# SPA fallback for Cloudflare Pages: the app does client-side routing
+# (/, /mission, /download, /auth, …), so any path that isn't a real static
+# asset must serve index.html and let the app render the right page.
+# Real files (/assets/*, /pdfjs/*, etc.) are served directly and never hit this.
+/*    /index.html   200
