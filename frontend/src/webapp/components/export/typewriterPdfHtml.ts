@@ -65,11 +65,13 @@ function resolveThemeColors(): { text: string; paper: string } {
 // The PDF is always a standard white document, even when the editor is authored
 // on a dark page with white ink. So we force a dark default ink and, per-span,
 // invert the achromatic (grayscale) text/highlight colours the toolbar picker
-// applied: a near-white text pick becomes dark (visible on white), and a
-// near-white highlight flips to a dark marker with light text. Chromatic picks
-// (red, pastel yellow, …) are left exactly as the author set them.
+// applied: a near-white text pick becomes dark (visible on white). The Default
+// highlighter paints the marker with the theme's text colour, so the marker and
+// the text underneath match and the run reads as blacked-out/redacted; on a
+// near-white theme that marker is invisible on white paper, so it flips to a
+// solid dark bar with the text KEPT the same colour (still hidden). Chromatic
+// picks (red, pastel yellow, …) are left exactly as the author set them.
 const EXPORT_DARK_INK = "#15110b"
-const EXPORT_LIGHT_INK = "#f5f5f5"
 const NEAR_WHITE_LUMINANCE = 0.65
 
 type Rgb = { r: number; g: number; b: number }
@@ -112,32 +114,36 @@ function remapInlineColorsForWhitePaper(html: string): string {
   if (typeof DOMParser === "undefined") return html
   const doc = new DOMParser().parseFromString(html, "text/html")
 
-  // Pass 1 — highlights. A near-white marker is invisible on white paper: flip
-  // it to a dark marker and flag the run so its text is lightened in pass 2
-  // (rather than darkened like ordinary text on the white page).
+  // Pass 1 — redaction highlights. The Default highlighter paints the marker the
+  // same colour as the text so the run reads as blacked-out. A near-white marker
+  // is invisible on white paper, so flip it to a solid dark bar — and set the
+  // text to the SAME dark ink so the content stays hidden (previously the text
+  // was lightened, which revealed the "redacted" words in the PDF). Flag the run
+  // so pass 2 keeps the text hidden rather than darkening-for-visibility.
   doc.body.querySelectorAll<HTMLElement>("[style]").forEach((el) => {
     const bg = parseCssColor(el.style.backgroundColor || "")
     if (bg && isAchromatic(bg) && luminance(bg) >= NEAR_WHITE_LUMINANCE) {
       el.style.backgroundColor = EXPORT_DARK_INK
-      el.style.color = EXPORT_LIGHT_INK
-      el.setAttribute("data-pdfx-inv", "1")
+      el.style.color = EXPORT_DARK_INK
+      el.setAttribute("data-pdfx-redact", "1")
     }
   })
 
-  // Pass 2 — text colours. Inside an inverted (now-dark) highlight, achromatic
-  // dark text must become light; everywhere else on the white page, near-white
-  // text must become dark. Order-independent thanks to the pass-1 flag.
+  // Pass 2 — text colours. Inside a redaction bar, force the text to the bar's
+  // dark ink so the run stays hidden; everywhere else on the white page, near-
+  // white text must darken to stay visible. Order-independent thanks to the
+  // pass-1 flag.
   doc.body.querySelectorAll<HTMLElement>("[style]").forEach((el) => {
     const fg = parseCssColor(el.style.color || "")
     if (!fg || !isAchromatic(fg)) return
-    if (el.closest("[data-pdfx-inv]")) {
-      if (luminance(fg) < 0.5) el.style.color = EXPORT_LIGHT_INK
+    if (el.closest("[data-pdfx-redact]")) {
+      el.style.color = EXPORT_DARK_INK
     } else if (luminance(fg) >= NEAR_WHITE_LUMINANCE) {
       el.style.color = EXPORT_DARK_INK
     }
   })
 
-  doc.body.querySelectorAll("[data-pdfx-inv]").forEach((el) => el.removeAttribute("data-pdfx-inv"))
+  doc.body.querySelectorAll("[data-pdfx-redact]").forEach((el) => el.removeAttribute("data-pdfx-redact"))
   return doc.body.innerHTML
 }
 

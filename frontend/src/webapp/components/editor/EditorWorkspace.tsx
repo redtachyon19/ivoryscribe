@@ -16,9 +16,11 @@ import FindReplaceModal from "./modals/FindReplaceModal"
 import {
   getNextEntryName,
   getProjectEntryTerms,
+  getTabMargins,
   renameTabTitle,
   setActiveTabContent,
   setTabContentById,
+  setTabMarginsById,
   type Project,
 } from "../../../core/utils/projects"
 import type { TabViewMode } from "./utils/viewModePrefs"
@@ -157,6 +159,10 @@ export default function EditorWorkspace({
             key={isEditOnActiveTab ? `diff-${currentEdit?.id ?? ""}` : `regular-${project.activeId}`}
             documentId={project.activeId}
             content={editorContentForActiveTab}
+            margins={getTabMargins(project, project.activeId)}
+            onMarginsChange={(docId, nextMargins) => {
+              onProjectChange((currentProject) => setTabMarginsById(currentProject, docId, nextMargins))
+            }}
             readOnly={isEditOnActiveTab}
             onEditorReady={handleEditorReady}
             onWordCountChange={({ selectedWordCount: nextSelectionCount }) => {

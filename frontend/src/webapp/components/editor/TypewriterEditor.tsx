@@ -27,10 +27,9 @@ import {
   PAGE_H_PX,
   PAGE_W_PX,
   inToPx,
-  loadMargins,
-  saveMargins,
   type Margins,
 } from "./utils/typewriterMargins"
+import { DEFAULT_MARGINS } from "../../../core/utils/projects"
 import { PageBreakExtension, type PageBreakStorage } from "./extensions/typewriter/pageBreak"
 import { sharedProseFormattingExtensions } from "./extensions/sharedProseExtensions"
 import {
@@ -51,6 +50,15 @@ type TypewriterEditorProps = {
   documentId: string | null
   content: string
   onContentChange: (nextContent: string) => void
+  /** Persisted margins for this document, read from the project
+   *  (`getTabMargins`). Falls back to DEFAULT_MARGINS for documents that
+   *  have never had custom margins set. */
+  margins?: Margins
+  /** Called whenever the user drags a ruler guide to a new margin. The
+   *  parent is expected to write this into the project via
+   *  `setTabMarginsById` so margins travel with the document (file / cloud
+   *  sync) instead of living only in this component's local state. */
+  onMarginsChange?: (documentId: string | null, nextMargins: Margins) => void
   onWordCountChange?: (payload: { documentWordCount: number; selectedWordCount: number | null }) => void
   onTypingStateChange?: (isTyping: boolean) => void
   onEditorReady?: (editor: TiptapEditor | null) => void
@@ -62,13 +70,19 @@ export default function TypewriterEditor({
   documentId,
   content,
   onContentChange,
+  margins: projectMargins,
+  onMarginsChange,
   onWordCountChange,
   onTypingStateChange,
   onEditorReady,
   readOnly = false,
 }: TypewriterEditorProps) {
-  /* ── Margins ── */
-  const [margins, setMargins] = useState<Margins>(() => loadMargins(documentId))
+  /* ── Margins ──
+   *  Local state mirrors the project's persisted value so ruler dragging
+   *  feels instant, then pushes changes back up via onMarginsChange so they
+   *  land in the project (and therefore the .tusk file / cloud sync) rather
+   *  than only in this component. */
+  const [margins, setMargins] = useState<Margins>(() => projectMargins ?? DEFAULT_MARGINS)
 
   /* ── Page count (driven by ResizeObserver) ── */
   const [numPages, setNumPages] = useState(1)
@@ -184,16 +198,23 @@ export default function TypewriterEditor({
     return () => dom.removeEventListener("tw-image-crop", sync)
   }, [editor])
 
-  /* ── Load margins on document switch ── */
+  /* ── Persist margins on user change ──
+   *  This editor is keyed by documentId (see EditorWorkspace), so it remounts
+   *  per document and `margins` is seeded from the project's persisted value in
+   *  the useState above. We only push a change back up once the user actually
+   *  drags a ruler guide — persisting on mount would re-write the identical
+   *  seed value and needlessly dirty the project every time a document opens.
+   *  The resize still fires on mount: page-break layout keys off it to settle
+   *  the page count for the loaded margins. */
+  const marginsMountedRef = useRef(false)
   useEffect(() => {
-    setMargins(loadMargins(documentId))
-  }, [documentId])
-
-  /* ── Persist margins ── */
-  useEffect(() => {
-    saveMargins(documentId, margins)
+    if (marginsMountedRef.current) {
+      onMarginsChange?.(documentId, margins)
+    }
+    marginsMountedRef.current = true
     window.dispatchEvent(new Event("resize"))
-  }, [documentId, margins])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [margins])
 
   /* ── Ruler drag ── */
   const {

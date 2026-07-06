@@ -1,7 +1,6 @@
 import JSZip from "jszip"
-import { DEFAULT_DOCUMENT_CONTENT, collectTabSequence, getProjectMarkdownIds, type DocumentTab, type Project } from "../../../core/utils/projects"
+import { DEFAULT_DOCUMENT_CONTENT, DEFAULT_MARGINS, collectTabSequence, getProjectMarkdownIds, getTabMargins, type DocumentTab, type Project } from "../../../core/utils/projects"
 import { renderMarkdownToHtml } from "../../../core/utils/markdown"
-import { loadMargins, DEFAULT_MARGINS } from "../editor/utils/typewriterMargins"
 import { buildCombinedExportHtml, buildSingleExportHtml, type ExportDoc } from "./typewriterPdfHtml"
 import { resolveExportPlan, type ExportMode } from "./exportSelection"
 import { downloadBlob, sanitizeZipEntryName, slugifyFileName } from "./exportUtils"
@@ -25,7 +24,7 @@ function toExportDoc(project: Project, tab: ExportTab, markdownIds: Set<string>)
     return {
       title: tab.title,
       html: renderMarkdownToHtml(raw),
-      margins: loadMargins(tab.id),
+      margins: getTabMargins(project, tab.id),
       kind: "markdown",
     }
   }
@@ -33,7 +32,7 @@ function toExportDoc(project: Project, tab: ExportTab, markdownIds: Set<string>)
   return {
     title: tab.title,
     html: raw,
-    margins: loadMargins(tab.id),
+    margins: getTabMargins(project, tab.id),
     kind: "prose",
   }
 }
