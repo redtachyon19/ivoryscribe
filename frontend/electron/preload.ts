@@ -47,6 +47,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("fs:readFileBinary", filePath) as Promise<Uint8Array>,
     writeFile: (filePath: string, contents: string) =>
       ipcRenderer.invoke("fs:writeFile", filePath, contents),
+    // Binary write for PDFs / other non-utf-8 files (e.g. persisting edited
+    // bookmarks back into a .pdf). The Uint8Array is structured-cloned to the
+    // main process.
+    writeFileBinary: (filePath: string, data: Uint8Array) =>
+      ipcRenderer.invoke("fs:writeFileBinary", filePath, data) as Promise<void>,
     listDirectory: (dirPath: string) =>
       ipcRenderer.invoke("fs:listDirectory", dirPath),
     mkdir: (dirPath: string) =>
@@ -84,7 +89,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   print: {
     /** Render a self-contained export HTML document to PDF bytes via the main
      *  process (hidden BrowserWindow + Chromium printToPDF). */
-    toPdf: (html: string) => ipcRenderer.invoke("print:toPdf", html) as Promise<Uint8Array>,
+    toPdf: (html: string) =>
+      ipcRenderer.invoke("print:toPdf", html) as Promise<{ pdf: Uint8Array; chapterStartPages: number[] }>,
   },
 })
 

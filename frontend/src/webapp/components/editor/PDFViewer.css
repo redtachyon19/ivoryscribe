@@ -25,7 +25,12 @@
 .pdf-viewer__pages {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* `safe center` centers the pages when they fit, but falls back to start
+     (left) alignment once a page is wider than the viewport (zoomed in) — so
+     the overflowing left side stays reachable by horizontal scroll instead of
+     being clipped, which also lets zoom-toward-cursor land anywhere on the
+     page. */
+  align-items: safe center;
   /* Generous gap between pages — reads as the dark page background. */
   gap: 18px;
   /* Horizontal gutter scales with viewport so wide screens get room
@@ -59,17 +64,6 @@
   background: var(--app-bg, #111);
 }
 
-/* Brief flash when find/replace navigates to this page. Fades out
-   after ~600ms so the user can see which page contains the match
-   without the highlight lingering. */
-@keyframes pdf-viewer-page-flash {
-  0%   { box-shadow: 0 0 0 2px color-mix(in srgb, var(--menu-accent, #7ea8ff) 80%, transparent), 0 8px 24px rgba(0, 0, 0, 0.55); }
-  100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--menu-border, #2b2b2b) 60%, transparent), 0 8px 24px rgba(0, 0, 0, 0.55); }
-}
-.pdf-viewer__page-wrapper--flash {
-  animation: pdf-viewer-page-flash 800ms ease-out;
-}
-
 .pdf-viewer__page {
   display: block;
   /* `height: auto` is the safety net — the JS only sets `style.width`
@@ -96,6 +90,18 @@
      canvas behind. */
   pointer-events: none;
   user-select: text;
+  /* pdf.js v5 sizes its selectable text spans via these custom properties —
+     font-size is calc(--text-scale-factor * --font-height). Without them the
+     spans fall back to a default font-size and the selection no longer lines
+     up with the rasterised glyphs (the "highlights the wrong thing / nothing
+     copyable" bug). --total-scale-factor (the page's display scale) is set per
+     page in JS; --min-font-size and the per-span --font-height/--scale-x/
+     --rotate are set by pdf.js's TextLayer. Mirrors the upstream .textLayer
+     rules in node_modules/pdfjs-dist/web/pdf_viewer.css for our class name. */
+  --total-scale-factor: 1;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
 }
 
 /* pdf.js v5 wraps groups of text spans in `<span class="markedContent">`
@@ -111,8 +117,7 @@
   display: contents;
 }
 
-.pdf-viewer__text-layer span:not(.markedContent),
-.pdf-viewer__text-layer br {
+.pdf-viewer__text-layer :is(span, br) {
   position: absolute;
   white-space: pre;
   /* Glyphs are transparent — the canvas is what the user sees.
@@ -120,17 +125,74 @@
      so selection geometry lines up. */
   color: transparent;
   cursor: text;
-  transform-origin: 0% 0%;
+  transform-origin: 0 0;
   pointer-events: auto;
+}
+
+/* The actual text spans (not the markedContent wrappers): size + skew them
+   exactly as pdf.js's upstream .textLayer rules do, consuming the per-span
+   custom properties TextLayer.render() sets. This is what makes the invisible
+   selection boxes match the visible glyphs. */
+.pdf-viewer__text-layer > :not(.markedContent),
+.pdf-viewer__text-layer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
 }
 
 /* Selection highlight — light overlay on top of the canvas. */
 .pdf-viewer__text-layer ::selection {
-  background: color-mix(in srgb, var(--menu-accent, #7ea8ff) 50%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
   color: transparent;
 }
 .pdf-viewer__text-layer ::-moz-selection {
-  background: color-mix(in srgb, var(--menu-accent, #7ea8ff) 50%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
+  color: transparent;
+}
+
+/* pdf.js inserts an absolutely-positioned <br> per line break in the text layer.
+   Those <br>s must NOT take the selection colour — otherwise a multi-line
+   selection paints a stack of accent boxes at the line-break positions (the
+   left edge of the page). Upstream pdf.js sets this transparent; our partial
+   copy of its .textLayer rules had omitted it. */
+.pdf-viewer__text-layer br::selection {
+  background: transparent;
+}
+.pdf-viewer__text-layer br::-moz-selection {
+  background: transparent;
+}
+
+/* pdf.js's selection-helper element. It must sit below the content
+   (`inset: 100% 0 0`) and only cover the layer while a drag is in progress
+   (the `.selecting` class pdf.js toggles), and never be selectable itself.
+   Without these (mirrored from upstream .textLayer) it renders as a stray
+   block at the layer's top-left and interferes with selection geometry. */
+.pdf-viewer__text-layer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pdf-viewer__text-layer.selecting .endOfContent {
+  top: 0;
+}
+
+/* Find-in-PDF highlights (CSS Custom Highlight API; ranges registered in
+   PDFViewer.tsx). Every match is painted, with the current/active one in the
+   accent and all the others in a translucent grey. color: transparent keeps the
+   canvas glyph showing through the highlight box. */
+.pdf-viewer__text-layer ::highlight(pdf-find) {
+  background-color: rgba(140, 140, 140, 0.32);
+  color: transparent;
+}
+.pdf-viewer__text-layer ::highlight(pdf-find-active) {
+  background-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
   color: transparent;
 }
 

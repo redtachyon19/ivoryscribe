@@ -23,6 +23,7 @@ import { FontSizeExtension } from "./typewriter/fontSize"
 import { ParaIndentExtension } from "./typewriter/paraIndent"
 import { ColumnsExtension } from "./typewriter/columns"
 import { ResizableImage } from "./resizableImage"
+import { SmartTypographyExtension, HorizontalRuleSixDashes } from "./smartTypography"
 
 export function sharedProseFormattingExtensions(
   options?: { interactiveImages?: boolean },
@@ -34,7 +35,10 @@ export function sharedProseFormattingExtensions(
     FontSizeExtension,
     FontFamily,
     Color,
-    TextAlign.configure({ types: ["heading", "paragraph"] }),
+    // Only paragraphs — headings are disabled in StarterKit (no heading blocks
+    // in this app), so listing "heading" here would reference a node that no
+    // longer exists in the schema.
+    TextAlign.configure({ types: ["paragraph"] }),
     ParaIndentExtension,
     ColumnsExtension,
     // Inline images (data-URL src), resizable + alignable. Shared so neither
@@ -42,5 +46,11 @@ export function sharedProseFormattingExtensions(
     // interactiveImages:false so images render passive there — the free-float
     // drag/resize/crop is a Typewriter (page-layout) feature; see ImageNodeView.
     ResizableImage.configure({ interactive: interactiveImages }),
+    // Smart dashes / minus, and the six-hyphen horizontal-rule divider. The HR
+    // node lives here (not StarterKit) so both editors share the exact same hr
+    // node + input rule; the editors disable StarterKit's HR to avoid defining
+    // the node twice (and to drop its clashing `---` rule). See smartTypography.
+    HorizontalRuleSixDashes,
+    SmartTypographyExtension,
   ]
 }

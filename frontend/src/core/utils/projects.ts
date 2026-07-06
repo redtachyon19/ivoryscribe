@@ -56,6 +56,15 @@ export type ProjectVersion = {
   snapshot: string
 }
 
+/** Page margins for a typewriter-mode document, in inches. Persisted per-tab
+ *  (keyed by document/chapter id) inside the Project itself — see
+ *  `marginsById` — so margins travel with the document across devices and
+ *  through cloud sync instead of living only in the local browser/Electron
+ *  storage of one machine. */
+export type Margins = { top: number; bottom: number; left: number; right: number }
+
+export const DEFAULT_MARGINS: Margins = { top: 1, bottom: 1, left: 1, right: 1 }
+
 export type Project = {
   id: string
   name: string
@@ -85,6 +94,12 @@ export type Project = {
   tabs: DocumentTab[]
   activeId: string | null
   contentById: Record<string, string>
+  /** Per-tab typewriter page margins, keyed by document/chapter id. Optional
+   *  and sparse — a tab missing an entry (or an entirely absent map, e.g. on
+   *  legacy projects) falls back to DEFAULT_MARGINS. Only typewriter-mode
+   *  tabs ever populate this, but the map is keyed the same way as
+   *  `contentById` so it survives tab renames/moves/duplication uniformly. */
+  marginsById?: Record<string, Margins>
   archivedAt?: string | null
   deletedAt?: string | null
   /** Sorted newest-first. Only Book and Presentation projects populate this;
@@ -568,6 +583,42 @@ export function setActiveTabContent(project: Project, nextContent: string): Proj
   return {
     ...project,
     contentById: { ...project.contentById, [project.activeId]: nextContent },
+  }
+}
+
+/** Set content for a SPECIFIC document id rather than whichever tab happens to
+ *  be active. The prose editors debounce their saves, so a flush can land after
+ *  the user has already switched tabs — targeting the editor's own captured id
+ *  (not `activeId`) guarantees that trailing write goes to the right document
+ *  instead of clobbering the newly-active one. No-op for an empty id or when the
+ *  id is not a tab in this project. */
+export function setTabContentById(project: Project, documentId: string | null, nextContent: string): Project {
+  if (!documentId || !(documentId in project.contentById)) return project
+  return {
+    ...project,
+    contentById: { ...project.contentById, [documentId]: nextContent },
+  }
+}
+
+/** Read a tab's page margins, falling back to DEFAULT_MARGINS when the tab
+ *  has never had custom margins set (fresh tab, legacy project predating
+ *  this field, or a non-typewriter tab). */
+export function getTabMargins(project: Project, documentId: string | null): Margins {
+  if (!documentId) return DEFAULT_MARGINS
+  return project.marginsById?.[documentId] ?? DEFAULT_MARGINS
+}
+
+/** Set page margins for a specific document id. Mirrors setTabContentById:
+ *  no-op for an empty id so callers can pass a possibly-null active id
+ *  straight through. Margins now live inside the Project itself, so they
+ *  round-trip through the .tusk file on disk and through the cloud Document
+ *  blob (both just serialize the whole Project) instead of being stranded in
+ *  one device's local storage. */
+export function setTabMarginsById(project: Project, documentId: string | null, nextMargins: Margins): Project {
+  if (!documentId) return project
+  return {
+    ...project,
+    marginsById: { ...project.marginsById, [documentId]: nextMargins },
   }
 }
 

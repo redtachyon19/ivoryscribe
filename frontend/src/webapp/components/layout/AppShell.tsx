@@ -27,6 +27,10 @@ export type AppShellProps = {
   isEditorTyping: boolean
   view: "projects" | "editor"
   project: Project | null
+  /** Type of the active document. Drives the reading-progress bar: which
+   *  scroll container to track, and whether to show it at all (pinboard and
+   *  image are 2D pan surfaces with no linear reading progress). */
+  activeDocumentType?: "prose" | "pinboard" | "markdown" | "plaintext" | "pdf" | "image"
   activeFolderName?: string | null
   canGoBack: boolean
   canGoForward: boolean
@@ -96,6 +100,7 @@ export default function AppShell({
   isEditorTyping,
   view,
   project,
+  activeDocumentType = "prose",
   activeFolderName = null,
   canGoBack,
   canGoForward,
@@ -156,6 +161,26 @@ export default function AppShell({
   const [isMarkdownCheatsheetOpen, setIsMarkdownCheatsheetOpen] = useState(false)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const panelSeparatorWidth = 8
+
+  /* ── Reading-progress indicator ──
+     Ported from the blog (BlogPost.tsx): a thin bar pinned to the top bar that
+     fills horizontally as you scroll through the open document. Different
+     editors scroll different elements — Drafting / Markdown / PlainText grow
+     and scroll the shared `.editor-workspace__editor-center`, Typewriter scrolls
+     its own `.tw-scroll`, and PDF scrolls `.pdf-viewer`. A capture-phase scroll
+     listener catches scroll from whichever descendant actually scrolls, so one
+     effect covers them all. Pinboard and Image are 2D pan canvases with no
+     linear reading progress, so the bar is hidden for them. rAF-throttled. */
+  const editorCenterRef = useRef<HTMLDivElement | null>(null)
+  const readingProgressBarRef = useRef<HTMLDivElement | null>(null)
+  const readingProgressTrackRef = useRef<HTMLDivElement | null>(null)
+  const showReadingProgress =
+    view === "editor" &&
+    Boolean(project) &&
+    (activeDocumentType === "prose" ||
+      activeDocumentType === "markdown" ||
+      activeDocumentType === "plaintext" ||
+      activeDocumentType === "pdf")
 
   /* ── View-toggle sliding-pill indicator ──
      Mirrors the global settings sidebar pattern: a single absolutely
@@ -446,6 +471,89 @@ export default function AppShell({
     setSidebarSlide(view === "projects" ? 1 : 2)
   }, [view])
 
+  /* ── Reading-progress scroll tracking ──
+     Mirrors BlogPost.tsx: rAF-throttled listener that writes a 0–1 ratio into
+     the bar's scaleX (and the track's aria-valuenow). Each editor scrolls a
+     different element, so we (a) resolve the "primary" scroller for the active
+     doc type for the initial paint + resize, and (b) attach a CAPTURE-phase
+     scroll listener on the editor-center. Scroll events don't bubble, but they
+     do run through the capture phase, so a single capture listener on the
+     ancestor catches scroll from whichever descendant actually scrolls
+     (.tw-scroll, .pdf-viewer, a markdown pane, or editor-center itself). */
+  useEffect(() => {
+    if (!showReadingProgress) return
+
+    const center = editorCenterRef.current
+    if (!center) return
+
+    // Pick the element that scrolls for this document type. Falls back to the
+    // editor-center for Drafting / Markdown / PlainText, which grow and scroll
+    // it directly.
+    const resolvePrimaryScroller = (): HTMLElement => {
+      if (activeDocumentType === "pdf") {
+        return center.querySelector<HTMLElement>(".pdf-viewer") ?? center
+      }
+      if (activeDocumentType === "prose" && viewMode === "typewriter") {
+        return center.querySelector<HTMLElement>(".tw-scroll") ?? center
+      }
+      return center
+    }
+
+    let frame = 0
+    let activeScroller: HTMLElement = resolvePrimaryScroller()
+
+    const writeProgress = () => {
+      frame = 0
+
+      const bar = readingProgressBarRef.current
+      const track = readingProgressTrackRef.current
+      if (!bar || !track) return
+
+      const totalScrollable = activeScroller.scrollHeight - activeScroller.clientHeight
+      const ratio =
+        totalScrollable <= 0
+          ? 0
+          : Math.min(1, Math.max(0, activeScroller.scrollTop / totalScrollable))
+
+      bar.style.transform = `scaleX(${ratio})`
+      track.setAttribute("aria-valuenow", String(Math.round(ratio * 100)))
+    }
+
+    const scheduleUpdate = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(writeProgress)
+    }
+
+    // Capture phase: fires for scroll on any descendant (and on center itself).
+    // Track whichever element the user is actually scrolling.
+    const onScrollCapture = (event: Event) => {
+      const target = event.target
+      if (target instanceof HTMLElement) {
+        activeScroller = target
+      }
+      scheduleUpdate()
+    }
+
+    writeProgress()
+    center.addEventListener("scroll", onScrollCapture, { capture: true, passive: true })
+    window.addEventListener("resize", scheduleUpdate)
+
+    // Editor content height changes as you type, switch view modes, or as PDF
+    // pages render in — observe both the center and the resolved scroller so
+    // the ratio stays correct without a scroll event.
+    const resizeObserver = new ResizeObserver(scheduleUpdate)
+    resizeObserver.observe(center)
+    const primary = resolvePrimaryScroller()
+    if (primary !== center) resizeObserver.observe(primary)
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame)
+      center.removeEventListener("scroll", onScrollCapture, { capture: true } as EventListenerOptions)
+      window.removeEventListener("resize", scheduleUpdate)
+      resizeObserver.disconnect()
+    }
+  }, [showReadingProgress, activeDocumentType, viewMode, project?.id, project?.activeId])
+
   useEffect(() => {
     if (!draggingPanel) return
 
@@ -493,6 +601,19 @@ export default function AppShell({
         className="editor-workspace__topbar"
         style={{ "--topbar-left": `${isLeftRailOpen ? leftPanelWidth : 0}px`, left: `var(--topbar-left)` } as React.CSSProperties}
       >
+        {showReadingProgress ? (
+          <div
+            ref={readingProgressTrackRef}
+            className="editor-workspace__reading-progress"
+            role="progressbar"
+            aria-label="Document reading progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={0}
+          >
+            <div ref={readingProgressBarRef} className="editor-workspace__reading-progress-bar" />
+          </div>
+        ) : null}
         {!isLeftRailOpen ? (
           <button
             type="button"
@@ -803,7 +924,7 @@ export default function AppShell({
           onMouseDown={() => setDraggingPanel("left")}
         />
 
-        <div className="editor-workspace__editor-center">
+        <div ref={editorCenterRef} className="editor-workspace__editor-center">
           {children}
         </div>
 

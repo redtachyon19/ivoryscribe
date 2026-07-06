@@ -198,8 +198,8 @@
 
 /* Search-hit highlight (native selection), matching the accent. */
 .version-preview__entry ::selection {
-  background: color-mix(in srgb, var(--app-accent, #7ea8ff) 45%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
 }
 .version-preview__entry ::-moz-selection {
-  background: color-mix(in srgb, var(--app-accent, #7ea8ff) 45%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
 }

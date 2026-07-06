@@ -3,16 +3,15 @@
    ProseMirror as inline decorations, so they live inside `.ProseMirror`. */
 
 .ProseMirror .search-hit {
-  /* All matches: soft amber wash. color-mix keeps it legible on both the dark
-     app background and the light typewriter page. */
-  background-color: color-mix(in srgb, #ffd54a 38%, transparent);
+  /* All matches: translucent grey — exactly the PDF find highlight
+     (::highlight(pdf-find) in PDFViewer.css). */
+  background-color: rgba(140, 140, 140, 0.32);
   border-radius: 2px;
-  /* Paint the highlight behind glyphs without nudging layout. */
-  box-shadow: 0 0 0 1px color-mix(in srgb, #ffd54a 20%, transparent);
 }
 
 .ProseMirror .search-hit--active {
-  /* The match the counter ("3 of 12") points at: stronger orange + ring. */
-  background-color: color-mix(in srgb, #ff8c1a 70%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, #ff8c1a 55%, transparent);
+  /* Active match: the app accent — exactly the PDF active find highlight
+     (::highlight(pdf-find-active) in PDFViewer.css). */
+  background-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
+  border-radius: 2px;
 }

@@ -21,6 +21,7 @@
     "package": "npm run build:electron && electron-builder",
     "package:mac": "npm run build:electron && electron-builder --mac",
     "lint": "eslint .",
+    "verify:pdf-bookmarks": "node scripts/verify-pdf-bookmarks.ts",
     "preview": "vite preview",
     "preview:lan": "vite preview --host 0.0.0.0"
   },
@@ -42,6 +43,7 @@
     "lucide-react": "^0.576.0",
     "marked": "^18.0.4",
     "marked-katex-extension": "^5.1.9",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.7.284",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
