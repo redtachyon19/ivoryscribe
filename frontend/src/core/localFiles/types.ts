@@ -15,7 +15,7 @@
 // Legacy `.tuskb` (standalone pinboard) and the old HTML-slideshow form of
 // `.tusks` are not supported — the scanner ignores them; no migration code.
 
-import type { ProjectKind, ProjectVersion } from "../utils/projects"
+import type { Margins, ProjectKind, ProjectVersion } from "../utils/projects"
 
 // Bumped from 1 → 2 when versions moved inside the .tusk / .tusks file.
 // Version 1 files load fine (parser tolerates a missing <versions> block);
@@ -31,6 +31,10 @@ export type TuskChapter = {
   mode: ChapterMode
   content: string
   children: TuskChapter[]
+  /** Typewriter page margins for this chapter, in inches. Absent means "use
+   *  DEFAULT_MARGINS" — only chapters where the user has dragged a ruler
+   *  guide carry an explicit value, keeping untouched files/diffs small. */
+  margins?: Margins
 }
 
 export type TuskBookFile = {

@@ -13,6 +13,9 @@
 //         <content><![CDATA[# md]]></content>
 //       </chapter>
 //     </chapter>
+//     <chapter id="..." title="Typed" mode="typewriter" margin-top="1" margin-bottom="1" margin-left="1.25" margin-right="1.25">
+//       <content><![CDATA[<p>HTML</p>]]></content>
+//     </chapter>
 //   </chapters>
 //   <versions>
 //     <version id="..." label="I" kind="manual" saved-at="..." word-count="...">
@@ -33,10 +36,24 @@ import { emitVersionsBlock, parseVersionsBlock, VERSIONS_ARRAY_NAMES } from "./c
 const VALID_MODES: ChapterMode[] = ["default", "markdown", "typewriter", "plaintext"]
 
 function emitChapter(chapter: TuskChapter, depth: number): string {
+  // Margins are only ever set on typewriter chapters (see bridge.ts); emit
+  // them as plain attributes alongside `mode` so they round-trip through the
+  // file the same way everything else about the chapter does. Absent when
+  // the chapter has no margins (non-typewriter, or a v1 file predating this).
+  const marginAttrs = chapter.margins
+    ? {
+        "margin-top": chapter.margins.top,
+        "margin-bottom": chapter.margins.bottom,
+        "margin-left": chapter.margins.left,
+        "margin-right": chapter.margins.right,
+      }
+    : {}
+
   const open = `${indent(depth)}<chapter${emitAttrs({
     id: chapter.id,
     title: chapter.title,
     mode: chapter.mode,
+    ...marginAttrs,
   })}>\n`
 
   const contentLine = `${indent(depth + 1)}<content>${emitCData(chapter.content)}</content>\n`
@@ -133,15 +150,39 @@ function asMode(value: string | undefined): ChapterMode {
   return "default"
 }
 
+function parseMarginAttr(node: RawNode, key: string): number | undefined {
+  const raw = readAttr(node, key)
+  if (raw === undefined) return undefined
+  const parsed = Number.parseFloat(raw)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function parseChapterMargins(node: RawNode): TuskChapter["margins"] {
+  const top = parseMarginAttr(node, "margin-top")
+  const bottom = parseMarginAttr(node, "margin-bottom")
+  const left = parseMarginAttr(node, "margin-left")
+  const right = parseMarginAttr(node, "margin-right")
+
+  // Only produce a margins object when all four are present — a partial
+  // set means the file was hand-edited or corrupted, and falling back to
+  // DEFAULT_MARGINS (via the "absent" path) is safer than guessing.
+  if (top === undefined || bottom === undefined || left === undefined || right === undefined) {
+    return undefined
+  }
+
+  return { top, bottom, left, right }
+}
+
 function parseChapterNode(node: RawNode): TuskChapter {
   const id = readAttr(node, "id") ?? crypto.randomUUID()
   const title = readAttr(node, "title") ?? "Untitled"
   const mode = asMode(readAttr(node, "mode"))
   const content = readText(node.content as RawNode | undefined)
+  const margins = parseChapterMargins(node)
   const childArray = Array.isArray(node.chapter) ? (node.chapter as RawNode[]) : []
   const children = childArray.map(parseChapterNode)
 
-  return { id, title, mode, content, children }
+  return { id, title, mode, content, margins, children }
 }
 
 export function parseTuskBook(xml: string): TuskBookFile {

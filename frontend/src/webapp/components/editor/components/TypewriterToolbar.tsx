@@ -537,6 +537,14 @@ export function TypewriterToolbar({
             >
               None
             </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="tw-toolbar__palette-reset"
+              onMouseDown={(e) => { e.preventDefault(); setLastHighlightColor(paletteTextColor); editor?.chain().focus().setHighlight({ color: paletteTextColor }).run(); setHighlightMenuOpen(false) }}
+            >
+              Default
+            </button>
             <div className="tw-toolbar__swatch-grid">
               {HIGHLIGHT_SWATCHES.map((c) => (
                 <button
