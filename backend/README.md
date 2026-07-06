@@ -9,6 +9,11 @@ Express + Sequelize + PostgreSQL backend that provides:
 - per-user preferences/theme storage
 - sync endpoints to keep client state tied to a login
 
+## Deployment
+
+To run the full stack locally on Postgres, or to deploy the backend + Postgres to
+Railway with Docker, see [`DEPLOY.md`](../DEPLOY.md) in the repo root.
+
 ## 1. Setup
 
 1. Copy `backend/.env.example` to `backend/.env` and fill values.

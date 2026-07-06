@@ -1,0 +1,50 @@
+# Local full-stack on Postgres — the same DB engine used in production.
+# Run:  docker compose up --build
+# API:  http://localhost:4000/health
+#
+# Secrets (JWT_SECRET, Stripe/Resend/AI keys) are read from backend/.env.
+# The values under `environment:` below override that file, so the app always
+# talks to the compose Postgres regardless of what backend/.env sets for DB_*.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ivoryscribe
+      POSTGRES_PASSWORD: ivoryscribe
+      POSTGRES_DB: ivoryscribe
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ivoryscribe -d ivoryscribe"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4000
+      DB_DIALECT: postgres
+      DATABASE_URL: postgres://ivoryscribe:ivoryscribe@db:5432/ivoryscribe
+      DB_SSL: "false"
+      DB_SYNC_MODE: safe
+      CLIENT_ORIGIN: http://localhost:5173
+    ports:
+      - "4000:4000"
+
+volumes:
+  pgdata:
