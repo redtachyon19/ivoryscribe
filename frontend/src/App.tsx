@@ -58,19 +58,17 @@ export default function App() {
             <div className="auth-overlay" role="dialog" aria-modal="true">
               <button
                 type="button"
-                className="auth-overlay__backdrop"
-                aria-label="Close sign-in"
+                className="auth-overlay__close"
                 onClick={app.closeAuthOverlay}
+                aria-label="Back to app"
+              >×</button>
+              {/* Full-page sign-in over the (still-mounted) editor. Back/brand and
+                  a successful sign-in both just close the overlay → back to the app. */}
+              <AuthPage
+                {...app.authProps}
+                onBackToLanding={app.closeAuthOverlay}
+                onLaunchDashboard={app.closeAuthOverlay}
               />
-              <div className="auth-overlay__panel">
-                <button
-                  type="button"
-                  className="auth-overlay__close"
-                  onClick={app.closeAuthOverlay}
-                  aria-label="Close"
-                >×</button>
-                <AuthPage {...app.authProps} />
-              </div>
             </div>
           )}
         </>

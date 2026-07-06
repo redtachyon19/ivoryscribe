@@ -17,7 +17,7 @@ export type TabNodeProps = {
   editingId: string | null
   editingTitle: string
   pendingEditTabIds?: Set<string>
-  onSelect: (id: string) => void
+  onSelect: (id: string, modifiers?: { shiftKey?: boolean }) => void
   onOpenInNewTab?: (id: string) => void
   onDragStart: (event: DragEvent<HTMLButtonElement>, id: string) => void
   onDragEnd: () => void
@@ -182,7 +182,10 @@ export default function TabNode({
                   event.preventDefault()
                   onOpenInNewTab(tab.id)
                 } else {
-                  onSelect(tab.id)
+                  // Shift+click range-selects — stop the browser from also
+                  // selecting the label text across the rows it spans.
+                  if (event.shiftKey) event.preventDefault()
+                  onSelect(tab.id, { shiftKey: event.shiftKey })
                 }
               }}
               onDragStart={(event) => {

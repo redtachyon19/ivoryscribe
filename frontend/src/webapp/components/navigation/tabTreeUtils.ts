@@ -235,6 +235,26 @@ export function moveNodes(tabs: DocumentTab[], sourceIds: string[], targetId: st
   return orderedSourceIds.reduce((current, sourceId) => moveNode(current, sourceId, targetId, mode), tabs)
 }
 
+// Pre-order list of tab ids in the order they render on screen, descending into
+// a node's children only when it is expanded — i.e. exactly the rows the user
+// can see and arrow through. `expandedById[id] === false` means collapsed;
+// anything else (including missing) is treated as expanded, matching TabNode.
+export function flattenVisibleTabIds(
+  nodes: DocumentTab[],
+  expandedById: Record<string, boolean>,
+): string[] {
+  const ids: string[] = []
+
+  for (const node of nodes) {
+    ids.push(node.id)
+    if (node.children.length > 0 && expandedById[node.id] !== false) {
+      ids.push(...flattenVisibleTabIds(node.children, expandedById))
+    }
+  }
+
+  return ids
+}
+
 // Deep-clones a tab tree node, assigning new IDs throughout.
 // Returns the cloned node and a map of oldId → newId for content duplication.
 export function deepCloneTab(

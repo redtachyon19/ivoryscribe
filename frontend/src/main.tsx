@@ -1,3 +1,6 @@
+// Must run before React commits anything — installs a dev-only guard around
+// performance.measure (see the file for why).
+import './core/devPerfMeasureGuard'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'

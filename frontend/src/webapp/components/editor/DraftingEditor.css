@@ -63,7 +63,7 @@
 
 .editor-document-title::selection,
 .editor-document-title *::selection {
-  background: rgba(255, 255, 255, 0.24);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
   color: #ffffff;
 }
 
@@ -110,8 +110,11 @@
 
 /* Catch-all: any element carrying an inline style attribute (most Typewriter
    formatting flows through here). [style] is a low-specificity selector but
-   the !important values still override the inline declarations. */
-.editor-container .ProseMirror [style] {
+   the !important values still override the inline declarations.
+   :not(mark) — highlight marks carry their colour as an inline
+   background-color; we deliberately let those through so highlighter marks
+   stay visible in draft mode (see the mark rule below). */
+.editor-container .ProseMirror [style]:not(mark) {
   font-size: inherit !important;
   font-family: inherit !important;
   color: inherit !important;
@@ -130,8 +133,26 @@
   font-family: inherit !important;
   font-size: inherit !important;
   color: inherit !important;
+}
+/* mark:not([style]) — diff marks (<mark class="diff-add">) carry no inline
+   style and keep getting stripped; highlighter marks DO carry an inline
+   background-color, so they're excluded here and stay visible in draft mode. */
+.editor-container .ProseMirror span,
+.editor-container .ProseMirror font,
+.editor-container .ProseMirror mark:not([style]) {
   background: transparent !important;
   background-color: transparent !important;
+}
+
+/* …but the Find highlight is ALSO an inline span, so the strip above was wiping
+   it — that's why Cmd+F matches showed in Typewriter but not Draft. Re-assert it
+   with higher specificity + !important so matches stay visible here too. Colours
+   must mirror searchHighlight.css / the PDF find (grey, then app-accent active). */
+.editor-container .ProseMirror span.search-hit {
+  background-color: rgba(140, 140, 140, 0.32) !important;
+}
+.editor-container .ProseMirror span.search-hit--active {
+  background-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent) !important;
 }
 
 /* Block-level indents / alignment (ParaIndent extension uses inline margins,
@@ -173,6 +194,18 @@
 }
 .ProseMirror br {
   margin: 0;
+}
+
+/* Six-hyphen divider (HorizontalRuleSixDashes). Symmetric vertical margins that
+   match the paragraph rhythm (p margin-bottom: 1.25em) so the rule sits centred
+   between the lines above and below, instead of hugging the line below it (the
+   gap above otherwise collapses to the paragraph's 1.25em while the gap below
+   was only the hr's small default margin). Clean 1px line, not the browser's
+   beveled default. */
+.ProseMirror hr {
+  border: none;
+  border-top: 2px solid color-mix(in srgb, var(--editor-text, #888) 42%, transparent);
+  margin: 1.25em 0;
 }
 
 .ProseMirror ::spelling-error {

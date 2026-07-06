@@ -1,8 +1,25 @@
 import { useCallback, useEffect, useState, type Dispatch, type MouseEvent, type SetStateAction } from "react"
-import { ArrowLeft, BookPlus, FileCode, FilePlus2, FileType, FolderPlus, ListPlus, PanelLeft, Presentation } from "lucide-react"
+import { ArrowLeft, BookmarkPlus, BookPlus, FileCode, FilePlus2, FileType, FolderPlus, ListPlus, PanelLeft, Presentation } from "lucide-react"
 import DocumentTabsPanel from "./DocumentTabsPanel"
 import ProjectBrowserPanel from "./ProjectBrowserPanel"
-import { getProjectEntryTerms, isSingleDocumentKind, normalizeProjectAfterTabs, type Project, type ProjectKind } from "../../../core/utils/projects"
+import { requestPdfBookmarkNavigate } from "../../../core/events/editorEvents"
+import {
+  usePdfBookmarks,
+  addPdfBookmark,
+  setPdfBookmarks,
+  findBookmark,
+  getCurrentPage,
+  type PdfBookmark,
+} from "../../../core/pdf/pdfBookmarkStore"
+import { getProjectEntryTerms, isSingleDocumentKind, normalizeProjectAfterTabs, type DocumentTab, type Project, type ProjectEntryTerms, type ProjectKind } from "../../../core/utils/projects"
+
+// PDFs reuse DocumentTabsPanel for their bookmarks; this relabels its headings
+// and trash copy from the PDF kind's default "Document(s)" to "Bookmark(s)".
+const BOOKMARK_ENTRY_TERMS: ProjectEntryTerms = {
+  singular: "Bookmark",
+  plural: "Bookmarks",
+  untitled: "Untitled bookmark",
+}
 import type { ProjectFolder } from "../../pages/Library"
 import type { LibrarySection } from "../library/useLibraryNavigation"
 import ProjectContextMenu, { buildCreateProjectActions, type ContextMenuAction } from "../library/ProjectContextMenu"
@@ -119,6 +136,19 @@ export default function NavigationPanel({
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
   const projectKind = project?.kind ?? "Book"
   const isSingleDoc = isSingleDocumentKind(projectKind)
+  // PDF bookmarks reuse DocumentTabsPanel. Read the live tree (null for non-PDF
+  // projects — the hook is called unconditionally) and track which bookmark is
+  // highlighted. A stale id from a previous PDF simply matches no row, so no
+  // reset effect is needed.
+  const pdfDocumentId = project?.kind === "PDF" ? project.activeId : null
+  const pdfBookmarks = usePdfBookmarks(pdfDocumentId)
+  const [selectedBookmarkId, setSelectedBookmarkId] = useState<string | null>(null)
+  const handleAddBookmark = useCallback(() => {
+    if (!pdfDocumentId) return
+    const page = getCurrentPage(pdfDocumentId)
+    const newId = addPdfBookmark(pdfDocumentId, { title: `Page ${page}`, pageNumber: page })
+    if (newId) setSelectedBookmarkId(newId)
+  }, [pdfDocumentId])
   const [createMoreMenu, setCreateMoreMenu] = useState<{ x: number; y: number } | null>(null)
   const [createProjectMenu, setCreateProjectMenu] = useState<{ x: number; y: number } | null>(null)
   const closeCreateMoreMenu = useCallback(() => {
@@ -370,7 +400,17 @@ export default function NavigationPanel({
                 <Presentation size={14} aria-hidden={true} />
                 <span>Create Pinboard</span>
               </button>
-            ) : null /* single-document kinds: no create buttons */}
+            ) : projectKind === "PDF" ? (
+              <button
+                type="button"
+                className="editor-workspace__rail-create"
+                aria-label="Add Bookmark"
+                onClick={handleAddBookmark}
+              >
+                <BookmarkPlus size={14} aria-hidden={true} />
+                <span>Add Bookmark</span>
+              </button>
+            ) : null /* other single-document kinds: no create buttons */}
           </div>
         </div>
 
@@ -431,8 +471,37 @@ export default function NavigationPanel({
                 onOpenTabInNewTab={handleOpenTabInNewTab}
                 onDuplicateTab={handleDuplicateTab}
               />
+            ) : project && project.kind === "PDF" && pdfDocumentId ? (
+              // PDFs get their built-in bookmarks (outline) here instead of the
+              // file browser — that's the PDF's "document tabs". We reuse
+              // DocumentTabsPanel verbatim: the bookmark tree is shaped like
+              // DocumentTab[], so rename/delete/reorder/right-click menus all
+              // come for free. onTabsChange persists the whole tree to the
+              // pdfBookmarkStore (which writes it back into the .pdf); onSelect
+              // scrolls the viewer to the bookmark's page.
+              <DocumentTabsPanel
+                projectName={project.name}
+                tabs={(pdfBookmarks ?? []) as unknown as DocumentTab[]}
+                projectKind={project.kind}
+                project={project}
+                activeId={selectedBookmarkId}
+                isVisible={isOpen && sidebarSlide === 2}
+                entryTerms={BOOKMARK_ENTRY_TERMS}
+                onTabsChange={(updater) => {
+                  const current = (pdfBookmarks ?? []) as unknown as DocumentTab[]
+                  setPdfBookmarks(pdfDocumentId, updater(current) as unknown as PdfBookmark[])
+                }}
+                onSelect={(id) => {
+                  setSelectedBookmarkId(id)
+                  const bookmark = findBookmark(pdfBookmarks ?? [], id)
+                  if (bookmark) requestPdfBookmarkNavigate({ documentId: pdfDocumentId, pageNumber: bookmark.pageNumber })
+                }}
+                onCreateEntry={handleAddBookmark}
+                onCreateMarkdown={handleAddBookmark}
+                onCreatePlainText={handleAddBookmark}
+              />
             ) : project && isSingleDoc ? (
-              // Single-doc project (PDF / Image / Markdown / PlainText / …):
+              // Single-doc project (Image / Markdown / PlainText / …):
               // there's no tab tree, so reuse the full Project Browser here —
               // same component as Slide 1, so it brings every behavior with
               // it (right-click menus, drag-into-nested-folders, marquee

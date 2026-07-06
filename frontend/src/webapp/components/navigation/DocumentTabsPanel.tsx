@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import { Copy, ExternalLink, FileCode, FilePlus2, FileType, Pencil, Presentation, Trash2 } from "lucide-react"
-import { collectTabIds, getProjectEntryTerms, type DocumentTab, type Project, type ProjectKind } from "../../../core/utils/projects"
+import { collectTabIds, getProjectEntryTerms, type DocumentTab, type Project, type ProjectEntryTerms, type ProjectKind } from "../../../core/utils/projects"
 import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
 import { useListDrag, nearestRowBoundary, type DropMode } from "../shared/hooks/useListDrag"
 import ProjectContextMenu, { type ContextMenuAction } from "../library/ProjectContextMenu"
@@ -8,11 +8,12 @@ import Button from "../ui/Button"
 import Modal from "../ui/Modal"
 import MarqueeText from "../ui/MarqueeText"
 import TabNode from "./TabNode"
-import usePanelMarquee from "./usePanelMarquee"
+import usePanelSelection from "./usePanelSelection"
 import {
   findNode,
   collectDescendantTitles,
   collectSelectedRootIds,
+  flattenVisibleTabIds,
   renameTab,
   deleteTab,
   findAncestorIds,
@@ -32,6 +33,10 @@ type DocumentTabsProps = {
   activeId: string | null
   isVisible?: boolean
   pendingEditTabIds?: Set<string>
+  /** Override the per-kind entry nouns (heading + trash copy). PDFs reuse this
+   *  panel for their bookmarks and pass {singular:"Bookmark", …} so the UI reads
+   *  "Bookmarks" instead of the kind's default "Documents". */
+  entryTerms?: ProjectEntryTerms
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
   onSelect: (id: string) => void
   /** Create the project's primary entry: a Chapter in a Book, a Pinboard
@@ -56,6 +61,7 @@ export default function DocumentTabsPanel({
   activeId,
   isVisible = true,
   pendingEditTabIds,
+  entryTerms,
   onTabsChange,
   onSelect,
   onCreateEntry,
@@ -66,7 +72,29 @@ export default function DocumentTabsPanel({
 }: DocumentTabsProps) {
   const drag = useListDrag()
   const { draggingId, dropTarget, setDraggingId, setDropTarget } = drag
-  const { marqueeContainerRef, marqueeSelectedIds, setMarqueeSelectedIds, marquee, liveSelectedIds } = usePanelMarquee()
+  const tabIds = useMemo(() => collectTabIds(tabs), [tabs])
+  // Shared click / shift-click / double-click / arrow-key / Delete selection
+  // model (also used by ProjectBrowserPanel). It owns the selection set (shared
+  // with the marquee), the anchor/lead, and the shell key handler.
+  const {
+    marqueeContainerRef,
+    marqueeSelectedIds,
+    setMarqueeSelectedIds,
+    marquee,
+    liveSelectedIds,
+    selectSingle,
+    selectRange,
+    armSelection,
+    handleKeyDown,
+  } = usePanelSelection({
+    getOrderedIds: () => flattenVisibleTabIds(tabs, expandedById),
+    getActiveId: () => activeId,
+    // Every tab is openable, so a plain arrow navigates (opens) like a click.
+    arrowActivates: true,
+    allIds: tabIds,
+    onActivate: onSelect,
+    onDelete: (ids) => deleteTabsAndSyncSelection(Array.from(ids)),
+  })
   const multiDragIdsRef = useRef<string[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState("")
@@ -75,15 +103,27 @@ export default function DocumentTabsPanel({
   const [contextMenu, setContextMenu] = useState<TabsContextMenuState | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
-  // Opening a tab (plain click) collapses any marquee multi-selection — the same
-  // "click off" expectation as clicking empty space. Drag uses dragstart (which
-  // never fires a click), so a multi-drag still reads the selection intact.
+  // Click on a tab:
+  //  • Shift+click             → range-select.
+  //  • click the tab you're on → arm it (accent selection) so Delete can act on
+  //    it — clicking the current row is the single-tab "select for an action".
+  //  • click another tab       → navigate: open it (white "current" pill) and
+  //    drop any action-selection.
+  // Cmd/Ctrl+click is handled upstream in TabNode as "open in new tab".
   const handleSelectTab = useCallback(
-    (id: string) => {
-      setMarqueeSelectedIds((current) => (current.size > 0 ? new Set() : current))
+    (id: string, modifiers?: { shiftKey?: boolean }) => {
+      if (modifiers?.shiftKey) {
+        selectRange(id)
+        return
+      }
+      if (id === activeId) {
+        armSelection(id)
+        return
+      }
+      selectSingle(id)
       onSelect(id)
     },
-    [onSelect, setMarqueeSelectedIds],
+    [activeId, armSelection, onSelect, selectRange, selectSingle],
   )
   const rootListRef = useRef<HTMLUListElement | null>(null)
   const rowRefs = useRef<Record<string, HTMLDivElement>>({})
@@ -92,14 +132,12 @@ export default function DocumentTabsPanel({
     height: 0,
     visible: false,
   })
-  const { singular, plural } = getProjectEntryTerms(projectKind)
+  const { singular, plural } = entryTerms ?? getProjectEntryTerms(projectKind)
   const deleteEntryNoun = singular.toLowerCase()
   const subEntryLabel = `sub ${plural.toLowerCase()}`
-  const tabIds = useMemo(() => collectTabIds(tabs), [tabs])
   const pendingDeleteNode = pendingDeleteId ? findNode(tabs, pendingDeleteId) : null
   const pendingDeleteDescendantTitles = pendingDeleteNode ? collectDescendantTitles(pendingDeleteNode) : []
 
-  const selectedRootIds = useMemo(() => collectSelectedRootIds(tabs, marqueeSelectedIds), [tabs, marqueeSelectedIds])
   const draggingIds = useMemo(() => {
     if (!draggingId) {
       return new Set<string>()
@@ -121,27 +159,6 @@ export default function DocumentTabsPanel({
       return next
     })
   }, [tabIds])
-
-  useEffect(() => {
-    const validIds = new Set(tabIds)
-
-    setMarqueeSelectedIds((current) => {
-      if (current.size === 0) return current
-
-      let changed = false
-      const next = new Set<string>()
-
-      for (const id of current) {
-        if (validIds.has(id)) {
-          next.add(id)
-        } else {
-          changed = true
-        }
-      }
-
-      return changed ? next : current
-    })
-  }, [tabIds, setMarqueeSelectedIds])
 
   useEffect(() => {
     if (!activeId) {
@@ -354,28 +371,6 @@ export default function DocumentTabsPanel({
     setDropTarget(null)
   }, [getDragSourceIds, onTabsChange, setDraggingId, setDropTarget])
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (selectedRootIds.length === 0) {
-        return
-      }
-
-      if ((event.target as HTMLElement).closest("input, textarea, select")) {
-        return
-      }
-
-      if (event.key === "Backspace" || event.key === "Delete") {
-        event.preventDefault()
-        cancelRename()
-        closeDeleteModal()
-        closeContextMenu()
-        deleteTabsAndSyncSelection(selectedRootIds)
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [closeContextMenu, deleteTabsAndSyncSelection, selectedRootIds])
 
   const handleRootListDragOver = (event: DragEvent<HTMLUListElement>) => {
     if (!draggingId || tabs.length === 0) {
@@ -430,7 +425,9 @@ export default function DocumentTabsPanel({
       <div
         ref={marqueeContainerRef}
         className={`doc-tabs__list-shell ${marquee.isActive ? "doc-tabs__list-shell--marquee" : ""}`.trim()}
+        tabIndex={-1}
         onMouseDown={marquee.handleMouseDown}
+        onKeyDown={handleKeyDown}
       >
         {marquee.isActive && marquee.rect ? (
           <div

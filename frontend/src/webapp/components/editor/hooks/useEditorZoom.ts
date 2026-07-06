@@ -55,6 +55,16 @@ type UseEditorZoomOptions = {
    *  gutter inside the editor width — otherwise the block overflows and the
    *  page covers the gutter. */
   snapGutterPx?: number
+  /** For a fluid (percentage-width) column like the Draft editor: freeze the
+   *  element to an absolute px width (mirroring the scroll container's client
+   *  width) so CSS `zoom` scales the whole column as a true visual zoom.
+   *  Without this, `width: 100%` re-resolves against the *un-zoomed* scroll
+   *  parent on every zoom step, so the box never grows — the text just reflows
+   *  into a narrower measure and the "zoom" reads as a font-size bump. The
+   *  element's own `max-width` still caps it and `margin: auto` still centres
+   *  it. Omit for fixed-width content (the Typewriter page already scales
+   *  correctly under `zoom`). */
+  fluidContentWidth?: boolean
 }
 
 /** Walk up from `el` to the nearest ancestor that scrolls vertically. */
@@ -70,7 +80,23 @@ function findScrollParent(el: HTMLElement): HTMLElement {
   return el
 }
 
-export function useEditorZoom({ scrollRef, contentRef, enabledKey, snapPageWidthPx, snapGutterPx = 0 }: UseEditorZoomOptions) {
+/** Walk up to the nearest ancestor whose overflow-y is auto/scroll, whether or
+ *  not it is *currently* overflowing. The fluid column's meaningful scroll
+ *  container (the editor centre) is the same element at any document length —
+ *  even a short doc that isn't tall enough to scroll yet — so its width can be
+ *  mirrored, and a zoom that widens the column past the viewport still anchors
+ *  against the right scroller. */
+function findOverflowParent(el: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = el.parentElement
+  while (node) {
+    const oy = getComputedStyle(node).overflowY
+    if (oy === "auto" || oy === "scroll") return node
+    node = node.parentElement
+  }
+  return null
+}
+
+export function useEditorZoom({ scrollRef, contentRef, enabledKey, snapPageWidthPx, snapGutterPx = 0, fluidContentWidth }: UseEditorZoomOptions) {
   // `rawZoomRef` is the continuous value the gesture accumulates; `appliedZoomRef`
   // is what's actually set as CSS zoom (== raw, unless stuck to a detent).
   const rawZoomRef = useRef(1)
@@ -80,8 +106,34 @@ export function useEditorZoom({ scrollRef, contentRef, enabledKey, snapPageWidth
   useEffect(() => {
     const content = contentRef.current
     if (!content) return
-    const scroller = scrollRef?.current ?? findScrollParent(content)
+    // For the fluid column, the editor centre is the scroller whether or not it
+    // is currently overflowing — resolve it even on a short doc so the width
+    // mirror and the cursor anchoring both target it.
+    const scroller =
+      scrollRef?.current ??
+      (fluidContentWidth ? findOverflowParent(content) : null) ??
+      findScrollParent(content)
     if (!scroller) return
+
+    // Fluid column (Draft): freeze the element to an absolute px width so CSS
+    // `zoom` scales it as a true visual zoom instead of reflowing the text into
+    // a narrower measure (which reads as a font-size bump). Mirror the scroll
+    // container's client width; the element's own `max-width` caps it and
+    // `margin: auto` centres it. Re-sync when the column resizes (window or
+    // side panels open/close). Guard the write so a scrollbar appearing can't
+    // thrash it. Fixed-width content (the Typewriter page) doesn't need this.
+    let widthObserver: ResizeObserver | null = null
+    if (fluidContentWidth) {
+      const syncWidth = () => {
+        const w = scroller.clientWidth
+        if (w <= 0) return
+        const next = `${w}px`
+        if (content.style.width !== next) content.style.width = next
+      }
+      syncWidth()
+      widthObserver = new ResizeObserver(syncWidth)
+      widthObserver.observe(scroller)
+    }
 
     const PINCH_TAIL_MS = 200
 
@@ -164,6 +216,7 @@ export function useEditorZoom({ scrollRef, contentRef, enabledKey, snapPageWidth
     scroller.addEventListener("wheel", onWheel, { passive: false })
     return () => {
       scroller.removeEventListener("wheel", onWheel)
+      widthObserver?.disconnect()
     }
-  }, [scrollRef, contentRef, enabledKey, snapPageWidthPx, snapGutterPx])
+  }, [scrollRef, contentRef, enabledKey, snapPageWidthPx, snapGutterPx, fluidContentWidth])
 }

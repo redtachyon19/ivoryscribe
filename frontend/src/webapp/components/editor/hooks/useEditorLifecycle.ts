@@ -2,7 +2,7 @@
 // TypewriterEditor. Each pattern was previously inlined and copy-pasted
 // between the two editors; consolidating here keeps them aligned.
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import type { Editor as TiptapEditor } from "@tiptap/react"
 
 type EditorOrNull = TiptapEditor | null
@@ -26,10 +26,19 @@ export function useEditorContentSync(
   fallback: string,
   onAfterSync?: (editor: TiptapEditor) => void,
 ) {
+  const lastDocIdRef = useRef(documentId)
   useEffect(() => {
     if (!editor) return
     const next = content || fallback
+    const docChanged = documentId !== lastDocIdRef.current
+    lastDocIdRef.current = documentId
     if (editor.getHTML() === next) return
+    // The prose editors debounce their saves, so while the user is actively
+    // typing in THIS document the `content` prop trails the live doc by up to
+    // the debounce window. Syncing it back then would revert just-typed
+    // characters. Skip for in-place same-document updates while focused — but a
+    // genuine document switch (docChanged) must always load, focused or not.
+    if (!docChanged && editor.isFocused) return
     editor.commands.setContent(next, { emitUpdate: false })
     onAfterSync?.(editor)
     // documentId is in deps so a doc switch with identical content still resets.

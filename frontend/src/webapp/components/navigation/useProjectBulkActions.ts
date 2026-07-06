@@ -1,9 +1,8 @@
-import { useCallback, useEffect } from "react"
+import { useCallback } from "react"
 import type { Project } from "../../../core/utils/projects"
 import { duplicateProject } from "../../../core/utils/libraryUtils"
 
 type UseProjectBulkActionsOptions = {
-  selectedProjectIds: string[]
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
   setMarqueeSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
   projectDocumentMap: Record<string, string>
@@ -13,10 +12,11 @@ type UseProjectBulkActionsOptions = {
 
 /**
  * Encapsulates the four bulk project operations (delete, archive, duplicate, share)
- * and the keyboard delete handler that are used in ProjectBrowserPanel.
+ * used in ProjectBrowserPanel. The Delete/Backspace key itself is handled by the
+ * shared usePanelSelection hook (focus-scoped to the panel), which calls
+ * deleteProjectsByIds with the current selection.
  */
 export default function useProjectBulkActions({
-  selectedProjectIds,
   setProjects,
   setMarqueeSelectedIds,
   projectDocumentMap,
@@ -58,20 +58,6 @@ export default function useProjectBulkActions({
     closeContextMenu()
     onOpenShareDialog(shareableProjectId)
   }, [clearSelection, closeContextMenu, onOpenShareDialog, projectDocumentMap])
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (selectedProjectIds.length === 0) return
-      if ((event.target as HTMLElement).closest("input, textarea, select")) return
-      if (event.key === "Backspace" || event.key === "Delete") {
-        event.preventDefault()
-        deleteProjectsByIds(selectedProjectIds)
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [deleteProjectsByIds, selectedProjectIds])
 
   return { deleteProjectsByIds, archiveProjectsByIds, duplicateProjectsByIds, shareProjectsByIds }
 }

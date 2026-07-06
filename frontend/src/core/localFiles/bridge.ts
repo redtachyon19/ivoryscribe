@@ -8,7 +8,9 @@
 // translates both directions.
 
 import {
+  DEFAULT_MARGINS,
   type DocumentTab,
+  type Margins,
   type Project,
   type ProjectKind,
   collectTabIds,
@@ -45,6 +47,7 @@ function modeFor(
 function tabsToChapters(
   tabs: DocumentTab[],
   contentById: Record<string, string>,
+  marginsById: Record<string, Margins>,
   markdownIds: Set<string>,
   typewriterIds: Set<string>,
   plaintextIds: Set<string>,
@@ -54,7 +57,11 @@ function tabsToChapters(
     title: tab.title,
     mode: modeFor(tab.id, markdownIds, typewriterIds, plaintextIds),
     content: contentById[tab.id] ?? DEFAULT_DOCUMENT_CONTENT,
-    children: tabsToChapters(tab.children, contentById, markdownIds, typewriterIds, plaintextIds),
+    // Only stamp margins onto typewriter chapters — other modes never read
+    // them, so leaving them undefined keeps non-typewriter chapters free of
+    // meaningless attributes.
+    margins: typewriterIds.has(tab.id) ? (marginsById[tab.id] ?? DEFAULT_MARGINS) : undefined,
+    children: tabsToChapters(tab.children, contentById, marginsById, markdownIds, typewriterIds, plaintextIds),
   }))
 }
 
@@ -72,7 +79,14 @@ export function projectToBookFile(project: Project): TuskBookFile {
     wallpaperEmojis: project.wallpaperEmojis,
     rootPosition: project.rootPosition,
     activeChapterId: project.activeId,
-    chapters: tabsToChapters(project.tabs, project.contentById, markdownIds, typewriterIds, plaintextIds),
+    chapters: tabsToChapters(
+      project.tabs,
+      project.contentById,
+      project.marginsById ?? {},
+      markdownIds,
+      typewriterIds,
+      plaintextIds,
+    ),
     // Versions roundtrip verbatim — the in-memory representation and the
     // file representation share the ProjectVersion shape.
     versions: project.versions,
@@ -82,6 +96,7 @@ export function projectToBookFile(project: Project): TuskBookFile {
 type Buckets = {
   tabs: DocumentTab[]
   contentById: Record<string, string>
+  marginsById: Record<string, Margins>
   markdownIds: string[]
   typewriterIds: string[]
   plaintextIds: string[]
@@ -90,6 +105,7 @@ type Buckets = {
 function chaptersToTabsRecursive(chapters: TuskChapter[], buckets: Buckets): DocumentTab[] {
   return chapters.map((chapter) => {
     buckets.contentById[chapter.id] = chapter.content
+    if (chapter.margins) buckets.marginsById[chapter.id] = chapter.margins
     if (chapter.mode === "markdown") buckets.markdownIds.push(chapter.id)
     if (chapter.mode === "typewriter") buckets.typewriterIds.push(chapter.id)
     if (chapter.mode === "plaintext") buckets.plaintextIds.push(chapter.id)
@@ -102,7 +118,14 @@ function chaptersToTabsRecursive(chapters: TuskChapter[], buckets: Buckets): Doc
 }
 
 export function bookFileToProject(file: TuskBookFile): Project {
-  const buckets: Buckets = { tabs: [], contentById: {}, markdownIds: [], typewriterIds: [], plaintextIds: [] }
+  const buckets: Buckets = {
+    tabs: [],
+    contentById: {},
+    marginsById: {},
+    markdownIds: [],
+    typewriterIds: [],
+    plaintextIds: [],
+  }
   buckets.tabs = chaptersToTabsRecursive(file.chapters, buckets)
 
   const tabIds = collectTabIds(buckets.tabs)
@@ -130,6 +153,7 @@ export function bookFileToProject(file: TuskBookFile): Project {
     tabs: buckets.tabs,
     activeId,
     contentById: buckets.contentById,
+    marginsById: buckets.marginsById,
     // Carry the embedded history forward. v1 files (no <versions> block)
     // arrive here as []; the autosave/manual paths begin populating it on
     // the next save.

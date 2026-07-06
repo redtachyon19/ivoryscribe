@@ -27,12 +27,25 @@ const DEFAULT_FONT_FAMILY = '"Times", "Times New Roman", serif'
 const DEFAULT_DOCUMENT_CONTENT = "<p></p>"
 const BODY_PLACEHOLDER = "Start your epic..."
 
-/* ── Empty-state attribute on the editor DOM (drives the placeholder text) ── */
+/* ── Empty-state attribute on the editor DOM (drives the placeholder text) ──
+   Only show the body placeholder when the sole/first top-level block is a
+   paragraph. `editor.isEmpty` is RECURSIVE in TipTap v3, so an empty bullet or
+   numbered list (doc → list → item → empty paragraph) also reports as empty —
+   and our floated `::before` placeholder would then render under the first
+   bullet/number. Requiring the first block to be a paragraph keeps the
+   placeholder for the pristine empty doc but drops it the moment a list (or any
+   other block) is started. */
+function isBodyPlaceholderVisible(currentEditor: TiptapEditor): boolean {
+  if (!currentEditor.isEmpty) return false
+  const firstBlock = currentEditor.state.doc.firstChild
+  return !!firstBlock && firstBlock.type.name === "paragraph"
+}
+
 function syncEmptyState(currentEditor: TiptapEditor) {
   try {
     const editorDom = currentEditor.view?.dom
     if (!editorDom) return
-    editorDom.setAttribute("data-empty", currentEditor.isEmpty ? "true" : "false")
+    editorDom.setAttribute("data-empty", isBodyPlaceholderVisible(currentEditor) ? "true" : "false")
   } catch {
     // TipTap can momentarily expose an editor instance before internals are fully ready.
   }
@@ -79,7 +92,14 @@ export default function DraftingEditor({
     readOnly,
     placeholder: BODY_PLACEHOLDER,
     extensions: [
-      StarterKit,
+      // heading:false — kept identical to TypewriterEditor so the two editors
+      // share one schema. The app has no heading UI; disabling Heading removes
+      // the node plus the "# " input rule and ⌃⌥1 shortcut that were silently
+      // creating bold <h1>s. See TypewriterEditor for the full rationale.
+      // horizontalRule:false — its `---` input rule clashes with the smart em
+      // dash and the six-hyphen divider; HorizontalRuleSixDashes (in the shared
+      // list) supplies the hr node + the `------` rule instead.
+      StarterKit.configure({ heading: false, horizontalRule: false }),
       Highlight.configure({ multicolor: true }),
       Underline,
       // Keep the prose schema in lockstep with TypewriterEditor so neither view
@@ -119,10 +139,13 @@ export default function DraftingEditor({
     handleRemoveFlag,
   } = useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef })
 
-  // Trackpad-pinch / ctrl+scroll zoom toward the cursor — scales the whole
-  // editor surface (same gesture as the image/PDF viewers). Re-attaches when
-  // the document changes so the listener binds to the live surface.
-  useEditorZoom({ contentRef: editorSurfaceRef, enabledKey: documentId })
+  // Trackpad-pinch / ctrl+scroll zoom toward the cursor — a *true* visual zoom
+  // of the whole draft column (same gesture as the image/PDF viewers). The
+  // column is fluid (width: 100%), so `fluidContentWidth` freezes it to an
+  // absolute px width first; otherwise CSS `zoom` only reflows the text into a
+  // narrower measure and reads as a font-size bump. Re-attaches when the
+  // document changes so the listener binds to the live surface.
+  useEditorZoom({ contentRef: editorSurfaceRef, enabledKey: documentId, fluidContentWidth: true })
 
   /* ── Initial empty-state + word count ── */
   useEffect(() => {

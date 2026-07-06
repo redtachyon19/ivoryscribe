@@ -238,10 +238,12 @@ export default function Editor({
     view,
     activeId: project?.activeId ?? null,
     librarySection: library.librarySection,
+    openFolderId: library.openFolderId,
     onOpenProject,
     onReturnToDashboard,
     onProjectChange,
     onLibrarySectionChange: library.setLibrarySection,
+    onOpenFolder: library.setOpenFolderId,
     activeProjectId,
   })
   const findReplace = useFindReplaceModal({
@@ -257,6 +259,7 @@ export default function Editor({
       isEditorTyping={isEditorTyping}
       view={view}
       project={project}
+      activeDocumentType={activeDocumentType}
       activeFolderName={activeFolderName}
       canGoBack={canGoBack}
       canGoForward={canGoForward}
@@ -321,6 +324,8 @@ export default function Editor({
           setProjects={setProjects}
           setFolders={setFolders}
           setActiveProjectId={setActiveProjectId}
+          openFolderId={library.openFolderId}
+          setOpenFolderId={library.setOpenFolderId}
           onOpenProject={onOpenProject}
           onOpenProjectInNewTab={onOpenProjectInNewTab}
           onProjectCreated={onProjectCreated}

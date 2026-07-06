@@ -371,6 +371,15 @@
 .tw-editor-surf .ProseMirror p:last-child {
   margin-bottom: 0;
 }
+
+/* Six-hyphen divider — symmetric vertical margins matching the paragraph rhythm
+   (margin-bottom: 1.25em) so the rule is centred between the lines, not hugging
+   the one below. Clean 1px line instead of the browser's beveled default. */
+.tw-editor-surf .ProseMirror hr {
+  border: none;
+  border-top: 2px solid color-mix(in srgb, var(--editor-text, #888) 42%, transparent);
+  margin: 1.25em 0;
+}
 /* Hard breaks (<br> from Shift+Enter) — explicit zero margin in case any
    global rule tries to add one. */
 .tw-editor-surf .ProseMirror br {

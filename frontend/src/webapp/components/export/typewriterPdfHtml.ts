@@ -65,11 +65,13 @@ function resolveThemeColors(): { text: string; paper: string } {
 // The PDF is always a standard white document, even when the editor is authored
 // on a dark page with white ink. So we force a dark default ink and, per-span,
 // invert the achromatic (grayscale) text/highlight colours the toolbar picker
-// applied: a near-white text pick becomes dark (visible on white), and a
-// near-white highlight flips to a dark marker with light text. Chromatic picks
-// (red, pastel yellow, …) are left exactly as the author set them.
+// applied: a near-white text pick becomes dark (visible on white). The Default
+// highlighter paints the marker with the theme's text colour, so the marker and
+// the text underneath match and the run reads as blacked-out/redacted; on a
+// near-white theme that marker is invisible on white paper, so it flips to a
+// solid dark bar with the text KEPT the same colour (still hidden). Chromatic
+// picks (red, pastel yellow, …) are left exactly as the author set them.
 const EXPORT_DARK_INK = "#15110b"
-const EXPORT_LIGHT_INK = "#f5f5f5"
 const NEAR_WHITE_LUMINANCE = 0.65
 
 type Rgb = { r: number; g: number; b: number }
@@ -112,32 +114,36 @@ function remapInlineColorsForWhitePaper(html: string): string {
   if (typeof DOMParser === "undefined") return html
   const doc = new DOMParser().parseFromString(html, "text/html")
 
-  // Pass 1 — highlights. A near-white marker is invisible on white paper: flip
-  // it to a dark marker and flag the run so its text is lightened in pass 2
-  // (rather than darkened like ordinary text on the white page).
+  // Pass 1 — redaction highlights. The Default highlighter paints the marker the
+  // same colour as the text so the run reads as blacked-out. A near-white marker
+  // is invisible on white paper, so flip it to a solid dark bar — and set the
+  // text to the SAME dark ink so the content stays hidden (previously the text
+  // was lightened, which revealed the "redacted" words in the PDF). Flag the run
+  // so pass 2 keeps the text hidden rather than darkening-for-visibility.
   doc.body.querySelectorAll<HTMLElement>("[style]").forEach((el) => {
     const bg = parseCssColor(el.style.backgroundColor || "")
     if (bg && isAchromatic(bg) && luminance(bg) >= NEAR_WHITE_LUMINANCE) {
       el.style.backgroundColor = EXPORT_DARK_INK
-      el.style.color = EXPORT_LIGHT_INK
-      el.setAttribute("data-pdfx-inv", "1")
+      el.style.color = EXPORT_DARK_INK
+      el.setAttribute("data-pdfx-redact", "1")
     }
   })
 
-  // Pass 2 — text colours. Inside an inverted (now-dark) highlight, achromatic
-  // dark text must become light; everywhere else on the white page, near-white
-  // text must become dark. Order-independent thanks to the pass-1 flag.
+  // Pass 2 — text colours. Inside a redaction bar, force the text to the bar's
+  // dark ink so the run stays hidden; everywhere else on the white page, near-
+  // white text must darken to stay visible. Order-independent thanks to the
+  // pass-1 flag.
   doc.body.querySelectorAll<HTMLElement>("[style]").forEach((el) => {
     const fg = parseCssColor(el.style.color || "")
     if (!fg || !isAchromatic(fg)) return
-    if (el.closest("[data-pdfx-inv]")) {
-      if (luminance(fg) < 0.5) el.style.color = EXPORT_LIGHT_INK
+    if (el.closest("[data-pdfx-redact]")) {
+      el.style.color = EXPORT_DARK_INK
     } else if (luminance(fg) >= NEAR_WHITE_LUMINANCE) {
       el.style.color = EXPORT_DARK_INK
     }
   })
 
-  doc.body.querySelectorAll("[data-pdfx-inv]").forEach((el) => el.removeAttribute("data-pdfx-inv"))
+  doc.body.querySelectorAll("[data-pdfx-redact]").forEach((el) => el.removeAttribute("data-pdfx-redact"))
   return doc.body.innerHTML
 }
 
@@ -366,7 +372,9 @@ function paginationScript(): string {
         if(!(ofb||itop)) continue;
         var tgt=ofb?(pIdx+1)*STRIDE+mTop:pIdx*STRIDE+mTop;
         var push=Math.round(tgt-sY); if(push<=0) continue;
-        pushes.push({type:'block', node:block, push:push}); cum+=push; continue;
+        // brk = the page index this block starts when it overflows onto a fresh
+        // page (0 = a same-page top-margin nudge, not a page boundary).
+        pushes.push({type:'block', node:block, push:push, brk:ofb?(pIdx+1):0}); cum+=push; continue;
       }
       for(var t=0;t<tns.length;t++){
         var tn=tns[t]; if(!tn.length) continue;
@@ -383,7 +391,7 @@ function paginationScript(): string {
           var ci=firstCharOnLine(tn, rect.top); if(ci<0) continue;
           var last=pushes[pushes.length-1];
           if(last && last.type==='text' && last.node===tn && last.charIndex===ci) continue;
-          pushes.push({type:'text', node:tn, charIndex:ci, push:pu}); cum+=pu;
+          pushes.push({type:'text', node:tn, charIndex:ci, push:pu, brk:o2?(pi+1):0}); cum+=pu;
         }
       }
     }
@@ -396,6 +404,9 @@ function paginationScript(): string {
       var p=pushes[i];
       var spacer=document.createElement('div');
       spacer.setAttribute('data-pdfx-spacer','');
+      // Mark page-boundary spacers so each page can be anchored independently
+      // (see trimBeforeBreak). data-pdfx-break holds the 1-based stack page idx.
+      if(p.brk) spacer.setAttribute('data-pdfx-break', String(p.brk));
       spacer.style.cssText='display:block;width:100%;height:'+p.push+'px;margin:0;padding:0;';
       if(p.type==='block'){
         if(p.node.parentNode) p.node.parentNode.insertBefore(spacer, p.node);
@@ -405,6 +416,26 @@ function paginationScript(): string {
         if(tail.parentNode) tail.parentNode.insertBefore(spacer, tail);
       }
     }
+  }
+
+  // Drop everything (and the boundary spacer itself) that precedes page k's
+  // first line, so that line becomes the clone's first content. Walks up from
+  // the boundary spacer to the host, removing every earlier sibling at each
+  // level — this dissolves the partial paragraph the page break split, leaving
+  // only its tail. Returns false (caller falls back to the STRIDE offset) when
+  // no boundary marker exists for k.
+  function trimBeforeBreak(root, k){
+    var sp=root.querySelector('[data-pdfx-break="'+k+'"]');
+    if(!sp) return false;
+    var node=sp, parent=sp.parentNode;
+    while(node.previousSibling) parent.removeChild(node.previousSibling);
+    parent.removeChild(sp); node=parent;
+    while(node && node!==root){
+      parent=node.parentNode;
+      while(node.previousSibling) parent.removeChild(node.previousSibling);
+      node=parent;
+    }
+    return true;
   }
 
   async function processDoc(section, out){
@@ -434,14 +465,37 @@ function paginationScript(): string {
     for(var k=0;k<numPages;k++){
       var page=document.createElement('div'); page.className='pdfx-page';
       var surf=document.createElement('div'); surf.className=cls;
-      var offTop=mT-k*STRIDE;
-      surf.style.cssText='position:absolute;left:'+mL+'px;top:'+offTop+'px;width:'+contentW+'px;';
       // cloneNode (not innerHTML) so block spacers inside <p> survive verbatim.
       var clone=host.cloneNode(true);
+      // Anchor each page independently: trim everything before page k's boundary
+      // so its first line is the clone's first content, sitting at the top
+      // margin. The whole-surface STRIDE offset (below) relied on the cloned flow
+      // measuring identically at print time, but on HiDPI/Retina the live layout
+      // snaps line boxes to a finer device grid than printToPDF uses, so a
+      // sub-pixel per-line gap accumulated down the surface and shoved each later
+      // page's content past the top (and bottom) margin. Anchoring resets that
+      // accumulation every page. Fallback to the offset for any page that lacks a
+      // boundary marker (e.g. trailing blank pages from the scrollHeight ceil).
+      var offTop, shift;
+      if(k>0 && trimBeforeBreak(clone, k)){ offTop=mT; shift=k*STRIDE; }
+      else { offTop=mT-k*STRIDE; shift=0; }
+      if(shift>0){
+        // The trimmed leading block (e.g. a heading carried onto a new page)
+        // would add its own top margin; drop it so the text lands exactly at mT.
+        var fk=clone.firstElementChild;
+        while(fk && fk.getAttribute && fk.getAttribute('data-pdfx-spacer')!=null) fk=fk.nextElementSibling;
+        if(fk && fk.style) fk.style.marginTop='0';
+      }
+      surf.style.cssText='position:absolute;left:'+mL+'px;top:'+offTop+'px;width:'+contentW+'px;';
       while(clone.firstChild) surf.appendChild(clone.firstChild);
       for(var ii=0;ii<images.length;ii++){
-        var im=images[ii]; var pageY=offTop+im.top;
-        if(pageY+im.height>0 && pageY<PAGE_H) surf.appendChild(im.el.cloneNode(true));
+        // Images are absolutely positioned in the surface's coordinates; when the
+        // text was shifted up by "shift", move the image to match. pageY is the
+        // unchanged on-page position (mT - k*STRIDE + im.top) either way.
+        var im=images[ii]; var imTop=im.top-shift; var pageY=offTop+imTop;
+        if(pageY+im.height>0 && pageY<PAGE_H){
+          var ic=im.el.cloneNode(true); ic.style.top=imTop+'px'; surf.appendChild(ic);
+        }
       }
       page.appendChild(surf); out.appendChild(page);
     }
@@ -456,7 +510,15 @@ function paginationScript(): string {
       var src=document.getElementById('pdfx-src');
       var out=document.getElementById('pdfx-out');
       var sections=Array.prototype.slice.call(src.querySelectorAll('.pdfx-doc'));
-      for(var s=0;s<sections.length;s++){ await processDoc(sections[s], out); }
+      // Each section (chapter) appends its pages to #pdfx-out in order, so the
+      // 1-based page a chapter starts on is just the page count already emitted
+      // + 1. Recorded for the per-chapter PDF outline added after printing.
+      var startPages=[];
+      for(var s=0;s<sections.length;s++){
+        startPages.push(out.children.length + 1);
+        await processDoc(sections[s], out);
+      }
+      window.__pdfxChapterStartPages=startPages;
     }catch(e){ if(window.console && console.error) console.error('pdfx pagination failed', e); }
     window.__pdfxReady=true;
   }
