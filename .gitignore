@@ -40,6 +40,8 @@ quicklook/build/
 backend/.env
 !*.env.example
 !**/*.env.example
+# Public production API base — baked into the client bundle, safe to commit.
+!frontend/.env.production
 
 # Local backend runtime data (SQLite/db artifacts)
 backend/data/*
