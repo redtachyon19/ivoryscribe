@@ -129,3 +129,34 @@ redeploys the backend to Railway on every push to `main` that touches `backend/*
 
 Railway's built-in GitHub integration can also auto-deploy on push; use one or the
 other, not both, to avoid double deploys.
+
+---
+
+## 5. Marketing site → ivoryscribe.com (Cloudflare Pages)
+
+The marketing site + browser app is the frontend web build (`npm run build` →
+`frontend/dist`). It's hosted on **Cloudflare Pages**, which auto-deploys on every
+push to the production branch. Two committed files make this work:
+
+- [`frontend/public/_redirects`](frontend/public/_redirects) — SPA fallback so deep
+  links like `/download` serve `index.html` (the app routes client-side).
+- [`frontend/.node-version`](frontend/.node-version) — pins Node 22 for the build.
+
+`VITE_API_URL` is already baked in via `frontend/.env.production`, so the deployed
+site talks to `https://api.ivoryscribe.com` with no env config needed on Pages.
+
+### One-time setup (Cloudflare dashboard)
+
+1. **Workers & Pages → Create → Pages → Connect to Git** → pick the `ivoryscribe` repo.
+2. Build settings:
+   - **Production branch:** `main`
+   - **Root directory:** `frontend`
+   - **Build command:** `npm run build`
+   - **Build output directory:** `dist`
+   - **Environment variable:** `NODE_VERSION` = `22`
+3. **Save and Deploy.**
+4. Project → **Custom domains** → add `ivoryscribe.com` and `www.ivoryscribe.com`.
+   DNS is already on Cloudflare, so the records are created automatically.
+
+After that, every push to `main` rebuilds and redeploys the site. `api.` (Railway)
+and the apex/`www` (Pages) are independent — no conflict.
