@@ -37,6 +37,9 @@ services:
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
+      # Local API stays on 4000 to match the Vite dev frontend (VITE_API_PORT).
+      # The image itself defaults to 8080 (Railway's injected PORT); this pins
+      # it back to 4000 for local dev, so the mapping below is 4000:4000.
       PORT: 4000
       DB_DIALECT: postgres
       DATABASE_URL: postgres://ivoryscribe:ivoryscribe@db:5432/ivoryscribe

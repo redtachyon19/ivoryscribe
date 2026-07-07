@@ -74,8 +74,12 @@ In the backend service **Variables**, add:
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STRIPE_TUSK_PRICE_ID` | *(from Stripe)* | Billing. |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `XAI_API_KEY` | *(optional)* | Tusk AI providers. |
 
-Do **not** set `PORT` or `HOST` — Railway injects `PORT`, and the Docker image
-already binds `HOST=0.0.0.0`.
+Do **not** set `PORT` or `HOST` — Railway injects `PORT` (`8080`), and the Docker
+image already binds `HOST=0.0.0.0`. The image `EXPOSE`s **`8080`** and defaults
+`PORT=8080` to match, so the service's **public domain target port must be `8080`**
+(service → **Settings → Networking →** the domain's port). A stale `4000` there
+makes Railway route to a dead port and return **502 on every request** — including
+`/health`, even though the app logs "Backend listening" and the deploy shows green.
 
 ### Deploy
 
@@ -160,3 +164,37 @@ site talks to `https://api.ivoryscribe.com` with no env config needed on Pages.
 
 After that, every push to `main` rebuilds and redeploys the site. `api.` (Railway)
 and the apex/`www` (Pages) are independent — no conflict.
+
+---
+
+## 6. Desktop app downloads (Cloudflare R2 + CI)
+
+The `/download` page buttons link to stable, versionless URLs on a Cloudflare
+**R2** bucket exposed at `downloads.ivoryscribe.com` (the DMG/EXE are far larger
+than Pages' 25 MiB/file cap, so they can't live in the site bundle):
+
+- macOS: `https://downloads.ivoryscribe.com/Ivoryscribe-arm64.dmg`
+- Windows: `https://downloads.ivoryscribe.com/Ivoryscribe-x64.exe`
+
+(URLs are defined in `frontend/src/landing/pages/DownloadPage.tsx`.)
+
+### One-time R2 setup (Cloudflare dashboard)
+
+1. **R2 → enable it** (adds a payment method; the free tier covers this).
+2. **Create a bucket**, e.g. `ivoryscribe-downloads`.
+3. **Settings → Public access → Custom Domains → Connect `downloads.ivoryscribe.com`.**
+   DNS is already on Cloudflare, so the record is created automatically.
+
+### Automated builds (GitHub Actions)
+
+[`.github/workflows/build-desktop.yml`](.github/workflows/build-desktop.yml)
+builds both installers on cloud runners (`macos-latest` + `windows-latest`) and
+uploads them to R2 at the keys above — no local Windows/Mac machine needed.
+Trigger it by pushing a version tag (`git tag v0.1.0 && git push origin v0.1.0`)
+or from the **Actions** tab.
+
+Add these repo secrets (**Settings → Secrets and variables → Actions**):
+`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`.
+
+Builds are **unsigned** (mac ad-hoc, win unsigned NSIS), so downloaders hit
+Gatekeeper / SmartScreen warnings until signing certs + notarization are added.

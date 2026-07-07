@@ -1,0 +1,106 @@
+name: Build desktop apps
+
+# Builds the macOS (.dmg) and Windows (.exe) installers on cloud runners and
+# uploads them to Cloudflare R2 at stable, versionless keys — so the /download
+# buttons (downloads.ivoryscribe.com/Ivoryscribe-{arm64.dmg,x64.exe}) always
+# serve the latest build. No local Windows or Mac machine needed.
+#
+# TRIGGER: push a version tag — `git tag v0.1.0 && git push origin v0.1.0` — or
+# run it by hand from the Actions tab. To build on every push to main instead,
+# replace the `tags:` line under `on.push` with `branches: [main]`.
+#
+# ONE-TIME PREREQUISITES (GitHub → Settings → Secrets and variables → Actions):
+#   R2_ACCOUNT_ID        — Cloudflare account id (R2 → Manage R2 API Tokens / any
+#                          bucket's "S3 API" endpoint is https://<id>.r2.cloudflarestorage.com)
+#   R2_ACCESS_KEY_ID     — an R2 API token's access key id
+#   R2_SECRET_ACCESS_KEY — that token's secret
+#   R2_BUCKET            — the bucket name (e.g. ivoryscribe-downloads)
+#
+# The BUILD jobs run with no secrets — only the final UPLOAD job needs the R2
+# secrets. Builds are UNSIGNED (mac = ad-hoc via after-sign.mjs, win = unsigned
+# NSIS); downloaders get Gatekeeper / SmartScreen warnings until you add signing
+# certs + notarization. That's a separate step and does not block downloads.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build ${{ matrix.platform }} installer
+        working-directory: frontend
+        # CSC_IDENTITY_AUTO_DISCOVERY=false keeps electron-builder from failing
+        # the mac build while looking for a Developer ID cert we don't have yet.
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm run build:electron
+          npx electron-builder --${{ matrix.platform }} --publish never
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.platform }}
+          path: |
+            frontend/release/*.dmg
+            frontend/release/*.exe
+          if-no-files-found: ignore
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+
+      - name: Upload installers to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          endpoint="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          bucket="${{ secrets.R2_BUCKET }}"
+
+          dmg=$(find dist-artifacts -name '*.dmg' | head -n1)
+          exe=$(find dist-artifacts -name '*.exe' | head -n1)
+
+          if [ -n "$dmg" ]; then
+            echo "Uploading $dmg -> Ivoryscribe-arm64.dmg"
+            aws s3 cp "$dmg" "s3://$bucket/Ivoryscribe-arm64.dmg" \
+              --endpoint-url "$endpoint" \
+              --content-type application/x-apple-diskimage
+          else
+            echo "::warning::no .dmg artifact found"
+          fi
+
+          if [ -n "$exe" ]; then
+            echo "Uploading $exe -> Ivoryscribe-x64.exe"
+            aws s3 cp "$exe" "s3://$bucket/Ivoryscribe-x64.exe" \
+              --endpoint-url "$endpoint" \
+              --content-type application/vnd.microsoft.portable-executable
+          else
+            echo "::warning::no .exe artifact found"
+          fi

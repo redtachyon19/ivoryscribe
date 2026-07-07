@@ -18,9 +18,13 @@ RUN npm ci --omit=dev
 
 # ---- runtime ----
 FROM node:20-bookworm-slim AS runtime
+# PORT defaults to 8080 to match the value Railway injects at runtime. Keeping
+# the image default and Railway's PORT in sync means the public domain's target
+# port is always 8080 — a stale 4000 there routes to a dead port (502 on every
+# request). docker-compose overrides PORT back to 4000 for local dev.
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=4000
+    PORT=8080
 WORKDIR /app
 
 # Run as the non-root "node" user that ships with the base image.
@@ -29,5 +33,5 @@ COPY --chown=node:node package.json ./
 COPY --chown=node:node src ./src
 
 USER node
-EXPOSE 4000
+EXPOSE 8080
 CMD ["node", "src/server.js"]

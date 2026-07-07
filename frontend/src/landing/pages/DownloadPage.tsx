@@ -2,6 +2,16 @@ import { Download, Github, Instagram, Laptop, Linkedin, Mail, Rocket, Smartphone
 import "./Home.css"
 import type { HomeProps } from "./Home"
 
+// macOS (Apple Silicon) installer, hosted on Cloudflare R2 at a stable,
+// versionless key so this link never changes — each release overwrites the
+// same object. See DEPLOY.md for the R2 bucket + downloads.ivoryscribe.com setup.
+const MAC_ARM64_DMG_URL = "https://downloads.ivoryscribe.com/Ivoryscribe-arm64.dmg"
+
+// Windows (x64) NSIS installer. NOTE: no Windows build has been produced yet, so
+// this URL 404s until a .exe is built (needs a Windows or CI runner — it can't be
+// built on macOS) and uploaded to R2 as Ivoryscribe-x64.exe.
+const WIN_X64_EXE_URL = "https://downloads.ivoryscribe.com/Ivoryscribe-x64.exe"
+
 export default function DownloadPage({
   isLoggedIn = false,
   onLaunchDashboard,
@@ -69,7 +79,11 @@ export default function DownloadPage({
                 <span>Desktop - macOS</span>
               </h3>
               <p>Apple Silicon and Intel builds are available.</p>
-              <a href="#" className="auth-gateway__cta-button auth-gateway__cta-button--primary">
+              <a
+                href={MAC_ARM64_DMG_URL}
+                download
+                className="auth-gateway__cta-button auth-gateway__cta-button--primary"
+              >
                 <Download size={16} strokeWidth={2} aria-hidden={true} />
                 <span>Download for macOS</span>
               </a>
@@ -81,7 +95,11 @@ export default function DownloadPage({
                 <span>Desktop - Windows</span>
               </h3>
               <p>Installer and portable package options.</p>
-              <a href="#" className="auth-gateway__cta-button auth-gateway__cta-button--primary">
+              <a
+                href={WIN_X64_EXE_URL}
+                download
+                className="auth-gateway__cta-button auth-gateway__cta-button--primary"
+              >
                 <Download size={16} strokeWidth={2} aria-hidden={true} />
                 <span>Download for Windows</span>
               </a>
