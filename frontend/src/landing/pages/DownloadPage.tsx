@@ -2,15 +2,12 @@ import { Download, Github, Instagram, Laptop, Linkedin, Mail, Rocket, Smartphone
 import "./Home.css"
 import type { HomeProps } from "./Home"
 
-// macOS (Apple Silicon) installer, hosted on Cloudflare R2 at a stable,
-// versionless key so this link never changes — each release overwrites the
-// same object. See DEPLOY.md for the R2 bucket + downloads.ivoryscribe.com setup.
-const MAC_ARM64_DMG_URL = "https://downloads.ivoryscribe.com/Ivoryscribe-arm64.dmg"
-
-// Windows (x64) NSIS installer. NOTE: no Windows build has been produced yet, so
-// this URL 404s until a .exe is built (needs a Windows or CI runner — it can't be
-// built on macOS) and uploaded to R2 as Ivoryscribe-x64.exe.
-const WIN_X64_EXE_URL = "https://downloads.ivoryscribe.com/Ivoryscribe-x64.exe"
+// Desktop installers, published to GitHub Releases by
+// .github/workflows/build-desktop.yml. The "releases/latest/download/<asset>"
+// URL always redirects to the newest release's asset of that exact name, so
+// these links never change across versions.
+const MAC_ARM64_DMG_URL = "https://github.com/redtachyon19/ivoryscribe/releases/latest/download/Ivoryscribe-arm64.dmg"
+const WIN_X64_EXE_URL = "https://github.com/redtachyon19/ivoryscribe/releases/latest/download/Ivoryscribe-x64.exe"
 
 export default function DownloadPage({
   isLoggedIn = false,

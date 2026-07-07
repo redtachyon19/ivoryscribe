@@ -167,34 +167,36 @@ and the apex/`www` (Pages) are independent — no conflict.
 
 ---
 
-## 6. Desktop app downloads (Cloudflare R2 + CI)
+## 6. Desktop app downloads (GitHub Releases + CI)
 
-The `/download` page buttons link to stable, versionless URLs on a Cloudflare
-**R2** bucket exposed at `downloads.ivoryscribe.com` (the DMG/EXE are far larger
-than Pages' 25 MiB/file cap, so they can't live in the site bundle):
+The `/download` page buttons link to the newest **GitHub Release** assets. The
+`releases/latest/download/<asset>` URL always redirects to the latest release's
+file of that exact name, so the links never change across versions:
 
-- macOS: `https://downloads.ivoryscribe.com/Ivoryscribe-arm64.dmg`
-- Windows: `https://downloads.ivoryscribe.com/Ivoryscribe-x64.exe`
+- macOS: `https://github.com/redtachyon19/ivoryscribe/releases/latest/download/Ivoryscribe-arm64.dmg`
+- Windows: `https://github.com/redtachyon19/ivoryscribe/releases/latest/download/Ivoryscribe-x64.exe`
 
 (URLs are defined in `frontend/src/landing/pages/DownloadPage.tsx`.)
-
-### One-time R2 setup (Cloudflare dashboard)
-
-1. **R2 → enable it** (adds a payment method; the free tier covers this).
-2. **Create a bucket**, e.g. `ivoryscribe-downloads`.
-3. **Settings → Public access → Custom Domains → Connect `downloads.ivoryscribe.com`.**
-   DNS is already on Cloudflare, so the record is created automatically.
 
 ### Automated builds (GitHub Actions)
 
 [`.github/workflows/build-desktop.yml`](.github/workflows/build-desktop.yml)
 builds both installers on cloud runners (`macos-latest` + `windows-latest`) and
-uploads them to R2 at the keys above — no local Windows/Mac machine needed.
-Trigger it by pushing a version tag (`git tag v0.1.0 && git push origin v0.1.0`)
-or from the **Actions** tab.
+publishes them to a GitHub Release for the tag — no local Windows/Mac machine,
+no Cloudflare, and **no secrets** (it uses the built-in `GITHUB_TOKEN`). Because
+the repo is public, Actions minutes and Release hosting are free.
 
-Add these repo secrets (**Settings → Secrets and variables → Actions**):
-`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`.
+**To cut a release,** optionally bump `frontend/package.json` `version`, then push
+a tag:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The workflow builds, attaches `Ivoryscribe-arm64.dmg` + `Ivoryscribe-x64.exe` to
+the `v0.1.0` release, and that release becomes "latest" — so the download buttons
+immediately serve it. (You can also run it from the **Actions** tab with a tag.)
 
 Builds are **unsigned** (mac ad-hoc, win unsigned NSIS), so downloaders hit
 Gatekeeper / SmartScreen warnings until signing certs + notarization are added.
+That does not block the download.

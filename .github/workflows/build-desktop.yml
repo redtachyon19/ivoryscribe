@@ -1,30 +1,28 @@
-name: Build desktop apps
+name: Build & release desktop apps
 
 # Builds the macOS (.dmg) and Windows (.exe) installers on cloud runners and
-# uploads them to Cloudflare R2 at stable, versionless keys — so the /download
-# buttons (downloads.ivoryscribe.com/Ivoryscribe-{arm64.dmg,x64.exe}) always
-# serve the latest build. No local Windows or Mac machine needed.
+# publishes them to a GitHub Release, so the /download buttons
+# (github.com/redtachyon19/ivoryscribe/releases/latest/download/Ivoryscribe-*)
+# always serve the newest build. No Cloudflare, no secrets — it uses the
+# built-in GITHUB_TOKEN. The repo is public, so Actions minutes + Release
+# hosting are free.
 #
 # TRIGGER: push a version tag — `git tag v0.1.0 && git push origin v0.1.0` — or
-# run it by hand from the Actions tab. To build on every push to main instead,
-# replace the `tags:` line under `on.push` with `branches: [main]`.
+# run it from the Actions tab (supply the tag). Each tagged release becomes the
+# "latest" release, so the download links auto-update to it.
 #
-# ONE-TIME PREREQUISITES (GitHub → Settings → Secrets and variables → Actions):
-#   R2_ACCOUNT_ID        — Cloudflare account id (R2 → Manage R2 API Tokens / any
-#                          bucket's "S3 API" endpoint is https://<id>.r2.cloudflarestorage.com)
-#   R2_ACCESS_KEY_ID     — an R2 API token's access key id
-#   R2_SECRET_ACCESS_KEY — that token's secret
-#   R2_BUCKET            — the bucket name (e.g. ivoryscribe-downloads)
-#
-# The BUILD jobs run with no secrets — only the final UPLOAD job needs the R2
-# secrets. Builds are UNSIGNED (mac = ad-hoc via after-sign.mjs, win = unsigned
-# NSIS); downloaders get Gatekeeper / SmartScreen warnings until you add signing
-# certs + notarization. That's a separate step and does not block downloads.
+# Builds are UNSIGNED (mac = ad-hoc via after-sign.mjs, win = unsigned NSIS), so
+# downloaders get Gatekeeper / SmartScreen warnings until signing is added. That
+# does not block the download.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release, e.g. v0.1.0 (create it first: git tag v0.1.0 && git push origin v0.1.0)"
+        required: true
 
 jobs:
   build:
@@ -34,8 +32,12 @@ jobs:
         include:
           - os: macos-latest
             platform: mac
+            asset: Ivoryscribe-arm64.dmg
+            glob: frontend/release/*.dmg
           - os: windows-latest
             platform: win
+            asset: Ivoryscribe-x64.exe
+            glob: frontend/release/*.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -50,57 +52,42 @@ jobs:
 
       - name: Build ${{ matrix.platform }} installer
         working-directory: frontend
-        # CSC_IDENTITY_AUTO_DISCOVERY=false keeps electron-builder from failing
-        # the mac build while looking for a Developer ID cert we don't have yet.
+        # CSC_IDENTITY_AUTO_DISCOVERY=false stops electron-builder from failing the
+        # mac build while hunting for a Developer ID cert we don't have yet.
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           npm run build:electron
           npx electron-builder --${{ matrix.platform }} --publish never
 
-      - name: Upload installer artifact
+      - name: Rename installer to a stable asset name
+        shell: bash
+        run: |
+          f="$(ls ${{ matrix.glob }} | head -n1)"
+          cp "$f" "${{ matrix.asset }}"
+          echo "Prepared ${{ matrix.asset }} from $f"
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: installer-${{ matrix.platform }}
-          path: |
-            frontend/release/*.dmg
-            frontend/release/*.exe
-          if-no-files-found: ignore
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
 
-  publish:
+  release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # let GITHUB_TOKEN create the release + upload assets
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download built installers
+        uses: actions/download-artifact@v4
         with:
-          path: dist-artifacts
+          path: dist
+          merge-multiple: true
 
-      - name: Upload installers to Cloudflare R2
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-        run: |
-          endpoint="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-          bucket="${{ secrets.R2_BUCKET }}"
-
-          dmg=$(find dist-artifacts -name '*.dmg' | head -n1)
-          exe=$(find dist-artifacts -name '*.exe' | head -n1)
-
-          if [ -n "$dmg" ]; then
-            echo "Uploading $dmg -> Ivoryscribe-arm64.dmg"
-            aws s3 cp "$dmg" "s3://$bucket/Ivoryscribe-arm64.dmg" \
-              --endpoint-url "$endpoint" \
-              --content-type application/x-apple-diskimage
-          else
-            echo "::warning::no .dmg artifact found"
-          fi
-
-          if [ -n "$exe" ]; then
-            echo "Uploading $exe -> Ivoryscribe-x64.exe"
-            aws s3 cp "$exe" "s3://$bucket/Ivoryscribe-x64.exe" \
-              --endpoint-url "$endpoint" \
-              --content-type application/vnd.microsoft.portable-executable
-          else
-            echo "::warning::no .exe artifact found"
-          fi
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: dist/*
+          fail_on_unmatched_files: true
