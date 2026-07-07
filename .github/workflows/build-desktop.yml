@@ -39,6 +39,7 @@ jobs:
             asset: Ivoryscribe-x64.exe
             glob: frontend/release/*.exe
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20   # a hung build (e.g. Electron launching instead of packaging) fails fast instead of burning ~6h
     steps:
       - uses: actions/checkout@v4
 
