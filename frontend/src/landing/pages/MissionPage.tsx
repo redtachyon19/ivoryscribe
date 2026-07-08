@@ -1,5 +1,6 @@
 import { Download, Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
 import "./Home.css"
+import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import type { HomeProps } from "./Home"
 
 export default function MissionPage({
@@ -53,6 +54,8 @@ export default function MissionPage({
           {isLoggedIn ? <Rocket size={16} aria-hidden={true} /> : null}
           <span>{loginLabel}</span>
         </button>
+
+        <ScrollProgressBar source={{ kind: "window" }} />
       </header>
 
       <main className="auth-gateway auth-gateway--detail" aria-label="Mission page content">

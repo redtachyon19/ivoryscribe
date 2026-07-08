@@ -1,6 +1,7 @@
 import { Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
 import { useEffect, useState } from "react"
 import "./Home.css"
+import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import type { HomeProps } from "./Home"
 
 // Monochrome brand marks (lucide has no Windows logo). Both paint via
@@ -102,6 +103,8 @@ export default function DownloadPage({
           {isLoggedIn ? <Rocket size={16} aria-hidden={true} /> : null}
           <span>{loginLabel}</span>
         </button>
+
+        <ScrollProgressBar source={{ kind: "window" }} />
       </header>
 
       <main className="download-main" aria-label="Download IvoryScribe">

@@ -39,30 +39,9 @@
   -webkit-app-region: no-drag;
 }
 
-/* ── Reading-progress indicator ──
-   Thin bar pinned to the bottom edge of the top bar (overlaying its border),
-   spanning the full top-bar width. Fills left→right via scaleX as the active
-   document is scrolled. Ported from the blog's reading progress bar. */
-.editor-workspace__reading-progress {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: transparent;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.editor-workspace__reading-progress-bar {
-  height: 100%;
-  width: 100%;
-  transform-origin: left center;
-  transform: scaleX(0);
-  will-change: transform;
-  background: var(--app-accent, #9ab8ff);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--app-accent, #9ab8ff) 55%, transparent);
-}
+/* Reading-progress indicator markup + styling now live in the shared
+   ScrollProgressBar component (core/components/ScrollProgressBar). The editor
+   passes `scroll-progress--overlap` to keep the bar on the top bar's edge. */
 
 .editor-workspace__panel-toggle {
   width: 30px;

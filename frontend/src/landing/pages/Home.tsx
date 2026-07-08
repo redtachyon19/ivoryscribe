@@ -1,6 +1,7 @@
 import { Download, Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
 import { useEffect, useState } from "react"
 import "./Home.css"
+import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import EditorPreview from "./EditorPreview"
 import LibraryPreview from "./LibraryPreview"
 
@@ -84,6 +85,8 @@ export default function Home({
         {isLoggedIn ? <Rocket size={16} aria-hidden={true} /> : null}
         <span>{loginLabel}</span>
       </button>
+
+      <ScrollProgressBar source={{ kind: "window" }} />
     </header>
   )
 
