@@ -1,4 +1,5 @@
-import { Download, Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
+import { Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
+import { useEffect, useState } from "react"
 import "./Home.css"
 import type { HomeProps } from "./Home"
 
@@ -38,6 +39,23 @@ export default function DownloadPage({
   onLaunchDashboard,
   onOpenAuth,
 }: HomeProps) {
+  // Header is transparent at the top and gains the translucent blur once the
+  // page scrolls — same behaviour as the Home page.
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => {
+      setIsHeaderScrolled(window.scrollY > 24)
+    }
+
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener("scroll", onScroll)
+    }
+  }, [])
+
   const handleLogin = () => {
     if (isLoggedIn) {
       onLaunchDashboard?.()
@@ -51,7 +69,7 @@ export default function DownloadPage({
 
   return (
     <div className="auth-gateway-page">
-      <header className="auth-gateway__header">
+      <header className={`auth-gateway__header ${isHeaderScrolled ? "auth-gateway__header--scrolled" : ""}`.trim()}>
         <a href="/" className="app-brand auth-gateway__brand" aria-label="Go to home page">
           <span className="app-brand__name">ivoryscribe</span>
           <span className="app-brand__tagline">write an epic. save a species.</span>
@@ -99,10 +117,7 @@ export default function DownloadPage({
           <section className="download-section download-section--mac" aria-label="macOS">
             <div className="download-section__inner">
               <div className="download-section__info">
-                <div className="download-option__head">
-                  <AppleLogo className="download-option__logo" />
-                  <h2 className="download-option__title">Download for macOS</h2>
-                </div>
+                <h2 className="download-option__title">Download for macOS</h2>
                 <p className="download-option__note">Apple Silicon &amp; Intel · Universal .dmg</p>
                 <a
                   href={MAC_ARM64_DMG_URL}
@@ -110,7 +125,7 @@ export default function DownloadPage({
                   aria-label="Download for macOS"
                   className="auth-gateway__cta-button auth-gateway__cta-button--primary download-option__cta"
                 >
-                  <Download size={15} strokeWidth={2} aria-hidden={true} />
+                  <AppleLogo className="download-option__cta-logo" />
                   <span>Download</span>
                 </a>
               </div>
@@ -126,10 +141,7 @@ export default function DownloadPage({
           <section className="download-section download-section--windows" aria-label="Windows">
             <div className="download-section__inner">
               <div className="download-section__info">
-                <div className="download-option__head">
-                  <WindowsLogo className="download-option__logo" />
-                  <h2 className="download-option__title">Download for Windows</h2>
-                </div>
+                <h2 className="download-option__title">Download for Windows</h2>
                 <p className="download-option__note">Windows 10 &amp; 11 · 64-bit installer (.exe)</p>
                 <a
                   href={WIN_X64_EXE_URL}
@@ -137,7 +149,7 @@ export default function DownloadPage({
                   aria-label="Download for Windows"
                   className="auth-gateway__cta-button auth-gateway__cta-button--primary download-option__cta"
                 >
-                  <Download size={15} strokeWidth={2} aria-hidden={true} />
+                  <WindowsLogo className="download-option__cta-logo" />
                   <span>Download</span>
                 </a>
               </div>

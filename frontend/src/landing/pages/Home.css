@@ -1660,23 +1660,18 @@
   border-top: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 55%, transparent);
 }
 
-.download-option__head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.download-option__logo {
-  height: 34px;
+/* OS brand mark sits inside the Download button. */
+.download-option__cta-logo {
+  height: 15px;
   width: auto;
   flex: none;
 }
 
-.download-section--mac .download-option__logo {
+.download-section--mac .download-option__cta-logo {
   color: #f5f5f7;
 }
 
-.download-section--windows .download-option__logo {
+.download-section--windows .download-option__cta-logo {
   color: #3b9eff;
 }
 
