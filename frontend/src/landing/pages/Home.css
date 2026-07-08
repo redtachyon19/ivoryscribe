@@ -106,7 +106,7 @@
   right: 0;
   z-index: 24;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: flex-start;
   padding: 18px var(--page-content-gutter, 24px);
   background: transparent;
@@ -1486,17 +1486,115 @@
   white-space: nowrap;
 }
 
-.auth-gateway__feature-list {
-  margin: 12px 0 0;
-  padding-left: 18px;
-  display: grid;
-  gap: 8px;
+/* ── Feature rows: full-width, screenshot on one side, copy on the other,
+   flipping sides each row. ─────────────────────────────────────────────── */
+
+/* The features section opts out of the bordered card container the other
+   content sections use, and widens past the 980px column so the screenshots
+   can be large. The negative margin is symmetric (equal both sides) so it stays
+   centred; it's reset on smaller screens where there's no room (below). */
+.auth-gateway__content-section--features {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 0;
+  overflow: visible;
+  margin-inline: -150px;
+  /* Breathing room from the app-preview section above. */
+  margin-top: 120px;
 }
 
-.auth-gateway__feature-list li {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+@media (max-width: 1200px) {
+  .auth-gateway__content-section--features {
+    margin-inline: 0;
+  }
+}
+
+.auth-gateway__feature-rows {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 72px;
+}
+
+.auth-gateway__feature-row {
+  display: grid;
+  /* Image side gets the larger share of the row. */
+  grid-template-columns: 1.5fr 1fr;
+  gap: 56px;
+  align-items: center;
+}
+
+/* Odd rows: image left (wide col first). Even rows: image right (wide col
+   second), so the screenshot stays the larger side on both. */
+.auth-gateway__feature-row:nth-child(even) {
+  grid-template-columns: 1fr 1.5fr;
+}
+
+.auth-gateway__feature-row:nth-child(even) .auth-gateway__feature-shot {
+  order: 2;
+}
+
+.auth-gateway__feature-shot {
+  position: relative;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 55%, transparent);
+  border-radius: 16px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #141414) 88%, #000);
+  aspect-ratio: 16 / 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-gateway__feature-shot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.auth-gateway__feature-shot-placeholder {
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 40%, transparent);
+}
+
+.auth-gateway__feature-copy h3 {
+  margin: 0 0 10px;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 97%, transparent);
+}
+
+.auth-gateway__feature-copy p {
+  margin: 0;
+  max-width: 46ch;
   font-family: var(--app-ui-font);
   font-size: 16px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+}
+
+.auth-gateway__feature-tag {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--app-accent, #9ab8ff) 45%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 16%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 92%, transparent);
 }
 
 .auth-gateway__testimonials {
@@ -1590,13 +1688,13 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding-top: 120px;
+  padding-top: 180px;
   padding-bottom: 44px;
 }
 
 .download-intro {
   text-align: center;
-  padding: 0 24px 32px;
+  padding: 0 24px 120px;
 }
 
 .download-intro h1 {
@@ -1615,6 +1713,11 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
 }
 
+/* Black background instead of the palette's near-black "elephant grey". */
+.auth-gateway-page.auth-gateway-page--download {
+  background: #000;
+}
+
 .download-sections {
   flex: 1;
   width: 100%;
@@ -1630,11 +1733,11 @@
 }
 
 .download-section--mac {
-  background: radial-gradient(58% 130% at 26% 50%, color-mix(in srgb, #ffffff 7%, transparent), transparent 68%);
+  background: radial-gradient(58% 130% at 76% 50%, color-mix(in srgb, #ff306a 14%, transparent), transparent 68%);
 }
 
 .download-section--windows {
-  background: radial-gradient(58% 130% at 26% 50%, color-mix(in srgb, #2b88d8 15%, transparent), transparent 68%);
+  background: radial-gradient(58% 130% at 26% 50%, color-mix(in srgb, #f4ead2 10%, transparent), transparent 68%);
 }
 
 .download-section__inner {
@@ -2184,7 +2287,7 @@
   }
 
   .download-main {
-    padding-top: 108px;
+    padding-top: 150px;
   }
 
   .download-section__inner {
@@ -2194,6 +2297,24 @@
   }
 
   .download-option__title {
+    font-size: 25px;
+  }
+
+  .auth-gateway__feature-rows {
+    gap: 44px;
+  }
+
+  .auth-gateway__feature-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  /* Stack image-above-copy on every row (no flipping on mobile). */
+  .auth-gateway__feature-row:nth-child(even) .auth-gateway__feature-shot {
+    order: 0;
+  }
+
+  .auth-gateway__feature-copy h3 {
     font-size: 25px;
   }
 

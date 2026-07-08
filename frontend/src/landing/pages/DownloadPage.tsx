@@ -69,11 +69,10 @@ export default function DownloadPage({
   const loginLabel = isLoggedIn ? "Launch" : "Log in"
 
   return (
-    <div className="auth-gateway-page">
+    <div className="auth-gateway-page auth-gateway-page--download">
       <header className={`auth-gateway__header ${isHeaderScrolled ? "auth-gateway__header--scrolled" : ""}`.trim()}>
         <a href="/" className="app-brand auth-gateway__brand" aria-label="Go to home page">
           <span className="app-brand__name">ivoryscribe</span>
-          <span className="app-brand__tagline">write an epic. save a species.</span>
         </a>
 
         <nav className="auth-gateway__nav" aria-label="Landing navigation">
@@ -109,8 +108,8 @@ export default function DownloadPage({
 
       <main className="download-main" aria-label="Download IvoryScribe">
         <div className="download-intro">
-          <h1>Download IvoryScribe</h1>
-          <p>A focused desktop writing studio. Pick your platform.</p>
+          <h1>Write your epic on the platform of your choice.</h1>
+          <p>Mobile and more platforms coming soon.</p>
         </div>
 
         {/* One full-width section per OS: info left, its own screenshot right,
@@ -178,7 +177,6 @@ export default function DownloadPage({
           <div className="auth-gateway__footer-left">
             <div className="auth-gateway__footer-brand" aria-label="Ivoryscribe">
               <p className="auth-gateway__footer-brand-name">ivoryscribe</p>
-              <p className="auth-gateway__footer-brand-tagline">write an epic. save a species.</p>
             </div>
 
             <p className="auth-gateway__footer-address">1457 Cedar Quill Avenue, Portland, OR 97205</p>

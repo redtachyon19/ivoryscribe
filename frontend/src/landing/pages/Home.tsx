@@ -3,7 +3,6 @@ import { useEffect, useState } from "react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import EditorPreview from "./EditorPreview"
-import LibraryPreview from "./LibraryPreview"
 
 export type HomeProps = {
   isLoggedIn?: boolean
@@ -55,7 +54,6 @@ export default function Home({
     <header className={`auth-gateway__header ${isHeaderScrolled ? "auth-gateway__header--scrolled" : ""}`.trim()}>
       <a href="/" className="app-brand auth-gateway__brand" aria-label="Go to home page">
         <span className="app-brand__name">ivoryscribe</span>
-        <span className="app-brand__tagline">write an epic. save a species.</span>
       </a>
 
       <nav className="auth-gateway__nav" aria-label="Landing navigation">
@@ -100,7 +98,7 @@ export default function Home({
           <h1>
             A minimalist, distraction free, writing canvas.
             <br />
-            100% of profits go to elephant conservation.
+            Open source, and free to write.
           </h1>
           <p>Perfect for book drafting. Built by an author, for authors.</p>
 
@@ -124,35 +122,73 @@ export default function Home({
       <main className="auth-gateway__sections" aria-label="Landing content sections">
         <section className="auth-gateway__content-section auth-gateway__content-section--preview" aria-label="Writing canvas preview">
           <EditorPreview onBackToProjects={handleBackToProjects} />
-          <LibraryPreview />
         </section>
 
-        <section className="auth-gateway__content-section auth-gateway__content-section--orgs" aria-labelledby="orgs-title">
-          <h2 id="orgs-title">Organizations we have donated to</h2>
-          <div className="auth-gateway__ticker" aria-label="Partner organizations">
-            <div className="auth-gateway__ticker-track">
-              <span>Save the Elephants</span>
-              <span>Wildlife Conservation Network</span>
-              <span>Big Life Foundation</span>
-              <span>Sheldrick Wildlife Trust</span>
-              <span>African Wildlife Foundation</span>
-              <span>Save the Elephants</span>
-              <span>Wildlife Conservation Network</span>
-              <span>Big Life Foundation</span>
-              <span>Sheldrick Wildlife Trust</span>
-              <span>African Wildlife Foundation</span>
-            </div>
+        <section className="auth-gateway__content-section auth-gateway__content-section--features" aria-label="Features">
+          {/* Alternating feature rows (image side flips each row). Swap each
+              placeholder <div> for:
+              <img src="…" alt="…" className="auth-gateway__feature-shot-img" /> */}
+          <div className="auth-gateway__feature-rows">
+            <article className="auth-gateway__feature-row">
+              <figure className="auth-gateway__feature-shot">
+                <div className="auth-gateway__feature-shot-placeholder">Storage</div>
+              </figure>
+              <div className="auth-gateway__feature-copy">
+                <h3>Cloud or local — your choice</h3>
+                <p>Keep your projects synced in the cloud so they're on every device, or store them entirely on your own machine. Your writing stays wherever you want it.</p>
+              </div>
+            </article>
+
+            <article className="auth-gateway__feature-row">
+              <figure className="auth-gateway__feature-shot">
+                <div className="auth-gateway__feature-shot-placeholder">Real-time collaboration</div>
+              </figure>
+              <div className="auth-gateway__feature-copy">
+                <h3>Share &amp; collaborate in real time</h3>
+                <p>Invite co-writers and editors to a project and work on the same draft together — everyone's changes appear live as they type.</p>
+              </div>
+            </article>
+
+            <article className="auth-gateway__feature-row">
+              <figure className="auth-gateway__feature-shot">
+                <div className="auth-gateway__feature-shot-placeholder">Projects &amp; chapters</div>
+              </figure>
+              <div className="auth-gateway__feature-copy">
+                <h3>Projects, chapters &amp; tabs</h3>
+                <p>Organize an entire book — nest chapters, group drafts into folders, and move between open tabs without losing your place.</p>
+              </div>
+            </article>
+
+            <article className="auth-gateway__feature-row">
+              <figure className="auth-gateway__feature-shot">
+                <div className="auth-gateway__feature-shot-placeholder">Version history</div>
+              </figure>
+              <div className="auth-gateway__feature-copy">
+                <h3>Autosave &amp; version history</h3>
+                <p>Your writing saves automatically as you go, with manual checkpoints whenever you want them. Every version is kept inside the one project — roll back to any moment without a folder full of "draft_final_v3" copies.</p>
+              </div>
+            </article>
+
+            <article className="auth-gateway__feature-row">
+              <figure className="auth-gateway__feature-shot">
+                <div className="auth-gateway__feature-shot-placeholder">Customization</div>
+              </figure>
+              <div className="auth-gateway__feature-copy">
+                <h3>Customization</h3>
+                <p>Make the writing space your own — choose from a range of color palettes, pick your fonts, and fine-tune the interface until it feels just right.</p>
+              </div>
+            </article>
+
+            <article className="auth-gateway__feature-row">
+              <figure className="auth-gateway__feature-shot">
+                <div className="auth-gateway__feature-shot-placeholder">Tusk AI</div>
+              </figure>
+              <div className="auth-gateway__feature-copy">
+                <h3>Tusk AI <span className="auth-gateway__feature-tag">In testing</span></h3>
+                <p>Brainstorm, tighten pacing, or rewrite a paragraph in a new tone — all without leaving the page. Currently available to select users during our testing phase.</p>
+              </div>
+            </article>
           </div>
-        </section>
-
-        <section className="auth-gateway__content-section" aria-labelledby="features-title">
-          <h2 id="features-title">List of features</h2>
-          <ul className="auth-gateway__feature-list">
-            <li>Distraction-free writing canvas</li>
-            <li>Project folders and tabbed drafting</li>
-            <li>Markdown-first editing with fast export</li>
-            <li>Seamless web launch and desktop workflow</li>
-          </ul>
         </section>
 
         <section className="auth-gateway__content-section auth-gateway__content-section--testimonials" aria-labelledby="testimonials-title">
@@ -205,7 +241,6 @@ export default function Home({
           <div className="auth-gateway__footer-left">
             <div className="auth-gateway__footer-brand" aria-label="Ivoryscribe">
               <p className="auth-gateway__footer-brand-name">ivoryscribe</p>
-              <p className="auth-gateway__footer-brand-tagline">write an epic. save a species.</p>
             </div>
 
             <p className="auth-gateway__footer-address">1457 Cedar Quill Avenue, Portland, OR 97205</p>

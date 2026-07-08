@@ -24,7 +24,6 @@ export default function MissionPage({
       <header className="auth-gateway__header">
         <a href="/" className="app-brand auth-gateway__brand" aria-label="Go to home page">
           <span className="app-brand__name">ivoryscribe</span>
-          <span className="app-brand__tagline">write an epic. save a species.</span>
         </a>
 
         <nav className="auth-gateway__nav" aria-label="Landing navigation">
@@ -81,7 +80,6 @@ export default function MissionPage({
           <div className="auth-gateway__footer-left">
             <div className="auth-gateway__footer-brand" aria-label="Ivoryscribe">
               <p className="auth-gateway__footer-brand-name">ivoryscribe</p>
-              <p className="auth-gateway__footer-brand-tagline">write an epic. save a species.</p>
             </div>
 
             <p className="auth-gateway__footer-address">1457 Cedar Quill Avenue, Portland, OR 97205</p>
