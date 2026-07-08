@@ -39,8 +39,6 @@ export default function TransparencyPage({
           <div className="auth-gateway__nav-group">
             <button type="button" className="auth-gateway__nav-trigger" aria-haspopup={true}>Products</button>
             <div className="auth-gateway__nav-menu" role="menu" aria-label="Products links">
-              <a href="/products-pricing" className="auth-gateway__nav-menu-link" role="menuitem">Products</a>
-              <a href="/products-pricing" className="auth-gateway__nav-menu-link" role="menuitem">Pricing</a>
               <a href="/download" className="auth-gateway__nav-menu-link" role="menuitem">Download</a>
               <a href="/auth" className="auth-gateway__nav-menu-link" role="menuitem">Launch in Browser</a>
             </div>
@@ -99,13 +97,6 @@ export default function TransparencyPage({
               <a href="/mission">mission</a>
               <a href="/mission">conservation</a>
               <a href="/transparency">transparency</a>
-            </section>
-
-            <section className="auth-gateway__footer-group" aria-label="Products">
-              <h2>products</h2>
-              <a href="/products-pricing">web</a>
-              <a href="/products-pricing">mobile</a>
-              <a href="/products-pricing">desktop</a>
             </section>
           </div>
 

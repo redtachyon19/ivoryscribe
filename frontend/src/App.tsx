@@ -8,10 +8,10 @@ import AppLayout from "./webapp/components/layout/AppLayout"
 import GlobalSettings from "./webapp/components/settings/GlobalSettings"
 import GlobalCaretOverlay from "./webapp/components/layout/GlobalCaretOverlay"
 import VersionHistory from "./webapp/components/version-history/VersionHistory"
+import AlphaBanner from "./landing/components/AlphaBanner"
 import Home from "./landing/pages/Home"
 import MissionPage from "./landing/pages/MissionPage"
 import TransparencyPage from "./landing/pages/TransparencyPage"
-import ProductsPricingPage from "./landing/pages/ProductsPricingPage"
 import DownloadPage from "./landing/pages/DownloadPage.tsx"
 import CareersPage from "./landing/pages/CareersPage"
 import AuthPage from "./webapp/pages/AuthPage"
@@ -88,8 +88,6 @@ export default function App() {
     content = <TransparencyPage {...app.homeProps} />
   } else if (app.currentPathname === "/careers") {
     content = <CareersPage {...app.homeProps} />
-  } else if (app.currentPathname === "/products-pricing") {
-    content = <ProductsPricingPage {...app.homeProps} />
   } else if (app.currentPathname === "/download") {
     content = <DownloadPage {...app.homeProps} />
   } else if (app.currentPathname === "/auth" || !app.session) {
@@ -105,8 +103,23 @@ export default function App() {
     )
   }
 
-  const landingRoutes = ["/", "/mission", "/transparency", "/careers", "/products-pricing", "/download", "/auth", "/reset-password"]
+  const landingRoutes = ["/", "/mission", "/transparency", "/careers", "/download", "/auth", "/reset-password"]
   const isWorkspace = isElectron || (app.session && !landingRoutes.includes(app.currentPathname))
+
+  // The public marketing pages (the ones built on .auth-gateway-page) get the
+  // dismissible alpha notice pinned to the top. Excludes the web /auth and
+  // /reset-password screens, the editor, and the Electron app.
+  const marketingRoutes = ["/", "/mission", "/transparency", "/careers", "/download"]
+  const isMarketing =
+    !isVersionPreview && !isElectron && !app.isAuthBootstrapping && marketingRoutes.includes(app.currentPathname)
+  if (isMarketing) {
+    content = (
+      <>
+        <AlphaBanner />
+        {content}
+      </>
+    )
+  }
 
   return (
     <AppLayout
