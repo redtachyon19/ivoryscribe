@@ -43,8 +43,8 @@
     ),
     radial-gradient(
       44% 34% at 66% 22%,
-      color-mix(in srgb, var(--app-accent-complementary, #c7ccd4) 78%, transparent) 0%,
-      color-mix(in srgb, var(--app-accent-complementary, #c7ccd4) 42%, transparent) 42%,
+      color-mix(in srgb, #ff306a 78%, transparent) 0%,
+      color-mix(in srgb, #ff306a 42%, transparent) 42%,
       transparent 74%
     ),
     radial-gradient(
