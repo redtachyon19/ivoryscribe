@@ -8,7 +8,18 @@
 }
 
 .auth-gateway-page--home {
+  /* Glows keep their original full % sizes (not shrunk). A black fade layered
+     ON TOP clips the whole wash to black by ~the first card's midpoint — move
+     these vh stops to slide where it ends (lower vh = ends higher). */
   background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent 110vh,
+      color-mix(in srgb, #000000 85%, transparent) 125vh,
+      #000000 140vh,
+      #000000 100%
+    ),
     radial-gradient(
       24% 20% at 58% 14%,
       color-mix(in srgb, var(--app-accent-gold, #c99733) 20%, transparent) 0%,
@@ -52,14 +63,6 @@
       color-mix(in srgb, var(--app-accent-secondary, #8f74f0) 40%, var(--app-accent-primary, var(--app-accent, #9ab8ff)) 60%) 0%,
       color-mix(in srgb, var(--app-accent-secondary, #8f74f0) 24%, transparent) 40%,
       transparent 76%
-    ),
-    linear-gradient(
-      180deg,
-      transparent 0%,
-      transparent 34%,
-      color-mix(in srgb, #000000 82%, transparent) 46%,
-      #000000 56%,
-      #000000 100%
     ),
     #000000;
 }
