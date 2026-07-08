@@ -80,26 +80,16 @@ export default function TransparencyPage({
               <p className="auth-gateway__footer-brand-name">ivoryscribe</p>
             </div>
 
-            <p className="auth-gateway__footer-address">1457 Cedar Quill Avenue, Portland, OR 97205</p>
 
             <div className="auth-gateway__footer-social" aria-label="Social links">
-              <a href="#" aria-label="GitHub" className="auth-gateway__footer-social-link"><Github size={16} aria-hidden={true} /></a>
+              <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><Github size={16} aria-hidden={true} /></a>
               <a href="#" aria-label="LinkedIn" className="auth-gateway__footer-social-link"><Linkedin size={16} aria-hidden={true} /></a>
               <a href="#" aria-label="Instagram" className="auth-gateway__footer-social-link"><Instagram size={16} aria-hidden={true} /></a>
               <a href="#" aria-label="YouTube" className="auth-gateway__footer-social-link"><Youtube size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="Email" className="auth-gateway__footer-social-link"><Mail size={16} aria-hidden={true} /></a>
+              <a href="mailto:contact@ivoryscribe.com" target="_blank" rel="noopener noreferrer" aria-label="Email" className="auth-gateway__footer-social-link"><Mail size={16} aria-hidden={true} /></a>
             </div>
           </div>
 
-          <div className="auth-gateway__footer-columns">
-            <section className="auth-gateway__footer-group" aria-label="Organization">
-              <h2>organization</h2>
-              <a href="/">about</a>
-              <a href="/mission">mission</a>
-              <a href="/mission">conservation</a>
-              <a href="/transparency">transparency</a>
-            </section>
-          </div>
 
           <div className="auth-gateway__footer-right">
             <p className="auth-gateway__footer-copy">&copy;2026 ivoryscribe. all rights reserved</p>
@@ -108,7 +98,6 @@ export default function TransparencyPage({
               <a href="/transparency">privacy policy</a>
               <a href="/transparency">terms &amp; conditions</a>
               <a href="/transparency">cookie settings</a>
-              <a href="/">site map</a>
             </div>
           </div>
         </div>

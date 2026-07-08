@@ -358,8 +358,16 @@
 
 .auth-gateway__content-section--cta {
   display: grid;
-  justify-items: start;
+  justify-items: center;
+  text-align: center;
   gap: 12px;
+  margin-top: 120px;
+  /* No bordered card container — sits directly on the page. */
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 0;
+  overflow: visible;
 }
 
 .auth-gateway__content-section--preview {
@@ -386,7 +394,7 @@
 }
 
 .auth-gateway__content-section--testimonials {
-  margin-top: 26px;
+  margin-top: 120px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1598,26 +1606,25 @@
 }
 
 .auth-gateway__testimonials {
-  margin-top: 12px;
+  margin-top: 24px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
-  width: calc(100vw - 64px);
+  gap: 72px 100px;
+  width: min(1200px, 100vw - 220px);
   margin-left: 50%;
   transform: translateX(-50%);
 }
 
+/* Plain text — no card box, no avatar. Centered. */
 .auth-gateway__testimonial-card {
   border: 0;
-  border-radius: 12px;
-  padding: 30px;
-  aspect-ratio: 1.45 / 1;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 14px;
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #1a1a1a) 72%, transparent);
+  align-items: center;
+  gap: 10px;
+  background: none;
+  text-align: center;
 }
 
 .auth-gateway__testimonial-avatar {
@@ -1635,14 +1642,10 @@
   font-family: var(--app-ui-font);
   font-size: 17px;
   line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .auth-gateway__testimonial-author {
-  margin: auto 0 0;
+  margin: 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
   font-family: var(--app-ui-font);
   font-size: 16px;
@@ -1965,7 +1968,7 @@
   width: min(1080px, 100%);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(220px, 0.95fr) minmax(280px, 1fr) minmax(260px, 0.95fr);
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr);
   gap: 20px 28px;
   align-items: start;
 }
@@ -2020,19 +2023,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 75%, transparent);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #1d1d1d) 72%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
   text-decoration: none;
+  transition: color 140ms ease;
 }
 
 .auth-gateway__footer-social-link:hover {
-  color: var(--menu-button, #ededed);
-  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 52%, transparent);
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, var(--menu-dropdown-bg, #1d1d1d));
+  color: #f4ead2;
 }
 
 .auth-gateway__footer-columns {

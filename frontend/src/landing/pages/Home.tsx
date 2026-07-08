@@ -195,32 +195,26 @@ export default function Home({
           <h2 id="testimonials-title">What storytellers have said</h2>
           <div className="auth-gateway__testimonials">
             <article className="auth-gateway__testimonial-card">
-              <img src="/vite.svg" alt="Storyteller avatar" className="auth-gateway__testimonial-avatar" />
               <p className="auth-gateway__testimonial-copy">"Ivoryscribe keeps me in flow. I draft faster and edit with more intention. The calm writing surface helps me stay with the story every single day."</p>
               <p className="auth-gateway__testimonial-author">- Ved Vyas, Author of the Mahabharatha</p>
             </article>
             <article className="auth-gateway__testimonial-card">
-              <img src="/vite.svg" alt="Storyteller avatar" className="auth-gateway__testimonial-avatar" />
               <p className="auth-gateway__testimonial-copy">"Ivoryscribe keeps me in flow. I draft faster and edit with more intention. The calm writing surface helps me stay with the story every single day."</p>
               <p className="auth-gateway__testimonial-author">- Valmiki, Author of the Ramayana</p>
             </article>
             <article className="auth-gateway__testimonial-card">
-              <img src="/vite.svg" alt="Storyteller avatar" className="auth-gateway__testimonial-avatar" />
               <p className="auth-gateway__testimonial-copy">"Ivoryscribe keeps me in flow. I draft faster and edit with more intention. The calm writing surface helps me stay with the story every single day."</p>
               <p className="auth-gateway__testimonial-author">- Ved Vyas, Author of the Mahabharatha</p>
             </article>
             <article className="auth-gateway__testimonial-card">
-              <img src="/vite.svg" alt="Storyteller avatar" className="auth-gateway__testimonial-avatar" />
               <p className="auth-gateway__testimonial-copy">"Ivoryscribe keeps me in flow. I draft faster and edit with more intention. The calm writing surface helps me stay with the story every single day."</p>
               <p className="auth-gateway__testimonial-author">- Valmiki, Author of the Ramayana</p>
             </article>
             <article className="auth-gateway__testimonial-card">
-              <img src="/vite.svg" alt="Storyteller avatar" className="auth-gateway__testimonial-avatar" />
               <p className="auth-gateway__testimonial-copy">"Ivoryscribe keeps me in flow. I draft faster and edit with more intention. The calm writing surface helps me stay with the story every single day."</p>
               <p className="auth-gateway__testimonial-author">- Ved Vyas, Author of the Mahabharatha</p>
             </article>
             <article className="auth-gateway__testimonial-card">
-              <img src="/vite.svg" alt="Storyteller avatar" className="auth-gateway__testimonial-avatar" />
               <p className="auth-gateway__testimonial-copy">"Ivoryscribe keeps me in flow. I draft faster and edit with more intention. The calm writing surface helps me stay with the story every single day."</p>
               <p className="auth-gateway__testimonial-author">- Valmiki, Author of the Ramayana</p>
             </article>
@@ -243,10 +237,9 @@ export default function Home({
               <p className="auth-gateway__footer-brand-name">ivoryscribe</p>
             </div>
 
-            <p className="auth-gateway__footer-address">1457 Cedar Quill Avenue, Portland, OR 97205</p>
 
             <div className="auth-gateway__footer-social" aria-label="Social links">
-              <a href="#" aria-label="GitHub" className="auth-gateway__footer-social-link">
+              <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link">
                 <Github size={16} aria-hidden={true} />
               </a>
               <a href="#" aria-label="LinkedIn" className="auth-gateway__footer-social-link">
@@ -258,21 +251,12 @@ export default function Home({
               <a href="#" aria-label="YouTube" className="auth-gateway__footer-social-link">
                 <Youtube size={16} aria-hidden={true} />
               </a>
-              <a href="#" aria-label="Email" className="auth-gateway__footer-social-link">
+              <a href="mailto:contact@ivoryscribe.com" target="_blank" rel="noopener noreferrer" aria-label="Email" className="auth-gateway__footer-social-link">
                 <Mail size={16} aria-hidden={true} />
               </a>
             </div>
           </div>
 
-          <div className="auth-gateway__footer-columns">
-            <section className="auth-gateway__footer-group" aria-label="Organization">
-              <h2>organization</h2>
-              <a href="/">about</a>
-              <a href="/mission">mission</a>
-              <a href="/mission">conservation</a>
-              <a href="/transparency">transparency</a>
-            </section>
-          </div>
 
           <div className="auth-gateway__footer-right">
             <p className="auth-gateway__footer-copy">&copy;2026 ivoryscribe. all rights reserved</p>
@@ -281,7 +265,6 @@ export default function Home({
               <a href="/transparency">privacy policy</a>
               <a href="/transparency">terms &amp; conditions</a>
               <a href="/transparency">cookie settings</a>
-              <a href="/">site map</a>
             </div>
           </div>
         </div>
