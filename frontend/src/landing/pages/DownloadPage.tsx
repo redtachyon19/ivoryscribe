@@ -1,6 +1,30 @@
-import { Download, Github, Instagram, Laptop, Linkedin, Mail, Rocket, Smartphone, Youtube } from "lucide-react"
+import { Download, Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
 import "./Home.css"
 import type { HomeProps } from "./Home"
+
+// Monochrome brand marks (lucide has no Windows logo). Both paint via
+// currentColor so the surrounding CSS controls their colour.
+function AppleLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 384 512" role="img" aria-label="Apple macOS" focusable="false">
+      <path
+        fill="currentColor"
+        d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zM262.1 104.5c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"
+      />
+    </svg>
+  )
+}
+
+function WindowsLogo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 448 512" role="img" aria-label="Windows" focusable="false">
+      <path
+        fill="currentColor"
+        d="M0 93.7l183.6-25.3v177.4H0V93.7zm0 324.6l183.6 25.3V268.4H0v149.9zm203.8 28.4L448 480V268.4H203.8v177.7zm0-380.6v180.1H448V32L203.8 65.7z"
+      />
+    </svg>
+  )
+}
 
 // Desktop installers, published to GitHub Releases by
 // .github/workflows/build-desktop.yml. The "releases/latest/download/<asset>"
@@ -62,57 +86,76 @@ export default function DownloadPage({
         </button>
       </header>
 
-      <main className="auth-gateway auth-gateway--detail" aria-label="Download page content">
-        <section className="auth-gateway__detail-card">
+      <main className="download-main" aria-label="Download IvoryScribe">
+        <div className="download-intro">
           <h1>Download IvoryScribe</h1>
-          <p>Choose your preferred platform and start writing in a focused workspace.</p>
+          <p>A focused desktop writing studio. Pick your platform.</p>
+        </div>
 
-          <div className="auth-gateway__downloads" role="list" aria-label="Download options">
-            <article className="auth-gateway__download-card" role="listitem">
-              <h3>
-                <Laptop size={16} aria-hidden={true} />
-                <span>Desktop - macOS</span>
-              </h3>
-              <p>Apple Silicon and Intel builds are available.</p>
-              <a
-                href={MAC_ARM64_DMG_URL}
-                download
-                className="auth-gateway__cta-button auth-gateway__cta-button--primary"
-              >
-                <Download size={16} strokeWidth={2} aria-hidden={true} />
-                <span>Download for macOS</span>
-              </a>
-            </article>
+        {/* One full-width section per OS: info left, its own screenshot right,
+            vertically centred. Swap each placeholder <div> for:
+            <img src="…" alt="…" className="download-shot__img" /> */}
+        <div className="download-sections">
+          <section className="download-section download-section--mac" aria-label="macOS">
+            <div className="download-section__inner">
+              <div className="download-section__info">
+                <div className="download-option__head">
+                  <AppleLogo className="download-option__logo" />
+                  <h2 className="download-option__title">Download for macOS</h2>
+                </div>
+                <p className="download-option__note">Apple Silicon &amp; Intel · Universal .dmg</p>
+                <a
+                  href={MAC_ARM64_DMG_URL}
+                  download
+                  aria-label="Download for macOS"
+                  className="auth-gateway__cta-button auth-gateway__cta-button--primary download-option__cta"
+                >
+                  <Download size={15} strokeWidth={2} aria-hidden={true} />
+                  <span>Download</span>
+                </a>
+              </div>
+              <figure className="download-shot">
+                <div className="download-shot__placeholder">macOS screenshot</div>
+                <figcaption className="download-shot__caption">macOS</figcaption>
+              </figure>
+            </div>
+          </section>
 
-            <article className="auth-gateway__download-card" role="listitem">
-              <h3>
-                <Laptop size={16} aria-hidden={true} />
-                <span>Desktop - Windows</span>
-              </h3>
-              <p>Installer and portable package options.</p>
-              <a
-                href={WIN_X64_EXE_URL}
-                download
-                className="auth-gateway__cta-button auth-gateway__cta-button--primary"
-              >
-                <Download size={16} strokeWidth={2} aria-hidden={true} />
-                <span>Download for Windows</span>
-              </a>
-            </article>
+          <hr className="download-divider" />
 
-            <article className="auth-gateway__download-card" role="listitem">
-              <h3>
-                <Smartphone size={16} aria-hidden={true} />
-                <span>Mobile</span>
-              </h3>
-              <p>Use IvoryScribe instantly in your browser while mobile apps are in progress.</p>
-              <button type="button" className="auth-gateway__cta-button" onClick={handleLogin}>
-                <Rocket size={16} strokeWidth={2} aria-hidden={true} />
-                <span>Launch in Browser</span>
-              </button>
-            </article>
-          </div>
-        </section>
+          <section className="download-section download-section--windows" aria-label="Windows">
+            <div className="download-section__inner">
+              <div className="download-section__info">
+                <div className="download-option__head">
+                  <WindowsLogo className="download-option__logo" />
+                  <h2 className="download-option__title">Download for Windows</h2>
+                </div>
+                <p className="download-option__note">Windows 10 &amp; 11 · 64-bit installer (.exe)</p>
+                <a
+                  href={WIN_X64_EXE_URL}
+                  download
+                  aria-label="Download for Windows"
+                  className="auth-gateway__cta-button auth-gateway__cta-button--primary download-option__cta"
+                >
+                  <Download size={15} strokeWidth={2} aria-hidden={true} />
+                  <span>Download</span>
+                </a>
+              </div>
+              <figure className="download-shot">
+                <div className="download-shot__placeholder">Windows screenshot</div>
+                <figcaption className="download-shot__caption">Windows</figcaption>
+              </figure>
+            </div>
+          </section>
+        </div>
+
+        <p className="download-browser-hint">
+          Prefer not to install?{" "}
+          <button type="button" className="download-browser-link" onClick={handleLogin}>
+            <Rocket size={14} strokeWidth={2} aria-hidden={true} />
+            <span>Launch in your browser</span>
+          </button>
+        </p>
       </main>
 
       <footer className="auth-gateway__footer" aria-label="Site footer">
