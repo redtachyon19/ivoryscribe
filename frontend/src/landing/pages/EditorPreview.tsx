@@ -164,11 +164,7 @@ export default function EditorPreview({ onBackToProjects }: EditorPreviewProps) 
         />
         <aside className="auth-gateway__canvas-right-rail">
           <div className="auth-gateway__chat-header">
-            <span>Tusk AI Chat</span>
-            <button type="button" className="auth-gateway__chat-model-trigger">
-              <span>Claude 3.7</span>
-              <ChevronDown size={12} aria-hidden={true} />
-            </button>
+            <span>Tusk AI</span>
           </div>
 
           <div className="auth-gateway__chat-thread" aria-label="Chat thread preview">
