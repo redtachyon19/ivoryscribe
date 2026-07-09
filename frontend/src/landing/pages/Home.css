@@ -1671,6 +1671,30 @@
   gap: 12px;
 }
 
+.auth-gateway__feature-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.auth-gateway__feature-list li {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 16px;
+}
+
+/* Sub-heading within a detail card (e.g. "Support the project" on the open
+   source page); scroll-margin keeps it clear of the fixed header when linked. */
+.auth-gateway__detail-subheading {
+  margin: 28px 0 0;
+  scroll-margin-top: 120px;
+  font-family: var(--app-display-font);
+  font-weight: 500;
+  font-size: clamp(20px, 3vw, 26px);
+  color: var(--brand-color, #f3f3f3);
+}
+
 .auth-gateway__detail-card h1 {
   margin: 0;
   font-family: var(--app-display-font);

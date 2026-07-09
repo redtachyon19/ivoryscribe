@@ -1,9 +1,9 @@
-import { Download, Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
+import { Github, Mail, Rocket } from "lucide-react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import type { HomeProps } from "./Home"
 
-export default function MissionPage({
+export default function AboutPage({
   isLoggedIn = false,
   onLaunchDashboard,
   onOpenAuth,
@@ -30,9 +30,8 @@ export default function MissionPage({
           <div className="auth-gateway__nav-group">
             <button type="button" className="auth-gateway__nav-trigger" aria-haspopup={true}>Organization</button>
             <div className="auth-gateway__nav-menu" role="menu" aria-label="Organization links">
-              <a href="/mission" className="auth-gateway__nav-menu-link" role="menuitem">Our mission</a>
-              <a href="/transparency" className="auth-gateway__nav-menu-link" role="menuitem">Transparency</a>
-              <a href="/careers" className="auth-gateway__nav-menu-link" role="menuitem">Careers</a>
+              <a href="/about" className="auth-gateway__nav-menu-link" role="menuitem">About</a>
+              <a href="/open-source" className="auth-gateway__nav-menu-link" role="menuitem">Open source</a>
             </div>
           </div>
 
@@ -57,21 +56,17 @@ export default function MissionPage({
         <ScrollProgressBar source={{ kind: "window" }} />
       </header>
 
-      <main className="auth-gateway auth-gateway--detail" aria-label="Mission page content">
+      <main className="auth-gateway auth-gateway--detail" aria-label="About page content">
         <section className="auth-gateway__detail-card">
-          <h1>Our mission</h1>
+          <h1>About</h1>
           <p>
-            Ivoryscribe exists to help writers create meaningful work while funding meaningful impact. We route paid plan
-            revenue toward elephant conservation programs that protect habitats, reduce poaching, and support local stewards.
+            IvoryScribe is a minimalist, distraction-free writing studio — a calm place to draft long-form work like
+            books, built by an author for authors.
           </p>
           <p>
-            This is not a side campaign. Conservation support is a core operating commitment designed into the product model
-            from day one.
+            It's open source and free to write in. We keep it deliberately lean: fast, focused, and free of the clutter
+            that gets between you and the page. Your words are the only thing on screen.
           </p>
-          <a href="/download" className="auth-gateway__cta-button auth-gateway__cta-button--primary">
-            <Download size={17} strokeWidth={2} aria-hidden={true} />
-            <span>Download</span>
-          </a>
         </section>
       </main>
 
@@ -82,24 +77,19 @@ export default function MissionPage({
               <p className="auth-gateway__footer-brand-name">ivoryscribe</p>
             </div>
 
-
             <div className="auth-gateway__footer-social" aria-label="Social links">
               <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><Github size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="LinkedIn" className="auth-gateway__footer-social-link"><Linkedin size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="Instagram" className="auth-gateway__footer-social-link"><Instagram size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="YouTube" className="auth-gateway__footer-social-link"><Youtube size={16} aria-hidden={true} /></a>
               <a href="mailto:contact@ivoryscribe.com" target="_blank" rel="noopener noreferrer" aria-label="Email" className="auth-gateway__footer-social-link"><Mail size={16} aria-hidden={true} /></a>
             </div>
           </div>
-
 
           <div className="auth-gateway__footer-right">
             <p className="auth-gateway__footer-copy">&copy;2026 ivoryscribe. all rights reserved</p>
 
             <div className="auth-gateway__footer-legal" aria-label="Legal">
-              <a href="/transparency">privacy policy</a>
-              <a href="/transparency">terms &amp; conditions</a>
-              <a href="/transparency">cookie settings</a>
+              <a href="#">privacy policy</a>
+              <a href="#">terms &amp; conditions</a>
+              <a href="#">cookie settings</a>
             </div>
           </div>
         </div>

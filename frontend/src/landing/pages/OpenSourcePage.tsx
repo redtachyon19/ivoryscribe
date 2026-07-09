@@ -1,9 +1,11 @@
-import { Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
+import { Download, Github, Mail, Rocket } from "lucide-react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import type { HomeProps } from "./Home"
 
-export default function TransparencyPage({
+const REPO_URL = "https://github.com/redtachyon19/ivoryscribe"
+
+export default function OpenSourcePage({
   isLoggedIn = false,
   onLaunchDashboard,
   onOpenAuth,
@@ -30,9 +32,8 @@ export default function TransparencyPage({
           <div className="auth-gateway__nav-group">
             <button type="button" className="auth-gateway__nav-trigger" aria-haspopup={true}>Organization</button>
             <div className="auth-gateway__nav-menu" role="menu" aria-label="Organization links">
-              <a href="/mission" className="auth-gateway__nav-menu-link" role="menuitem">Our mission</a>
-              <a href="/transparency" className="auth-gateway__nav-menu-link" role="menuitem">Transparency</a>
-              <a href="/careers" className="auth-gateway__nav-menu-link" role="menuitem">Careers</a>
+              <a href="/about" className="auth-gateway__nav-menu-link" role="menuitem">About</a>
+              <a href="/open-source" className="auth-gateway__nav-menu-link" role="menuitem">Open source</a>
             </div>
           </div>
 
@@ -57,19 +58,54 @@ export default function TransparencyPage({
         <ScrollProgressBar source={{ kind: "window" }} />
       </header>
 
-      <main className="auth-gateway auth-gateway--detail" aria-label="Transparency page content">
+      <main className="auth-gateway auth-gateway--detail" aria-label="Open source page content">
         <section className="auth-gateway__detail-card">
-          <h1>Transparency</h1>
+          <h1>Open source</h1>
           <p>
-            We publish quarterly reports detailing how conservation funds are allocated, which partner organizations receive
-            support, and what outcomes are measured.
+            IvoryScribe is open source under the MIT license — the code is public. Read it, fork it, run your own copy,
+            or help shape where it goes.
           </p>
           <ul className="auth-gateway__feature-list">
-            <li>Quarterly conservation distribution summary</li>
-            <li>Program partner list and funding percentages</li>
-            <li>Operations and product spend breakdown</li>
-            <li>Ongoing progress snapshots and updates</li>
+            <li>Browse the source and releases on GitHub</li>
+            <li>Report bugs and request features through issues</li>
+            <li>Open a pull request to contribute</li>
+            <li>Self-host your own instance</li>
           </ul>
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="auth-gateway__cta-button auth-gateway__cta-button--primary"
+          >
+            <Github size={17} strokeWidth={2} aria-hidden={true} />
+            <span>View on GitHub</span>
+          </a>
+
+          <h2 id="support" className="auth-gateway__detail-subheading">Support the project</h2>
+          <p>
+            IvoryScribe is free and open source. If it's useful to you, here are a few ways to keep it growing:
+          </p>
+          <ul className="auth-gateway__feature-list">
+            <li>Star and share the repo on GitHub</li>
+            <li>Contribute code, docs, or bug reports</li>
+            <li>Upgrade to a paid plan for cloud sync and Tusk AI</li>
+            <li>Tell other writers about it</li>
+          </ul>
+          <div className="auth-gateway__actions">
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="auth-gateway__cta-button auth-gateway__cta-button--primary"
+            >
+              <Github size={17} strokeWidth={2} aria-hidden={true} />
+              <span>Star on GitHub</span>
+            </a>
+            <a href="/download" className="auth-gateway__cta-button auth-gateway__cta-button--outline">
+              <Download size={17} strokeWidth={2} aria-hidden={true} />
+              <span>Download</span>
+            </a>
+          </div>
         </section>
       </main>
 
@@ -80,24 +116,19 @@ export default function TransparencyPage({
               <p className="auth-gateway__footer-brand-name">ivoryscribe</p>
             </div>
 
-
             <div className="auth-gateway__footer-social" aria-label="Social links">
-              <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><Github size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="LinkedIn" className="auth-gateway__footer-social-link"><Linkedin size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="Instagram" className="auth-gateway__footer-social-link"><Instagram size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="YouTube" className="auth-gateway__footer-social-link"><Youtube size={16} aria-hidden={true} /></a>
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><Github size={16} aria-hidden={true} /></a>
               <a href="mailto:contact@ivoryscribe.com" target="_blank" rel="noopener noreferrer" aria-label="Email" className="auth-gateway__footer-social-link"><Mail size={16} aria-hidden={true} /></a>
             </div>
           </div>
-
 
           <div className="auth-gateway__footer-right">
             <p className="auth-gateway__footer-copy">&copy;2026 ivoryscribe. all rights reserved</p>
 
             <div className="auth-gateway__footer-legal" aria-label="Legal">
-              <a href="/transparency">privacy policy</a>
-              <a href="/transparency">terms &amp; conditions</a>
-              <a href="/transparency">cookie settings</a>
+              <a href="#">privacy policy</a>
+              <a href="#">terms &amp; conditions</a>
+              <a href="#">cookie settings</a>
             </div>
           </div>
         </div>

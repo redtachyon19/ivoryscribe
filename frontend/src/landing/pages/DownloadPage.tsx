@@ -1,4 +1,4 @@
-import { Github, Instagram, Linkedin, Mail, Rocket, Youtube } from "lucide-react"
+import { Github, Mail, Rocket } from "lucide-react"
 import { useEffect, useState } from "react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
@@ -79,9 +79,8 @@ export default function DownloadPage({
           <div className="auth-gateway__nav-group">
             <button type="button" className="auth-gateway__nav-trigger" aria-haspopup={true}>Organization</button>
             <div className="auth-gateway__nav-menu" role="menu" aria-label="Organization links">
-              <a href="/mission" className="auth-gateway__nav-menu-link" role="menuitem">Our mission</a>
-              <a href="/transparency" className="auth-gateway__nav-menu-link" role="menuitem">Transparency</a>
-              <a href="/careers" className="auth-gateway__nav-menu-link" role="menuitem">Careers</a>
+              <a href="/about" className="auth-gateway__nav-menu-link" role="menuitem">About</a>
+              <a href="/open-source" className="auth-gateway__nav-menu-link" role="menuitem">Open source</a>
             </div>
           </div>
 
@@ -182,9 +181,6 @@ export default function DownloadPage({
 
             <div className="auth-gateway__footer-social" aria-label="Social links">
               <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><Github size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="LinkedIn" className="auth-gateway__footer-social-link"><Linkedin size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="Instagram" className="auth-gateway__footer-social-link"><Instagram size={16} aria-hidden={true} /></a>
-              <a href="#" aria-label="YouTube" className="auth-gateway__footer-social-link"><Youtube size={16} aria-hidden={true} /></a>
               <a href="mailto:contact@ivoryscribe.com" target="_blank" rel="noopener noreferrer" aria-label="Email" className="auth-gateway__footer-social-link"><Mail size={16} aria-hidden={true} /></a>
             </div>
           </div>
@@ -194,9 +190,9 @@ export default function DownloadPage({
             <p className="auth-gateway__footer-copy">&copy;2026 ivoryscribe. all rights reserved</p>
 
             <div className="auth-gateway__footer-legal" aria-label="Legal">
-              <a href="/transparency">privacy policy</a>
-              <a href="/transparency">terms &amp; conditions</a>
-              <a href="/transparency">cookie settings</a>
+              <a href="#">privacy policy</a>
+              <a href="#">terms &amp; conditions</a>
+              <a href="#">cookie settings</a>
             </div>
           </div>
         </div>
