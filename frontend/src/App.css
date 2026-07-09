@@ -30,7 +30,7 @@
   --menu-button-hover-bg: #e3d7b5;
   --menu-dropdown-bg: #f4ecd5;
   --menu-dropdown-border: #d2c49f;
-  --app-accent: #9ab8ff;
+  --app-accent: #ff306a;
   --app-accent-primary: var(--app-accent);
   --app-accent-secondary: #8f74f0;
   --app-accent-complementary: #c7ccd4;
@@ -108,6 +108,29 @@
   .app :where(*, *::before, *::after, button, input, select, textarea) {
     transition-duration: 0ms !important;
   }
+}
+
+/* Ivory is the base `.app` theme; this explicit class lets a subtree opt into
+   it (e.g. the home-page theme preview) regardless of the app's active palette. */
+.app--palette-ivory {
+  --app-bg: #f8f3e3;
+  --brand-color: #1d180f;
+  --menu-bg: #efe6cb;
+  --menu-border: #d7cba6;
+  --menu-button: #1d170f;
+  --menu-button-hover-bg: #e3d7b5;
+  --menu-dropdown-bg: #f4ecd5;
+  --menu-dropdown-border: #d2c49f;
+  --app-accent: #ff306a;
+  --app-accent-primary: var(--app-accent);
+  --app-accent-secondary: #8f74f0;
+  --app-accent-complementary: #c7ccd4;
+  --app-accent-gold: #b88b3f;
+  --editor-text: #15110b;
+  --editor-title: #1a130b;
+  --editor-placeholder: rgba(62, 50, 30, 0.42);
+  --project-wallpaper-opacity: 0.2;
+  --project-wallpaper-filter: grayscale(1) brightness(0.22) contrast(1.2);
 }
 
 .app--palette-elephant {

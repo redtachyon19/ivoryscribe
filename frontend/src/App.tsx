@@ -5,6 +5,7 @@ import { useEscapeToDeselect } from "./core/hooks/useEscapeToDeselect"
 import { useManualSaveShortcut } from "./core/hooks/useManualSaveShortcut"
 import { useLocalRoot } from "./core/electron/localWorkspace"
 import AppLayout from "./webapp/components/layout/AppLayout"
+import UpdateBanner from "./webapp/components/layout/UpdateBanner"
 import GlobalSettings from "./webapp/components/settings/GlobalSettings"
 import GlobalCaretOverlay from "./webapp/components/layout/GlobalCaretOverlay"
 import VersionHistory from "./webapp/components/version-history/VersionHistory"
@@ -53,6 +54,7 @@ export default function App() {
           <GlobalSettings {...app.settingsProps!} />
           <VersionHistory {...app.versionHistoryProps} />
           <GlobalCaretOverlay />
+          <UpdateBanner />
           {app.isAuthOverlayOpen && (
             <div className="auth-overlay" role="dialog" aria-modal="true">
               <button

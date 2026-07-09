@@ -4,6 +4,7 @@ import { execFile } from "node:child_process"
 import { promises as fsp } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { initAutoUpdater, checkForUpdates } from "./updater"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -203,6 +204,8 @@ function applyNativeMenu(rendererItems: RendererMenuItem[]) {
           label: app.name,
           submenu: [
             { role: "about" as const },
+            { type: "separator" as const },
+            { label: "Check for Updates…", click: () => { void checkForUpdates() } },
             { type: "separator" as const },
             { role: "services" as const },
             { type: "separator" as const },
@@ -732,5 +735,7 @@ if (!gotSingleInstanceLock) {
     createWindow()
     // Set a minimal default menu; the renderer will send the full menu once loaded
     applyNativeMenu([])
+    // Desktop auto-updates (GitHub Releases). No-op in dev / unpackaged builds.
+    initAutoUpdater(() => mainWindow)
   })
 }

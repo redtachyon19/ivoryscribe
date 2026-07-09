@@ -377,6 +377,48 @@
   overflow: visible;
 }
 
+/* No layout box — only carries the previewed palette's CSS variables. */
+.auth-gateway__preview-theme {
+  display: contents;
+}
+
+/* Clickable theme swatches under the editor preview. */
+.auth-gateway__theme-swatches {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.auth-gateway__theme-swatch {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+  cursor: pointer;
+  /* Just the theme background; a faint hairline keeps dark swatches visible.
+     The accent ring only appears on the selected one (below). */
+  background: var(--sw-bg);
+  border: 2px solid color-mix(in srgb, #ffffff 28%, transparent);
+  transition: transform 150ms ease, box-shadow 180ms ease;
+}
+
+.auth-gateway__theme-swatch:hover {
+  transform: scale(1.1);
+}
+
+.auth-gateway__theme-swatch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #0d0d0d, 0 0 0 4px var(--sw-accent);
+}
+
+.auth-gateway__theme-swatch--active {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px #0d0d0d, 0 0 0 4px var(--sw-accent);
+}
+
 .auth-gateway__content-section--orgs {
   margin-top: 44px;
   padding: 0;

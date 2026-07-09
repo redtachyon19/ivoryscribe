@@ -1,8 +1,9 @@
 import { Download, Github, Mail, Rocket } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import EditorPreview from "./EditorPreview"
+import type { Palette } from "../../core/utils/appearance"
 
 export type HomeProps = {
   isLoggedIn?: boolean
@@ -10,12 +11,26 @@ export type HomeProps = {
   onOpenAuth?: () => void
 }
 
+// The six built-in colour themes, shown as clickable swatches under the editor
+// preview so visitors can preview each theme regardless of sign-in state. Each
+// swatch shows the theme's background + accent; clicking re-themes the preview.
+const THEME_SWATCHES: { value: Palette; label: string; bg: string; accent: string }[] = [
+  { value: "ivory", label: "Ivory Tusk", bg: "#f8f3e3", accent: "#ff306a" },
+  { value: "elephant", label: "Elephant", bg: "#121212", accent: "#d9c2a1" },
+  { value: "midnight", label: "Moon & Midnight", bg: "#000000", accent: "#ff306a" },
+  { value: "sunset", label: "Sunset Savannah", bg: "#231715", accent: "#ffb38a" },
+  { value: "woodland", label: "Woodland Forest", bg: "#122017", accent: "#b58b63" },
+  { value: "glacier", label: "Glaciers & Waterfalls", bg: "#0d1a24", accent: "#ffffff" },
+]
+
 export default function Home({
   isLoggedIn = false,
   onLaunchDashboard,
   onOpenAuth,
 }: HomeProps) {
   const [isHeaderScrolled, setIsHeaderScrolled] = useState(false)
+  // Theme previewed in the editor mockup — independent of sign-in state.
+  const [previewPalette, setPreviewPalette] = useState<Palette>("elephant")
 
   useEffect(() => {
     const onScroll = () => {
@@ -120,7 +135,26 @@ export default function Home({
 
       <main className="auth-gateway__sections" aria-label="Landing content sections">
         <section className="auth-gateway__content-section auth-gateway__content-section--preview" aria-label="Writing canvas preview">
-          <EditorPreview onBackToProjects={handleBackToProjects} />
+          {/* `display: contents` wrapper — injects the selected palette's CSS
+              variables into the preview without adding a layout box. */}
+          <div className={`auth-gateway__preview-theme app--palette-${previewPalette}`}>
+            <EditorPreview onBackToProjects={handleBackToProjects} />
+          </div>
+
+          <div className="auth-gateway__theme-swatches" role="group" aria-label="Preview a colour theme">
+            {THEME_SWATCHES.map((swatch) => (
+              <button
+                key={swatch.value}
+                type="button"
+                className={`auth-gateway__theme-swatch ${previewPalette === swatch.value ? "auth-gateway__theme-swatch--active" : ""}`.trim()}
+                style={{ "--sw-bg": swatch.bg, "--sw-accent": swatch.accent } as CSSProperties}
+                onClick={() => setPreviewPalette(swatch.value)}
+                aria-pressed={previewPalette === swatch.value}
+                aria-label={`${swatch.label} theme`}
+                title={swatch.label}
+              />
+            ))}
+          </div>
         </section>
 
         <section className="auth-gateway__content-section auth-gateway__content-section--features" aria-label="Features">
@@ -130,11 +164,11 @@ export default function Home({
           <div className="auth-gateway__feature-rows">
             <article className="auth-gateway__feature-row">
               <figure className="auth-gateway__feature-shot">
-                <div className="auth-gateway__feature-shot-placeholder">Storage</div>
+                <div className="auth-gateway__feature-shot-placeholder">Customization</div>
               </figure>
               <div className="auth-gateway__feature-copy">
-                <h3>Cloud or local — your choice</h3>
-                <p>Keep your projects synced in the cloud so they're on every device, or store them entirely on your own machine. Your writing stays wherever you want it.</p>
+                <h3>Customization</h3>
+                <p>Make the writing space your own — choose from a range of color palettes, pick your fonts, and fine-tune the interface until it feels just right.</p>
               </div>
             </article>
 
@@ -170,11 +204,11 @@ export default function Home({
 
             <article className="auth-gateway__feature-row">
               <figure className="auth-gateway__feature-shot">
-                <div className="auth-gateway__feature-shot-placeholder">Customization</div>
+                <div className="auth-gateway__feature-shot-placeholder">Storage</div>
               </figure>
               <div className="auth-gateway__feature-copy">
-                <h3>Customization</h3>
-                <p>Make the writing space your own — choose from a range of color palettes, pick your fonts, and fine-tune the interface until it feels just right.</p>
+                <h3>Cloud or local — your choice</h3>
+                <p>Keep your projects synced in the cloud so they're on every device, or store them entirely on your own machine. Your writing stays wherever you want it.</p>
               </div>
             </article>
 

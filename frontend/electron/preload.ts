@@ -92,6 +92,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     toPdf: (html: string) =>
       ipcRenderer.invoke("print:toPdf", html) as Promise<{ pdf: Uint8Array; chapterStartPages: number[] }>,
   },
+
+  // Desktop auto-update controls + event stream. See electron/updater.ts.
+  updater: {
+    check: () => ipcRenderer.send("updater:check"),
+    download: () => ipcRenderer.send("updater:download"),
+    install: () => ipcRenderer.send("updater:install"),
+    onEvent: (callback: (event: unknown) => void) => {
+      const handler = (_event: unknown, payload: unknown) => callback(payload)
+      ipcRenderer.on("updater:event", handler)
+      return () => { ipcRenderer.removeListener("updater:event", handler) }
+    },
+  },
 })
 
 if (process.platform === "darwin") {
