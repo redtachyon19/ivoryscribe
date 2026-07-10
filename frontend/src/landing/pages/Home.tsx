@@ -76,7 +76,7 @@ export default function Home({
           <button type="button" className="auth-gateway__nav-trigger" aria-haspopup={true}>Organization</button>
           <div className="auth-gateway__nav-menu" role="menu" aria-label="Organization links">
             <a href="/about" className="auth-gateway__nav-menu-link" role="menuitem">About</a>
-            <a href="/open-source" className="auth-gateway__nav-menu-link" role="menuitem">Open source</a>
+            <a href="/transparency" className="auth-gateway__nav-menu-link" role="menuitem">Transparency</a>
           </div>
         </div>
 

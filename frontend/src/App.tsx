@@ -12,7 +12,7 @@ import VersionHistory from "./webapp/components/version-history/VersionHistory"
 import AlphaBanner from "./landing/components/AlphaBanner"
 import Home from "./landing/pages/Home"
 import AboutPage from "./landing/pages/AboutPage"
-import OpenSourcePage from "./landing/pages/OpenSourcePage"
+import TransparencyPage from "./landing/pages/TransparencyPage"
 import DownloadPage from "./landing/pages/DownloadPage.tsx"
 import AuthPage from "./webapp/pages/AuthPage"
 import Editor from "./webapp/pages/Editor"
@@ -85,8 +85,8 @@ export default function App() {
     content = <Home {...app.homeProps} />
   } else if (app.currentPathname === "/about") {
     content = <AboutPage {...app.homeProps} />
-  } else if (app.currentPathname === "/open-source") {
-    content = <OpenSourcePage {...app.homeProps} />
+  } else if (app.currentPathname === "/transparency") {
+    content = <TransparencyPage {...app.homeProps} />
   } else if (app.currentPathname === "/download") {
     content = <DownloadPage {...app.homeProps} />
   } else if (app.currentPathname === "/auth" || !app.session) {
@@ -102,13 +102,13 @@ export default function App() {
     )
   }
 
-  const landingRoutes = ["/", "/about", "/open-source", "/download", "/auth", "/reset-password"]
+  const landingRoutes = ["/", "/about", "/transparency", "/download", "/auth", "/reset-password"]
   const isWorkspace = isElectron || (app.session && !landingRoutes.includes(app.currentPathname))
 
   // The public marketing pages (the ones built on .auth-gateway-page) get the
   // dismissible alpha notice pinned to the top. Excludes the web /auth and
   // /reset-password screens, the editor, and the Electron app.
-  const marketingRoutes = ["/", "/about", "/open-source", "/download"]
+  const marketingRoutes = ["/", "/about", "/transparency", "/download"]
   const isMarketing =
     !isVersionPreview && !isElectron && !app.isAuthBootstrapping && marketingRoutes.includes(app.currentPathname)
   if (isMarketing) {

@@ -1713,6 +1713,213 @@
   gap: 12px;
 }
 
+/* Essay-style detail page: keep the width + typography, drop the card box. */
+.auth-gateway__detail-card--plain {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+/* ── Open source & support page ──────────────────────────────────────── */
+.opensource-main {
+  flex: 1;
+  padding-top: 140px;
+  padding-bottom: 96px;
+}
+
+.opensource-content {
+  width: min(720px, calc(100% - 48px));
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 64px;
+}
+
+.opensource-section h1 {
+  margin: 0 0 20px;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: clamp(34px, 5vw, 50px);
+  line-height: 1.08;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 97%, transparent);
+}
+
+.opensource-section h2 {
+  margin: 0 0 16px;
+  scroll-margin-top: 120px;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: clamp(24px, 3.4vw, 33px);
+  line-height: 1.12;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 96%, transparent);
+}
+
+.opensource-section p {
+  margin: 0 0 15px;
+  font-family: var(--app-ui-font);
+  font-size: 17px;
+  line-height: 1.62;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+}
+
+.opensource-section p:last-child {
+  margin-bottom: 0;
+}
+
+.opensource-section p strong {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 96%, transparent);
+  font-weight: 700;
+}
+
+.opensource-section .auth-gateway__actions {
+  margin-top: 24px;
+}
+
+/* Two ways to contribute */
+.opensource-ways {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.opensource-way {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 22px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 60%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #161616) 80%, #000);
+}
+
+.opensource-way-icon {
+  display: inline-flex;
+  color: var(--app-accent, #9ab8ff);
+}
+
+.opensource-way h3 {
+  margin: 2px 0 0;
+  font-family: var(--app-ui-font);
+  font-size: 17px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 95%, transparent);
+}
+
+.opensource-way p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.opensource-way a {
+  margin-top: 6px;
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-accent, #9ab8ff);
+  text-decoration: none;
+}
+
+.opensource-way a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Funding goal card */
+.opensource-fund {
+  margin: 12px 0 4px;
+  padding: 22px 24px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 92% -40%, color-mix(in srgb, var(--app-accent, #9ab8ff) 16%, transparent), transparent 46%),
+    color-mix(in srgb, var(--menu-dropdown-bg, #161616) 82%, #000);
+}
+
+.opensource-fund-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.opensource-fund-raised {
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: 34px;
+  line-height: 1;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 97%, transparent);
+}
+
+.opensource-fund-goal {
+  font-family: var(--app-ui-font);
+  font-size: 15px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
+}
+
+.opensource-fund-bar {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, #ffffff 10%, transparent);
+}
+
+.opensource-fund-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--app-accent, #9ab8ff);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--app-accent, #9ab8ff) 55%, transparent);
+  transition: width 400ms ease;
+}
+
+.opensource-fund .opensource-fund-note {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+}
+
+/* Conservation pledge callout */
+.opensource-pledge {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--app-accent, #9ab8ff) 32%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 10%, transparent);
+}
+
+.opensource-pledge-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--app-accent, #9ab8ff);
+}
+
+.opensource-pledge p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
+}
+
+@media (max-width: 640px) {
+  .opensource-main {
+    padding-top: 120px;
+  }
+
+  .opensource-content {
+    gap: 48px;
+  }
+
+  .opensource-ways {
+    grid-template-columns: 1fr;
+  }
+}
+
 .auth-gateway__feature-list {
   margin: 4px 0 0;
   padding-left: 18px;

@@ -1,4 +1,5 @@
 import { Github, Mail, Rocket } from "lucide-react"
+import { useEffect, useState } from "react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import type { HomeProps } from "./Home"
@@ -8,6 +9,23 @@ export default function AboutPage({
   onLaunchDashboard,
   onOpenAuth,
 }: HomeProps) {
+  // Header is transparent at the top and gains the translucent blur once the
+  // page scrolls — same behaviour as the Home page.
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => {
+      setIsHeaderScrolled(window.scrollY > 24)
+    }
+
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener("scroll", onScroll)
+    }
+  }, [])
+
   const handleLogin = () => {
     if (isLoggedIn) {
       onLaunchDashboard?.()
@@ -21,7 +39,7 @@ export default function AboutPage({
 
   return (
     <div className="auth-gateway-page">
-      <header className="auth-gateway__header">
+      <header className={`auth-gateway__header ${isHeaderScrolled ? "auth-gateway__header--scrolled" : ""}`.trim()}>
         <a href="/" className="app-brand auth-gateway__brand" aria-label="Go to home page">
           <span className="app-brand__name">ivoryscribe</span>
         </a>
@@ -31,7 +49,7 @@ export default function AboutPage({
             <button type="button" className="auth-gateway__nav-trigger" aria-haspopup={true}>Organization</button>
             <div className="auth-gateway__nav-menu" role="menu" aria-label="Organization links">
               <a href="/about" className="auth-gateway__nav-menu-link" role="menuitem">About</a>
-              <a href="/open-source" className="auth-gateway__nav-menu-link" role="menuitem">Open source</a>
+              <a href="/transparency" className="auth-gateway__nav-menu-link" role="menuitem">Transparency</a>
             </div>
           </div>
 
@@ -57,15 +75,43 @@ export default function AboutPage({
       </header>
 
       <main className="auth-gateway auth-gateway--detail" aria-label="About page content">
-        <section className="auth-gateway__detail-card">
+        <section className="auth-gateway__detail-card auth-gateway__detail-card--plain">
           <h1>About</h1>
           <p>
-            IvoryScribe is a minimalist, distraction-free writing studio — a calm place to draft long-form work like
-            books, built by an author for authors.
+            Ivoryscribe is inspired by my Indian cultural roots. The name itself comes from one of the oldest stories
+            ever told about writing — the story of how the Mahabharata came to be written down.
           </p>
           <p>
-            It's open source and free to write in. We keep it deliberately lean: fast, focused, and free of the clutter
-            that gets between you and the page. Your words are the only thing on screen.
+            As it's told, the sage Ved Vyas held an epic in his mind so vast that he could not commit it to the page
+            alone. He needed a scribe who could keep pace with him — someone who would not falter, would not pause,
+            would not lose the thread. He found that scribe in Ganesha. Ganesha agreed to write the Mahabharata on a
+            single condition: that the narration must never once break its flow. Word had to follow word, and verse
+            follow verse, without interruption, until the whole of it was set down.
+          </p>
+          <p>
+            And so they wrote. In some tellings of the story, when Ganesha's pen ran dry in the middle of a verse, he
+            refused to stop. So moved by Ved Vyas, and so unwilling to break the flow he had promised to keep, he snapped
+            off one of his own tusks and wrote on with the ivory. That is where this app takes both its name and its
+            heart. Ganesha is the ivoryscribe — the one who gives up a part of himself so that the story is never
+            interrupted.
+          </p>
+          <p>
+            That image — of writing that simply does not stop — is the whole idea behind this canvas. I wanted a place
+            where you could write the way Ved Vyas dictated: continuously, without ever having to break flow. Everything
+            a long-form writer does should happen right here, on the page — drafting, editing, saving, renaming,
+            organizing your chapters — so you never have to leave your words to manage the work around them. And I wanted
+            it to be a place where you never once feel alone while you write.
+          </p>
+          <p>
+            So the design is deliberately spare. Minimalism here isn't really an aesthetic choice so much as a functional
+            one: strip away the menus, the third-party clutter, the endless panels and notifications, and surface only
+            what a long-form writer actually needs, exactly when they need it. The aim is to reduce distraction to almost
+            nothing, and to let the little you do need rise quietly to meet you — never to overwhelm.
+          </p>
+          <p>
+            To be frank, I didn't build this for anyone else. I built it for myself — to edit my first manuscript, and
+            to write my second (the one quietly teased by the Moon &amp; Midnight theme, which happens to be my personal
+            favorite). I've been writing in it every day since. I hope you'll find a home in it too.
           </p>
         </section>
       </main>
