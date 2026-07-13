@@ -1,4 +1,4 @@
-import { useMemo, type Dispatch, type SetStateAction } from "react"
+import { useEffect, useMemo, type Dispatch, type SetStateAction } from "react"
 import AppShell from "../components/layout/AppShell"
 import LibraryRouter from "../components/library/LibraryRouter"
 import EditorWorkspace from "../components/editor/EditorWorkspace"
@@ -230,6 +230,17 @@ export default function Editor({
 
     return findTabTitleById(projectTabs, activeTabId) ?? untitledLabel
   }, [projectTabs, activeTabId, untitledLabel])
+
+  // Reflect the active document's title in the browser tab. Falls back to the
+  // app name in the library view and once the editor unmounts (e.g. back to
+  // the marketing site).
+  useEffect(() => {
+    const editing = view === "editor" && Boolean(activeTabId)
+    document.title = editing ? (activeDocumentTitle.trim() || untitledLabel) : "ivoryscribe"
+    return () => {
+      document.title = "ivoryscribe"
+    }
+  }, [view, activeTabId, activeDocumentTitle, untitledLabel])
 
   const projectExport = useProjectExport(project)
   const spellCheck = useSpellCheckOrchestration({ view, project, activeContent, activeDocumentType, onProjectChange })

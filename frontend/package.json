@@ -35,6 +35,7 @@
     "@tiptap/react": "^3.20.0",
     "@tiptap/starter-kit": "^3.20.0",
     "an-array-of-english-words": "^2.0.0",
+    "electron-updater": "^6.8.9",
     "fast-xml-parser": "^5.7.3",
     "highlight.js": "^11.11.1",
     "jspdf": "^4.2.0",
@@ -71,6 +72,11 @@
   "build": {
     "appId": "com.ivoryscribe.desktop",
     "productName": "Ivoryscribe",
+    "publish": {
+      "provider": "github",
+      "owner": "redtachyon19",
+      "repo": "ivoryscribe"
+    },
     "files": [
       "dist/**/*",
       "dist-electron/**/*"

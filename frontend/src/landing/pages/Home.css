@@ -8,7 +8,18 @@
 }
 
 .auth-gateway-page--home {
+  /* Glows keep their original full % sizes (not shrunk). A black fade layered
+     ON TOP clips the whole wash to black by ~the first card's midpoint — move
+     these vh stops to slide where it ends (lower vh = ends higher). */
   background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent 110vh,
+      color-mix(in srgb, #000000 85%, transparent) 125vh,
+      #000000 140vh,
+      #000000 100%
+    ),
     radial-gradient(
       24% 20% at 58% 14%,
       color-mix(in srgb, var(--app-accent-gold, #c99733) 20%, transparent) 0%,
@@ -43,8 +54,8 @@
     ),
     radial-gradient(
       44% 34% at 66% 22%,
-      color-mix(in srgb, var(--app-accent-complementary, #c7ccd4) 78%, transparent) 0%,
-      color-mix(in srgb, var(--app-accent-complementary, #c7ccd4) 42%, transparent) 42%,
+      color-mix(in srgb, #ff306a 78%, transparent) 0%,
+      color-mix(in srgb, #ff306a 42%, transparent) 42%,
       transparent 74%
     ),
     radial-gradient(
@@ -52,14 +63,6 @@
       color-mix(in srgb, var(--app-accent-secondary, #8f74f0) 40%, var(--app-accent-primary, var(--app-accent, #9ab8ff)) 60%) 0%,
       color-mix(in srgb, var(--app-accent-secondary, #8f74f0) 24%, transparent) 40%,
       transparent 76%
-    ),
-    linear-gradient(
-      180deg,
-      transparent 0%,
-      transparent 34%,
-      color-mix(in srgb, #000000 82%, transparent) 46%,
-      #000000 56%,
-      #000000 100%
     ),
     #000000;
 }
@@ -103,7 +106,7 @@
   right: 0;
   z-index: 24;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: flex-start;
   padding: 18px var(--page-content-gutter, 24px);
   background: transparent;
@@ -120,6 +123,9 @@
 .auth-gateway__brand {
   position: static;
   align-self: flex-start;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -133,6 +139,10 @@
 
 .auth-gateway__brand:hover .app-brand__name {
   color: color-mix(in srgb, var(--brand-color, #f3f3f3) 84%, var(--app-accent, #9ab8ff));
+}
+
+.auth-gateway__brand:hover .app-brand__mark {
+  background-color: color-mix(in srgb, var(--brand-color, #f3f3f3) 84%, var(--app-accent, #9ab8ff));
 }
 
 .auth-gateway__nav {
@@ -241,10 +251,6 @@
   border-radius: 26px;
   display: grid;
   place-items: center;
-  font-family: var(--app-display-font);
-  font-size: clamp(28px, 4vw, 38px);
-  color: color-mix(in srgb, var(--brand-color, #f3f3f3) 88%, transparent);
-  letter-spacing: 0.02em;
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 65%, transparent);
   background:
     radial-gradient(circle at 28% 24%, color-mix(in srgb, var(--app-accent, #9ab8ff) 24%, transparent), transparent 62%),
@@ -252,6 +258,16 @@
   box-shadow:
     0 22px 44px rgba(0, 0, 0, 0.34),
     inset 0 1px 0 color-mix(in srgb, #ffffff 10%, transparent);
+}
+
+/* Ganesha line-art centered in the hero tile, tinted with --brand-color so it
+   matches the surrounding text and adapts to the theme. Placeholder raster. */
+.auth-gateway__hero-mark {
+  width: 66%;
+  height: 66%;
+  background-color: color-mix(in srgb, var(--brand-color, #f3f3f3) 88%, transparent);
+  -webkit-mask: url(/brand-mark.png) center / contain no-repeat;
+  mask: url(/brand-mark.png) center / contain no-repeat;
 }
 
 .auth-gateway h1 {
@@ -355,8 +371,16 @@
 
 .auth-gateway__content-section--cta {
   display: grid;
-  justify-items: start;
+  justify-items: center;
+  text-align: center;
   gap: 12px;
+  margin-top: 120px;
+  /* No bordered card container — sits directly on the page. */
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 0;
+  overflow: visible;
 }
 
 .auth-gateway__content-section--preview {
@@ -364,6 +388,48 @@
   border: 0;
   background: transparent;
   overflow: visible;
+}
+
+/* No layout box — only carries the previewed palette's CSS variables. */
+.auth-gateway__preview-theme {
+  display: contents;
+}
+
+/* Clickable theme swatches under the editor preview. */
+.auth-gateway__theme-swatches {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.auth-gateway__theme-swatch {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+  cursor: pointer;
+  /* Just the theme background; a faint hairline keeps dark swatches visible.
+     The accent ring only appears on the selected one (below). */
+  background: var(--sw-bg);
+  border: 2px solid color-mix(in srgb, #ffffff 28%, transparent);
+  transition: transform 150ms ease, box-shadow 180ms ease;
+}
+
+.auth-gateway__theme-swatch:hover {
+  transform: scale(1.1);
+}
+
+.auth-gateway__theme-swatch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #0d0d0d, 0 0 0 4px var(--sw-accent);
+}
+
+.auth-gateway__theme-swatch--active {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px #0d0d0d, 0 0 0 4px var(--sw-accent);
 }
 
 .auth-gateway__content-section--orgs {
@@ -383,7 +449,7 @@
 }
 
 .auth-gateway__content-section--testimonials {
-  margin-top: 26px;
+  margin-top: 120px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1483,40 +1549,137 @@
   white-space: nowrap;
 }
 
-.auth-gateway__feature-list {
-  margin: 12px 0 0;
-  padding-left: 18px;
-  display: grid;
-  gap: 8px;
+/* ── Feature rows: full-width, screenshot on one side, copy on the other,
+   flipping sides each row. ─────────────────────────────────────────────── */
+
+/* The features section opts out of the bordered card container the other
+   content sections use, and widens past the 980px column so the screenshots
+   can be large. The negative margin is symmetric (equal both sides) so it stays
+   centred; it's reset on smaller screens where there's no room (below). */
+.auth-gateway__content-section--features {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 0;
+  overflow: visible;
+  margin-inline: -150px;
+  /* Breathing room from the app-preview section above. */
+  margin-top: 120px;
 }
 
-.auth-gateway__feature-list li {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+@media (max-width: 1200px) {
+  .auth-gateway__content-section--features {
+    margin-inline: 0;
+  }
+}
+
+.auth-gateway__feature-rows {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 72px;
+}
+
+.auth-gateway__feature-row {
+  display: grid;
+  /* Image side gets the larger share of the row. */
+  grid-template-columns: 1.5fr 1fr;
+  gap: 56px;
+  align-items: center;
+}
+
+/* Odd rows: image left (wide col first). Even rows: image right (wide col
+   second), so the screenshot stays the larger side on both. */
+.auth-gateway__feature-row:nth-child(even) {
+  grid-template-columns: 1fr 1.5fr;
+}
+
+.auth-gateway__feature-row:nth-child(even) .auth-gateway__feature-shot {
+  order: 2;
+}
+
+.auth-gateway__feature-shot {
+  position: relative;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 55%, transparent);
+  border-radius: 16px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #141414) 88%, #000);
+  aspect-ratio: 16 / 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-gateway__feature-shot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.auth-gateway__feature-shot-placeholder {
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 40%, transparent);
+}
+
+.auth-gateway__feature-copy h3 {
+  margin: 0 0 10px;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 97%, transparent);
+}
+
+.auth-gateway__feature-copy p {
+  margin: 0;
+  max-width: 46ch;
   font-family: var(--app-ui-font);
   font-size: 16px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+}
+
+.auth-gateway__feature-tag {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--app-accent, #9ab8ff) 45%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 16%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 92%, transparent);
 }
 
 .auth-gateway__testimonials {
-  margin-top: 12px;
+  margin-top: 24px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
-  width: calc(100vw - 64px);
+  gap: 72px 100px;
+  width: min(1200px, 100vw - 220px);
   margin-left: 50%;
   transform: translateX(-50%);
 }
 
+/* Plain text — no card box, no avatar. Centered. */
 .auth-gateway__testimonial-card {
   border: 0;
-  border-radius: 12px;
-  padding: 30px;
-  aspect-ratio: 1.45 / 1;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 14px;
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #1a1a1a) 72%, transparent);
+  align-items: center;
+  gap: 10px;
+  background: none;
+  text-align: center;
 }
 
 .auth-gateway__testimonial-avatar {
@@ -1534,14 +1697,10 @@
   font-family: var(--app-ui-font);
   font-size: 17px;
   line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .auth-gateway__testimonial-author {
-  margin: auto 0 0;
+  margin: 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
   font-family: var(--app-ui-font);
   font-size: 16px;
@@ -1567,6 +1726,237 @@
   gap: 12px;
 }
 
+/* Essay-style detail page: keep the width + typography, drop the card box. */
+.auth-gateway__detail-card--plain {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+/* ── Open source & support page ──────────────────────────────────────── */
+.opensource-main {
+  flex: 1;
+  padding-top: 140px;
+  padding-bottom: 96px;
+}
+
+.opensource-content {
+  width: min(720px, calc(100% - 48px));
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 64px;
+}
+
+.opensource-section h1 {
+  margin: 0 0 20px;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: clamp(34px, 5vw, 50px);
+  line-height: 1.08;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 97%, transparent);
+}
+
+.opensource-section h2 {
+  margin: 0 0 16px;
+  scroll-margin-top: 120px;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: clamp(24px, 3.4vw, 33px);
+  line-height: 1.12;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 96%, transparent);
+}
+
+.opensource-section p {
+  margin: 0 0 15px;
+  font-family: var(--app-ui-font);
+  font-size: 17px;
+  line-height: 1.62;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+}
+
+.opensource-section p:last-child {
+  margin-bottom: 0;
+}
+
+.opensource-section p strong {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 96%, transparent);
+  font-weight: 700;
+}
+
+.opensource-section .auth-gateway__actions {
+  margin-top: 24px;
+}
+
+/* Two ways to contribute */
+.opensource-ways {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.opensource-way {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 22px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 60%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #161616) 80%, #000);
+}
+
+.opensource-way-icon {
+  display: inline-flex;
+  color: var(--app-accent, #9ab8ff);
+}
+
+.opensource-way h3 {
+  margin: 2px 0 0;
+  font-family: var(--app-ui-font);
+  font-size: 17px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 95%, transparent);
+}
+
+.opensource-way p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.opensource-way a {
+  margin-top: 6px;
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-accent, #9ab8ff);
+  text-decoration: none;
+}
+
+.opensource-way a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Funding goal card */
+.opensource-fund {
+  margin: 12px 0 4px;
+  padding: 22px 24px;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 92% -40%, color-mix(in srgb, var(--app-accent, #9ab8ff) 16%, transparent), transparent 46%),
+    color-mix(in srgb, var(--menu-dropdown-bg, #161616) 82%, #000);
+}
+
+.opensource-fund-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.opensource-fund-raised {
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: 34px;
+  line-height: 1;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 97%, transparent);
+}
+
+.opensource-fund-goal {
+  font-family: var(--app-ui-font);
+  font-size: 15px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
+}
+
+.opensource-fund-bar {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, #ffffff 10%, transparent);
+}
+
+.opensource-fund-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--app-accent, #9ab8ff);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--app-accent, #9ab8ff) 55%, transparent);
+  transition: width 400ms ease;
+}
+
+.opensource-fund .opensource-fund-note {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+}
+
+/* Conservation pledge callout */
+.opensource-pledge {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--app-accent, #9ab8ff) 32%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 10%, transparent);
+}
+
+.opensource-pledge-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--app-accent, #9ab8ff);
+}
+
+.opensource-pledge p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
+}
+
+@media (max-width: 640px) {
+  .opensource-main {
+    padding-top: 120px;
+  }
+
+  .opensource-content {
+    gap: 48px;
+  }
+
+  .opensource-ways {
+    grid-template-columns: 1fr;
+  }
+}
+
+.auth-gateway__feature-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.auth-gateway__feature-list li {
+  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+  font-family: var(--app-ui-font);
+  font-size: 16px;
+}
+
+/* Sub-heading within a detail card (e.g. "Support the project" on the open
+   source page); scroll-margin keeps it clear of the fixed header when linked. */
+.auth-gateway__detail-subheading {
+  margin: 28px 0 0;
+  scroll-margin-top: 120px;
+  font-family: var(--app-display-font);
+  font-weight: 500;
+  font-size: clamp(20px, 3vw, 26px);
+  color: var(--brand-color, #f3f3f3);
+}
+
 .auth-gateway__detail-card h1 {
   margin: 0;
   font-family: var(--app-display-font);
@@ -1582,44 +1972,202 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
 }
 
-.auth-gateway__downloads {
+/* ── Download page: full-bleed macOS | Windows split ─────────────────── */
+.download-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding-top: 180px;
+  padding-bottom: 44px;
+}
+
+.download-intro {
+  text-align: center;
+  padding: 0 24px 120px;
+}
+
+.download-intro h1 {
+  margin: 0 0 8px;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: 40px;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 96%, transparent);
+}
+
+.download-intro p {
+  margin: 0;
+  font-family: var(--app-ui-font);
+  font-size: 16px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+}
+
+/* Black background instead of the palette's near-black "elephant grey". */
+.auth-gateway-page.auth-gateway-page--download {
+  background: #000;
+}
+
+.download-sections {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* One full-bleed band per OS; the glow washes the whole band, the inner grid
+   keeps the content aligned to the page. */
+.download-section {
+  position: relative;
+  width: 100%;
+}
+
+.download-section--mac {
+  background: radial-gradient(58% 130% at 76% 50%, color-mix(in srgb, #ff306a 14%, transparent), transparent 68%);
+}
+
+.download-section--windows {
+  background: radial-gradient(58% 130% at 26% 50%, color-mix(in srgb, #f4ead2 10%, transparent), transparent 68%);
+}
+
+.download-section__inner {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 44px 24px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(300px, 1fr) 1.15fr;
+  gap: 40px;
+  align-items: center;
+}
+
+.download-section__info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 10px;
-  margin-top: 6px;
+}
+
+/* Full-width rule between the two OS bands. */
+.download-divider {
+  width: 100%;
+  height: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 55%, transparent);
+}
+
+/* OS brand mark sits inside the Download button. */
+.download-option__cta-logo {
+  height: 15px;
+  width: auto;
+  flex: none;
+}
+
+.download-section--mac .download-option__cta-logo {
+  color: #f5f5f7;
+}
+
+.download-section--windows .download-option__cta-logo {
+  color: #3b9eff;
+}
+
+/* Same EB Garamond display treatment as the "Download IvoryScribe" heading. */
+.download-option__title {
+  margin: 0;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 97%, transparent);
+}
+
+.download-option__note {
+  margin: 0;
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 68%, transparent);
+}
+
+/* Smaller than the default CTA button. */
+.download-option__cta {
+  margin-top: 4px;
+  font-size: 14px;
+  padding: 8px 16px;
+}
+
+/* Per-OS screenshot frame (swap placeholder for <img>). */
+.download-shot {
+  position: relative;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 55%, transparent);
+  border-radius: 14px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #141414) 88%, #000);
+  aspect-ratio: 16 / 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.download-shot__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.download-shot__placeholder {
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 40%, transparent);
+}
+
+.download-shot__caption {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(4px);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+}
+
+.download-browser-hint {
+  margin: 30px auto 0;
+  text-align: center;
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+}
+
+.download-browser-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--app-accent, #9ab8ff);
+  cursor: pointer;
+  text-underline-offset: 3px;
+}
+
+.download-browser-link:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 980px) {
   .auth-gateway__testimonials {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
-
-.auth-gateway__download-card {
-  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
-  border-radius: 12px;
-  padding: 12px;
-  display: grid;
-  gap: 10px;
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #1a1a1a) 74%, transparent);
-}
-
-.auth-gateway__download-card h3 {
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--app-ui-font);
-  font-size: 15px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 94%, transparent);
-}
-
-.auth-gateway__download-card p {
-  margin: 0;
-  font-family: var(--app-ui-font);
-  font-size: 14px;
-  line-height: 1.35;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 76%, transparent);
 }
 
 @keyframes auth-gateway-ticker {
@@ -1706,7 +2254,7 @@
   width: min(1080px, 100%);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(220px, 0.95fr) minmax(280px, 1fr) minmax(260px, 0.95fr);
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr);
   gap: 20px 28px;
   align-items: start;
 }
@@ -1761,19 +2309,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 75%, transparent);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #1d1d1d) 72%, transparent);
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
   text-decoration: none;
+  transition: color 140ms ease;
 }
 
 .auth-gateway__footer-social-link:hover {
-  color: var(--menu-button, #ededed);
-  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 52%, transparent);
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, var(--menu-dropdown-bg, #1d1d1d));
+  color: #f4ead2;
 }
 
 .auth-gateway__footer-columns {
@@ -1859,6 +2401,11 @@
     gap: 10px;
     align-items: flex-start;
     flex-wrap: wrap;
+  }
+
+  .auth-gateway__brand .app-brand__mark {
+    width: 34px;
+    height: 34px;
   }
 
   .auth-gateway__brand .app-brand__name {
@@ -2027,8 +2574,40 @@
     grid-template-columns: 1fr;
   }
 
-  .auth-gateway__downloads {
+  .download-main {
+    padding-top: 150px;
+  }
+
+  .download-section__inner {
     grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 32px 16px;
+  }
+
+  .download-option__title {
+    font-size: 25px;
+  }
+
+  .auth-gateway__feature-rows {
+    gap: 44px;
+  }
+
+  .auth-gateway__feature-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  /* Stack image-above-copy on every row (no flipping on mobile). */
+  .auth-gateway__feature-row:nth-child(even) .auth-gateway__feature-shot {
+    order: 0;
+  }
+
+  .auth-gateway__feature-copy h3 {
+    font-size: 25px;
+  }
+
+  .download-intro h1 {
+    font-size: 32px;
   }
 
   .auth-gateway--detail {

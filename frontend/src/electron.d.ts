@@ -1,5 +1,14 @@
 export {}
 
+/** Payloads pushed from the main process's auto-updater (electron/updater.ts). */
+export type UpdaterEvent =
+  | { status: "checking" }
+  | { status: "available"; version: string }
+  | { status: "not-available" }
+  | { status: "downloading"; percent: number }
+  | { status: "downloaded"; version: string }
+  | { status: "error"; message: string }
+
 export type FsEntry = {
   name: string
   path: string
@@ -87,6 +96,19 @@ declare global {
          *  per-chapter outline. `chapterStartPages` is empty if the pagination
          *  runtime didn't report them. */
         toPdf: (html: string) => Promise<{ pdf: Uint8Array; chapterStartPages: number[] }>
+      }
+
+      /** Desktop auto-updates (GitHub Releases). Present only in packaged
+       *  builds; the in-app UpdateBanner drives these. */
+      updater?: {
+        /** Manually trigger an update check. */
+        check: () => void
+        /** Start downloading an available update (call after "available"). */
+        download: () => void
+        /** Quit and install a downloaded update, relaunching afterwards. */
+        install: () => void
+        /** Subscribe to updater state changes. Returns an unsubscribe fn. */
+        onEvent: (callback: (event: UpdaterEvent) => void) => () => void
       }
     }
   }

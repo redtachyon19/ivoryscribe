@@ -416,10 +416,12 @@ export default function DocumentTabsPanel({
 
       <header className="doc-tabs__header">
         <p className="doc-tabs__project-name" data-marquee-parent><MarqueeText text={projectName} /></p>
-        {/* Phase 7: per-kind plural heading. Books say "Chapters", Presentations
-            "Slides". Single-document kinds never reach this component (the
-            list is suppressed entirely by NavigationPanel). */}
-        <p className="doc-tabs__entry-heading" aria-hidden="true">{plural}</p>
+        {/* Phase 7: per-kind count + plural heading, e.g. "5 Chapters" / "1 Chapter"
+            ("Slides" for Presentations). Single-document kinds never reach this
+            component (the list is suppressed entirely by NavigationPanel). */}
+        <p className="doc-tabs__entry-heading" aria-hidden="true">
+          {tabIds.length} {tabIds.length === 1 ? singular : plural}
+        </p>
       </header>
 
       <div

@@ -5,15 +5,15 @@ import { useEscapeToDeselect } from "./core/hooks/useEscapeToDeselect"
 import { useManualSaveShortcut } from "./core/hooks/useManualSaveShortcut"
 import { useLocalRoot } from "./core/electron/localWorkspace"
 import AppLayout from "./webapp/components/layout/AppLayout"
+import UpdateBanner from "./webapp/components/layout/UpdateBanner"
 import GlobalSettings from "./webapp/components/settings/GlobalSettings"
 import GlobalCaretOverlay from "./webapp/components/layout/GlobalCaretOverlay"
 import VersionHistory from "./webapp/components/version-history/VersionHistory"
+import AlphaBanner from "./landing/components/AlphaBanner"
 import Home from "./landing/pages/Home"
-import MissionPage from "./landing/pages/MissionPage"
+import AboutPage from "./landing/pages/AboutPage"
 import TransparencyPage from "./landing/pages/TransparencyPage"
-import ProductsPricingPage from "./landing/pages/ProductsPricingPage"
 import DownloadPage from "./landing/pages/DownloadPage.tsx"
-import CareersPage from "./landing/pages/CareersPage"
 import AuthPage from "./webapp/pages/AuthPage"
 import Editor from "./webapp/pages/Editor"
 import VersionPreviewPage from "./webapp/pages/VersionPreviewPage"
@@ -54,6 +54,7 @@ export default function App() {
           <GlobalSettings {...app.settingsProps!} />
           <VersionHistory {...app.versionHistoryProps} />
           <GlobalCaretOverlay />
+          <UpdateBanner />
           {app.isAuthOverlayOpen && (
             <div className="auth-overlay" role="dialog" aria-modal="true">
               <button
@@ -82,14 +83,10 @@ export default function App() {
     content = <section className="app-loading"><p>Loading workspace...</p></section>
   } else if (app.currentPathname === "/") {
     content = <Home {...app.homeProps} />
-  } else if (app.currentPathname === "/mission") {
-    content = <MissionPage {...app.homeProps} />
+  } else if (app.currentPathname === "/about") {
+    content = <AboutPage {...app.homeProps} />
   } else if (app.currentPathname === "/transparency") {
     content = <TransparencyPage {...app.homeProps} />
-  } else if (app.currentPathname === "/careers") {
-    content = <CareersPage {...app.homeProps} />
-  } else if (app.currentPathname === "/products-pricing") {
-    content = <ProductsPricingPage {...app.homeProps} />
   } else if (app.currentPathname === "/download") {
     content = <DownloadPage {...app.homeProps} />
   } else if (app.currentPathname === "/auth" || !app.session) {
@@ -105,8 +102,23 @@ export default function App() {
     )
   }
 
-  const landingRoutes = ["/", "/mission", "/transparency", "/careers", "/products-pricing", "/download", "/auth", "/reset-password"]
+  const landingRoutes = ["/", "/about", "/transparency", "/download", "/auth", "/reset-password"]
   const isWorkspace = isElectron || (app.session && !landingRoutes.includes(app.currentPathname))
+
+  // The public marketing pages (the ones built on .auth-gateway-page) get the
+  // dismissible alpha notice pinned to the top. Excludes the web /auth and
+  // /reset-password screens, the editor, and the Electron app.
+  const marketingRoutes = ["/", "/about", "/transparency", "/download"]
+  const isMarketing =
+    !isVersionPreview && !isElectron && !app.isAuthBootstrapping && marketingRoutes.includes(app.currentPathname)
+  if (isMarketing) {
+    content = (
+      <>
+        <AlphaBanner />
+        {content}
+      </>
+    )
+  }
 
   return (
     <AppLayout

@@ -90,7 +90,6 @@ export default function AppLayout({
             onClick={onNavigateHome}
           >
             <span className="app-brand__name">ivoryscribe</span>
-            <span className="app-brand__tagline">write an epic. save a species.</span>
           </button>
         )}
         <div className="app-view">

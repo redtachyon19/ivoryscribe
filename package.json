@@ -2,6 +2,7 @@
   "name": "ivoryscribe",
   "private": true,
   "version": "0.0.0",
+  "license": "MIT",
   "scripts": {
     "dev": "concurrently -n frontend,backend -c cyan,green \"npm --prefix frontend run dev\" \"npm --prefix backend run dev\"",
     "dev:lan": "node scripts/print-lan-links.mjs && concurrently -n frontend,backend -c cyan,green \"npm --prefix frontend run dev:lan\" \"npm --prefix backend run dev:lan\"",

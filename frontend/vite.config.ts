@@ -14,6 +14,16 @@ export default defineConfig(({ command }) => {
             electron({
               main: {
                 entry: 'electron/main.ts',
+                vite: {
+                  build: {
+                    rollupOptions: {
+                      // electron-updater has dynamic provider requires that don't
+                      // bundle cleanly — keep it external so it's required from
+                      // node_modules at runtime (electron-builder ships it).
+                      external: ['electron-updater'],
+                    },
+                  },
+                },
               },
               preload: {
                 input: 'electron/preload.ts',

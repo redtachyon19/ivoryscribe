@@ -1,0 +1,91 @@
+:root {
+  --alpha-banner-height: 28px;
+}
+
+.alpha-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40; /* above the landing header (z-index 24) */
+  min-height: var(--alpha-banner-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  /* extra right padding leaves room for the absolutely-positioned close button */
+  padding: 3px 40px;
+  background: var(--app-accent, #9ab8ff);
+  color: #141210;
+  text-align: center;
+}
+
+.alpha-banner__text {
+  margin: 0;
+  font-family: "Lato", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.alpha-banner__text strong {
+  font-weight: 700;
+}
+
+.alpha-banner__close {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+.alpha-banner__close:hover {
+  background: color-mix(in srgb, #000 14%, transparent);
+}
+
+.alpha-banner__close:focus-visible {
+  outline: 2px solid #141210;
+  outline-offset: 1px;
+}
+
+/* Reserve space for the fixed banner while it's visible: push the landing page
+   content down and slide the fixed landing header below the banner. Removing
+   `has-alpha-banner` (dismissal / leaving the marketing site) restores both. */
+html.has-alpha-banner .auth-gateway-page {
+  /* border-box so the reserved strip comes out of the min-height:100vh rather
+     than adding 40px of always-present scroll on top of it. */
+  box-sizing: border-box;
+  padding-top: var(--alpha-banner-height);
+}
+
+html.has-alpha-banner .auth-gateway__header {
+  top: var(--alpha-banner-height);
+}
+
+@media (max-width: 640px) {
+  :root {
+    --alpha-banner-height: 44px;
+  }
+
+  .alpha-banner {
+    padding-left: 14px;
+    padding-right: 36px;
+  }
+
+  .alpha-banner__text {
+    font-size: 12px;
+  }
+}
