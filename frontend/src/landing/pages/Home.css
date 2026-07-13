@@ -123,6 +123,9 @@
 .auth-gateway__brand {
   position: static;
   align-self: flex-start;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -136,6 +139,10 @@
 
 .auth-gateway__brand:hover .app-brand__name {
   color: color-mix(in srgb, var(--brand-color, #f3f3f3) 84%, var(--app-accent, #9ab8ff));
+}
+
+.auth-gateway__brand:hover .app-brand__mark {
+  background-color: color-mix(in srgb, var(--brand-color, #f3f3f3) 84%, var(--app-accent, #9ab8ff));
 }
 
 .auth-gateway__nav {
@@ -244,10 +251,6 @@
   border-radius: 26px;
   display: grid;
   place-items: center;
-  font-family: var(--app-display-font);
-  font-size: clamp(28px, 4vw, 38px);
-  color: color-mix(in srgb, var(--brand-color, #f3f3f3) 88%, transparent);
-  letter-spacing: 0.02em;
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 65%, transparent);
   background:
     radial-gradient(circle at 28% 24%, color-mix(in srgb, var(--app-accent, #9ab8ff) 24%, transparent), transparent 62%),
@@ -255,6 +258,16 @@
   box-shadow:
     0 22px 44px rgba(0, 0, 0, 0.34),
     inset 0 1px 0 color-mix(in srgb, #ffffff 10%, transparent);
+}
+
+/* Ganesha line-art centered in the hero tile, tinted with --brand-color so it
+   matches the surrounding text and adapts to the theme. Placeholder raster. */
+.auth-gateway__hero-mark {
+  width: 66%;
+  height: 66%;
+  background-color: color-mix(in srgb, var(--brand-color, #f3f3f3) 88%, transparent);
+  -webkit-mask: url(/brand-mark.png) center / contain no-repeat;
+  mask: url(/brand-mark.png) center / contain no-repeat;
 }
 
 .auth-gateway h1 {
@@ -2388,6 +2401,11 @@
     gap: 10px;
     align-items: flex-start;
     flex-wrap: wrap;
+  }
+
+  .auth-gateway__brand .app-brand__mark {
+    width: 34px;
+    height: 34px;
   }
 
   .auth-gateway__brand .app-brand__name {

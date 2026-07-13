@@ -68,6 +68,7 @@ export default function Home({
   const header = (
     <header className={`auth-gateway__header ${isHeaderScrolled ? "auth-gateway__header--scrolled" : ""}`.trim()}>
       <a href="/" className="app-brand auth-gateway__brand" aria-label="Go to home page">
+        <span className="app-brand__mark" aria-hidden={true} />
         <span className="app-brand__name">ivoryscribe</span>
       </a>
 
@@ -108,7 +109,9 @@ export default function Home({
 
       <section className="auth-gateway auth-gateway--landing" id="home" aria-label="Home">
         <div className="auth-gateway__hero">
-          <div className="auth-gateway__hero-icon" aria-hidden={true}>IS</div>
+          <div className="auth-gateway__hero-icon" aria-hidden={true}>
+            <span className="auth-gateway__hero-mark" />
+          </div>
           <h1>
             A minimalist, distraction free, writing canvas.
             <br />

@@ -72,6 +72,7 @@ export default function DownloadPage({
     <div className="auth-gateway-page auth-gateway-page--download">
       <header className={`auth-gateway__header ${isHeaderScrolled ? "auth-gateway__header--scrolled" : ""}`.trim()}>
         <a href="/" className="app-brand auth-gateway__brand" aria-label="Go to home page">
+          <span className="app-brand__mark" aria-hidden={true} />
           <span className="app-brand__name">ivoryscribe</span>
         </a>
 
