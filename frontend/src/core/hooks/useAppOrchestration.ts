@@ -199,12 +199,26 @@ export function useAppOrchestration() {
   // keep refs in sync for logout callback
   billingResetRef.current = billing.reset
 
-  // Electron+local mode: the user's filesystem is the source of truth for
-  // In local mode, the disk is the source of truth — block cloud hydration
-  // from ever pulling `projects[]` from /api/sync, which would otherwise
-  // replace the user's local files with whatever was on the server (or wipe
-  // them if the server is empty). Passing null `session` makes every
-  // useWorkspaceHydration effect bail out at its `if (!session)` guard.
+  // Electron is ALWAYS local-first: the user's filesystem is the source of
+  // truth and cloud Documents arrive exclusively through
+  // useCloudProjectsInLocalMode. useWorkspaceHydration's cloud fetch must
+  // NEVER run here — it would pull `projects[]` from /api/sync and replace
+  // the user's local files with whatever's on the server (or wipe them, or
+  // create a stray "Book 1", if the server is empty).
+  //
+  // The gate below is `isElectron`, not `isLocalMode`. `isLocalMode` depends
+  // on `localRoot.root`, which resolves asynchronously — so on the first
+  // render(s) after a reload it's still false even though we're really in
+  // local mode. During that window a restored session would kick off a cloud
+  // hydrate that we can't cancel; when it lands (a beat after the disk has
+  // loaded) it stomps the local files and forces the view back to the
+  // library. Gating on `isElectron` (known synchronously) closes that race:
+  // in Electron the hydrator always sees `session: null` and bails at its
+  // `if (!session)` guard.
+  //
+  // (`isLocalMode` implies `isElectron`, so this is strictly broader than the
+  // old `isLocalMode` gate — the only cases it newly covers are exactly the
+  // pre-root-resolution renders that caused the bug.)
   const workspaceMutators: WorkspaceMutators = useMemo(() => ({
     setIsAuthBootstrapping, setAuthLoadError,
     onAuthFailure: (message) => {
@@ -236,7 +250,7 @@ export function useAppOrchestration() {
   ])
 
   const { sharedDocumentIdsRef, shareIdByProjectIdRef, ownerEmailByProjectIdRef, permanentlyDeleteProjects } = useWorkspaceHydration({
-    session: isLocalMode ? null : session,
+    session: isElectron ? null : session,
     mutators: workspaceMutators,
     isWorkspaceHydrated, projectDocumentMap,
     projects, activeProjectId, palette: style.palette,

@@ -149,7 +149,7 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
   // Maps project ID → owner email for projects shared WITH this user (recipient side).
   const ownerEmailByProjectIdRef = useRef<Map<string, string>>(new Map())
 
-  const hydrateWorkspace = async (token: string) => {
+  const hydrateWorkspace = async (token: string, isStale?: () => boolean) => {
     const [documentsResult, preferencesResult, billingResult, sharedResult, pendingResult] = await Promise.allSettled([
       getDocuments(token),
       getPreferences(token),
@@ -157,6 +157,15 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
       getSharedWithMe(token),
       getPendingShareRequests(token),
     ])
+
+    // If this run was superseded while the fetch was in flight — the session
+    // changed, or (in Electron) the workspace resolved to local mode — drop
+    // the result on the floor. Every setter below happens after this await,
+    // so a single early return here guarantees a stale run applies nothing:
+    // no clobbering freshly-loaded local files, no forced view reset. We
+    // return rather than throw so the caller's `catch` fallback doesn't fire
+    // either.
+    if (isStale?.()) return
 
     if (documentsResult.status === "rejected") {
       throw documentsResult.reason
@@ -267,6 +276,12 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
   // Bootstrap effect
   useEffect(() => {
+    // Superseded when the effect re-runs (session change) or unmounts. A
+    // hydrate started here may still be awaiting the network when that
+    // happens; `cancelled` lets both hydrateWorkspace and the code below
+    // discard the stale result instead of writing it into shared state.
+    let cancelled = false
+
     const bootstrapSession = async () => {
       if (!session) {
         setIsAuthBootstrapping(false)
@@ -276,10 +291,12 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
       }
 
       try {
-        await hydrateWorkspace(session.token)
+        await hydrateWorkspace(session.token, () => cancelled)
+        if (cancelled) return
         setIsWorkspaceHydrated(true)
         setAuthLoadError("")
       } catch (error) {
+        if (cancelled) return
         const message = error instanceof Error ? error.message : "Workspace load failed"
 
         if (message.includes("[401]") || message.toLowerCase().includes("unauthorized")) {
@@ -296,11 +313,12 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           setAuthLoadError("")
         }
       } finally {
-        setIsAuthBootstrapping(false)
+        if (!cancelled) setIsAuthBootstrapping(false)
       }
     }
 
     void bootstrapSession()
+    return () => { cancelled = true }
   }, [session])
 
   // Cleanup timeout on unmount
