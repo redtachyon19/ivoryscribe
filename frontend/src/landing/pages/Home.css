@@ -245,29 +245,16 @@
   gap: 14px;
 }
 
+/* The hero logo is the actual app icon (public/icon.png — the same file
+   electron-builder ships as the desktop app icon). It already includes the
+   rounded-square tile and artwork, so we render it directly rather than
+   reconstructing a look-alike tile. drop-shadow (not box-shadow) follows the
+   icon's own alpha, so the shadow hugs its rounded corners. */
 .auth-gateway__hero-icon {
   width: clamp(76px, 8.6vw, 98px);
   height: clamp(76px, 8.6vw, 98px);
-  border-radius: 26px;
-  display: grid;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 65%, transparent);
-  background:
-    radial-gradient(circle at 28% 24%, color-mix(in srgb, var(--app-accent, #9ab8ff) 24%, transparent), transparent 62%),
-    linear-gradient(165deg, color-mix(in srgb, var(--menu-dropdown-bg, #1a1a1a) 95%, #000000), color-mix(in srgb, var(--menu-dropdown-bg, #1a1a1a) 80%, #000000));
-  box-shadow:
-    0 22px 44px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 color-mix(in srgb, #ffffff 10%, transparent);
-}
-
-/* Ganesha line-art centered in the hero tile, tinted with --brand-color so it
-   matches the surrounding text and adapts to the theme. Placeholder raster. */
-.auth-gateway__hero-mark {
-  width: 66%;
-  height: 66%;
-  background-color: color-mix(in srgb, var(--brand-color, #f3f3f3) 88%, transparent);
-  -webkit-mask: url(/brand-mark.png) center / contain no-repeat;
-  mask: url(/brand-mark.png) center / contain no-repeat;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 44px rgba(0, 0, 0, 0.34));
 }
 
 .auth-gateway h1 {

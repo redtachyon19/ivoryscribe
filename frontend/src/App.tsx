@@ -1,5 +1,5 @@
 import "./App.css"
-import { type ReactNode } from "react"
+import { type CSSProperties, type ReactNode } from "react"
 import { useAppOrchestration } from "./core/hooks/useAppOrchestration"
 import { useEscapeToDeselect } from "./core/hooks/useEscapeToDeselect"
 import { useManualSaveShortcut } from "./core/hooks/useManualSaveShortcut"
@@ -120,10 +120,25 @@ export default function App() {
     )
   }
 
+  // The marketing pages are always shown in the Elephant (dark) theme,
+  // regardless of the signed-in user's saved palette. Force the palette class
+  // and drop any inline custom-palette colour overrides so the Elephant CSS
+  // class isn't overridden by a "custom" palette's inline vars (the font
+  // variables are kept).
+  const isMarketingRoute = !isElectron && marketingRoutes.includes(app.currentPathname)
+  const layoutPalette = isMarketingRoute ? "elephant" : app.style.palette
+  const layoutStyleVariables = (
+    isMarketingRoute
+      ? Object.fromEntries(
+          Object.entries(app.style.appStyleVariables).filter(([key]) => key.endsWith("-font")),
+        )
+      : app.style.appStyleVariables
+  ) as CSSProperties
+
   return (
     <AppLayout
-      palette={app.style.palette}
-      appStyleVariables={app.style.appStyleVariables}
+      palette={layoutPalette}
+      appStyleVariables={layoutStyleVariables}
       menuBarEnabled={app.menuBarProps.enabled}
       menuItems={app.menuBarProps.items}
       showBrand={!isVersionPreview && Boolean(isWorkspace) && !isElectron}

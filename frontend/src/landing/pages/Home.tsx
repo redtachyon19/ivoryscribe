@@ -109,9 +109,12 @@ export default function Home({
 
       <section className="auth-gateway auth-gateway--landing" id="home" aria-label="Home">
         <div className="auth-gateway__hero">
-          <div className="auth-gateway__hero-icon" aria-hidden={true}>
-            <span className="auth-gateway__hero-mark" />
-          </div>
+          <img
+            src="/icon.png"
+            alt=""
+            className="auth-gateway__hero-icon"
+            aria-hidden={true}
+          />
           <h1>
             A minimalist, distraction free, writing canvas.
             <br />
