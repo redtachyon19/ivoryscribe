@@ -190,8 +190,6 @@
   cursor: not-allowed;
 }
 
-/* ── Inline Sharing ── */
-
 .project-preferences-fields__sharing {
   gap: 10px;
 }

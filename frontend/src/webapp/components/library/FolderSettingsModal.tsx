@@ -1,11 +1,3 @@
-// Edit a folder's display metadata: color and icon emoji.
-//
-// Mirrors the shape of ProjectSettings.tsx (color input + emoji input) but
-// kept intentionally lean — folders don't have wallpapers, fonts, or
-// kind-specific knobs, so there's only one row of editable state. Persists
-// optimistically on every change through `onChange` so the live folder
-// preview in the Library / sidebar updates as the user tweaks values.
-
 import { useEffect, useState } from "react"
 import { Folder } from "lucide-react"
 import Modal from "../ui/Modal"
@@ -23,9 +15,6 @@ type FolderSettingsModalProps = {
 }
 
 export default function FolderSettingsModal({ folder, isOpen, onClose, onChange }: FolderSettingsModalProps) {
-  // Local drafts so the user can type freely; we commit through `onChange`
-  // on each valid edit. When the modal opens (or the folder switches), the
-  // effect below seeds the drafts from the live folder.
   const initialColor = normalizeProjectColor(folder?.color ?? "") || DEFAULT_FOLDER_COLOR
   const initialEmoji = extractEmojiTokens(folder?.iconEmoji ?? "", 1)[0] ?? ""
 
@@ -44,7 +33,6 @@ export default function FolderSettingsModal({ folder, isOpen, onClose, onChange 
   }
 
   const commitEmoji = (raw: string) => {
-    // Cap to a single emoji grapheme. An empty string clears the icon.
     const next = extractEmojiTokens(raw, 1)[0] ?? ""
     setEmojiDraft(next)
     onChange({ iconEmoji: next || null })
@@ -84,7 +72,6 @@ export default function FolderSettingsModal({ folder, isOpen, onClose, onChange 
                 value={colorDraft}
                 onChange={(event) => setColorDraft(event.target.value)}
                 onBlur={(event) => {
-                  // Snap back to the committed value if the typed hex is invalid.
                   const normalized = normalizeProjectColor(event.target.value)
                   if (normalized) {
                     setColorDraft(normalized)

@@ -1,5 +1,3 @@
-/* ── Overlay ── */
-
 .ui-modal__overlay {
   position: fixed;
   inset: 0;
@@ -16,8 +14,6 @@
   animation: ui-modal-overlay-out 140ms ease-out forwards;
 }
 
-/* ── Frame ── */
-
 .ui-modal__frame {
   position: fixed;
   top: 50%;
@@ -27,8 +23,6 @@
   max-height: min(84vh, 720px);
   z-index: 201;
 }
-
-/* ── Panel ── */
 
 .ui-modal__panel {
   width: 100%;
@@ -54,8 +48,6 @@
 .ui-modal__panel--closing {
   animation: ui-modal-panel-out 140ms ease-in forwards;
 }
-
-/* ── Floating close button ── */
 
 .ui-modal__floating-close {
   position: absolute;
@@ -125,8 +117,6 @@
   animation: ui-modal-close-out 140ms ease-in forwards;
 }
 
-/* ── Header ── */
-
 .ui-modal__header {
   display: flex;
   align-items: center;
@@ -155,15 +145,11 @@
   gap: 12px;
 }
 
-/* ── Error ── */
-
 .ui-modal__error {
   margin: 0;
   color: #f3b3b3;
   font-size: 16px;
 }
-
-/* ── Actions ── */
 
 .ui-modal__actions {
   display: flex;
@@ -178,8 +164,6 @@
   gap: 8px;
   margin-top: 2px;
 }
-
-/* ── Keyframes ── */
 
 @keyframes ui-modal-overlay-in {
   from { opacity: 0; }
@@ -215,8 +199,6 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
-
-/* ── Reduced motion ── */
 
 @media (prefers-reduced-motion: reduce) {
   .ui-modal__overlay--opening,

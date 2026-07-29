@@ -11,9 +11,6 @@ export const APP_SPELL_CHECK_FOCUS_EVENT = "app:spell-check-focus"
 export const APP_PROJECT_SEARCH_EVENT = "app:project-search"
 export const APP_PROJECT_SEARCH_FOCUS_EVENT = "app:project-search-focus"
 export const APP_PROJECT_SEARCH_CLEAR_EVENT = "app:project-search-clear"
-/** Sidebar → PDFViewer: scroll the open PDF to a 1-indexed page. Fired when
- *  the user clicks a bookmark in the sidebar. The viewer matches on
- *  `documentId` (the pdf tab id) so a background PDF in another tab ignores it. */
 export const APP_PDF_BOOKMARK_NAVIGATE_EVENT = "app:pdf-bookmark-navigate"
 export const APP_SAVE_PROJECT_EVENT = "app:save-project"
 export const APP_SAVE_PROJECT_VERSION_EVENT = "app:save-project-version"
@@ -92,10 +89,6 @@ export type ProjectSearchFocusDetail =
     end: number
   }
   | {
-    // PDFs are read-only and don't have character offsets that map
-    // cleanly across the text layer. `start` and `end` are reused
-    // here as the 1-indexed page number (start === end) the viewer
-    // should scroll to. See useFindReplaceModal's pdf branch.
     documentId: string
     documentType: "pdf"
     query: string
@@ -105,9 +98,7 @@ export type ProjectSearchFocusDetail =
   }
 
 export type PdfBookmarkNavigateDetail = {
-  /** The pdf tab (document) id the viewer is rendering. */
   documentId: string
-  /** 1-indexed page to scroll to the top of. */
   pageNumber: number
 }
 
@@ -223,13 +214,10 @@ export function requestAppProjectSearchFocus(detail: ProjectSearchFocusDetail) {
   window.dispatchEvent(event)
 }
 
-/** Tell the active prose editor to drop its search-highlight decorations
- *  (fired when the Find modal closes or the query is cleared). */
 export function requestAppProjectSearchClear() {
   window.dispatchEvent(new Event(APP_PROJECT_SEARCH_CLEAR_EVENT))
 }
 
-/** Ask the open PDFViewer to scroll a 1-indexed page to the top. */
 export function requestPdfBookmarkNavigate(detail: PdfBookmarkNavigateDetail) {
   window.dispatchEvent(new CustomEvent<PdfBookmarkNavigateDetail>(APP_PDF_BOOKMARK_NAVIGATE_EVENT, { detail }))
 }
@@ -242,10 +230,6 @@ export function requestAppSaveProjectVersion() {
   window.dispatchEvent(new Event(APP_SAVE_PROJECT_VERSION_EVENT))
 }
 
-// Renamed semantically — still uses the old PROJECTS_CREATE_BOOK_EVENT
-// constant for backward compat with any external dispatchers, but the
-// payload now carries the kind. Listeners default to "Book" when the
-// detail is missing.
 export type CreateProjectEventDetail = {
   kind: import("../utils/projects").ProjectKind
 }

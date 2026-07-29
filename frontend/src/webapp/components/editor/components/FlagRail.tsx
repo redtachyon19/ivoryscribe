@@ -98,7 +98,6 @@ export function FlagRail({
           className={`editor-line-flag editor-line-flag--create ${showFlagRailUi ? "editor-line-flag--revealed" : ""}`.trim()}
           style={{ transform: `translate3d(0, ${currentLineTop}px, 0)` }}
           onMouseDown={(event) => {
-            // Keep editor focus so caret/line tracking does not jump on click.
             event.preventDefault()
           }}
           onMouseEnter={() => {

@@ -18,15 +18,11 @@ const {
 const shouldLog = DB_LOGGING === "true" ? console.log : false;
 const sslEnabled = String(DB_SSL).toLowerCase() === "true";
 
-// A DATABASE_URL (as injected by Railway/Render/Neon/Supabase) always implies
-// Postgres, regardless of what DB_DIALECT happens to say.
 const normalizedDialect = DATABASE_URL ? "postgres" : String(DB_DIALECT).toLowerCase();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Managed Postgres almost always requires TLS, and its certs frequently don't
-// chain to a public root — so require SSL but don't reject the unverified cert.
 const postgresSsl = sslEnabled ? { require: true, rejectUnauthorized: false } : false;
 
 function createSqliteSequelize() {
@@ -46,7 +42,6 @@ function createPostgresSequelize() {
     dialectOptions: postgresSsl ? { ssl: postgresSsl } : {},
   };
 
-  // Prefer a single connection string when the platform hands one to us.
   if (DATABASE_URL) {
     return new Sequelize(DATABASE_URL, options);
   }

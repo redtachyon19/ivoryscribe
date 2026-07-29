@@ -1,11 +1,3 @@
-/* Shared drag / marquee-select / drop styling for the two navigation list
-   panels (DocumentTabsPanel + ProjectBrowserPanel). These two panels render the
-   same kind of draggable, marquee-selectable list, so the visuals live here
-   once instead of being duplicated in each panel's stylesheet. Panel-specific
-   layout (headers, labels, icons, section switcher, etc.) stays in the
-   per-panel CSS files. */
-
-/* ── Marquee (rubber-band) rectangle ── */
 .doc-tabs__list-shell--marquee,
 .project-browser__list-shell--marquee {
   cursor: crosshair;
@@ -22,18 +14,11 @@
   pointer-events: none;
 }
 
-/* ── Row hover + "picked" states ──
-   A row that is selected (active), marquee-selected, or being dragged gets an
-   accent outline with NO fill — the same look as the marquee rectangle. Only
-   rows that are NOT picked get a hover fill, so the outline never competes with
-   a hover background. The dragging modifier rides on the row's label in both
-   panels, so :has() lifts the outline up to the whole row. */
 .doc-tabs__row:not(.doc-tabs__row--active):not(.doc-tabs__row--marquee-selected):hover,
 .project-browser__row:not(.project-browser__row--active):not(.project-browser__row--marquee-selected):hover {
   background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 78%, transparent);
 }
 
-/* Marquee-selected + being-dragged rows: accent outline, no fill. */
 .doc-tabs__row--marquee-selected,
 .doc-tabs__row:has(.doc-tabs__row--dragging),
 .project-browser__row--marquee-selected,
@@ -42,24 +27,12 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 60%, transparent);
 }
 
-/* The current (active) tab/folder — the one we're on/in — is outlined in the
-   theme foreground (near-white on dark themes, near-black on light themes)
-   rather than the accent, so "where I am" reads differently from an accent
-   selection. Listed after the rule above so it wins when a row is both active
-   and marquee-selected. */
 .doc-tabs__row--active,
 .project-browser__row--active {
-  /* Subtle theme-foreground fill so the active tab reads as filled, plus a
-     faint (20%) foreground outline. */
   background: color-mix(in srgb, var(--menu-button, #ededed) 10%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--menu-button, #ededed) 20%, transparent);
 }
 
-/* ── Native focus ring / tap-highlight removal ──
-   The row labels are <button>s; a click used to flash the WebKit amber focus
-   glow (the "awkward orange"). Selection / active state are shown with the
-   accent and the sliding pill instead, so suppress the native ring on the
-   labels and on the programmatically-focused (tabIndex -1) shells. */
 .doc-tabs__label,
 .project-browser__label {
   -webkit-tap-highlight-color: transparent;
@@ -75,27 +48,18 @@
   outline: none;
 }
 
-/* ── Current item selected for an action ──
-   When the active (current) row is ALSO in the action-selection — via shift
-   select, shift+arrows, double-click, or a marquee that swept it up — recolour
-   its sliding pill from the neutral white to the accent, so the selection reads
-   on the current row the same way the accent --marquee-selected outline reads on
-   the other selected rows. The pill's top/height/left/width/opacity are set
-   inline; border + background are not, so these (specificity 0,4,0) win. */
 .doc-tabs__list-shell:has(.doc-tabs__row--active.doc-tabs__row--marquee-selected) .doc-tabs__active-indicator,
 .project-browser__list-shell:has(.project-browser__row--active.project-browser__row--marquee-selected) .project-browser__active-indicator {
   background: color-mix(in srgb, var(--app-accent, #9ab8ff) 12%, transparent);
   border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 60%, transparent);
 }
 
-/* ── Drop-into-folder / parent highlight ── */
 .doc-tabs__item--drop-inside > .doc-tabs__row,
 .project-browser__item--drop-inside > .project-browser__row {
   background: color-mix(in srgb, var(--app-accent, #9ab8ff) 16%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 65%, transparent);
 }
 
-/* ── Reorder drop-indicator line ── */
 .doc-tabs__drop-line,
 .project-browser__drop-line {
   height: 3px;
@@ -113,13 +77,6 @@
   opacity: 1;
 }
 
-/* One indicator per gap, centered between the two rows.
-   The lines sit in normal flow — a row's --bottom line directly under it and the
-   next row's --top line directly above it, separated by the 8px list gap. That
-   put "drop after A" and "drop before B" (the SAME slot) at two different spots.
-   Pull each toward the gap's midpoint with translateY (offset = half the 8px gap
-   + half the 3px line = 5.5px), so both land on the exact same line — and use a
-   transform (not margin) so row spacing is unchanged. */
 .doc-tabs__drop-line--top,
 .project-browser__drop-line--top {
   transform: translateY(-5.5px);
@@ -129,11 +86,6 @@
   transform: translateY(5.5px);
 }
 
-/* The very first row has no row above and the very last none below, so their
-   "before" / "after" lines have no gap to center in — keep them at the row edge
-   instead of pushing past the top of the list or into empty space below.
-   :first/last-of-type targets the first/last <li> even past the sibling active
-   pill, and applies per nested list too. */
 .doc-tabs__item:first-of-type > .doc-tabs__drop-line--top,
 .project-browser__item:first-of-type > .project-browser__drop-line--top {
   transform: none;

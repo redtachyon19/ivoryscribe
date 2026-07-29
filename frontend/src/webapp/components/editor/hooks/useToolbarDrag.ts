@@ -1,15 +1,3 @@
-// Generic toolbar drag — shared by TypewriterEditor and PinboardEditor.
-//
-// Hand a ref to the toolbar element back to the caller and return:
-//   • `toolbarPos` — current `{x, y}` once the user has dragged (null otherwise)
-//   • `isDragging` — true during an active drag (toolbar styles a dragging cursor)
-//   • `onGripMouseDown` — handler to bind to the toolbar's grip element
-//
-// The default coordinate system is viewport-relative (works with
-// `position: fixed`). Pass `useParentRelativeCoords: true` for toolbars
-// positioned with `position: absolute` inside a relative parent (pinboard
-// case — the toolbar lives inside the canvas container).
-
 import { useCallback, useEffect, useRef, useState } from "react"
 
 type ToolbarDragStart = { x: number; y: number; ox: number; oy: number }

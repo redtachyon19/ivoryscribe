@@ -13,24 +13,12 @@ import "./ShareDialog.css"
 
 type SharePanelProps = {
   sessionToken: string
-  /** Cloud Document.id for the project. Null when the project lives only on
-   *  the user's disk and hasn't been uploaded yet — we show an upload CTA in
-   *  that case. */
   documentId: string | null
-  /** When true, the panel loads shares immediately on mount. Defaults to true. */
   autoLoad?: boolean
-  /** Whether the current user owns this project. If false, shows read-only collaborator view. */
   isOwner?: boolean
-  /** The current user's email — shown as "You" in the collaborators list. */
   userEmail?: string
-  /** The project owner's email — shown in the non-owner collaborator view. */
   ownerEmail?: string
-  /** Called after ownership is successfully transferred so the dialog can close. */
   onClose?: () => void
-  /** Upload the local file to the cloud and return its new Document.id. The
-   *  orchestrator handles stamping cloud-id into the file and updating the
-   *  projectDocumentMap so this panel re-renders with the new id. Returns
-   *  null if the user needs to sign in first. */
   onEnableCloudSharing?: () => Promise<string | null>
 }
 
@@ -117,10 +105,6 @@ function PermissionMenu({
   )
 }
 
-/**
- * Reusable sharing content: invite form + shared-user list with permission/revoke controls.
- * Can be embedded inline (ProjectSettings) or inside a modal (ShareDialog).
- */
 export function SharePanel({
   sessionToken,
   documentId,
@@ -150,10 +134,7 @@ export function SharePanel({
         const result = await getDocumentShares(sessionToken, documentId)
         setShares(result)
       }
-      // For non-owners, shares list is populated from the sharedWithMe data already loaded.
-      // We just show a static collaborator view.
     } catch {
-      // Ignore load errors silently
     } finally {
       setIsLoading(false)
     }
@@ -171,9 +152,6 @@ export function SharePanel({
     setError("")
     try {
       const result = await onEnableCloudSharing()
-      // null result = user needs to sign in; the orchestrator opened an auth
-      // overlay, so we just bail. The dialog re-renders with documentId once
-      // the user signs in and clicks share again.
       if (!result) {
         setError("Sign in to upload this document to the cloud.")
       }
@@ -184,7 +162,6 @@ export function SharePanel({
     }
   }
 
-  // ── Not-yet-shared local project: show upload-to-cloud CTA ─────────────
   if (!documentId) {
     const needsLogin = !sessionToken
     return (
@@ -252,7 +229,6 @@ export function SharePanel({
         current.map((s) => (s.id === shareId ? { ...s, permission: nextPermission } : s)),
       )
     } catch {
-      // Ignore silently
     }
   }
 
@@ -261,7 +237,6 @@ export function SharePanel({
       await revokeShare(sessionToken, shareId)
       setShares((current) => current.filter((s) => s.id !== shareId))
     } catch {
-      // Ignore silently
     }
   }
 
@@ -281,7 +256,6 @@ export function SharePanel({
     }
   }
 
-  // ── Non-owner view ────────────────────────────────────────────
   if (!isOwner) {
     return (
       <div className="share-dialog__readonly">
@@ -314,7 +288,6 @@ export function SharePanel({
     )
   }
 
-  // ── Owner view ────────────────────────────────────────────────
   return (
     <>
       <div className="share-dialog__form">
@@ -360,7 +333,6 @@ export function SharePanel({
       ) : (
         <div className="share-dialog__list">
           <span className="share-dialog__list-title">Collaborators</span>
-          {/* Owner row */}
           <div className="share-dialog__item">
             <div className="share-dialog__item-info">
               <Crown size={14} strokeWidth={2} aria-label="Owner" className="share-dialog__item-owner-icon" />
@@ -370,7 +342,6 @@ export function SharePanel({
             </div>
             <span className="share-dialog__item-role">Owner</span>
           </div>
-          {/* Collaborator rows */}
           {shares.length > 0 ? shares.map((share) => (
             <div key={share.id} className="share-dialog__item-group">
               <div className="share-dialog__item">

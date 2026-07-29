@@ -1,10 +1,3 @@
-// Renders a single PinboardNode (text / image / link / file / drawing) and
-// owns the per-node interactions (mousedown to drag, double-click to edit
-// text or open a link, resize-handle drag).
-//
-// Drawings live as text nodes with `[drawing:<json>]` content — the parent
-// detects that and we render an SVG polyline instead of a textarea.
-
 import type { PinboardNode } from "../utils/pinboardData"
 import { tryParseDrawingPoints } from "../utils/pinboardData"
 

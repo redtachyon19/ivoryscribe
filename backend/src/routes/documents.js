@@ -37,13 +37,11 @@ router.post("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    // First check if user owns the document
     let document = await Document.findOne({
       where: { id: req.params.id, userId: req.user.id },
     });
 
     if (!document) {
-      // Check if user has shared access
       const share = await Share.findOne({
         where: {
           documentId: req.params.id,
@@ -69,13 +67,11 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
-    // Check ownership first
     let document = await Document.findOne({
       where: { id: req.params.id, userId: req.user.id },
     });
 
     if (!document) {
-      // Check shared access and enforce edit permission for writes
       const share = await Share.findOne({
         where: {
           documentId: req.params.id,

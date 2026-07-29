@@ -14,13 +14,9 @@ type MultiSelectDrag = {
 }
 
 type UseMultiSelectOptions = {
-  /** Called when Delete/Backspace pressed while items are selected */
   onDeleteSelection: (ids: Set<string>) => void
-  /** Enable multi-drag by passing the useProjectDrag result */
   drag?: MultiSelectDrag
-  /** Folder IDs (to exclude folders from drag operations) */
   folderIds?: Set<string>
-  /** For multi-drag: update project folder assignments on drop */
   setProjects?: Dispatch<SetStateAction<Project[]>>
 }
 
@@ -54,7 +50,6 @@ export default function useMultiSelect({
 
   const clearSelection = useCallback(() => setMarqueeSelectedIds(new Set()), [])
 
-  // Use ref to avoid stale closure in the keydown effect
   const onDeleteRef = useRef(onDeleteSelection)
   onDeleteRef.current = onDeleteSelection
 
@@ -77,8 +72,6 @@ export default function useMultiSelect({
     [marqueeSelectedIds],
   )
 
-  // ── Multi-drag (only active when `drag` is provided) ──
-
   const multiDragIdsRef = useRef<Set<string>>(new Set())
   const multiDragPreviewRef = useRef<HTMLElement | null>(null)
 
@@ -99,10 +92,8 @@ export default function useMultiSelect({
       multiDragIdsRef.current = projectIds
 
       drag.handleProjectDragStart(projectId, event)
-      // Override the single-ID dataTransfer so sidebar section drops move all selected
       event.dataTransfer.setData("text/plain", [...projectIds].join(","))
 
-      // Build composite drag preview
       cleanupMultiDragPreview()
       const container = scrollContainerRef.current
       if (!container) return
@@ -243,9 +234,6 @@ export default function useMultiSelect({
     return multiDragIdsRef.current.has(projectId) && primaryDraggingId !== null
   }, [])
 
-  /** Drag-start for pages without full useProjectDrag (Archive, Recent, Trash).
-   *  When multiple items are selected it encodes all IDs so the sidebar section
-   *  drop handler can move them all at once. */
   const handleMultiSectionDragStart = useCallback((projectId: string, event: React.DragEvent<HTMLElement>) => {
     if (marqueeSelectedIds.size > 1 && marqueeSelectedIds.has(projectId)) {
       const projectIds = [...marqueeSelectedIds].filter((id) => !folderIds.has(id))
@@ -254,7 +242,6 @@ export default function useMultiSelect({
       event.dataTransfer.effectAllowed = "move"
       event.dataTransfer.setData("text/plain", projectIds.join(","))
 
-      // Build composite drag preview
       cleanupMultiDragPreview()
       const container = scrollContainerRef.current
       if (container) {
@@ -354,7 +341,6 @@ export default function useMultiSelect({
     clearSelection,
     isMultiSelectTarget,
 
-    // Multi-drag
     handleMultiDragStart,
     handleMultiDragEnd,
     handleMultiCardDrop,
@@ -362,7 +348,6 @@ export default function useMultiSelect({
     handleMultiRootDrop,
     isMultiDragging,
 
-    // Multi-section drag (for pages without useProjectDrag)
     handleMultiSectionDragStart,
     handleMultiSectionDragEnd,
   }

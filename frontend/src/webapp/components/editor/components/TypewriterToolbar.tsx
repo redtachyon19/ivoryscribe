@@ -1,14 +1,3 @@
-// Floating text-formatting toolbar for TypewriterEditor.
-//
-// Owns all of its own UI state (open/close for the four submenus, default
-// alignment/column choice memory, format painter armed state) and reads its
-// active-state highlights directly off the passed-in TipTap editor. The
-// parent only owns the toolbar's drag position and visibility toggle.
-//
-// The parent must re-render on the editor's `selectionUpdate` / `transaction`
-// events for the active-state highlights to stay current — TypewriterEditor
-// already bumps a counter to force this.
-
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react"
 import { createPortal } from "react-dom"
 import type { Editor as TiptapEditor } from "@tiptap/react"
@@ -39,10 +28,6 @@ import {
 type AlignMode = "left" | "center" | "right"
 type ColumnCount = 2 | 3 | 4
 
-/* Curated colour palettes for the text + highlight pickers. Using an in-app
-   swatch popover (instead of the OS colour dialog) keeps these controls in
-   line with the rest of the toolbar's design; "Custom…" still opens a full
-   picker for anything off-palette. */
 const TEXT_SWATCHES = [
   "#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc",
   "#cc0000", "#e06666", "#e69138", "#f1c232", "#6aa84f", "#45818e",
@@ -56,15 +41,11 @@ const HIGHLIGHT_SWATCHES = [
 type TypewriterToolbarProps = {
   editor: TiptapEditor | null
   showToolbar: boolean
-  /** Fade the toolbar out while the user is typing, in sync with the other
-   *  auto-hiding editor chrome (settings button, toolbar toggle, rulers). */
   isUiTyping: boolean
   isDraggingToolbar: boolean
   toolbarRef: RefObject<HTMLDivElement | null>
   toolbarPos: { x: number; y: number } | null
   onGripMouseDown: (event: React.MouseEvent) => void
-  /** Format painter armed state — owned by parent so the editor-surface
-   *  cursor styling can react too. */
   isPaintFormatArmed: boolean
   onPaintRollerClick: () => void
 }
@@ -80,7 +61,6 @@ export function TypewriterToolbar({
   isPaintFormatArmed,
   onPaintRollerClick,
 }: TypewriterToolbarProps) {
-  /* ── Submenu state ── */
   const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false)
   const fontSizeComboRef = useRef<HTMLDivElement | null>(null)
   const [fontFamilyMenuOpen, setFontFamilyMenuOpen] = useState(false)
@@ -91,21 +71,14 @@ export function TypewriterToolbar({
   const [highlightMenuOpen, setHighlightMenuOpen] = useState(false)
   const textColorCloseTimer = useRef<number | null>(null)
   const highlightCloseTimer = useRef<number | null>(null)
-  // The in-app custom colour picker, opened from the "Custom…" swatch.
   const [customPicker, setCustomPicker] = useState<null | "text" | "highlight">(null)
   const textComboRef = useRef<HTMLDivElement | null>(null)
   const highlightComboRef = useRef<HTMLDivElement | null>(null)
   const pickerRef = useRef<HTMLDivElement | null>(null)
 
-  /* ── Remembered defaults for the collapsed combo buttons ── */
   const [defaultAlign, setDefaultAlign] = useState<AlignMode>("left")
   const [defaultColumns, setDefaultColumns] = useState<ColumnCount>(2)
 
-  /* ── Hover-submenu close timers ──
-     Close on a short delay rather than instantly so a brief mouse excursion
-     (gap between trigger and menu, wobble on the way to a menu item) doesn't
-     dismiss the popup. The CSS bridge below the menu buffers the gap; the
-     timer covers any remaining off-axis paths. */
   const alignCloseTimer = useRef<number | null>(null)
   const columnsCloseTimer = useRef<number | null>(null)
   const openMenu = (timer: typeof alignCloseTimer, set: (v: boolean) => void) => () => {
@@ -123,14 +96,11 @@ export function TypewriterToolbar({
     }, 180)
   }
 
-  /* Close the custom colour picker on outside click or Escape. */
   useEffect(() => {
     if (!customPicker) return
     const onMouseDown = (e: MouseEvent) => {
       const combo = customPicker === "text" ? textComboRef.current : highlightComboRef.current
       const target = e.target as Node
-      // The picker is portaled to <body>, so it isn't inside the combo — check
-      // both so clicks within the picker don't dismiss it.
       if (combo && !combo.contains(target) && !pickerRef.current?.contains(target)) {
         setCustomPicker(null)
       }
@@ -138,11 +108,6 @@ export function TypewriterToolbar({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setCustomPicker(null)
     }
-    // Attach the outside-click listener on the NEXT tick. The click that opens
-    // the picker unmounts the swatch palette (detaching its "Custom…" button),
-    // so if we listened immediately that same click would read as "outside"
-    // (the detached target is in neither the combo nor the picker) and close
-    // the picker instantly. Deferring lets the opening click finish first.
     let mouseAttached = false
     const armId = window.setTimeout(() => {
       mouseAttached = true
@@ -156,10 +121,8 @@ export function TypewriterToolbar({
     }
   }, [customPicker])
 
-  /* ── Local font-size input (commits on Enter / blur) ── */
   const [fontSizeInput, setFontSizeInput] = useState<string>(String(DEFAULT_FONT_SIZE_PT))
 
-  /* ── Active-state derivations ── */
   const isBold = editor?.isActive("bold") ?? false
   const isItalic = editor?.isActive("italic") ?? false
   const isUnderline = editor?.isActive("underline") ?? false
@@ -167,8 +130,6 @@ export function TypewriterToolbar({
   const isAlignCtr = editor?.isActive({ textAlign: "center" }) ?? false
   const isAlignRight = editor?.isActive({ textAlign: "right" }) ?? false
 
-  // Walk up the selection's ancestors to spot a `columns` wrapper so the
-  // toolbar button can flip between "wrap selection" and "update count."
   let isInColumns = false
   let currentColumns: ColumnCount | null = null
   let columnsWrapperPos = -1
@@ -188,7 +149,6 @@ export function TypewriterToolbar({
   const applyColumns = useCallback((count: ColumnCount) => {
     if (!editor) return
     if (isInColumns && columnsWrapperPos >= 0) {
-      // Already inside a columns block — just update its count.
       const tr = editor.state.tr
       const node = editor.state.doc.nodeAt(columnsWrapperPos)
       if (!node) return
@@ -196,7 +156,6 @@ export function TypewriterToolbar({
       editor.view.dispatch(tr)
       return
     }
-    // Wrap the current block range in a fresh columns node.
     editor.chain().focus().wrapIn("columns", { count }).run()
   }, [editor, isInColumns, columnsWrapperPos])
 
@@ -204,11 +163,10 @@ export function TypewriterToolbar({
     editor?.chain().focus().setTextAlign(mode).run()
   }, [editor])
 
-  /* ── Insert image (file picker → data URL) ── */
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const onImageFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    event.target.value = "" // allow re-selecting the same file
+    event.target.value = ""
     if (!file || !file.type.startsWith("image/") || !editor) return
     const reader = new FileReader()
     reader.onload = () => editor.chain().focus().setImage({ src: String(reader.result) }).run()
@@ -217,24 +175,17 @@ export function TypewriterToolbar({
 
   const curFontFamily = (editor?.getAttributes("textStyle").fontFamily as string | null) ?? ""
   const curColorRaw = (editor?.getAttributes("textStyle").color as string | null) ?? ""
-  // Resolve default text color from the app palette CSS variable.
   const paletteTextColor = typeof document !== "undefined"
     ? getComputedStyle(document.querySelector(".app") ?? document.documentElement)
         .getPropertyValue("--editor-text").trim() || "#000000"
     : "#000000"
   const curColor = curColorRaw && /^#[0-9a-fA-F]{3,6}$/.test(curColorRaw) ? curColorRaw : paletteTextColor
 
-  /* Highlight color — read from the active highlight mark if any, else fall
-     back to the last color the user picked from the toolbar. Picking a new
-     color via the swatch both applies the highlight to the current selection
-     and remembers the choice for future clicks. */
   const curHighlightRaw = (editor?.getAttributes("highlight").color as string | null) ?? ""
   const isHighlightActive = !!curHighlightRaw
   const [lastHighlightColor, setLastHighlightColor] = useState<string>("#ffffff")
   const curHighlight = curHighlightRaw && /^#[0-9a-fA-F]{3,6}$/.test(curHighlightRaw) ? curHighlightRaw : lastHighlightColor
 
-  // The textStyle mark stores font-size as a CSS string. Older docs used px;
-  // new docs may use pt. Detect the unit and convert to points for the toolbar.
   const curFontSizeStr = (editor?.getAttributes("textStyle").fontSize as string | null) ?? ""
   const curFontSize = (() => {
     if (!curFontSizeStr) return DEFAULT_FONT_SIZE_PT
@@ -245,16 +196,11 @@ export function TypewriterToolbar({
   })()
   const selFontVal = FONT_OPTIONS.find((f) => f.value === curFontFamily)?.value ?? ""
 
-  /* Mirror the editor's current font size into the input whenever the editor
-     reports a different value (e.g., user moved the cursor into a span with a
-     different size). */
   useEffect(() => {
     setFontSizeInput(String(curFontSize))
   }, [curFontSize])
 
   const commitFontSize = useCallback(() => {
-    // Input is in points — convert to px for storage. Range follows Google
-    // Docs (6pt – 96pt).
     const pt = parseInt(fontSizeInput, 10)
     if (!Number.isNaN(pt) && pt >= 6 && pt <= 96) {
       const px = ptToPx(pt)
@@ -264,7 +210,6 @@ export function TypewriterToolbar({
     }
   }, [editor, fontSizeInput, curFontSize])
 
-  /* Close font-size preset menu on outside click */
   useEffect(() => {
     if (!fontSizeMenuOpen) return
     const onMouseDown = (e: MouseEvent) => {
@@ -276,7 +221,6 @@ export function TypewriterToolbar({
     return () => document.removeEventListener("mousedown", onMouseDown)
   }, [fontSizeMenuOpen])
 
-  /* Close font-family menu on outside click */
   useEffect(() => {
     if (!fontFamilyMenuOpen) return
     const onMouseDown = (e: MouseEvent) => {
@@ -350,7 +294,6 @@ export function TypewriterToolbar({
                   className={`tw-toolbar__font-menu-item${option.value === selFontVal ? " tw-toolbar__font-menu-item--active" : ""}`}
                   style={{ fontFamily: option.value }}
                   onMouseDown={(e) => {
-                    // mousedown so this fires before any blur on the editor
                     e.preventDefault()
                     applyFontFamily(option.value)
                   }}
@@ -405,7 +348,6 @@ export function TypewriterToolbar({
                   type="button"
                   className={`tw-toolbar__size-menu-item${curFontSize === sz ? " tw-toolbar__size-menu-item--active" : ""}`}
                   onMouseDown={(e) => {
-                    // mousedown so this fires before the input's blur
                     e.preventDefault()
                     applyFontSizePreset(sz)
                   }}
@@ -453,7 +395,6 @@ export function TypewriterToolbar({
         <UnderlineIcon size={15} />
       </button>
 
-      {/* Text colour — in-app swatch popover (matches the align/columns menus) */}
       <div
         ref={textComboRef}
         className="tw-toolbar__submenu-combo"
@@ -508,7 +449,6 @@ export function TypewriterToolbar({
         ) : null}
       </div>
 
-      {/* Highlight colour — in-app swatch popover */}
       <div
         ref={highlightComboRef}
         className="tw-toolbar__submenu-combo"
@@ -675,8 +615,6 @@ export function TypewriterToolbar({
         type="button"
         className={`tw-toolbar__btn${isPaintFormatArmed ? " tw-toolbar__btn--active" : ""}`}
         onMouseDown={(e) => {
-          // Use mousedown + preventDefault to keep the editor's selection intact
-          // while we capture its formatting.
           e.preventDefault()
           onPaintRollerClick()
         }}
@@ -691,8 +629,6 @@ export function TypewriterToolbar({
 
       <span className="tw-toolbar__sep" aria-hidden="true" />
 
-      {/* Insert image — opens a file picker; the image embeds as a data URL.
-          You can also paste or drag-and-drop an image straight into the page. */}
       <button
         type="button"
         className="tw-toolbar__btn"
@@ -713,9 +649,6 @@ export function TypewriterToolbar({
         tabIndex={-1}
       />
 
-      {/* Custom colour picker — portaled to <body> so it can't be clipped by
-          the editor's overflow:hidden or mis-stacked behind page content.
-          Positioned just above its trigger button. */}
       {customPicker && typeof document !== "undefined"
         ? createPortal(
             (() => {

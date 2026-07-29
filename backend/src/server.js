@@ -87,7 +87,6 @@ function isAllowedOrigin(origin) {
     return true;
   }
 
-  // Allow local Vite dev servers that auto-increment ports (5173, 5174, ...).
   if (
     /^https?:\/\/localhost:\d+$/.test(origin) ||
     /^https?:\/\/127\.0\.0\.1:\d+$/.test(origin) ||
@@ -112,7 +111,6 @@ app.use(
   }),
 );
 
-// Stripe webhook signatures require the exact raw request body.
 app.use("/api/billing/webhook", express.raw({ type: "application/json" }), billingWebhookRoutes);
 app.use(express.json({ limit: "2mb" }));
 
@@ -139,7 +137,6 @@ async function ensureUsersBillingColumns() {
   try {
     usersTable = await queryInterface.describeTable("users");
   } catch {
-    // If users table does not exist yet, normal sync below will create it.
     return;
   }
 
@@ -177,12 +174,9 @@ async function ensureSharesColumnMigrations() {
   try {
     sharesTable = await queryInterface.describeTable("shares");
   } catch {
-    // Table does not exist yet; normal sync will create it.
     return;
   }
 
-  // inviteToken was originally NOT NULL — make it nullable now that shares
-  // are accepted in-app instead of via email links.
   if (sharesTable.inviteToken && !sharesTable.inviteToken.allowNull) {
     await queryInterface.changeColumn("shares", "inviteToken", {
       type: DataTypes.STRING,

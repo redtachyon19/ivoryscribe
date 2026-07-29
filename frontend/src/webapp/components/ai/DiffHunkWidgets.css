@@ -54,12 +54,6 @@
   background: #fee2e2;
 }
 
-/* Inline diff styling — applied to ProseMirror DOM regardless of which
- * editor variant is active. We need higher specificity than DraftingEditor's
- * "strip mark formatting" rule (`.editor-container .ProseMirror mark`),
- * which uses 2 classes + 1 type = (0,2,1). Adding the [data-diff-add]
- * attribute selector lifts our specificity to (0,3,1) and wins. */
-
 .editor-container .ProseMirror mark[data-diff-add],
 mark[data-diff-add],
 mark.diff-add,

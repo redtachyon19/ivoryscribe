@@ -12,9 +12,6 @@ type ModalProps = {
   closeLabel?: string
   showCloseButton?: boolean
   panelClassName?: string
-  /** Class merged onto the outer `.ui-modal__frame`. Use to override the
-   *  default width / max-height — most callers don't need this, but the
-   *  version history view widens the frame to fit its toolbar + columns. */
   frameClassName?: string
   children: ReactNode
   actions?: ReactNode

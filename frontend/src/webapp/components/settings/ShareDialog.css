@@ -1,5 +1,3 @@
-/* ── Modal panel override ── */
-
 .share-dialog__modal-panel .ui-modal__header {
   display: none;
 }
@@ -39,8 +37,6 @@
   outline: none;
 }
 
-/* ── Title marquee ── */
-
 .share-dialog__title-marquee {
   display: block;
   width: 100%;
@@ -66,8 +62,6 @@
 .share-dialog__title-label:focus-visible .share-dialog__title-marquee--overflowing .share-dialog__title-marquee-track {
   animation: shared-marquee-scroll 15s linear infinite;
 }
-
-/* ── Form ── */
 
 .share-dialog__form {
   display: flex;
@@ -101,8 +95,6 @@
   outline: 2px solid color-mix(in srgb, var(--menu-button, #ededed) 75%, transparent);
   outline-offset: 2px;
 }
-
-/* ── Permission dropdown (palette-style) ── */
 
 .share-dialog__permission-wrap {
   position: relative;
@@ -213,8 +205,6 @@
   outline: none;
 }
 
-/* ── Share button (footer-action --minimal style) ── */
-
 .share-dialog__send-btn {
   display: inline-flex;
   align-items: center;
@@ -245,8 +235,6 @@
   cursor: not-allowed;
 }
 
-/* ── Feedback ── */
-
 .share-dialog__error {
   margin: 0;
   color: color-mix(in srgb, #ffb8b8 92%, transparent);
@@ -260,8 +248,6 @@
   font-size: 15px;
   line-height: 1.3;
 }
-
-/* ── Shared-with list ── */
 
 .share-dialog__list {
   display: flex;
@@ -360,8 +346,6 @@
   padding: 16px 0;
 }
 
-/* ── Owner / non-owner views ── */
-
 .share-dialog__item-owner-icon {
   flex-shrink: 0;
   color: color-mix(in srgb, #f5c842 80%, var(--menu-button, #ededed));
@@ -419,8 +403,6 @@
   margin-top: 1px;
   color: color-mix(in srgb, var(--app-accent, #9ab8ff) 80%, var(--menu-button, #ededed));
 }
-
-/* ── Transfer ownership ── */
 
 .share-dialog__item-group {
   display: flex;
@@ -507,7 +489,6 @@
   background: color-mix(in srgb, #f5c842 26%, transparent);
 }
 
-/* ── Enable-cloud-sharing CTA (local-only project, not yet uploaded) ── */
 .share-dialog__enable-cloud {
   display: flex;
   flex-direction: column;

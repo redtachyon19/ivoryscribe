@@ -1,21 +1,8 @@
-// Local-workspace root: the user-chosen folder on disk that contains all
-// `.tusk` books, `.tusks` presentations, and standalone `.md` / `.txt`
-// documents, organized in nested subfolders.
-//
-// The root path is persisted in localStorage (per-machine, not per-account).
-
 import { useCallback, useEffect, useState } from "react"
 
 const LOCAL_ROOT_KEY = "ivoryscribe.local.rootFolder"
-/** Query-param the renderer reads at boot to override the workspace root
- *  for THIS window only (set by the "Open folder in new window" action —
- *  the main process's setWindowOpenHandler keeps the URL intact when it
- *  promotes a window.open() call to a real BrowserWindow). */
+const AUTO_CREATE_DEFAULT_ROOT_KEY = "ivoryscribe.local.autoCreateDefaultRoot"
 export const ROOT_OVERRIDE_QUERY_PARAM = "rootOverride"
-/** Absolute path of a single file the child window should open on boot.
- *  Set alongside rootOverride when a Finder double-click targets a file
- *  OUTSIDE the launching window's workspace — the new window scopes to the
- *  file's folder and opens the file itself. */
 export const OPEN_FILE_QUERY_PARAM = "openFile"
 
 function readRootOverrideFromLocation(): string | null {
@@ -29,8 +16,6 @@ function readRootOverrideFromLocation(): string | null {
   }
 }
 
-/** Read the boot-time `?openFile=` param (see OPEN_FILE_QUERY_PARAM). Returns
- *  the absolute file path a freshly-spawned window should open, or null. */
 export function readOpenFileFromLocation(): string | null {
   if (typeof window === "undefined") return null
   try {
@@ -44,8 +29,6 @@ export function readOpenFileFromLocation(): string | null {
 
 export function buildRootOverrideUrl(absoluteFolderPath: string, openFilePath?: string): string {
   const url = new URL(window.location.href)
-  // Strip everything but the rootOverride so the child window doesn't
-  // inherit hash routes or project-id params from the launching window.
   url.search = ""
   url.hash = ""
   url.searchParams.set(ROOT_OVERRIDE_QUERY_PARAM, absoluteFolderPath)
@@ -53,11 +36,6 @@ export function buildRootOverrideUrl(absoluteFolderPath: string, openFilePath?: 
   return url.toString()
 }
 
-/** True iff `filePath` lives inside (or directly at) `rootPath`. Used to
- *  decide whether a Finder-opened file belongs to the current window's
- *  workspace (open in place) or somewhere else (open a new window scoped to
- *  its folder). Pure string comparison on normalized separators — both paths
- *  are absolute OS paths from the same machine. */
 export function isPathInsideRoot(filePath: string, rootPath: string, sep: string): boolean {
   if (!filePath || !rootPath) return false
   const normalize = (p: string) => {
@@ -73,8 +51,6 @@ export function isElectronEnv(): boolean {
   return typeof window !== "undefined" && !!window.electronAPI?.fs
 }
 
-// In Electron, window.open() spawns a real BrowserWindow rather than a
-// browser tab, so context-menu labels read "Open in New Window" there.
 export function openInNewItemLabel(): "Open in New Tab" | "Open in New Window" {
   return typeof window !== "undefined" && window.electronAPI ? "Open in New Window" : "Open in New Tab"
 }
@@ -98,7 +74,23 @@ export function setStoredLocalRoot(path: string | null): void {
       window.localStorage.removeItem(LOCAL_ROOT_KEY)
     }
   } catch {
-    // Ignore quota errors etc — localStorage isn't load-bearing here.
+  }
+}
+
+export function getStoredAutoCreateDefaultRoot(): boolean {
+  if (typeof window === "undefined") return true
+  try {
+    return window.localStorage.getItem(AUTO_CREATE_DEFAULT_ROOT_KEY) !== "false"
+  } catch {
+    return true
+  }
+}
+
+export function setStoredAutoCreateDefaultRoot(enabled: boolean): void {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(AUTO_CREATE_DEFAULT_ROOT_KEY, enabled ? "true" : "false")
+  } catch {
   }
 }
 
@@ -108,26 +100,23 @@ export type UseLocalRootResult = {
   isReady: boolean
   choose: () => Promise<string | null>
   clear: () => void
+  autoCreateDefaultRoot: boolean
+  setAutoCreateDefaultRoot: (enabled: boolean) => void
 }
 
 export function useLocalRoot(): UseLocalRootResult {
   const [root, setRoot] = useState<string | null>(null)
   const [isReady, setIsReady] = useState(false)
+  const [autoCreateDefaultRoot, setAutoCreateDefaultRootState] = useState<boolean>(
+    () => getStoredAutoCreateDefaultRoot(),
+  )
   const isElectron = isElectronEnv()
 
-  // On first launch (or whenever the stored path is stale/missing): resolve to
-  // ~/Documents/Ivoryscribe and create it if needed. The picker is still
-  // available via `choose()` for users who want a different folder later.
   useEffect(() => {
     let cancelled = false
     async function bootstrap() {
       const fs = window.electronAPI?.fs
 
-      // Highest priority: ?rootOverride=<absolute path>. Set by the "Open
-      // folder in new window" action so the child window scopes its
-      // workspace to that subfolder. We deliberately DON'T persist it to
-      // localStorage — the override is per-window, and the parent window's
-      // stored root must stay untouched.
       const override = readRootOverrideFromLocation()
       if (override && fs) {
         try {
@@ -138,13 +127,13 @@ export function useLocalRoot(): UseLocalRootResult {
             }
             return
           }
-        } catch { /* fall through to stored / default */ }
+        } catch (err) {
+          console.warn("[localRoot] rootOverride check failed:", override, err)
+        }
       }
 
       const stored = getStoredLocalRoot()
 
-      // Validate the stored path actually exists. If a previous broken launch
-      // wrote a path that's since been deleted, fall through to the default.
       if (stored && fs) {
         try {
           if (await fs.exists(stored)) {
@@ -154,7 +143,10 @@ export function useLocalRoot(): UseLocalRootResult {
             }
             return
           }
-        } catch { /* fall through to default */ }
+          console.warn("[localRoot] stored workspace not found on disk:", stored)
+        } catch (err) {
+          console.warn("[localRoot] could not check stored workspace:", stored, err)
+        }
       }
 
       if (!fs?.getDefaultRoot) {
@@ -162,12 +154,16 @@ export function useLocalRoot(): UseLocalRootResult {
         return
       }
       try {
-        const defaultRoot = await fs.getDefaultRoot()
+        const defaultRoot = await fs.getDefaultRoot({ create: getStoredAutoCreateDefaultRoot() })
         if (cancelled) return
-        setStoredLocalRoot(defaultRoot)
+        if (!defaultRoot) {
+          console.warn("[localRoot] no default workspace (auto-create is off and none exists)")
+          return
+        }
+        if (!stored) setStoredLocalRoot(defaultRoot)
         setRoot(defaultRoot)
-      } catch {
-        // Permission denied, disk full, etc. — fall back to manual picker.
+      } catch (err) {
+        console.error("[localRoot] getDefaultRoot failed:", err)
       } finally {
         if (!cancelled) setIsReady(true)
       }
@@ -179,7 +175,10 @@ export function useLocalRoot(): UseLocalRootResult {
   const choose = useCallback(async (): Promise<string | null> => {
     const fs = window.electronAPI?.fs
     if (!fs) return null
-    const next = await fs.selectDirectory({ title: "Choose your Ivoryscribe workspace folder" })
+    const next = await fs.selectDirectory({
+      title: "Choose your Ivoryscribe workspace folder",
+      defaultPath: getStoredLocalRoot() ?? undefined,
+    })
     if (next) {
       setStoredLocalRoot(next)
       setRoot(next)
@@ -192,5 +191,25 @@ export function useLocalRoot(): UseLocalRootResult {
     setRoot(null)
   }, [])
 
-  return { root, isElectron, isReady, choose, clear }
+  const setAutoCreateDefaultRoot = useCallback((enabled: boolean) => {
+    setStoredAutoCreateDefaultRoot(enabled)
+    setAutoCreateDefaultRootState(enabled)
+    if (!enabled) return
+    const fs = window.electronAPI?.fs
+    if (!fs?.getDefaultRoot) return
+    void (async () => {
+      try {
+        const defaultRoot = await fs.getDefaultRoot({ create: true })
+        if (!defaultRoot) return
+        setRoot((current) => {
+          if (current) return current
+          setStoredLocalRoot(defaultRoot)
+          return defaultRoot
+        })
+      } catch {
+      }
+    })()
+  }, [])
+
+  return { root, isElectron, isReady, choose, clear, autoCreateDefaultRoot, setAutoCreateDefaultRoot }
 }

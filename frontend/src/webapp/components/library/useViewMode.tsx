@@ -15,8 +15,6 @@ export function useViewMode(initial: ViewMode = "grid") {
   return { viewMode, toggle } as const
 }
 
-/* ── Sort ── */
-
 const sortModes = [
   "alpha-asc", "alpha-desc",
   "created-desc", "created-asc",

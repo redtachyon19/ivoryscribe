@@ -1,38 +1,8 @@
-// Faithful typewriter → PDF HTML builder.
-//
-// The current PDF export re-typesets plain text. This module instead produces a
-// self-contained HTML document that reproduces the typewriter page **exactly as
-// shown**: 8.5"×11" geometry, each document's own margins, all inline styling,
-// images (with crops), and identical line-by-line page breaks.
-//
-// How it stays faithful: the typewriter view is a single continuous surface
-// whose page breaks are computed in JS at render time (see pageBreak.ts) — CSS
-// `@page` flow can't reproduce that (and can't place the absolutely-positioned
-// images on the right page). So instead of re-laying-out, we ship the raw editor
-// HTML plus a small runtime that, inside the print window, rebuilds the editor's
-// exact model — reconstructs the absolute images, runs the same page-break
-// measurement to insert spacer divs, then slices the continuous surface into
-// fixed 816×1056 page boxes (each a clip window onto the surface). The text stays
-// real (vector/selectable); images land where they do on screen.
-//
-// The runtime runs in the SAME window that prints (Electron's hidden
-// BrowserWindow, or a web <iframe>), so font metrics match the output. It signals
-// `window.__pdfxReady = true` when the layout is built; the caller waits on that
-// before printing. We never serialize+reparse the spacer'd DOM (HTML reparse
-// would hoist block spacers out of <p>) — page slices are produced via
-// `cloneNode`, which preserves the live tree verbatim.
-
 import { PAGE_W_PX, PAGE_H_PX, PAGE_GAP_PX, inToPx, type Margins } from "../editor/utils/typewriterMargins"
 import { DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE_PX, DEFAULT_LINE_HEIGHT } from "../editor/utils/typewriterPrefs"
-// Bundled, character-for-character, so the print window styles code blocks and
-// math exactly like the markdown preview. github-dark has no url() refs (perfect
-// in isolation); katex.min.css references woff2 fonts that won't resolve in the
-// print window, so math layout is faithful but glyphs fall back to system fonts.
 import hljsCss from "highlight.js/styles/github-dark.css?raw"
 import katexCss from "katex/dist/katex.min.css?raw"
 
-/** "prose" = typewriter/drafting HTML (getHTML). "markdown" = pre-rendered
- *  markdown preview HTML (renderMarkdownToHtml). */
 export type ExportDocKind = "prose" | "markdown"
 
 export type ExportDoc = {
@@ -42,14 +12,9 @@ export type ExportDoc = {
   kind?: ExportDocKind
 }
 
-// The exact font set the editor loads (frontend/src/index.css line 1). The hidden
-// print window has no app stylesheet, so we re-import the same fonts and gate
-// printing on document.fonts.ready.
 const GOOGLE_FONTS_IMPORT =
   '@import url("https://fonts.googleapis.com/css2?family=Cabin:wght@400;500;700&family=EB+Garamond:wght@400;500;700&family=Google+Sans+Flex:opsz,wght@8..144,400..700&family=Inter:wght@400;500;700&family=Lato:wght@400;700&family=Montserrat:wght@400;500;700&family=Noto+Emoji:wght@400&family=Noto+Sans:wght@400;500;700&family=Roboto+Mono:wght@400;500;700&display=swap");'
 
-// Resolve the live theme colours so the export matches whatever theme is active
-// ("as is"). Falls back to the default light palette outside a browser.
 function resolveThemeColors(): { text: string; paper: string } {
   try {
     const root = getComputedStyle(document.documentElement)
@@ -61,16 +26,6 @@ function resolveThemeColors(): { text: string; paper: string } {
   }
 }
 
-// ── White-paper export colour remap ─────────────────────────────────────────
-// The PDF is always a standard white document, even when the editor is authored
-// on a dark page with white ink. So we force a dark default ink and, per-span,
-// invert the achromatic (grayscale) text/highlight colours the toolbar picker
-// applied: a near-white text pick becomes dark (visible on white). The Default
-// highlighter paints the marker with the theme's text colour, so the marker and
-// the text underneath match and the run reads as blacked-out/redacted; on a
-// near-white theme that marker is invisible on white paper, so it flips to a
-// solid dark bar with the text KEPT the same colour (still hidden). Chromatic
-// picks (red, pastel yellow, …) are left exactly as the author set them.
 const EXPORT_DARK_INK = "#15110b"
 const NEAR_WHITE_LUMINANCE = 0.65
 
@@ -98,8 +53,6 @@ function luminance({ r, g, b }: Rgb): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255
 }
 
-// Grayscale-ish: low chroma. Only these "white/black" picks get inverted; a
-// coloured pick keeps its hue.
 function isAchromatic({ r, g, b }: Rgb): boolean {
   return Math.max(r, g, b) - Math.min(r, g, b) <= 24
 }
@@ -114,12 +67,6 @@ function remapInlineColorsForWhitePaper(html: string): string {
   if (typeof DOMParser === "undefined") return html
   const doc = new DOMParser().parseFromString(html, "text/html")
 
-  // Pass 1 — redaction highlights. The Default highlighter paints the marker the
-  // same colour as the text so the run reads as blacked-out. A near-white marker
-  // is invisible on white paper, so flip it to a solid dark bar — and set the
-  // text to the SAME dark ink so the content stays hidden (previously the text
-  // was lightened, which revealed the "redacted" words in the PDF). Flag the run
-  // so pass 2 keeps the text hidden rather than darkening-for-visibility.
   doc.body.querySelectorAll<HTMLElement>("[style]").forEach((el) => {
     const bg = parseCssColor(el.style.backgroundColor || "")
     if (bg && isAchromatic(bg) && luminance(bg) >= NEAR_WHITE_LUMINANCE) {
@@ -129,10 +76,6 @@ function remapInlineColorsForWhitePaper(html: string): string {
     }
   })
 
-  // Pass 2 — text colours. Inside a redaction bar, force the text to the bar's
-  // dark ink so the run stays hidden; everywhere else on the white page, near-
-  // white text must darken to stay visible. Order-independent thanks to the
-  // pass-1 flag.
   doc.body.querySelectorAll<HTMLElement>("[style]").forEach((el) => {
     const fg = parseCssColor(el.style.color || "")
     if (!fg || !isAchromatic(fg)) return
@@ -147,9 +90,6 @@ function remapInlineColorsForWhitePaper(html: string): string {
   return doc.body.innerHTML
 }
 
-// The CSS custom properties the ported markdown-preview rules reference. We
-// re-declare their live values on :root in the print document so var()/color-mix
-// resolve to the same colours and fonts as the on-screen preview.
 const MARKDOWN_VARS: Array<[name: string, fallback: string]> = [
   ["--app-body-font", "system-ui, -apple-system, sans-serif"],
   ["--app-display-font", "Georgia, 'Times New Roman', serif"],
@@ -167,9 +107,6 @@ function resolveRootVars(inkOverride?: string): string {
     root = null
   }
   const decls = MARKDOWN_VARS.map(([name, fallback]) => {
-    // On white paper the body ink must be dark, so the live (possibly light,
-    // dark-theme) --editor-text is overridden — otherwise markdown body text
-    // would render light-on-white and vanish.
     if (name === "--editor-text" && inkOverride) return `${name}:${inkOverride};`
     const live = root ? root.getPropertyValue(name).trim() : ""
     return `${name}:${live || fallback};`
@@ -177,9 +114,6 @@ function resolveRootVars(inkOverride?: string): string {
   return `:root{${decls}}`
 }
 
-// Content CSS ported from TypewriterEditor.css, reselected onto `.pdfx-prose`.
-// The base font/size/line-height mirror the editor's inline editorStyle (which
-// overrides the .ProseMirror Georgia/11pt base) — see TypewriterEditor.tsx.
 function contentCss(textColor: string): string {
   return `
 .pdfx-prose{
@@ -215,10 +149,6 @@ function contentCss(textColor: string): string {
 `
 }
 
-// Markdown preview CSS ported from MarkdownEditor.css (.markdown-editor__preview
-// → .pdfx-md) so a markdown document exports looking like its preview pane:
-// rendered headings, GFM tables/task-lists, dark code blocks (github-dark via
-// hljsCss), blockquotes, KaTeX math. Font size keeps the preview's default.
 const MARKDOWN_CSS = `
 .pdfx-md{
   color:var(--editor-text,#15110b);
@@ -275,10 +205,6 @@ html,body{ margin:0; padding:0; background:#fff; }
 `
 }
 
-// The runtime that builds the print layout inside the target window. Vanilla,
-// dependency-free, fully self-contained — it reads only the geometry constants
-// interpolated below and the #pdfx-src / #pdfx-out DOM. Kept as a string so the
-// exact source runs in the print window (no closure/bundler surprises).
 function paginationScript(): string {
   const STRIDE = PAGE_H_PX + PAGE_GAP_PX
   return `
@@ -532,9 +458,6 @@ function pxMargins(m: Margins) {
 }
 
 function buildHtml(docs: ExportDoc[]): string {
-  // Always a white-paper document, regardless of the editor theme: authoring on
-  // a dark page still yields a printable black-on-white PDF. Force a dark
-  // default ink and invert achromatic (white/black) inline picks per span.
   const paper = "#ffffff"
   const text = ensureDarkInk(resolveThemeColors().text)
   const includeMarkdown = docs.some((d) => d.kind === "markdown")
@@ -545,8 +468,6 @@ function buildHtml(docs: ExportDoc[]): string {
       const m = pxMargins(d.margins)
       const rawBody = d.html && d.html.trim() ? d.html : "<p></p>"
       const kind = d.kind === "markdown" ? "markdown" : "prose"
-      // Markdown colours come from CSS (handled via the --editor-text override);
-      // only prose carries the toolbar's inline color/highlight picks.
       const body = kind === "prose" ? remapInlineColorsForWhitePaper(rawBody) : rawBody
       return `<section class="pdfx-doc" data-kind="${kind}" data-ml="${m.l}" data-mr="${m.r}" data-mt="${m.t}" data-mb="${m.b}">${body}</section>`
     })
@@ -554,14 +475,10 @@ function buildHtml(docs: ExportDoc[]): string {
   return `<!doctype html><html><head><meta charset="utf-8">${head}</head><body><div id="pdfx-src">${sections}</div><div id="pdfx-out"></div><script>${paginationScript()}</script></body></html>`
 }
 
-/** One combined HTML document containing every selected tab, each paginated with
- *  its own margins. Tab boundaries fall on fresh pages (every page is
- *  break-after:page). */
 export function buildCombinedExportHtml(docs: ExportDoc[]): string {
   return buildHtml(docs)
 }
 
-/** A single-document HTML (used for the separate-files / ZIP mode). */
 export function buildSingleExportHtml(doc: ExportDoc): string {
   return buildHtml([doc])
 }

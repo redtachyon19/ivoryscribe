@@ -44,20 +44,11 @@ import {
 import "./TypewriterEditor.css"
 import "./extensions/searchHighlight.css"
 
-
-/* ── Props ── */
 type TypewriterEditorProps = {
   documentId: string | null
   content: string
   onContentChange: (nextContent: string) => void
-  /** Persisted margins for this document, read from the project
-   *  (`getTabMargins`). Falls back to DEFAULT_MARGINS for documents that
-   *  have never had custom margins set. */
   margins?: Margins
-  /** Called whenever the user drags a ruler guide to a new margin. The
-   *  parent is expected to write this into the project via
-   *  `setTabMarginsById` so margins travel with the document (file / cloud
-   *  sync) instead of living only in this component's local state. */
   onMarginsChange?: (documentId: string | null, nextMargins: Margins) => void
   onWordCountChange?: (payload: { documentWordCount: number; selectedWordCount: number | null }) => void
   onTypingStateChange?: (isTyping: boolean) => void
@@ -65,7 +56,6 @@ type TypewriterEditorProps = {
   readOnly?: boolean
 }
 
-/* ── Component ── */
 export default function TypewriterEditor({
   documentId,
   content,
@@ -77,78 +67,39 @@ export default function TypewriterEditor({
   onEditorReady,
   readOnly = false,
 }: TypewriterEditorProps) {
-  /* ── Margins ──
-   *  Local state mirrors the project's persisted value so ruler dragging
-   *  feels instant, then pushes changes back up via onMarginsChange so they
-   *  land in the project (and therefore the .tusk file / cloud sync) rather
-   *  than only in this component. */
   const [margins, setMargins] = useState<Margins>(() => projectMargins ?? DEFAULT_MARGINS)
 
-  /* ── Page count (driven by ResizeObserver) ── */
   const [numPages, setNumPages] = useState(1)
 
-  /* ── Refs ── */
   const outerRef      = useRef<HTMLDivElement | null>(null)
   const scrollRef     = useRef<HTMLDivElement | null>(null)
   const pagesStackRef = useRef<HTMLDivElement | null>(null)
   const rulerXRef     = useRef<HTMLDivElement | null>(null)
   const rulerYRef     = useRef<HTMLDivElement | null>(null)
 
-  /* ── Toolbar drag ── */
-  // Parent-relative coords: the toolbar is positioned `absolute` inside
-  // `.tw-outer`, so drag offsets must be measured relative to that parent
-  // (not the viewport) to avoid a jump on first drag.
   const { toolbarRef, toolbarPos, isDragging: isDraggingToolbar, onGripMouseDown: handleToolbarGripDown } = useToolbarDrag({ useParentRelativeCoords: true })
 
-  /* ── Ruler visibility (persisted globally; default off) ── */
   const [showRulers, setShowRulers] = useState<boolean>(() => loadBoolPref(SHOW_RULERS_KEY))
   useEffect(() => { saveBoolPref(SHOW_RULERS_KEY, showRulers) }, [showRulers])
 
-  /* ── Toolbar visibility (persisted globally; default off) ── */
   const [showToolbar, setShowToolbar] = useState<boolean>(() => loadBoolPref(SHOW_TOOLBAR_KEY))
   useEffect(() => { saveBoolPref(SHOW_TOOLBAR_KEY, showToolbar) }, [showToolbar])
 
-  /* ── Force re-render on selection/transaction so the toolbar's active-state
-       highlights stay current. */
   const [, setEditorVer] = useState(0)
 
-  /* ── Crop session: when an image enters crop mode it publishes a session on
-       the resizableImage node storage and fires a "tw-image-crop" event on the
-       editor DOM. We mirror it into state so the formatting toolbar can be
-       swapped for the shape picker (CropToolbar) while cropping. */
   const [cropSession, setCropSession] = useState<ImageCropSession>(null)
 
-  /* ── Trackpad-pinch / ctrl+scroll zoom toward the cursor ──
-       Zooms the whole page stack (pages + editor surface) via CSS `zoom`,
-       so the .tw-scroll container reflows and every page stays reachable.
-       Same gesture as the image/PDF viewers. */
-  // Snap-to-zoom: the page snaps to filling the full / half / quarter of the
-  // editor width. PAGE_W_PX is the unscaled page width; the 56px gutter is the
-  // vertical ruler column (36px ruler + 20px margin) so "full" keeps it visible
-  // instead of letting the page overflow and cover it.
   useEditorZoom({ scrollRef, contentRef: pagesStackRef, enabledKey: documentId, snapPageWidthPx: PAGE_W_PX, snapGutterPx: 56 })
 
-  /* ── Shared prose-editor base (TipTap setup, typing state/caret, lifecycle) ── */
   const { editor, editorSurfaceRef: editorSurfRef, caretRef, isUiTyping } = useProseEditorBase({
     documentId,
     content,
     readOnly,
     placeholder: "Start writing...",
     extensions: [
-      // heading:false — the app intentionally has no heading blocks (there's no
-      // toolbar control for them). StarterKit ships Heading ENABLED, which
-      // silently let the "# " markdown input rule, ⌃⌥1, and paste create <h1>s
-      // that then rendered bold via the editor's heading CSS. Both prose editors
-      // must disable it identically so their shared schema stays in sync.
-      // horizontalRule:false — its `---` input rule clashes with the smart em
-      // dash and the six-hyphen divider; HorizontalRuleSixDashes (in the shared
-      // list) supplies the hr node + the `------` rule instead.
       StarterKit.configure({ heading: false, horizontalRule: false }),
       Highlight.configure({ multicolor: true }),
       Underline,
-      // Shared with DraftingEditor so both views keep an identical prose schema
-      // (font size/family/colour/alignment/indent/columns) — see
-      // sharedProseExtensions.ts.
       ...sharedProseFormattingExtensions(),
       PageBreakExtension,
       SearchHighlightExtension,
@@ -167,13 +118,9 @@ export default function TypewriterEditor({
     onEditorReady,
   })
 
-  /* ── Route global menu accelerators (Cmd+A/C/X/V/Z/⇧⌘P/…) to this
-       TipTap surface so the Edit menu works the same way it does in
-       DraftingEditor. ── */
   useEditorCommandBus(editor)
   useEditorSearchHighlight({ editor, documentId })
 
-  /* ── Bump version for toolbar active states ── */
   useEffect(() => {
     if (!editor) return
     const bump = () => setEditorVer((v) => v + 1)
@@ -182,7 +129,6 @@ export default function TypewriterEditor({
     return () => { editor.off("selectionUpdate", bump); editor.off("transaction", bump) }
   }, [editor])
 
-  /* ── Track image crop sessions (see cropSession above) ── */
   useEffect(() => {
     if (!editor) return
     let dom: HTMLElement
@@ -198,14 +144,6 @@ export default function TypewriterEditor({
     return () => dom.removeEventListener("tw-image-crop", sync)
   }, [editor])
 
-  /* ── Persist margins on user change ──
-   *  This editor is keyed by documentId (see EditorWorkspace), so it remounts
-   *  per document and `margins` is seeded from the project's persisted value in
-   *  the useState above. We only push a change back up once the user actually
-   *  drags a ruler guide — persisting on mount would re-write the identical
-   *  seed value and needlessly dirty the project every time a document opens.
-   *  The resize still fires on mount: page-break layout keys off it to settle
-   *  the page count for the loaded margins. */
   const marginsMountedRef = useRef(false)
   useEffect(() => {
     if (marginsMountedRef.current) {
@@ -216,7 +154,6 @@ export default function TypewriterEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [margins])
 
-  /* ── Ruler drag ── */
   const {
     hasNonEmptySelection,
     selIndentLeftPx,
@@ -226,30 +163,18 @@ export default function TypewriterEditor({
     handleRulerDown,
   } = useRulerDrag({ editor, margins, setMargins, rulerXRef, rulerYRef })
 
-  /* ── Format painter ── */
   const { isArmed: isPaintFormatArmed, handlePaintRollerClick } = useFormatPainter(editor)
 
-  /* ── Derived pixel values ── */
   const mTopPx    = inToPx(margins.top)
   const mBottomPx = inToPx(margins.bottom)
   const mLeftPx   = inToPx(margins.left)
   const mRightPx  = inToPx(margins.right)
   const totalH    = numPages * PAGE_H_PX + (numPages - 1) * PAGE_GAP_PX
 
-  /* ── ResizeObserver: update page count as content grows ── */
   useEffect(() => {
     const el = editorSurfRef.current
     if (!el) return
     const update = () => {
-      // scrollHeight includes the editor-surf's paddingBottom (= mBottomPx),
-      // which is just the bottom margin reserved on the LAST page — it isn't
-      // real content. Strip it so we count by actual content height.
-      //
-      // After the page-break extension settles, K pages means the surface's
-      // content height satisfies contentH = (K-1)*stride + L, where L is the
-      // last page's content (0 < L ≤ pageH-mTop-mBot < stride). So K is just
-      // ceil(contentH / stride). No extra "badZone" term — adding mTop + gap
-      // on top of contentH was crossing the next stride boundary one page early.
       const contentH = Math.max(0, el.scrollHeight - mBottomPx)
       const stride   = PAGE_H_PX + PAGE_GAP_PX
       setNumPages(Math.max(1, Math.ceil(contentH / stride)))
@@ -260,11 +185,8 @@ export default function TypewriterEditor({
     return () => ro.disconnect()
   }, [editor, mTopPx, mBottomPx, editorSurfRef])
 
-  /* ── Cmd/Ctrl+Enter: jump cursor to the next page ── */
   useEffect(() => {
     if (!editor) return
-    // The view may not be mounted on the first render; defer side-effect
-    // setup until the editor proxy is replaced with a real EditorView.
     let dom: HTMLElement
     try {
       dom = editor.view.dom as HTMLElement
@@ -287,12 +209,6 @@ export default function TypewriterEditor({
       if (!surfEl) return
       const surfRect = surfEl.getBoundingClientRect()
 
-      // The page stack can be CSS-zoomed (snap-to-zoom), so coordsAtPos /
-      // getBoundingClientRect report *rendered* px while the page-geometry
-      // constants below are unzoomed. Calibrate with the surface's rendered-vs-
-      // natural width so all the math stays in natural px (ratio === 1 at 100%
-      // zoom, so this is a no-op there). Without this, off-100% zoom miscounts
-      // the fill paragraphs and drops the cursor into the middle of the page.
       const naturalSurfW = PAGE_W_PX - mLeftPx - mRightPx
       const renderScale = naturalSurfW > 0 && surfRect.width > 0 ? surfRect.width / naturalSurfW : 1
 
@@ -302,12 +218,8 @@ export default function TypewriterEditor({
       const currentPageContentBot = pageIdx * stride + (PAGE_H_PX - mBottomPx)
       const remainingPx = Math.max(0, currentPageContentBot - cursorStackY)
 
-      // Each empty paragraph contributes one line of the editor's font height
-      // PLUS the CSS margin-bottom (1em = the editor's font size in px).
-      // Insert just enough to push past the current page's content area; the
-      // page-break extension takes care of the actual page advance.
       const lineHeight = DEFAULT_FONT_SIZE_PX * DEFAULT_LINE_HEIGHT
-      const paraSpacingPx = DEFAULT_FONT_SIZE_PX * 1.25 // matches CSS .ProseMirror p { margin-bottom: 1.25em }
+      const paraSpacingPx = DEFAULT_FONT_SIZE_PX * 1.25
       const paragraphHeight = lineHeight + paraSpacingPx
       const paragraphsNeeded = Math.ceil(remainingPx / paragraphHeight) + 1
       const html = "<p></p>".repeat(paragraphsNeeded)
@@ -318,7 +230,6 @@ export default function TypewriterEditor({
     return () => dom.removeEventListener("keydown", handleKeyDown, true)
   }, [editor, mTopPx, mBottomPx, mLeftPx, mRightPx, editorSurfRef])
 
-  /* ── Page breaks: push overflowing lines to the next page (via PM decorations) ── */
   useEffect(() => {
     if (!editor) return
     const storage = (editor.storage as unknown as Record<string, unknown>).twPageBreaks as PageBreakStorage | undefined
@@ -328,20 +239,14 @@ export default function TypewriterEditor({
     storage.pageHPx   = PAGE_H_PX
     storage.gapPx     = PAGE_GAP_PX
     storage.remeasure = (storage.remeasure || 0) + 1
-    // Direct trigger so the recompute fires this frame instead of waiting on
-    // the 80ms storage poll.
     storage.requestRecompute?.()
   }, [editor, mTopPx, mBottomPx])
 
-  /* ── Render ── */
   return (
     <div className="tw-outer" ref={outerRef}>
 
-      {/* scroll container */}
       <div className="tw-scroll" ref={scrollRef}>
 
-        {/* zoom wrapper: rulers + pages scale together so the margins (and the
-            ruler ticks that mark them) stay aligned to the page at any zoom. */}
         <div className="tw-zoom-wrap" ref={pagesStackRef}>
 
         <TypewriterRulerRow
@@ -358,7 +263,6 @@ export default function TypewriterEditor({
           handleRulerDown={handleRulerDown}
         />
 
-        {/* body row: vertical ruler + pages */}
         <div className="tw-body-row">
 
           <TypewriterRulerY
@@ -370,7 +274,6 @@ export default function TypewriterEditor({
             handleRulerDown={handleRulerDown}
           />
 
-          {/* pages stack */}
           <div
             className="tw-pages-stack"
             style={{ width: PAGE_W_PX, height: totalH } as CSSProperties}
@@ -394,7 +297,7 @@ export default function TypewriterEditor({
                 left:          mLeftPx,
                 top:           mTopPx,
                 width:         PAGE_W_PX - mLeftPx - mRightPx,
-                paddingBottom: mBottomPx,  // enforces visible bottom margin on every page
+                paddingBottom: mBottomPx,
               } as CSSProperties}
             >
               <EditorContent editor={editor} />
@@ -409,12 +312,11 @@ export default function TypewriterEditor({
           </div>
         </div>
 
-        </div>{/* /tw-zoom-wrap */}
+        </div>
 
         <div className="tw-scroll-spacer" aria-hidden="true" />
       </div>
 
-      {/* bottom-left toolbar toggle (mirrors the corner ruler toggle) */}
       <button
         type="button"
         className={`tw-toolcase-btn${!showToolbar ? " tw-toolcase-btn--off" : ""}${isUiTyping ? " tw-toolcase-btn--typing" : ""}`}

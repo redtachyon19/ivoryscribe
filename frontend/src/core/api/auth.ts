@@ -1,6 +1,3 @@
-// Auth endpoints: login, registration, email verification, account
-// management, password reset, account deletion.
-
 import { request } from "./request"
 import type {
   AuthResponse,

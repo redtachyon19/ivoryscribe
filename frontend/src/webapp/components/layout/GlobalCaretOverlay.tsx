@@ -139,10 +139,6 @@ function copyTextLayoutStyles(source: CSSStyleDeclaration, destination: CSSStyle
     "tab-size",
     "-moz-tab-size",
     "white-space",
-    // Crucial for password fields: the browser masks their text via
-    // `-webkit-text-security: disc`, and a disc glyph is a different width than
-    // the real character. Copying it makes the mirror render the same dots, so
-    // the measured caret lands on the dots instead of drifting past them.
     "-webkit-text-security",
   ] as const
 
@@ -155,11 +151,6 @@ function getCaretMetricsForTextControl(target: HTMLInputElement | HTMLTextAreaEl
   const selectionStart = target.selectionStart
   const selectionEnd = target.selectionEnd
 
-  // `email` and `number` inputs don't support the selection API — their
-  // selectionStart is null even while focused — so we can't read a caret
-  // offset. The caret sits at the end of the value there (true while typing,
-  // which is what the indicator follows), so fall back to value.length. For
-  // text/password/etc., bail on a non-empty range (no single caret to draw).
   const supportsSelection = selectionStart !== null && selectionEnd !== null
   if (supportsSelection && selectionStart !== selectionEnd) {
     return null
@@ -188,9 +179,6 @@ function getCaretMetricsForTextControl(target: HTMLInputElement | HTMLTextAreaEl
 
   const marker = document.createElement("span")
   marker.textContent = "\u200b"
-  // The mirror inherits the field's `-webkit-text-security`; keep the zero-width
-  // caret marker itself unmasked so it can't render as a disc and shift the
-  // measured position.
   marker.style.setProperty("-webkit-text-security", "none")
   mirror.append(marker)
 

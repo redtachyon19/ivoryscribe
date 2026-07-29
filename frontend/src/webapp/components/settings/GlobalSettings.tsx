@@ -84,15 +84,11 @@ export type GlobalSettingsProps = {
   onRequestAccountDeletion: () => Promise<{ message: string; deletion: { userId: string; email: string } }> | { message: string; deletion: { userId: string; email: string } }
   onConfirmAccountDeletionCode: (input: { userId: string; code: string }) => Promise<void> | void
   onSignOut: () => void
-  /** Opens the auth overlay so the user can sign in or create an account
-   *  without leaving the settings panel. Used by AccountSettings when no
-   *  email is present. */
   onRequestSignIn?: () => void
-  // Workspace (Electron local-file mode only). When `localWorkspaceRoot` is
-  // non-null we render a Workspace section that lets the user point Ivoryscribe
-  // at a different folder on disk.
   localWorkspaceRoot?: string | null
   onChangeLocalWorkspace?: () => Promise<string | null> | void
+  autoCreateDefaultRoot?: boolean
+  onAutoCreateDefaultRootChange?: (enabled: boolean) => void
 }
 
 export default function GlobalSettings({
@@ -151,9 +147,11 @@ export default function GlobalSettings({
   onRequestSignIn,
   localWorkspaceRoot,
   onChangeLocalWorkspace,
+  autoCreateDefaultRoot,
+  onAutoCreateDefaultRootChange,
 }: GlobalSettingsProps) {
   type SectionId = "account" | "appearance" | "workspace" | "project-preferences"
-  const showWorkspace = typeof localWorkspaceRoot === "string"
+  const showWorkspace = localWorkspaceRoot !== undefined
   const sectionIds: SectionId[] = [
     "account",
     "appearance",
@@ -316,10 +314,6 @@ export default function GlobalSettings({
     }
 
     const getSectionForScrollPosition = () => {
-      // When the content is scrolled to the very bottom, snap to the last
-      // section. Its content is often too short to ever push its top past the
-      // activation offset, so otherwise the nav highlight could never reach it
-      // (e.g. Workspace as the final section).
       if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) {
         return sectionIds[sectionIds.length - 1]
       }
@@ -516,6 +510,8 @@ export default function GlobalSettings({
                   <WorkspaceSettings
                     rootPath={localWorkspaceRoot ?? null}
                     onChangeLocalWorkspace={onChangeLocalWorkspace}
+                    autoCreateDefaultRoot={autoCreateDefaultRoot}
+                    onAutoCreateDefaultRootChange={onAutoCreateDefaultRootChange}
                     sectionRef={(element) => {
                       sectionRefs.current.workspace = element
                     }}

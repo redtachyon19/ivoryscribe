@@ -1,9 +1,3 @@
-// Horizontal + vertical rulers + corner toggle for TypewriterEditor.
-//
-// Pure presentation: the parent computes margin/indent values via
-// `useRulerDrag` and passes them in. This component renders the tick marks,
-// rails, and drag handles.
-
 import type { CSSProperties, RefObject } from "react"
 import { RulerDimensionLine, X } from "lucide-react"
 import { PAGE_GAP_PX, PAGE_H_PX, PAGE_W_PX, type Margins, inToPx } from "../utils/typewriterMargins"
@@ -135,7 +129,6 @@ export function TypewriterRulerY({
     return y <= PAGE_H_PX ? { y, major: i % 2 === 0, label: i / 2 } : null
   }).filter(Boolean) as { y: number; major: boolean; label: number }[]
 
-  // Ticks across every page, offset by each page's top position.
   const allYTicks = Array.from({ length: numPages }, (_, pageIndex) => {
     const pageTop = pageIndex * (PAGE_H_PX + PAGE_GAP_PX)
     return yTicks.map((t) => ({ ...t, absY: pageTop + t.y, pageIndex }))
@@ -148,7 +141,6 @@ export function TypewriterRulerY({
       style={{ height: totalH + 48 } as CSSProperties}
       aria-hidden="true"
     >
-      {/* Per-page rails: bg + right border for each page; gaps stay empty */}
       {Array.from({ length: numPages }, (_, i) => (
         <div
           key={`rail-${i}`}
@@ -160,7 +152,6 @@ export function TypewriterRulerY({
         />
       ))}
 
-      {/* Ticks for every page */}
       {allYTicks.map(({ absY, major, label, pageIndex }) => (
         <div
           key={`${pageIndex}-${absY}`}
@@ -173,7 +164,6 @@ export function TypewriterRulerY({
         </div>
       ))}
 
-      {/* Margin handles repeated on every page */}
       {Array.from({ length: numPages }, (_, pageIndex) => {
         const pageTop = pageIndex * (PAGE_H_PX + PAGE_GAP_PX)
         return (

@@ -131,9 +131,6 @@ export type ProjectCardProps = {
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>
   onContextMenu?: (projectId: string, x: number, y: number) => void
   marqueeSelected?: boolean
-  /** True when this project is currently shared. Implies cloud — shared
-   *  projects in the new model are by definition cloud projects. Shows
-   *  a Users icon in place of the Cloud icon. */
   isShared?: boolean
 }
 
@@ -158,14 +155,7 @@ export default function ProjectCard({
   const [editingName, setEditingName] = useState("")
   const renameTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Unknown-kind projects are stand-ins for files the app can't read or
-  // write (any extension that isn't .tusk/.tusks/.md/.txt/.pdf). The
-  // user can still drag, delete, and move them — but click-to-open and
-  // rename are gated off everywhere this flag is checked.
   const isUnknown = project.kind === "Unknown"
-  // Defensive: never enter rename mode for Unknown projects even if the
-  // parent accidentally sets editingProjectId to one (the context menu
-  // gates this already, but the card double-checks).
   const isEditing = editingProjectId === project.id && !isUnknown
 
   const cancelRename = () => {
@@ -231,9 +221,6 @@ export default function ProjectCard({
 
   const handleProjectCardClick = (event: ReactMouseEvent<HTMLElement>) => {
     if (isEditing) return
-    // Unknown-kind files have no editor — clicking the card is a no-op.
-    // Drag / delete / move still work because they're handled separately
-    // (drag handlers on the card, context menu for delete/move).
     if (isUnknown) return
     const target = event.target
     if (target instanceof Element && target.closest("button, input, textarea, select, label")) return
@@ -303,8 +290,6 @@ export default function ProjectCard({
           </div>
         ) : (
           (() => {
-            // Branch on kind so each project type carries its own icon —
-            // see core/utils/projectIcons.ts for the resolver.
             const Icon = iconForProjectKind(project.kind)
             return <Icon className="project-card__thumb-icon" size={28} strokeWidth={1.6} />
           })()
@@ -353,11 +338,6 @@ export default function ProjectCard({
           {isUnknown
             ? <>Unsupported file &middot; {formatRelativeTime(project.createdAt)}</>
             : <>{entryCount} {entryLabel} &middot; {formatRelativeTime(project.createdAt)}</>}
-          {/* Cloud / shared chip. Driven by the project's `source`
-              field (the only "is this in the cloud?" signal in the
-              new model — no more cache/cloud-id sniffing). Shared
-              takes precedence since every shared project is by
-              definition a cloud project. */}
           {project.source === "cloud" ? (
             isShared ? (
               <>

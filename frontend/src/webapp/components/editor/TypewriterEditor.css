@@ -1,9 +1,3 @@
-/* ================================================================
-   TypewriterEditor — Phase 2 styles
-   8.5in × 11in page layout with rulers, multi-page, floating toolbar
-   ================================================================ */
-
-/* ── Outer wrapper (toolbar anchor, clips scroll) ── */
 .tw-outer {
   position: relative;
   width: 100%;
@@ -14,14 +8,6 @@
   background: var(--app-bg);
 }
 
-/* ── Scroll container ── */
-/* Center the page (with its rulers) horizontally within the editor column —
-   whatever width that column happens to be (it shrinks/grows as the side rails
-   open and close). `safe center` keeps the left edge reachable via horizontal
-   scroll when the editor area is narrower than the content, instead of
-   clipping it. The page itself centres on the column: the left ruler gutter is
-   balanced by matching right padding on .tw-zoom-wrap, so equal space sits on
-   each side of the page regardless of how narrow the column gets. */
 .tw-scroll {
   flex: 1;
   overflow-y: auto;
@@ -40,35 +26,19 @@
   margin-left: 0;
 }
 
-/* ── Zoom wrapper (rulers + pages scale together) ── */
-/* useEditorZoom applies CSS `zoom` here so the top + side rulers stay aligned
-   to the page margins at every zoom level. fit-content keeps the wrapper sized
-   to its content (the ruler row + body row) so the sticky top ruler and the
-   page layout behave exactly as before at zoom: 1. */
 .tw-zoom-wrap {
   flex-shrink: 0;
   width: fit-content;
-  /* The wrapper's content is [56px ruler gutter | 816px page], so when the
-     scroll container centers it the *page* lands 28px (half the gutter) right
-     of the column centre. With wide side rails that bias is invisible, but with
-     both rails open the editor column is narrow and the bias eats the entire
-     right-hand gap (visible empty space on the left, none on the right). Adding
-     a matching 56px of space on the right balances the block around the page so
-     it centres at every zoom and panel state. content-box (the app sets no
-     border-box reset) means this adds to the wrapper's width; the padding sits
-     inside the zoomed element so it scales with the gutter automatically. */
   box-sizing: content-box;
   padding-right: 56px;
 }
 
-/* ── Bottom spacer (so toolbar never covers last line) ── */
 .tw-scroll-spacer {
   flex-shrink: 0;
   height: 100px;
   width: 1px;
 }
 
-/* ─────────────────── Ruler row ─────────────────── */
 .tw-ruler-row {
   position: sticky;
   top: 0;
@@ -79,19 +49,12 @@
   user-select: none;
 }
 
-/* Spacer that occupies the y-ruler's column above the page so the
-   horizontal ruler aligns with the page edge (matches y-ruler 36px +
-   margin-right 20px = 56px). */
 .tw-corner-spacer {
   width: 56px;
   flex-shrink: 0;
   pointer-events: none;
 }
 
-/* Filled block behind the corner button — covers the y-ruler's column
-   so it is not visible behind/around the button when scrolled. Sized to
-   span the corner-spacer width (56px) and extend down past the button's
-   bottom edge so no V-ruler peek-through remains. */
 .tw-corner-bg {
   position: absolute;
   top: 0;
@@ -102,9 +65,6 @@
   pointer-events: none;
 }
 
-/* ─────────────────── Corner toggle button ─────────────────── */
-/* Styled to match the global settings button (28×28 rounded square with
-   subtle border + bg, 360° hover spin). */
 .tw-corner-btn {
   position: absolute;
   top: 10px;
@@ -128,7 +88,6 @@
   overflow: visible;
   transition: color 120ms ease, background-color 120ms ease, opacity 280ms linear;
 }
-/* Fade out while typing, in sync with the global settings button. */
 .tw-corner-btn--typing {
   opacity: 0;
   pointer-events: none;
@@ -141,7 +100,6 @@
   box-shadow: none;
 }
 
-/* Two icon layers — only one visible at a time, spin-swap on click */
 .tw-corner-btn__icon {
   position: absolute;
   inset: 0;
@@ -160,7 +118,6 @@
   transform: rotate(0deg) scale(1);
 }
 
-/* Hover: spin the currently visible icon once (matches settings button) */
 .tw-corner-btn:hover .tw-corner-btn__icon--visible,
 .tw-corner-btn:focus-visible .tw-corner-btn__icon--visible {
   animation: tw-corner-btn-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
@@ -171,7 +128,6 @@
   to   { transform: rotate(360deg) scale(1); }
 }
 
-/* Horizontal ruler */
 .tw-ruler-x {
   position: relative;
   height: 32px;
@@ -181,26 +137,20 @@
   overflow: hidden;
   transition: opacity 300ms ease;
 }
-/* Fade ruler while typing or when hidden — corner button stays visible */
 .tw-ruler-x--typing,
 .tw-ruler-x--hidden {
   opacity: 0;
   pointer-events: none;
 }
 
-/* ─────────────────── Body row ─────────────────── */
 .tw-body-row {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  /* matches the y-ruler's margin-right so the gap between H ruler/page
-     equals the gap between V ruler/page */
   padding: 20px 0 0;
   flex-shrink: 0;
 }
 
-/* Vertical ruler — container only. Bg + right-border are drawn per page
-   by `.tw-ruler-y-rail` so the inter-page gap regions stay empty. */
 .tw-ruler-y {
   position: relative;
   width: 36px;
@@ -212,8 +162,6 @@
 .tw-ruler-y--typing { opacity: 0; pointer-events: none; }
 .tw-ruler-y--hidden { opacity: 0; pointer-events: none; }
 
-/* Per-page rail: provides the V ruler bg + right border for one page.
-   Absent in the gap between pages, so the gap renders empty. */
 .tw-ruler-y-rail {
   position: absolute;
   left: 0;
@@ -223,14 +171,11 @@
   pointer-events: none;
 }
 
-/* ─────────────────── Ruler ticks ─────────────────── */
-/* All ticks use the same colour/weight as the ruler border line */
 .tw-ruler__tick {
   position: absolute;
   background: color-mix(in srgb, var(--menu-border) 70%, transparent);
 }
 
-/* Horizontal tick (x ruler) — anchored to the bottom edge */
 .tw-ruler__tick--x {
   top: auto;
   bottom: 0;
@@ -239,7 +184,6 @@
 .tw-ruler__tick--x.tw-ruler__tick--major { height: 12px; }
 .tw-ruler__tick--x.tw-ruler__tick--minor { height: 6px; }
 
-/* Vertical tick (y ruler) — anchored to the right edge */
 .tw-ruler__tick--y {
   left: auto;
   right: 0;
@@ -248,10 +192,8 @@
 .tw-ruler__tick--y.tw-ruler__tick--major { width: 12px; }
 .tw-ruler__tick--y.tw-ruler__tick--minor { width: 6px; }
 
-/* Ruler labels — centered on their tick */
 .tw-ruler__label {
   position: absolute;
-  /* x-axis: sit just above the bottom tick line */
   bottom: 14px;
   left: 0;
   transform: translateX(-50%);
@@ -262,7 +204,6 @@
   white-space: nowrap;
   line-height: 1;
 }
-/* y-axis: centered vertically on the tick, positioned left of the tick */
 .tw-ruler__label--y {
   bottom: auto;
   left: auto;
@@ -271,7 +212,6 @@
   transform: translateY(-50%);
 }
 
-/* ─────────────────── Ruler drag handles ─────────────────── */
 .tw-ruler__handle {
   position: absolute;
   background: color-mix(in srgb, var(--menu-button, #ededed) 30%, transparent);
@@ -280,7 +220,6 @@
 }
 .tw-ruler__handle:hover { background: var(--app-accent, #7ea8ff); }
 
-/* Horizontal handle (left/right margins) */
 .tw-ruler__handle--x {
   top: 0;
   bottom: 0;
@@ -289,7 +228,6 @@
   transform: translateX(-1px);
 }
 
-/* Vertical handle (top/bottom margins) */
 .tw-ruler__handle--y {
   left: 0;
   right: 0;
@@ -298,13 +236,11 @@
   transform: translateY(-1px);
 }
 
-/* ─────────────────── Pages stack ─────────────────── */
 .tw-pages-stack {
   position: relative;
   flex-shrink: 0;
 }
 
-/* Individual page card — uniform 1 px border on all 4 sides, no rounding */
 .tw-page-card {
   position: absolute;
   left: 0;
@@ -315,9 +251,6 @@
   box-sizing: border-box;
   pointer-events: none;
 }
-/* Page-break spacer (injected as a widget decoration to push lines past the
-   bottom margin onto the next page). Enforced as block + full width so no
-   parent style can collapse its height. */
 .tw-editor-surf .ProseMirror .tw-page-spacer {
   display: block !important;
   width: 100% !important;
@@ -328,15 +261,11 @@
   background: transparent;
 }
 
-/* ─────────────────── Editor overlay ─────────────────── */
 .tw-editor-surf {
   position: absolute;
   z-index: 2;
-  /* left, top, width driven by inline style from margins */
 }
 
-/* Format painter armed: show a copy cursor over the editable area so the user
-   knows the next selection will receive the captured formatting. */
 .tw-editor-surf--paint-armed,
 .tw-editor-surf--paint-armed .ProseMirror,
 .tw-editor-surf--paint-armed .ProseMirror * { cursor: copy !important; }
@@ -346,24 +275,17 @@
   min-height: 200px;
   color: var(--editor-text);
   font-family: "Georgia", "Times New Roman", serif;
-  /* 11pt at 96 DPI ≈ 14.667px — kept in pt so it stays in lockstep with the
-     user-facing point values in the toolbar. */
   font-size: 11pt;
   line-height: 1.15;
   word-break: break-word;
   overflow-wrap: break-word;
-  caret-color: transparent; /* hidden — we use the custom animated caret */
-  /* Match Google Docs' rendering: greyscale antialiasing makes strokes appear
-     thicker/crisper on HiDPI than the browser default subpixel mode. */
+  caret-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: "kern" 1, "liga" 1;
 }
 
-/* Paragraph spacing — Enter creates a new paragraph with a generous gap that
-   scales with the editor's font size. Shift+Enter still inserts a <br> with
-   no extra margin so it stays at the line-height. */
 .tw-editor-surf .ProseMirror p {
   margin-top: 0;
   margin-bottom: 1.25em;
@@ -372,16 +294,11 @@
   margin-bottom: 0;
 }
 
-/* Six-hyphen divider — symmetric vertical margins matching the paragraph rhythm
-   (margin-bottom: 1.25em) so the rule is centred between the lines, not hugging
-   the one below. Clean 1px line instead of the browser's beveled default. */
 .tw-editor-surf .ProseMirror hr {
   border: none;
   border-top: 2px solid color-mix(in srgb, var(--editor-text, #888) 42%, transparent);
   margin: 1.25em 0;
 }
-/* Hard breaks (<br> from Shift+Enter) — explicit zero margin in case any
-   global rule tries to add one. */
 .tw-editor-surf .ProseMirror br {
   margin: 0;
 }
@@ -400,7 +317,6 @@
   margin: 0 0 8pt;
 }
 
-/* Placeholder */
 .tw-editor-surf .ProseMirror p.is-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
@@ -410,7 +326,6 @@
   font-style: italic;
 }
 
-/* ─────────────────── Typing caret ─────────────────── */
 .typing-caret {
   position: absolute;
   left: 0;
@@ -425,12 +340,7 @@
 .typing-caret--hidden   { opacity: 0; }
 .typing-caret--typing   { opacity: 1; }
 
-/* ─────────────────── Floating toolbar (matches pinboard toolbar) ─────────────────── */
 .tw-toolbar {
-  /* Absolute within .tw-outer (the editor area). .tw-outer doesn't scroll —
-     .tw-scroll inside it does — so this stays put while the page scrolls. The
-     page is centred on the column (see .tw-zoom-wrap), so the toolbar lines up
-     with the page at plain 50% with no gutter offset. */
   position: absolute;
   bottom: 56px;
   left: 50%;
@@ -453,10 +363,6 @@
   opacity: 0.85;
 }
 
-/* Hidden state — fades out and stops accepting input. Opacity-only so the
-   transform stays consistent whether the toolbar is centered or dragged.
-   280ms linear matches the settings button / toolbar toggle / ruler toggle so
-   all the auto-hiding chrome fades in and out together. */
 .tw-toolbar {
   transition: opacity 280ms linear;
 }
@@ -464,20 +370,11 @@
   opacity: 0;
   pointer-events: none;
 }
-/* Fade out while typing, in sync with the rest of the editor chrome. */
 .tw-toolbar--typing {
   opacity: 0;
   pointer-events: none;
 }
 
-/* ─────────────────── Toolbar toggle (top-right of document) ─────────────────── */
-/* Mirrors the corner ruler-dimension toggle: same modal-X-style button shape,
-   two-icon spin-swap. Sits on the same horizontal line as the settings button
-   and the corner ruler toggle: the editor-center column adds
-   padding-top: var(--editor-topbar-height), so `.tw-outer`'s top is at
-   viewport-y 46; top: 10px puts this button at viewport-y 56 — level with the
-   settings button (top: 46 + 10) and the corner toggle. It's tucked just
-   inboard of the settings button (right: 52) so the two don't overlap. */
 .tw-toolcase-btn {
   position: absolute;
   top: 46px;
@@ -501,7 +398,6 @@
   overflow: visible;
   transition: color 120ms ease, background-color 120ms ease, opacity 280ms linear;
 }
-/* Fade out while typing, in sync with the global settings button. */
 .tw-toolcase-btn--typing {
   opacity: 0;
   pointer-events: none;
@@ -514,7 +410,6 @@
   box-shadow: none;
 }
 
-/* Two icon layers — only one visible at a time, spin-swap on click */
 .tw-toolcase-btn__icon {
   position: absolute;
   inset: 0;
@@ -533,7 +428,6 @@
   transform: rotate(0deg) scale(1);
 }
 
-/* Hover: spin the currently visible icon once (matches corner button) */
 .tw-toolcase-btn:hover .tw-toolcase-btn__icon--visible,
 .tw-toolcase-btn:focus-visible .tw-toolcase-btn__icon--visible {
   animation: tw-toolcase-btn-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
@@ -544,7 +438,6 @@
   to   { transform: rotate(360deg) scale(1); }
 }
 
-/* Drag grip */
 .tw-toolbar__grip {
   display: inline-flex;
   align-items: center;
@@ -564,7 +457,6 @@
   color: var(--menu-button, #ededed);
 }
 
-/* Separator */
 .tw-toolbar__sep {
   display: inline-block;
   width: 1px;
@@ -574,7 +466,6 @@
   flex-shrink: 0;
 }
 
-/* Icon buttons */
 .tw-toolbar__btn {
   display: inline-flex;
   align-items: center;
@@ -604,7 +495,6 @@
   background: color-mix(in srgb, var(--app-accent, #7ea8ff) 85%, #fff);
 }
 
-/* Font family — custom dropdown matching the global settings font picker */
 .tw-toolbar__font-combo {
   position: relative;
   flex-shrink: 0;
@@ -677,8 +567,6 @@
   outline: none;
 }
 
-/* Font size combo — single text field that opens a preset menu on focus/click.
-   Matches the compact pinboard toolbar look. */
 .tw-toolbar__size-combo {
   position: relative;
   display: inline-flex;
@@ -716,7 +604,6 @@
 .tw-toolbar__size-input::-webkit-inner-spin-button,
 .tw-toolbar__size-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
-/* Popup menu of preset sizes */
 .tw-toolbar__size-menu {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -762,10 +649,6 @@
   background: var(--menu-button-hover-bg, rgba(255, 255, 255, 0.06));
 }
 
-/* ─── Generic toolbar submenu (alignment, columns) ───
-   Trigger button + popup menu rendered above the toolbar. Hover on the
-   container reveals the menu — `pointer-events` stay live on both the button
-   and the menu so the cursor can move between them without closing. */
 .tw-toolbar__submenu-combo {
   position: relative;
   display: inline-flex;
@@ -790,10 +673,6 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
-/* Invisible bridge spanning the 6px gap between the trigger and the menu so
-   the cursor can travel up without leaving the combo's hit area (which would
-   otherwise fire onMouseLeave and close the menu). The bridge sits below the
-   submenu and extends a bit past its sides to forgive diagonal cursor paths. */
 .tw-toolbar__submenu::before {
   content: "";
   position: absolute;
@@ -828,18 +707,10 @@
   border-color: var(--app-accent, #7ea8ff);
 }
 
-/* ─── Multi-column wrapper (set via the columns extension) ───
-   The inline style on the rendered <div> drives `column-count` and
-   `column-gap`; this rule just keeps the children laying out cleanly inside
-   the column flow. Page-break logic still operates per-line, so very long
-   column blocks may overflow gracefully onto the next page. */
 .tw-editor-surf .ProseMirror .tw-columns > * {
   break-inside: avoid;
 }
 
-/* ─── Colour pickers (text + highlight) ─── */
-/* Triggers reuse .tw-toolbar__btn; a thin bar under the glyph reflects the
-   current colour, and the palette below matches the hover submenus. */
 .tw-toolbar__color-btn {
   position: relative;
   flex-direction: column;
@@ -855,11 +726,9 @@
   width: 16px;
   height: 3px;
   border-radius: 2px;
-  /* Subtle outline so light bars read against the dark toolbar. */
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
 }
 
-/* Swatch popover — same chrome as .tw-toolbar__submenu, but a wrapping grid. */
 .tw-toolbar__palette {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -875,7 +744,6 @@
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
-/* Invisible bridge across the 6px gap (same trick as .tw-toolbar__submenu). */
 .tw-toolbar__palette::before {
   content: "";
   position: absolute;
@@ -920,10 +788,7 @@
 .tw-toolbar__swatch--active {
   box-shadow: 0 0 0 2px var(--menu-dropdown-bg, #1a1a1a), 0 0 0 3px var(--app-accent, #7ea8ff);
 }
-/* "Custom…" — opens the OS picker; rainbow fill marks it as the full picker. */
 .tw-toolbar__swatch--custom {
   background: conic-gradient(#f44336, #ff9800, #ffeb3b, #4caf50, #2196f3, #9c27b0, #f44336);
 }
 
-/* The custom colour picker styles live in ColorPicker.css (co-located with the
-   component) so they load wherever the picker is used, not just in the editor. */

@@ -6,9 +6,6 @@ type NavEntry = {
   view: "projects" | "editor"
   activeId?: string | null
   librarySection?: LibrarySection
-  /** Which library folder was open (null = library root). Only meaningful for
-   *  the "projects" view, "library" section — the other sections have no folder
-   *  browser. */
   openFolderId?: string | null
 }
 

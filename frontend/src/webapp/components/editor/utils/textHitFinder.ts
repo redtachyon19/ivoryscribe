@@ -1,10 +1,3 @@
-// DOM-walking helpers that locate the Nth occurrence of a word (or arbitrary
-// query) inside a contenteditable root and return the text node + offsets so
-// the caller can build a Range and scroll/select it.
-//
-// Used by DraftingEditor's spell-check focus jump (`findTextWordHit`) and
-// find/replace focus jump (`findTextQueryHit`).
-
 const SPELL_WORD_MATCHER = /[A-Za-z]+(?:['’][A-Za-z]+)*/g
 
 export type TextWordHit = {
@@ -17,12 +10,6 @@ export function normalizeSpellWord(value: string) {
   return value.replace(/’/g, "'").toLowerCase()
 }
 
-/**
- * Walk `root`'s text nodes and return the Nth occurrence (0-indexed) of a
- * word equal — after curly-apostrophe normalization and lowercase — to
- * `normalizedWord`. Returns null if fewer than `targetOccurrence+1` matches
- * exist.
- */
 export function findTextWordHit(root: Node, normalizedWord: string, targetOccurrence: number): TextWordHit | null {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   let currentNode = walker.nextNode()
@@ -55,11 +42,6 @@ export function findTextWordHit(root: Node, normalizedWord: string, targetOccurr
   return null
 }
 
-/**
- * Walk `root`'s text nodes and return the Nth occurrence (0-indexed) of the
- * raw substring `query` (lowercased, trimmed). Used by find/replace and
- * project-search focus jumps. Returns null if not found.
- */
 export function findTextQueryHit(root: Node, query: string, targetOccurrence: number): TextWordHit | null {
   const normalizedQuery = query.trim().toLowerCase()
   if (!normalizedQuery) return null
@@ -92,11 +74,6 @@ export function findTextQueryHit(root: Node, query: string, targetOccurrence: nu
   return null
 }
 
-/**
- * Apply a TextWordHit as a window selection inside the given editor DOM and
- * scroll it into view. Common tail of both spell-check and search focus
- * handlers.
- */
 export function applyTextHitSelection(hit: TextWordHit, editorDom: HTMLElement) {
   const selection = window.getSelection()
   if (!selection) return

@@ -1,11 +1,3 @@
-// Format painter for TypewriterEditor.
-//
-// Click the paint-roller toolbar button to capture the current selection's
-// formatting (bold/italic/underline, font family/size/color, highlight,
-// text-align, left/right paragraph indents). The next non-empty selection
-// the user completes inside the editor receives those attributes, then the
-// painter disarms. Click the button again — or press Escape — to cancel.
-
 import { useCallback, useEffect, useState } from "react"
 import type { Editor as TiptapEditor } from "@tiptap/react"
 
@@ -28,7 +20,6 @@ export function useFormatPainter(editor: TiptapEditor | null) {
   const handlePaintRollerClick = useCallback(() => {
     if (!editor) return
     if (paintFormat) {
-      // Already armed — clicking again cancels the operation.
       setPaintFormat(null)
       return
     }
@@ -51,8 +42,6 @@ export function useFormatPainter(editor: TiptapEditor | null) {
     })
   }, [editor, paintFormat])
 
-  // When armed, apply the captured format on the next mouseup that ends with
-  // a non-empty selection inside the editor. Then disarm.
   useEffect(() => {
     if (!editor || !paintFormat) return
     let dom: HTMLElement
@@ -63,38 +52,32 @@ export function useFormatPainter(editor: TiptapEditor | null) {
     }
 
     const handleMouseUp = () => {
-      // Defer one tick so ProseMirror's selection state has settled.
       window.setTimeout(() => {
         const sel = editor.state.selection
         if (sel.empty) return
 
         let chain = editor.chain().focus()
 
-        // Inline marks (bold / italic / underline)
         chain = paintFormat.bold ? chain.setBold() : chain.unsetBold()
         chain = paintFormat.italic ? chain.setItalic() : chain.unsetItalic()
         chain = paintFormat.underline ? chain.setUnderline() : chain.unsetUnderline()
 
-        // textStyle mark — font family / size / color together
         chain = chain.setMark("textStyle", {
           fontFamily: paintFormat.fontFamily,
           fontSize: paintFormat.fontSize,
           color: paintFormat.color,
         })
 
-        // Highlight
         if (paintFormat.highlight) {
           chain = chain.setHighlight({ color: paintFormat.highlight })
         } else {
           chain = chain.unsetHighlight()
         }
 
-        // Paragraph / heading text-align
         chain = chain.setTextAlign(paintFormat.textAlign)
 
         chain.run()
 
-        // Block-level paragraph/heading indent attrs (custom — direct tr)
         const tr = editor.state.tr
         let changed = false
         const from = sel.from
@@ -119,7 +102,6 @@ export function useFormatPainter(editor: TiptapEditor | null) {
     return () => dom.removeEventListener("mouseup", handleMouseUp)
   }, [editor, paintFormat])
 
-  // Escape cancels the armed format painter.
   useEffect(() => {
     if (!paintFormat) return
     const onKey = (e: KeyboardEvent) => {
@@ -130,7 +112,6 @@ export function useFormatPainter(editor: TiptapEditor | null) {
   }, [paintFormat])
 
   return {
-    /** True when the painter is armed (toolbar button should show active state). */
     isArmed: paintFormat !== null,
     handlePaintRollerClick,
   }

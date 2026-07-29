@@ -1,5 +1,3 @@
-// User preferences (theme, editor settings, UI toggles).
-
 import { request } from "./request"
 import type { PreferencesRecord } from "./types"
 

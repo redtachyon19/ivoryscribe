@@ -1,5 +1,3 @@
-// Share / ownership endpoints.
-
 import { request } from "./request"
 import type {
   DocumentRecord,

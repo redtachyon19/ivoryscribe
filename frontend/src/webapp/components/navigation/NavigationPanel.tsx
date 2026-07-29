@@ -13,8 +13,6 @@ import {
 } from "../../../core/pdf/pdfBookmarkStore"
 import { getProjectEntryTerms, isSingleDocumentKind, normalizeProjectAfterTabs, type DocumentTab, type Project, type ProjectEntryTerms, type ProjectKind } from "../../../core/utils/projects"
 
-// PDFs reuse DocumentTabsPanel for their bookmarks; this relabels its headings
-// and trash copy from the PDF kind's default "Document(s)" to "Bookmark(s)".
 const BOOKMARK_ENTRY_TERMS: ProjectEntryTerms = {
   singular: "Bookmark",
   plural: "Bookmarks",
@@ -24,8 +22,6 @@ import type { ProjectFolder } from "../../pages/Library"
 import type { LibrarySection } from "../library/useLibraryNavigation"
 import ProjectContextMenu, { buildCreateProjectActions, type ContextMenuAction } from "../library/ProjectContextMenu"
 import { deepCloneTab, findNode, insertRelative } from "./tabTreeUtils"
-
-
 
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -77,8 +73,6 @@ export type NavigationPanelProps = {
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   onSetSidebarSlide: (slide: 1 | 2) => void
   onClose: () => void
-  /** Create a new top-level project of the given kind. Called by the kind
-   *  picker menu below. */
   onCreateProject: (kind: ProjectKind) => void
   onCreateFolder: () => void
   onOpenProject: (projectId: string) => void
@@ -90,13 +84,8 @@ export type NavigationPanelProps = {
   projectDocumentMap: Record<string, string>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
-  /** Local-only: upload-then-trash a local project. Threaded into the
-   *  ProjectBrowserPanel so both the right-click "Move to Cloud" and
-   *  the drag-into-Cloud section drop call the same code path. */
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
-  /** Spawn a new Electron window scoped to this folder's on-disk dir. */
   onOpenFolderInNewWindow?: (folderId: string) => void
-  /** Paint the folder's macOS Finder label so in-app color changes propagate to Finder. */
   onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
   pendingEditTabIds?: Set<string>
 }
@@ -136,10 +125,6 @@ export default function NavigationPanel({
   const entryTerms = project ? getProjectEntryTerms(project.kind) : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
   const projectKind = project?.kind ?? "Book"
   const isSingleDoc = isSingleDocumentKind(projectKind)
-  // PDF bookmarks reuse DocumentTabsPanel. Read the live tree (null for non-PDF
-  // projects — the hook is called unconditionally) and track which bookmark is
-  // highlighted. A stale id from a previous PDF simply matches no row, so no
-  // reset effect is needed.
   const pdfDocumentId = project?.kind === "PDF" ? project.activeId : null
   const pdfBookmarks = usePdfBookmarks(pdfDocumentId)
   const [selectedBookmarkId, setSelectedBookmarkId] = useState<string | null>(null)
@@ -172,13 +157,6 @@ export default function NavigationPanel({
     onCreateFolder()
   }
 
-  // ── Inside-Book entry creation ──────────────────────────────────────────
-  //
-  // After the file-type overhaul a Book holds chapters plus embedded
-  // markdown / plain-text tabs. Presentations hold only pinboards; their
-  // entry creator is `handleCreateSlide` below. Single-document kinds
-  // (.md / .txt) have no create-entry path at all.
-
   const handleCreateEntry = () => {
     onProjectChange((currentProject) => {
       const nextId = createId()
@@ -196,9 +174,6 @@ export default function NavigationPanel({
     })
   }
 
-  /** Append a new slide (= pinboard) to the active Presentation. The button
-   *  label is "Create Pinboard" per spec, but the tab is labelled
-   *  "Slide N" (its entry-term singular) so it reads naturally in the list. */
   const handleCreateSlide = () => {
     onProjectChange((currentProject) => {
       const nextId = createId()
@@ -294,9 +269,6 @@ export default function NavigationPanel({
     })
   }
 
-  // "Create More" lives only inside Books. Per spec: Markdown + Plain Text;
-  // no more standalone Pinboard creation inside a Book (Presentations own
-  // those now).
   const createMoreActions: ContextMenuAction[] = [
     {
       label: "Create Markdown",
@@ -310,8 +282,6 @@ export default function NavigationPanel({
     },
   ]
 
-  // Library-level "Create Project" picker — shared builder so the same
-  // menu shape appears at every create entry point.
   const createProjectActions = buildCreateProjectActions(onCreateProject)
 
   return (
@@ -328,7 +298,6 @@ export default function NavigationPanel({
       ) : null}
       <aside className="editor-workspace__left-rail">
         <div className="editor-workspace__rail-header">
-          {/* Slide 1 header: Project Browser */}
           <div className={`editor-workspace__rail-header-layer ${sidebarSlide === 1 ? "editor-workspace__rail-header-layer--active" : ""}`.trim()}>
             <div className="editor-workspace__rail-back-placeholder" aria-hidden="true" />
             <button
@@ -352,12 +321,6 @@ export default function NavigationPanel({
             </button>
           </div>
 
-          {/* Slide 2 header: Document Tabs.
-             Header buttons are kind-gated:
-             • Book         → Create Chapter + Create More (md / txt)
-             • Presentation → Create Pinboard (= add slide)
-             • Markdown/PlainText (single-doc) → nothing — there is exactly
-               one tab and the user is always on it. */}
           <div className={`editor-workspace__rail-header-layer ${sidebarSlide === 2 ? "editor-workspace__rail-header-layer--active" : ""}`.trim()}>
             <button
               type="button"
@@ -410,7 +373,7 @@ export default function NavigationPanel({
                 <BookmarkPlus size={14} aria-hidden={true} />
                 <span>Add Bookmark</span>
               </button>
-            ) : null /* other single-document kinds: no create buttons */}
+            ) : null }
           </div>
         </div>
 
@@ -418,7 +381,6 @@ export default function NavigationPanel({
           className="editor-workspace__rail-slider"
           style={{ transform: sidebarSlide === 1 ? "translateX(0)" : "translateX(-50%)" }}
         >
-          {/* Slide 1: Project Browser */}
           <div className="editor-workspace__rail-slide">
             <ProjectBrowserPanel
               projects={projects.filter((p) => !p.archivedAt && !p.deletedAt)}
@@ -443,9 +405,6 @@ export default function NavigationPanel({
             />
           </div>
 
-          {/* Slide 2: Document Tabs (suppressed for single-document kinds).
-              Single-doc projects (Markdown/PlainText) keep one synthetic tab
-              that the editor still reads from — we just hide the list UI. */}
           <div className="editor-workspace__rail-slide">
             {project && !isSingleDoc ? (
               <DocumentTabsPanel
@@ -472,13 +431,6 @@ export default function NavigationPanel({
                 onDuplicateTab={handleDuplicateTab}
               />
             ) : project && project.kind === "PDF" && pdfDocumentId ? (
-              // PDFs get their built-in bookmarks (outline) here instead of the
-              // file browser — that's the PDF's "document tabs". We reuse
-              // DocumentTabsPanel verbatim: the bookmark tree is shaped like
-              // DocumentTab[], so rename/delete/reorder/right-click menus all
-              // come for free. onTabsChange persists the whole tree to the
-              // pdfBookmarkStore (which writes it back into the .pdf); onSelect
-              // scrolls the viewer to the bookmark's page.
               <DocumentTabsPanel
                 projectName={project.name}
                 tabs={(pdfBookmarks ?? []) as unknown as DocumentTab[]}
@@ -501,13 +453,6 @@ export default function NavigationPanel({
                 onCreatePlainText={handleAddBookmark}
               />
             ) : project && isSingleDoc ? (
-              // Single-doc project (Image / Markdown / PlainText / …):
-              // there's no tab tree, so reuse the full Project Browser here —
-              // same component as Slide 1, so it brings every behavior with
-              // it (right-click menus, drag-into-nested-folders, marquee
-              // selection, expand/collapse). No duplicated logic. Rooted at
-              // the open file's containing folder so it shows that folder's
-              // contents, not the whole workspace.
               <ProjectBrowserPanel
                 projects={projects.filter((p) => !p.archivedAt && !p.deletedAt)}
                 folders={folders}

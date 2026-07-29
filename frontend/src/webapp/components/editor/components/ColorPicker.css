@@ -1,8 +1,3 @@
-/* Styles for the in-app ColorPicker + its swatch-button trigger. Co-located
-   with the component so it loads wherever the picker is used (typewriter
-   toolbar, settings, …) — not only when the editor mounts. */
-
-/* Popover chrome (portaled to <body>; position is set inline). */
 .tw-colorpicker-popover {
   padding: 10px;
   background: var(--menu-dropdown-bg, #1a1a1a);
@@ -17,8 +12,6 @@
   gap: 8px;
   width: 200px;
 }
-/* Saturation (x) × brightness (y) field. Background is layered in JS:
-   black→transparent (top), white→transparent (right), over the pure hue. */
 .tw-colorpicker__sv {
   position: relative;
   width: 100%;
@@ -89,8 +82,6 @@
   border-color: var(--app-accent, #7ea8ff);
 }
 
-/* Swatch-button trigger (used where a click-to-open picker is wanted, e.g.
-   settings). Sized to match the native colour input it replaces (42×32). */
 .color-swatch-btn {
   width: 42px;
   height: 32px;

@@ -27,14 +27,6 @@ const DEFAULT_FONT_FAMILY = '"Times", "Times New Roman", serif'
 const DEFAULT_DOCUMENT_CONTENT = "<p></p>"
 const BODY_PLACEHOLDER = "Start your epic..."
 
-/* ── Empty-state attribute on the editor DOM (drives the placeholder text) ──
-   Only show the body placeholder when the sole/first top-level block is a
-   paragraph. `editor.isEmpty` is RECURSIVE in TipTap v3, so an empty bullet or
-   numbered list (doc → list → item → empty paragraph) also reports as empty —
-   and our floated `::before` placeholder would then render under the first
-   bullet/number. Requiring the first block to be a paragraph keeps the
-   placeholder for the pristine empty doc but drops it the moment a list (or any
-   other block) is started. */
 function isBodyPlaceholderVisible(currentEditor: TiptapEditor): boolean {
   if (!currentEditor.isEmpty) return false
   const firstBlock = currentEditor.state.doc.firstChild
@@ -47,7 +39,6 @@ function syncEmptyState(currentEditor: TiptapEditor) {
     if (!editorDom) return
     editorDom.setAttribute("data-empty", isBodyPlaceholderVisible(currentEditor) ? "true" : "false")
   } catch {
-    // TipTap can momentarily expose an editor instance before internals are fully ready.
   }
 }
 
@@ -85,28 +76,15 @@ export default function DraftingEditor({
   )
   const [fontFamily, setFontFamily] = useState(() => withEmojiFontFallback(DEFAULT_FONT_FAMILY))
 
-  /* ── Shared prose-editor base (TipTap setup, typing state/caret, lifecycle) ── */
   const { editor, editorSurfaceRef, caretRef, isUiTyping, markUiTypingActivity } = useProseEditorBase({
     documentId,
     content,
     readOnly,
     placeholder: BODY_PLACEHOLDER,
     extensions: [
-      // heading:false — kept identical to TypewriterEditor so the two editors
-      // share one schema. The app has no heading UI; disabling Heading removes
-      // the node plus the "# " input rule and ⌃⌥1 shortcut that were silently
-      // creating bold <h1>s. See TypewriterEditor for the full rationale.
-      // horizontalRule:false — its `---` input rule clashes with the smart em
-      // dash and the six-hyphen divider; HorizontalRuleSixDashes (in the shared
-      // list) supplies the hr node + the `------` rule instead.
       StarterKit.configure({ heading: false, horizontalRule: false }),
       Highlight.configure({ multicolor: true }),
       Underline,
-      // Keep the prose schema in lockstep with TypewriterEditor so neither view
-      // strips the other's font/size/colour/alignment/indent/column formatting.
-      // interactiveImages:false — images stay put but render passive here (the
-      // free-float drag/resize/crop is a Typewriter page-layout feature), so a
-      // floating image can't grab clicks meant for the reflowed draft text.
       ...sharedProseFormattingExtensions({ interactiveImages: false }),
       SearchHighlightExtension,
       DiffAddMark,
@@ -139,40 +117,27 @@ export default function DraftingEditor({
     handleRemoveFlag,
   } = useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef })
 
-  // Trackpad-pinch / ctrl+scroll zoom toward the cursor — a *true* visual zoom
-  // of the whole draft column (same gesture as the image/PDF viewers). The
-  // column is fluid (width: 100%), so `fluidContentWidth` freezes it to an
-  // absolute px width first; otherwise CSS `zoom` only reflows the text into a
-  // narrower measure and reads as a font-size bump. Re-attaches when the
-  // document changes so the listener binds to the live surface.
   useEditorZoom({ contentRef: editorSurfaceRef, enabledKey: documentId, fluidContentWidth: true })
 
-  /* ── Initial empty-state + word count ── */
   useEffect(() => {
     if (!editor) return
     syncEmptyState(editor)
     emitTipTapWordCounts(editor, onWordCountChange)
   }, [editor])
 
-  /* ── Font-size prop sync ── */
   useEffect(() => {
     setFontSize(Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, editorFontSize || DEFAULT_FONT_SIZE)))
   }, [editorFontSize])
 
-  /* ── Global menu wiring (font controls, command bus, search/spellcheck focus jumps) ── */
   useEditorFontEvents({ setFontSize, setFontFamily, minFontSize: MIN_FONT_SIZE, maxFontSize: MAX_FONT_SIZE })
   useEditorCommandBus(editor)
   useEditorFocusJumps({ editor, documentId, documentType: "text" })
   useEditorSearchHighlight({ editor, documentId })
 
-  /* ── Recompute caret position when typography changes alter layout ── */
   useEffect(() => {
     window.dispatchEvent(new Event("resize"))
   }, [fontSize, fontFamily])
 
-  /* ── Hide the body's first block when it duplicates the tab title ──
-     Common when the document was authored in Typewriter mode, where the
-     first line naturally serves as the title. */
   const hideFirstBlockAsDuplicate = useMemo(() => {
     if (hideDocumentTitle) return false
     const trimmedTitle = documentTitle.trim()
@@ -183,7 +148,6 @@ export default function DraftingEditor({
     return firstText === trimmedTitle
   }, [content, documentTitle, hideDocumentTitle])
 
-  /* ── Derived flag-rail UI state ── */
   const showFlagRailUi = flagsEnabled && (isFlagRailHovered || hoverLineTop !== null)
   const shouldShowCreateFlag =
     showFlagRailUi &&

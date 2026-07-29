@@ -1,7 +1,3 @@
-/* ================================================================== */
-/*  PinboardEditor — interactive whiteboard canvas                     */
-/* ================================================================== */
-
 .pinboard-editor {
   display: flex;
   flex-direction: column;
@@ -14,8 +10,6 @@
 .pinboard-editor__file-input {
   display: none;
 }
-
-/* ---- Toolbar ---- */
 
 .pinboard-toolbar {
   display: flex;
@@ -99,15 +93,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Canvas ---- */
-
 .pinboard-canvas {
   flex: 1;
   position: relative;
   overflow: hidden;
   cursor: grab;
 
-  /* dot grid background */
   background-image: radial-gradient(circle, var(--editor-border, rgba(255, 255, 255, 0.12)) 1px, transparent 1px);
   background-size: 24px 24px;
   background-position: center center;
@@ -132,17 +123,10 @@
   left: 0;
   width: 0;
   height: 0;
-  /* transform is set inline */
 }
 
 .pinboard-canvas__svg {
   position: absolute;
-  /* Origin must align with the canvas layer's origin (0,0): connector lines
-     and the live freehand-drawing polyline are plotted in raw canvas
-     coordinates. A non-zero top/left here would shift every stroke by that
-     amount, pushing the in-progress drawing off-screen until it's committed
-     to a positioned node. `overflow: visible` keeps negative (panned)
-     coordinates renderable without clipping. */
   top: 0;
   left: 0;
   width: 100000px;
@@ -166,8 +150,6 @@
   pointer-events: none;
 }
 
-/* ---- Nodes (shared) ---- */
-
 .pinboard-node {
   position: absolute;
   border-radius: 8px;
@@ -189,7 +171,6 @@
   box-shadow: 0 0 0 2px rgba(126, 168, 255, 0.25), 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
-/* Resize handle */
 .pinboard-node__resize {
   position: absolute;
   right: 0;
@@ -205,8 +186,6 @@
 .pinboard-node__resize:hover {
   opacity: 1;
 }
-
-/* ---- Text node ---- */
 
 .pinboard-node--text {
   min-height: 40px;
@@ -240,10 +219,7 @@
 
 .pinboard-node__text-display:empty::before,
 .pinboard-node__text-display:only-child:not(:empty) {
-  /* placeholder handled inline */
 }
-
-/* ---- Image node ---- */
 
 .pinboard-node--image {
   padding: 0;
@@ -257,8 +233,6 @@
   display: block;
   border-radius: 6px;
 }
-
-/* ---- Link node ---- */
 
 .pinboard-node--link {
   display: flex;
@@ -289,8 +263,6 @@
   text-overflow: ellipsis;
 }
 
-/* ---- File node ---- */
-
 .pinboard-node--file {
   display: flex;
   align-items: center;
@@ -319,8 +291,6 @@
   text-overflow: ellipsis;
 }
 
-/* ---- Drawing node ---- */
-
 .pinboard-node__drawing-svg {
   width: 100%;
   height: 100%;
@@ -337,11 +307,6 @@
   overflow: visible;
   pointer-events: none;
   transition: none;
-  /* Drawings reuse the `text` node type, so they'd otherwise inherit the
-     text-box `min-height: 40px`. That floor inflates a thin (e.g. horizontal)
-     stroke's box while its SVG viewBox keeps the true height, and
-     preserveAspectRatio="none" then stretches the 2px stroke into a thick
-     band. Strokes must size to their exact bounding box. */
   min-width: 0;
   min-height: 0;
 }
@@ -363,8 +328,6 @@
 .pinboard-node--drawing.pinboard-node--selected .pinboard-node__drawing-stroke {
   stroke-width: 3;
 }
-
-/* ---- Marquee Selection ---- */
 
 .pinboard-marquee {
   position: absolute;

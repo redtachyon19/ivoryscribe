@@ -314,10 +314,6 @@ function buildIssue(
   }
 }
 
-/** Position-aware collector shared by Markdown and PlainText documents — both
- *  are raw strings whose offsets map directly to textarea selections. The
- *  emitted focusTarget.documentType determines which editor's focus event
- *  listener will pick it up. */
 function collectIssuesFromRawText(
   value: string,
   ignoredWords: Set<string>,
@@ -521,8 +517,6 @@ export function replaceSpellCheckIssue(
     return value
   }
 
-  // Position-based replacement works for both Markdown and PlainText — the
-  // focusTarget already carries start/end offsets into the raw string.
   if (
     (documentType === "markdown" && issue.focusTarget.documentType === "markdown")
     || (documentType === "plaintext" && issue.focusTarget.documentType === "plaintext")

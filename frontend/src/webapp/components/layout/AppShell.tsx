@@ -28,9 +28,6 @@ export type AppShellProps = {
   isEditorTyping: boolean
   view: "projects" | "editor"
   project: Project | null
-  /** Type of the active document. Drives the reading-progress bar: which
-   *  scroll container to track, and whether to show it at all (pinboard and
-   *  image are 2D pan surfaces with no linear reading progress). */
   activeDocumentType?: "prose" | "pinboard" | "markdown" | "plaintext" | "pdf" | "image"
   activeFolderName?: string | null
   canGoBack: boolean
@@ -52,21 +49,15 @@ export type AppShellProps = {
   onOpenProject: (projectId: string) => void
   onOpenProjectInNewTab?: (projectId: string) => void
   onReturnToDashboard: () => void
-  /** Active library section — single source of truth, owned by Editor.tsx.
-   *  Drives both LibraryRouter and the sidebar's highlighted tab. */
   librarySection: LibrarySection
   setLibrarySection: Dispatch<SetStateAction<LibrarySection>>
   onToggleWordStats: () => void
   sessionToken: string
   projectDocumentMap: Record<string, string>
-  /** Local-mode + Electron only: copies the project's on-disk path. */
   onCopyProjectPath?: (projectId: string) => void
   onOpenFolderInNewWindow?: (folderId: string) => void
   onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
-  /** Local-mode + Electron only: reveals the project file in Finder/Explorer. */
   onShowProjectInFinder?: (projectId: string) => void
-  /** Local-mode + Electron only: promotes a local project to cloud
-   *  (upload + trash on-disk file). Mirrors the Library card menu. */
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
   sharedProjectIds?: Set<string>
   ownerEmailByProjectId?: Map<string, string>
@@ -79,25 +70,16 @@ export type AppShellProps = {
   onProposedEdits: (edits: ProposedEdit[]) => { applied: number; dropped: number; hunkCount: number; tabCount: number }
   onAcceptAllPendingHunks: () => void
   onRejectAllProposedEdits: () => void
-  /** When true, the topbar shows a Drafting/Typewriter view toggle. */
   viewToggleAvailable?: boolean
-  /** Current view mode for the active prose tab. */
   viewMode?: "drafting" | "typewriter"
-  /** Flips the active prose tab between Drafting and Typewriter. */
   onToggleViewMode?: () => void
-  /** When true, the topbar shows an Editor/Both/Preview toggle for Markdown tabs. */
   markdownViewToggleAvailable?: boolean
-  /** Current view mode for the active Markdown tab. */
   markdownViewMode?: "editor" | "both" | "preview"
-  /** Sets the active Markdown tab's view mode. */
   onSetMarkdownViewMode?: (mode: "editor" | "both" | "preview") => void
   children: ReactNode
 }
 
 export default function AppShell({
-  // menuBarEnabled is part of the props contract but unused in this
-  // component (the native menu is built in useAppOrchestration); omit it
-  // from destructuring so noUnusedLocals stays happy.
   isEditorTyping,
   view,
   project,
@@ -157,21 +139,10 @@ export default function AppShell({
   const [rightPanelWidth, setRightPanelWidth] = useState(280)
   const [draggingPanel, setDraggingPanel] = useState<"left" | "right" | null>(null)
   const [sidebarSlide, setSidebarSlide] = useState<1 | 2>(view === "projects" ? 1 : 2)
-  // Info popup for the Markdown reference (button rendered only when a
-  // markdown doc is active — see the render block below).
   const [isMarkdownCheatsheetOpen, setIsMarkdownCheatsheetOpen] = useState(false)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const panelSeparatorWidth = 8
 
-  /* ── Reading-progress indicator ──
-     Ported from the blog (BlogPost.tsx): a thin bar pinned to the top bar that
-     fills horizontally as you scroll through the open document. Different
-     editors scroll different elements — Drafting / Markdown / PlainText grow
-     and scroll the shared `.editor-workspace__editor-center`, Typewriter scrolls
-     its own `.tw-scroll`, and PDF scrolls `.pdf-viewer`. A capture-phase scroll
-     listener catches scroll from whichever descendant actually scrolls, so one
-     effect covers them all. Pinboard and Image are 2D pan canvases with no
-     linear reading progress, so the bar is hidden for them. rAF-throttled. */
   const editorCenterRef = useRef<HTMLDivElement | null>(null)
   const showReadingProgress =
     view === "editor" &&
@@ -181,10 +152,6 @@ export default function AppShell({
       activeDocumentType === "plaintext" ||
       activeDocumentType === "pdf")
 
-  // Each editor scrolls a different element; pick the one to measure for the
-  // active doc type (the shared bar tracks whichever descendant actually
-  // scrolls via a capture-phase listener). Drafting / Markdown / PlainText grow
-  // and scroll the editor-center directly.
   const resolvePrimaryScroller = useCallback(
     (center: HTMLElement): HTMLElement => {
       if (activeDocumentType === "pdf") {
@@ -198,10 +165,6 @@ export default function AppShell({
     [activeDocumentType, viewMode],
   )
 
-  /* ── View-toggle sliding-pill indicator ──
-     Mirrors the global settings sidebar pattern: a single absolutely
-     positioned pill animates left/width to whichever pill is active, instead
-     of swapping a coloured background between the two options. */
   const viewToggleRefs = useRef<{ drafting: HTMLButtonElement | null; typewriter: HTMLButtonElement | null }>({
     drafting: null,
     typewriter: null,
@@ -233,10 +196,6 @@ export default function AppShell({
     return () => ro.disconnect()
   }, [viewMode, viewToggleAvailable])
 
-  /* ── Markdown Editor/Both/Preview sliding-pill indicator ──
-     Same pattern as the prose toggle above — separate refs since the two
-     toggles are mutually exclusive in the UI (prose vs markdown tabs) but
-     each owns its own indicator geometry. */
   const markdownViewToggleRefs = useRef<{
     editor: HTMLButtonElement | null
     both: HTMLButtonElement | null
@@ -277,7 +236,6 @@ export default function AppShell({
   const [topbarMenu, setTopbarMenu] = useState<TopbarContextMenu | null>(null)
   const closeTopbarMenu = useCallback(() => setTopbarMenu(null), [])
 
-  // Rename modal state
   type RenameTarget = { kind: "project"; id: string } | { kind: "folder"; id: string } | { kind: "tab"; id: string }
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
   const [renameValue, setRenameValue] = useState("")
@@ -300,11 +258,9 @@ export default function AppShell({
     closeRenameModal()
   }
 
-  // Share dialog state
   const [shareProjectId, setShareProjectId] = useState<string | null>(null)
   const shareDocumentId = shareProjectId ? (projectDocumentMap[shareProjectId] ?? null) : null
   const shareProject = shareProjectId ? projects.find((p) => p.id === shareProjectId) ?? null : null
-
 
   const handleProjectSegmentContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
@@ -327,9 +283,6 @@ export default function AppShell({
     if (topbarMenu.kind === "folder") {
       const folder = folders.find((f) => f.name === activeFolderName)
       if (!folder) return []
-      // Same `buildFolderActions` helper the Library project browser
-      // uses, so the editor breadcrumb folder menu matches the Library
-      // folder card menu in labels, icons, order, and behavior.
       return buildFolderActions({
         folderId: folder.id,
         onOpenInNewWindow: onOpenFolderInNewWindow
@@ -355,11 +308,6 @@ export default function AppShell({
 
     if (topbarMenu.kind === "project") {
       if (!project) return []
-      // Use the same `buildProjectActions` helper the Library project
-      // card menu calls, so the editor topbar menu stays identical in
-      // labels, icons, order, and behavior. The handlers below close the
-      // topbar menu and (for destructive actions) return to the
-      // dashboard since the project being acted on is the open one.
       const isLocalProject = project.source !== "cloud"
       return buildProjectActions({
         projectId: project.id,
@@ -482,7 +430,6 @@ export default function AppShell({
   const storageUsagePercent = Math.min(100, (storageUsedGb / STORAGE_LIMIT_GB) * 100)
   const storageUsedLabel = storageUsedGb >= 1 ? storageUsedGb.toFixed(1) : storageUsedGb.toFixed(2)
 
-  // Sync sidebar slide when view changes
   useEffect(() => {
     setSidebarSlide(view === "projects" ? 1 : 2)
   }, [view])
@@ -802,11 +749,6 @@ export default function AppShell({
         className={`editor-workspace__body ${!isLeftRailOpen ? "editor-workspace__body--collapsed-left" : ""} ${!isRightRailOpen ? "editor-workspace__body--collapsed-right" : ""} ${draggingPanel ? "editor-workspace__body--dragging" : ""}`.trim()}
         style={{
           gridTemplateColumns: `${isLeftRailOpen ? leftPanelWidth : 0}px ${isLeftRailOpen ? panelSeparatorWidth : 0}px 1fr ${isRightRailOpen ? panelSeparatorWidth : 0}px ${isRightRailOpen ? rightPanelWidth : 0}px`,
-          // Expose rail widths so descendants (e.g. the typewriter scroll) can
-          // anchor their content to the viewport center regardless of which
-          // rails are open. `--rail-left-natural-w` always reflects the rail's
-          // natural width (open or not) so editors can keep content fixed in
-          // viewport space when a panel collapses.
           ["--rail-left-w" as string]: `${isLeftRailOpen ? leftPanelWidth + panelSeparatorWidth : 0}px`,
           ["--rail-right-w" as string]: `${isRightRailOpen ? rightPanelWidth + panelSeparatorWidth : 0}px`,
           ["--rail-left-natural-w" as string]: `${leftPanelWidth + panelSeparatorWidth}px`,
@@ -867,9 +809,6 @@ export default function AppShell({
           <Settings size={14} aria-hidden={true} />
         </button>
 
-        {/* Markdown-only Info button — sits directly below the Settings
-            button (shares the same styling class for visual parity) and
-            opens the Markdown + LaTeX reference modal. */}
         {markdownViewToggleAvailable ? (
           <button
             type="button"
@@ -906,7 +845,6 @@ export default function AppShell({
         </aside>
       </div>
 
-      {/* Rename modal */}
       <Modal
         isOpen={Boolean(renameTarget)}
         onClose={closeRenameModal}
@@ -929,7 +867,6 @@ export default function AppShell({
         />
       </Modal>
 
-      {/* Share dialog */}
       {shareProject && shareDocumentId ? (
         <ShareDialog
           isOpen={true}
@@ -943,9 +880,6 @@ export default function AppShell({
         />
       ) : null}
 
-      {/* Markdown + LaTeX reference. Mount unconditionally so the close
-          animation can play even if the Info button disappears
-          mid-transition (e.g. user switches docs while it's open). */}
       <MarkdownCheatsheetModal
         isOpen={isMarkdownCheatsheetOpen}
         onClose={() => setIsMarkdownCheatsheetOpen(false)}

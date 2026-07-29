@@ -1,6 +1,3 @@
-// The "Document Stats" modal. Extracted from Editor.tsx; driven entirely by
-// the useDocumentStats bundle.
-
 import Modal from "../ui/Modal"
 import type { useDocumentStats } from "./hooks/useDocumentStats"
 

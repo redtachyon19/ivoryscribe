@@ -4,7 +4,6 @@ import { Share, Document, User } from "../models/index.js";
 
 const router = Router();
 
-// POST /api/shares — create a share request (recipient must accept in-app)
 router.post("/", async (req, res) => {
   try {
     const { documentId, recipientEmail, permission } = req.body;
@@ -27,7 +26,6 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "You cannot share a project with yourself" });
     }
 
-    // Recipient must have an account
     const recipient = await User.findOne({
       where: { email: recipientEmail.toLowerCase() },
     });
@@ -36,7 +34,6 @@ router.post("/", async (req, res) => {
       return res.status(404).json({ message: "No user found with that email address" });
     }
 
-    // Check for existing active share to same email for same document
     const existingShare = await Share.findOne({
       where: {
         documentId,
@@ -73,7 +70,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// GET /api/shares/document/:documentId — list shares for a document you own
 router.get("/document/:documentId", async (req, res) => {
   try {
     const document = await Document.findOne({
@@ -109,7 +105,6 @@ router.get("/document/:documentId", async (req, res) => {
   }
 });
 
-// POST /api/shares/transfer-ownership — transfer document ownership to an accepted collaborator
 router.post("/transfer-ownership", async (req, res) => {
   try {
     const { documentId, recipientEmail } = req.body;
@@ -118,7 +113,6 @@ router.post("/transfer-ownership", async (req, res) => {
       return res.status(400).json({ message: "documentId and recipientEmail are required" });
     }
 
-    // Verify the current user owns the document
     const document = await Document.findOne({
       where: { id: documentId, userId: req.user.id },
     });
@@ -127,7 +121,6 @@ router.post("/transfer-ownership", async (req, res) => {
       return res.status(404).json({ message: "Document not found or you are not the owner" });
     }
 
-    // Find the accepted share to the recipient
     const share = await Share.findOne({
       where: {
         documentId,
@@ -144,13 +137,10 @@ router.post("/transfer-ownership", async (req, res) => {
     const newOwnerId = share.recipientId;
     const oldOwnerEmail = req.user.email;
 
-    // Transfer ownership: update Document.userId
     await document.update({ userId: newOwnerId });
 
-    // Remove the old share (recipient is now the owner)
     await share.update({ status: "revoked" });
 
-    // Auto-create an accepted share giving the old owner continued editor access
     await Share.create({
       documentId,
       ownerId: newOwnerId,
@@ -167,7 +157,6 @@ router.post("/transfer-ownership", async (req, res) => {
   }
 });
 
-// PATCH /api/shares/:shareId — update permission or status
 router.patch("/:shareId", async (req, res) => {
   try {
     const share = await Share.findOne({
@@ -202,7 +191,6 @@ router.patch("/:shareId", async (req, res) => {
   }
 });
 
-// DELETE /api/shares/:shareId — revoke a share
 router.delete("/:shareId", async (req, res) => {
   try {
     const share = await Share.findOne({
@@ -221,7 +209,6 @@ router.delete("/:shareId", async (req, res) => {
   }
 });
 
-// POST /api/shares/:shareId/respond — accept or reject a share request
 router.post("/:shareId/respond", async (req, res) => {
   try {
     const { action } = req.body;
@@ -272,7 +259,6 @@ router.post("/:shareId/respond", async (req, res) => {
       });
     }
 
-    // reject
     await share.update({ status: "rejected" });
     return res.status(200).json({ message: "Share request rejected" });
   } catch (error) {
@@ -280,7 +266,6 @@ router.post("/:shareId/respond", async (req, res) => {
   }
 });
 
-// POST /api/shares/:shareId/leave — recipient removes themselves from an accepted share
 router.post("/:shareId/leave", async (req, res) => {
   try {
     const share = await Share.findOne({
@@ -303,7 +288,6 @@ router.post("/:shareId/leave", async (req, res) => {
   }
 });
 
-// GET /api/shares/pending-requests — pending share requests for the current user
 router.get("/pending-requests", async (req, res) => {
   try {
     const shares = await Share.findAll({
@@ -336,7 +320,6 @@ router.get("/pending-requests", async (req, res) => {
   }
 });
 
-// GET /api/shares/shared-with-me — docs shared with the current user
 router.get("/shared-with-me", async (req, res) => {
   try {
     const shares = await Share.findAll({

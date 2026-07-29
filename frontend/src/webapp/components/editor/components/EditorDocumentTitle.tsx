@@ -1,17 +1,3 @@
-// Contenteditable title field sitting above DraftingEditor's body.
-//
-// Behavior:
-//   • Enter commits the title and blurs the field.
-//   • Escape reverts to the persisted title and blurs.
-//   • Paste is intercepted — pasted text is force-stripped to single-line plain
-//     text so the title can't span multiple lines.
-//   • A hidden overlay (MarqueeText) renders the draft text — when the user
-//     focuses the editable, we hide it so the editable becomes the visible
-//     copy; on blur the overlay reappears with the marquee animation.
-//
-// The parent owns `documentTitle` (persisted) and `titleDraft` (in-flight).
-// We just route key/paste/blur events back up.
-
 import { useEffect, useRef, useState } from "react"
 import MarqueeText from "../../ui/MarqueeText"
 
@@ -19,7 +5,6 @@ type EditorDocumentTitleProps = {
   documentTitle: string
   documentId: string | null
   onChange: (nextTitle: string) => void
-  /** Notifies typing-state hooks when the user is actively editing the title. */
   onTypingActivity: () => void
 }
 
@@ -33,9 +18,6 @@ export function EditorDocumentTitle({
   const titleOverlayRef = useRef<HTMLDivElement | null>(null)
   const [titleDraft, setTitleDraft] = useState(documentTitle)
 
-  // Re-sync the contentEditable's text whenever the persisted title or the
-  // active document changes. setting `textContent` here is what makes
-  // switching documents update the visible field.
   useEffect(() => {
     setTitleDraft(documentTitle)
     if (titleEditableRef.current) {

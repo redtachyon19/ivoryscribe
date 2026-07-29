@@ -29,9 +29,6 @@ export type AccountSectionProps = {
   onClose: () => void
   sectionRef: (element: HTMLElement | null) => void
   onActionFeedbackVisibilityChange?: (visible: boolean) => void
-  /** Called when the user wants to sign in / create an account from this
-   *  section (only meaningful when accountEmail is empty). The orchestrator
-   *  wires this to the auth overlay. */
   onRequestSignIn?: () => void
 }
 
@@ -71,7 +68,6 @@ export default function AccountSettings({
   const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null)
   const accountAutoSaveRequestRef = useRef(0)
 
-  // Reserved for future modal-close actions from account section controls.
   void onClose
 
   const activeActionFeedback = actionFeedback
@@ -362,9 +358,6 @@ export default function AccountSettings({
     }
   }
 
-  // Not signed in: show a CTA pointing to the auth page instead of the
-  // editable account form. Local-mode users don't need an account to use the
-  // app; signing in is only required for sharing and AI features.
   if (!accountEmail) {
     return (
       <section

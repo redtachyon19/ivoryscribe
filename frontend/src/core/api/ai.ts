@@ -1,6 +1,3 @@
-// Tusk AI endpoints (chat mode + edit mode share the same /api/ai/chat route,
-// differentiated by a `mode` discriminator in the body).
-
 import { request } from "./request"
 import type {
   TuskAiChatReplyResponse,

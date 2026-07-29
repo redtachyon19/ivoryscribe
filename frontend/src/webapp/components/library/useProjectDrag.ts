@@ -9,12 +9,9 @@ type DropTarget =
 
 type FolderDropTarget = {
   folderId: string
-  /** "inside" = nest the dragged folder into this one; before/after = reorder
-   *  among siblings of this folder. */
   position: "before" | "after" | "inside"
 }
 
-/** Drop zone for folders dropped onto a root area (un-nests to top-level). */
 type FolderRootDropTarget = {
   position: "top" | "bottom"
 }
@@ -79,22 +76,11 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     return fromIndex < targetIndex ? "after" : "before"
   }
 
-  /** Resolve the drop intent for a folder being dragged over `folderId`:
-   *    • leading 35% (left in a grid row / top in a list) → "before"
-   *    • trailing 35% (right / bottom) → "after"
-   *    • middle 30% → "inside" (nest)
-   *  The reorder axis follows the actual layout: horizontal when an adjacent
-   *  folder card shares this row (grid view), vertical otherwise (list view).
-   *  That makes "drop between" a natural, wide left/right target in the grid
-   *  instead of a hard-to-hit top/bottom sliver — which is what made reordering
-   *  feel fiddly. Falls back to an ordering heuristic if bounds can't be read. */
   const getFolderReorderPosition = (event: DragEvent<HTMLElement>, folderId: string): "before" | "after" | "inside" => {
     const targetElement = event.currentTarget as HTMLElement | null
     if (targetElement && typeof event.clientX === "number" && typeof event.clientY === "number") {
       const rect = targetElement.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
-        // A sibling card on the same visual row ⇒ horizontal layout (grid) →
-        // reorder along X. Otherwise the cards are stacked (list) → along Y.
         const sharesRow = (sib: Element | null) => {
           if (!sib) return false
           const sr = sib.getBoundingClientRect()
@@ -124,8 +110,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
 
     return fromIndex < targetIndex ? "after" : "before"
   }
-
-  // --- Move logic ---
 
   const moveProjectToFolder = (projectId: string, folderId: string | null, rootPosition: "top" | "bottom" = "bottom") => {
     setProjects((current) => {
@@ -162,8 +146,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
       const fromIndex = current.findIndex((folder) => folder.id === folderId)
       const targetIndex = current.findIndex((folder) => folder.id === targetFolderId)
       if (fromIndex === -1 || targetIndex === -1 || fromIndex === targetIndex) return current
-      // Reorder also adopts the target's parent so dropping among siblings
-      // moves you into their tier even if you started elsewhere.
       const targetParentId = current[targetIndex].parentFolderId ?? null
       const nextFolders = [...current]
       const [draggedFolder] = nextFolders.splice(fromIndex, 1)
@@ -176,14 +158,12 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     })
   }
 
-  /** True iff `candidateAncestorId` appears anywhere up `descendantId`'s
-   *  parent chain (inclusive). Used to refuse cycle-creating folder drops. */
   const isFolderDescendantOf = (descendantId: string, candidateAncestorId: string): boolean => {
     if (descendantId === candidateAncestorId) return true
     let cursor: string | null | undefined = descendantId
     const seen = new Set<string>()
     while (cursor) {
-      if (seen.has(cursor)) return false // pathological — shouldn't happen
+      if (seen.has(cursor)) return false
       seen.add(cursor)
       if (cursor === candidateAncestorId) return true
       const folder = folders.find((f) => f.id === cursor)
@@ -192,12 +172,9 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     return false
   }
 
-  /** Move a folder so its new parent is `nextParentId` (null = top-level).
-   *  Refuses self-nesting and cycle-creating moves. */
   const moveFolderIntoFolder = (folderId: string, nextParentId: string | null) => {
     if (folderId === nextParentId) return
     if (nextParentId !== null && isFolderDescendantOf(nextParentId, folderId)) {
-      // Would create a cycle (target is inside the folder being moved).
       return
     }
     setFolders((current) => {
@@ -208,8 +185,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
       return current.map((f) => (f.id === folderId ? { ...f, parentFolderId: nextParentId } : f))
     })
   }
-
-  // --- Drag start / end handlers ---
 
   const handleProjectDragStart = (projectId: string, event: DragEvent<HTMLElement>) => {
     setDraggingFolderId(null)
@@ -293,8 +268,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     clearDragPreview()
   }
 
-  // --- Drop handling ---
-
   const handleProjectDrop = (targetOverride?: DropTarget) => {
     if (!draggingProjectId) return
     const activeDropTarget = targetOverride ?? dropTarget
@@ -304,8 +277,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     if (activeDropTarget.type === "root") moveProjectToFolder(draggingProjectId, null, activeDropTarget.position)
     handleProjectDragEnd()
   }
-
-  // --- Class name helpers ---
 
   const getProjectDropClassName = (projectId: string) => {
     if (dropTarget?.type !== "project" || dropTarget.projectId !== projectId) return ""
@@ -330,8 +301,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     return ""
   }
 
-  // --- Event helpers for child components ---
-
   const updateProjectDropTarget = (project: Project) => (event: DragEvent<HTMLElement>) => {
     if (!draggingProjectId || draggingProjectId === project.id) return
     event.preventDefault()
@@ -352,7 +321,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
   const handleFolderItemDragOver = (folder: ProjectFolder) => (event: DragEvent<HTMLElement>) => {
     if (draggingFolderId) {
       if (draggingFolderId === folder.id) return
-      // Refuse drops onto descendants of the dragged folder (would cycle).
       if (isFolderDescendantOf(folder.id, draggingFolderId)) return
       event.preventDefault()
       event.stopPropagation()
@@ -391,8 +359,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     handleProjectDrop({ type: "folder", folderId: folder.id })
   }
 
-  // --- Derived data ---
-
   const getProjectsForFolder = (folderId: string) => {
     return projects.filter((project) => getResolvedFolderId(project.folderId) === folderId)
   }
@@ -403,7 +369,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
 
   const handleRootDragOver = (position: "top" | "bottom") => (event: DragEvent<HTMLElement>) => {
     if (draggingFolderId) {
-      // Drop folder onto a root zone → un-nest to top-level.
       event.preventDefault()
       event.stopPropagation()
       if (!folderRootDropTarget || folderRootDropTarget.position !== position) {
@@ -446,10 +411,6 @@ export default function useProjectDrag({ projects, folders, setProjects, setFold
     handleFolderDragStart,
     handleFolderDragEnd,
     updateProjectDropTarget,
-    // Clear EVERY drop highlight this hook owns (project reorder, folder, and
-    // both folder-root zones). Called when the drag is over dead space, over a
-    // target outside this hook (the back button), or has left the view — so the
-    // accent only ever marks the one live destination under the cursor.
     clearDropTarget: () => {
       setDropTarget(null)
       setFolderDropTarget(null)

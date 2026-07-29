@@ -1,6 +1,3 @@
-// Resolves and updates the per-tab Markdown editor view mode
-// (editor / both / preview). Mirrors useTabViewMode.ts.
-
 import { useEffect, useMemo, useState } from "react"
 import type { Project } from "../../../../core/utils/projects"
 import {

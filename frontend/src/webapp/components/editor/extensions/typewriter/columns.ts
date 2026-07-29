@@ -1,7 +1,3 @@
-// Multi-column block: wraps a block range in `<div data-column-count="N">`
-// rendered via CSS `column-count`. The wrapper is a TipTap Node so it
-// survives serialization round-trips. Column counts are clamped to 2–4.
-
 import { Node as TipTapNode } from "@tiptap/core"
 
 export const ColumnsExtension = TipTapNode.create({

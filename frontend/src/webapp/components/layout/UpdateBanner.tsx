@@ -2,12 +2,6 @@ import { useEffect, useState } from "react"
 import type { UpdaterEvent } from "../../../electron"
 import "./UpdateBanner.css"
 
-/**
- * In-app desktop update prompt (Electron only). Listens to the main process
- * auto-updater and walks the user through available → download → restart.
- * Renders nothing in the web build (no `window.electronAPI.updater`) or when
- * there's no update to act on.
- */
 export default function UpdateBanner() {
   const [event, setEvent] = useState<UpdaterEvent | null>(null)
   const [dismissed, setDismissed] = useState(false)
@@ -17,8 +11,6 @@ export default function UpdateBanner() {
     if (!updater) return
     return updater.onEvent((next) => {
       setEvent(next)
-      // A newly-available or ready-to-install update should resurface even if
-      // the user dismissed an earlier prompt this session.
       if (next.status === "available" || next.status === "downloaded") {
         setDismissed(false)
       }

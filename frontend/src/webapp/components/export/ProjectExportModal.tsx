@@ -26,8 +26,6 @@ const formatLabelById: Record<ExportProjectFormat, string> = {
   txt: "Text (.txt)",
 }
 
-// House style: FileText → PDF, FileCode → Markdown, FileType → plaintext.
-// Keep in sync with `iconForProjectKind` in core/utils/projectIcons.
 const formatIconById: Record<ExportProjectFormat, ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }>> = {
   pdf: FileText,
   docx: FileType2,

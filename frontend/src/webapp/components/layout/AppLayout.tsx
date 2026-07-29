@@ -66,7 +66,6 @@ export default function AppLayout({
     isElectronMac && translucentNavPanel ? "app--translucent-nav" : "",
   ].filter(Boolean).join(" ")
 
-  // Toggle translucent-nav class on <html> for global CSS
   useEffect(() => {
     if (isElectronMac) {
       document.documentElement.classList.toggle("translucent-nav", translucentNavPanel)
@@ -96,7 +95,6 @@ export default function AppLayout({
           {children}
         </div>
       </main>
-      {/* Perimeter save glow (white = autosave, accent = manual ⌘S). */}
       <SaveGlowOverlay />
     </div>
   )

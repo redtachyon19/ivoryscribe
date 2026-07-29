@@ -2,10 +2,6 @@ import { Router } from "express";
 
 const router = Router();
 
-// Per-tab and total budgets for the project context sent to the model.
-// With Claude Opus 4.7's 200k-token window, ~250k chars (~62k tokens) fits
-// comfortably with room for system prompt + response. Most novels at the
-// chapter level fit fully under these caps.
 const MAX_CONTEXT_CHARS_PER_TAB = 30_000;
 const MAX_TOTAL_CONTEXT_CHARS = 250_000;
 
@@ -96,11 +92,6 @@ function selectRelevantTabs(project, userMessage) {
   return ranked.slice(0, Math.min(3, ranked.length));
 }
 
-/**
- * Returns ALL tabs in the project in document order, each with its content.
- * Used to give the model full-document context so it can reason about
- * cross-chapter continuity and propose multi-tab edits.
- */
 function gatherProjectContext(project) {
   const flatTabs = flattenTabs(project.tabs ?? []);
   return flatTabs.map((tab) => {
@@ -214,8 +205,6 @@ function normalizeModelEdits(raw, availableTabsById) {
       const after = typeof edit?.after === "string" ? edit.after : null;
       if (!after) return null;
 
-      // New-tab proposal: model returns isNew:true with a title and after
-      // content, no existing tabId required.
       if (edit?.isNew === true) {
         const title =
           typeof edit?.title === "string" && edit.title.trim()
@@ -261,10 +250,6 @@ function normalizeModelEdits(raw, availableTabsById) {
 }
 
 function buildInstructionPrompt({ provider, modelName, userMessage, project, contextTabs, scoredTabIds }) {
-  // Allocate context budget greedily, prioritizing relevance-scored tabs so
-  // they get full content first; the rest get whatever budget remains
-  // (truncated as needed). All tabs are still listed so the model knows the
-  // full document structure even if some are abbreviated.
   const orderedForBudget = [...contextTabs].sort((a, b) => {
     const aRanked = scoredTabIds.has(a.tabId) ? 1 : 0;
     const bRanked = scoredTabIds.has(b.tabId) ? 1 : 0;
@@ -286,8 +271,6 @@ function buildInstructionPrompt({ provider, modelName, userMessage, project, con
     allocatedById.set(tab.tabId, { content: excerpt, truncated });
   }
 
-  // Now emit tabs in document order so the model navigates the book
-  // sequentially.
   const tabContext = contextTabs.map((tab) => {
     const allocated = allocatedById.get(tab.tabId);
     return {
@@ -611,8 +594,6 @@ async function generateModelEdits({ provider, userMessage, project, contextTabs,
 }
 
 function buildChatPrompt({ userMessage, project, contextTabs, scoredTabIds }) {
-  // Same budgeting strategy as the edit prompt: prioritize relevance-scored
-  // tabs for full content, then everything else gets whatever budget remains.
   const orderedForBudget = [...contextTabs].sort((a, b) => {
     const aRanked = scoredTabIds.has(a.tabId) ? 1 : 0;
     const bRanked = scoredTabIds.has(b.tabId) ? 1 : 0;
@@ -695,8 +676,6 @@ router.post("/chat", async (req, res) => {
       return res.status(400).json({ message: "Invalid provider" });
     }
 
-    // "auto" routes through Claude first; the existing moderation-fallback
-    // path automatically swaps to Grok if Claude refuses (e.g., adult content).
     const provider = requestedProvider === "auto" ? "claude" : requestedProvider;
 
     if (typeof userMessage !== "string" || !userMessage.trim()) {
@@ -721,12 +700,7 @@ router.post("/chat", async (req, res) => {
       contentById: projectContentById,
     };
 
-    // Full project context — every tab the model can read or edit.
     const contextTabs = gatherProjectContext(sanitizedProject);
-    // Relevance scoring is now informational (returned to the client as
-    // contextMatches) and used to prioritize budget allocation in the
-    // prompt. The model still sees ALL tabs so it can reason across the
-    // entire document.
     const scoredTabs = selectRelevantTabs(sanitizedProject, userMessage);
     const scoredTabIds = new Set(scoredTabs.map((tab) => tab.tabId));
 

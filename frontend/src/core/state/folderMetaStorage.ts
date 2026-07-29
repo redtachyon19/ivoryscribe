@@ -1,13 +1,3 @@
-// LocalStorage shadow of per-folder metadata (color, iconEmoji, description).
-//
-// In cloud mode the full ProjectFolder array is persisted as part of
-// `uiSettings.folders` via the preferences sync, so this module is a no-op
-// safety net. In local mode the on-disk representation of a folder is just
-// a directory — there's nowhere to stash the color / icon / description.
-// This module fills that gap by keying metadata by folder id; the local
-// filesystem sync layers it on top of the directory list it discovers from
-// disk on every hydrate.
-
 const STORAGE_KEY = "ivoryscribe.folders.meta.v1"
 
 export type FolderMetaPatch = {
@@ -47,7 +37,6 @@ function write(next: StoredMap): void {
   try {
     s.setItem(STORAGE_KEY, JSON.stringify(next))
   } catch {
-    /* quota / disabled storage — best-effort */
   }
 }
 
@@ -60,7 +49,6 @@ export function setFolderMeta(folderId: string, patch: FolderMetaPatch): void {
   const map = read()
   const existing = map[folderId] ?? {}
   const next = { ...existing, ...patch }
-  // Strip undefined so subsequent reads get clean fields.
   for (const key of Object.keys(next) as (keyof FolderMetaPatch)[]) {
     if (next[key] === undefined) delete next[key]
   }
@@ -81,8 +69,6 @@ export function deleteFolderMeta(folderId: string): void {
   write(rest)
 }
 
-/** Merge stored metadata onto a freshly-loaded folder list. Folders not
- *  present in storage pass through unchanged. */
 export function applyStoredFolderMeta<T extends { id: string }>(folders: T[]): T[] {
   const map = read()
   if (Object.keys(map).length === 0) return folders

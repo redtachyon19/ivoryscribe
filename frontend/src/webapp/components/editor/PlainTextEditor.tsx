@@ -1,8 +1,3 @@
-// PlainTextEditor — minimal monospace textarea for .txt documents and the
-// .txt-mode tabs inside a Book. Modelled on `MarkdownEditor`'s source pane,
-// stripped of preview, divider, and markdown shortcuts. Treats the textarea
-// value as opaque text; no formatting interpretation.
-
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react"
 import {
   APP_PROJECT_SEARCH_FOCUS_EVENT,
@@ -31,9 +26,6 @@ export default function PlainTextEditor({
   onWordCountChange,
   onTypingStateChange,
 }: PlainTextEditorProps) {
-  // Listen for Edit-menu commands (Cmd+A/C/X/V/Z/etc) so the native menu's
-  // accelerators reach the focused <textarea>. No TipTap surface here, so
-  // we pass `null` — the hook's native-text-entry branch handles it.
   useEditorCommandBus(null)
   const [draft, setDraft] = useState(content)
   const typingTimeoutRef = useRef<number | null>(null)
@@ -74,9 +66,6 @@ export default function PlainTextEditor({
     }, 450)
   }
 
-  // Reset draft when the document changes (tab/project switch). Mirrors
-  // MarkdownEditor's pattern so opening a different document shows its
-  // content immediately without leaking the previous draft.
   useEffect(() => {
     setDraft(content)
     emitWordCounts(content)
@@ -96,9 +85,6 @@ export default function PlainTextEditor({
     }
   }, [onTypingStateChange])
 
-  // Spell-check focus: the spell-check modal addresses misspellings by
-  // (documentId, start, end). When the user clicks "Go to" we move the caret
-  // into view. PlainText shares the same event shape as Markdown.
   useEffect(() => {
     const onSpellCheckFocus = (event: Event) => {
       const customEvent = event as CustomEvent<SpellCheckFocusDetail>

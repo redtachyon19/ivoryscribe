@@ -1,11 +1,10 @@
-import { Github, Mail, Rocket } from "lucide-react"
+import { Mail, Rocket } from "lucide-react"
+import GithubMark from "../../webapp/components/ui/GithubMark"
 import { useEffect, useState } from "react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import type { HomeProps } from "./Home"
 
-// Monochrome brand marks (lucide has no Windows logo). Both paint via
-// currentColor so the surrounding CSS controls their colour.
 function AppleLogo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 384 512" role="img" aria-label="Apple macOS" focusable="false">
@@ -28,10 +27,6 @@ function WindowsLogo({ className }: { className?: string }) {
   )
 }
 
-// Desktop installers, published to GitHub Releases by
-// .github/workflows/build-desktop.yml. The "releases/latest/download/<asset>"
-// URL always redirects to the newest release's asset of that exact name, so
-// these links never change across versions.
 const MAC_ARM64_DMG_URL = "https://github.com/redtachyon19/ivoryscribe/releases/latest/download/Ivoryscribe-arm64.dmg"
 const WIN_X64_EXE_URL = "https://github.com/redtachyon19/ivoryscribe/releases/latest/download/Ivoryscribe-x64.exe"
 
@@ -40,8 +35,6 @@ export default function DownloadPage({
   onLaunchDashboard,
   onOpenAuth,
 }: HomeProps) {
-  // Header is transparent at the top and gains the translucent blur once the
-  // page scrolls — same behaviour as the Home page.
   const [isHeaderScrolled, setIsHeaderScrolled] = useState(false)
 
   useEffect(() => {
@@ -112,9 +105,6 @@ export default function DownloadPage({
           <p>Mobile and more platforms coming soon.</p>
         </div>
 
-        {/* One full-width section per OS: info left, its own screenshot right,
-            vertically centred. Swap each placeholder <div> for:
-            <img src="…" alt="…" className="download-shot__img" /> */}
         <div className="download-sections">
           <section className="download-section download-section--mac" aria-label="macOS">
             <div className="download-section__inner">
@@ -179,13 +169,11 @@ export default function DownloadPage({
               <p className="auth-gateway__footer-brand-name">ivoryscribe</p>
             </div>
 
-
             <div className="auth-gateway__footer-social" aria-label="Social links">
-              <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><Github size={16} aria-hidden={true} /></a>
+              <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><GithubMark size={16} /></a>
               <a href="mailto:contact@ivoryscribe.com" target="_blank" rel="noopener noreferrer" aria-label="Email" className="auth-gateway__footer-social-link"><Mail size={16} aria-hidden={true} /></a>
             </div>
           </div>
-
 
           <div className="auth-gateway__footer-right">
             <p className="auth-gateway__footer-copy">&copy;2026 ivoryscribe. all rights reserved</p>

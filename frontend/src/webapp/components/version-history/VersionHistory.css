@@ -1,22 +1,9 @@
-/* Version history modal — styling.
- *
- * Every color / font / radius is derived from the app's CSS variables so
- * the modal picks up palette + font changes from settings with no extra
- * wiring. The marquee selection rectangle uses the same accent-mixed
- * background as the project browser panel's, so dragging looks identical
- * across the app.
- */
-
-/* Wider than the default 560px Modal — version rows + the action toolbar
- * read better with breathing room. */
 .version-history__frame {
   width: min(880px, calc(100vw - 32px));
   max-height: min(88vh, 820px);
 }
 
 .version-history__panel {
-  /* Override the default modal padding so the toolbar and list can hug
-   * the panel edges. */
   padding: 18px;
   gap: 14px;
 }
@@ -26,25 +13,14 @@
   flex-direction: column;
   gap: 12px;
   min-height: 0;
-  /* Anchor for the marquee rectangle, which now lives at this level so a
-   * drag can begin anywhere in the modal body (toolbar, subtitle, list,
-   * surrounding whitespace) — not just on top of the version cards. */
   position: relative;
-  /* This is a selection UI (pick version cards), not a reading surface —
-   * nothing here needs to be text-selectable. Disabling it stops a marquee
-   * drag from also rubber-banding the subtitle / card labels into a messy
-   * text highlight. */
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* While a marquee drag is in progress, show the crosshair across the whole
- * content area. */
 .version-history--marqueeing {
   cursor: crosshair;
 }
-
-/* ── Toolbar ─────────────────────────────────────────────────────────── */
 
 .version-history__toolbar {
   display: flex;
@@ -55,9 +31,6 @@
   border-bottom: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 70%, transparent);
 }
 
-/* The toolbar buttons inherit the standard `ui-button--footer` look — no
- * extra rules needed here. We only adjust spacing/sizing to fit the
- * toolbar row. */
 .version-history__toolbar .ui-button {
   padding: 8px 12px;
   font-size: 14px;
@@ -71,8 +44,6 @@
   flex-shrink: 0;
 }
 
-/* ── Subtitle / status line ──────────────────────────────────────────── */
-
 .version-history__subtitle {
   margin: 0;
   color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
@@ -81,13 +52,6 @@
   line-height: 1.5;
 }
 
-/* ── List ────────────────────────────────────────────────────────────── */
-
-/* No border / background of its own — the cards sit directly inside the
- * modal panel. This element scrolls independently of the modal header /
- * toolbar when there are many versions. (The marquee rectangle is now
- * anchored one level up, on `.version-history`, so a drag can start
- * anywhere in the modal body — see that rule above.) */
 .version-history__list {
   overflow-y: auto;
   flex: 1 1 auto;
@@ -103,8 +67,6 @@
   gap: 4px;
 }
 
-/* Title block on the left, stat stack on the right — `space-between` lets
- * the two halves push apart so each card fills its full width. */
 .version-history__row {
   display: flex;
   align-items: center;
@@ -133,8 +95,6 @@
   background: color-mix(in srgb, var(--app-accent, #9ab8ff) 20%, transparent);
 }
 
-/* ── Left: title pill + timestamp ────────────────────────────────────── */
-
 .version-history__row-main {
   display: flex;
   flex-direction: column;
@@ -144,7 +104,6 @@
   flex: 1 1 auto;
 }
 
-/* Title (plain text) and the version pill, side by side on one line. */
 .version-history__row-title-line {
   display: flex;
   align-items: center;
@@ -163,8 +122,6 @@
   min-width: 0;
 }
 
-/* The version number sits in a pill, tinted by save kind so manual vs
- * autosave reads at a glance (the two get different colors). */
 .version-history__row-pill {
   flex: 0 0 auto;
   display: inline-flex;
@@ -194,8 +151,6 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
 }
 
-/* ── Right: stat stack (chapters/slides, pages, words) ───────────────── */
-
 .version-history__row-stats {
   flex: 0 0 auto;
   display: flex;
@@ -212,8 +167,6 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
 }
 
-/* ── Marquee selection rectangle ─────────────────────────────────────── */
-
 .version-history__marquee-selection {
   position: absolute;
   z-index: 50;
@@ -223,16 +176,8 @@
   pointer-events: none;
 }
 
-/* ── Empty state ─────────────────────────────────────────────────────── */
-
-/* The subtitle line already covers the empty-state messaging — no extra
- * placeholder needed inside the list. */
-
-/* ── Narrow viewport ─────────────────────────────────────────────────── */
-
 @media (max-width: 640px) {
   .version-history__toolbar .ui-button > span {
-    /* Hide labels on mobile — icons + tooltips carry the meaning. */
     display: none;
   }
 

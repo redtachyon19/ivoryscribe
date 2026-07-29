@@ -7,11 +7,7 @@ import { openInNewItemLabel } from "../../../core/electron/localWorkspace"
 export type ContextMenuAction = {
   label: string
   icon: React.ReactNode
-  /** Leaf actions provide `action`; submenu parents provide `children`
-   *  instead. Items with `children` open a nested flyout when hovered. */
   action?: () => void
-  /** When present, this item becomes a submenu parent rendering a
-   *  chevron and opening a flyout panel with these nested actions. */
   children?: ContextMenuAction[]
   danger?: boolean
 }
@@ -23,8 +19,6 @@ type ProjectContextMenuProps = {
   onClose: () => void
 }
 
-/** Renders the list of menu items. Extracted so it can be reused by the
- *  root menu and any submenu flyouts without duplicating the markup. */
 function MenuItems({
   actions,
   onClose,
@@ -95,9 +89,6 @@ function MenuItems({
   )
 }
 
-/** Flyout panel that opens beside the parent item. Mirrors the root
- *  menu's styling and viewport-clamping behavior so it never escapes
- *  the visible area. */
 function SubmenuPanel({
   anchorRect,
   actions,
@@ -121,7 +112,6 @@ function SubmenuPanel({
     let top = anchorRect.top - 4
 
     if (left + rect.width > viewportWidth) {
-      // Not enough room on the right — flip to the left side of the parent.
       left = Math.max(8, anchorRect.left - rect.width + 4)
     }
     if (top + rect.height > viewportHeight) {
@@ -249,32 +239,18 @@ export function buildProjectActions({
   onTrash,
 }: {
   projectId: string
-  /** True when the project is an Unknown-kind file (an unsupported file
-   *  extension the app surfaces in the library but can't open). For these
-   *  we hide Open / Rename / Duplicate / Share / Move-to-Cloud / Settings
-   *  because the app can't read or write the file's bytes. Filesystem
-   *  actions (Show in Finder, Copy Path, Archive, Trash) still apply. */
   isUnknownKind?: boolean
   onOpenInNewTab: (id: string) => void
   onRename: (id: string) => void
   onOpenSettings?: (id: string) => void
   onDuplicate?: (id: string) => void
   onShare?: (id: string) => void
-  /** Only passed for local projects. Promotes the project to cloud
-   *  (upload + trash the local file) so it can be shared / synced. */
   onMoveToCloud?: (id: string) => void
-  /** Only passed for local projects in Electron — copies the absolute
-   *  on-disk path to the clipboard. */
   onCopyPath?: (id: string) => void
-  /** Only passed for local projects in Electron — reveals the file in
-   *  the OS file manager (Finder/Explorer). */
   onShowInFinder?: (id: string) => void
   onArchive: (id: string) => void
   onTrash: (id: string) => void
 }): ContextMenuAction[] {
-  // Top-level (always visible) actions. Unknown-kind files skip Open /
-  // Rename — the app has no editor for them and the disk name is the
-  // user's only identifier.
   const actions: ContextMenuAction[] = []
   if (!isUnknownKind) {
     actions.push(
@@ -295,9 +271,6 @@ export function buildProjectActions({
     actions.push({ label: "Share", icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShare(projectId) })
   }
 
-  // Group the less-frequently-used / destructive actions under a single
-  // "More Options" submenu — keeps the top-level menu short while still
-  // surfacing every action one hover away.
   const moreOptions: ContextMenuAction[] = []
 
   if (onCopyPath) {
@@ -336,12 +309,8 @@ export function buildFolderActions({
   onTrash,
 }: {
   folderId: string
-  /** Optional — only passed in by the local-FS orchestration. Cloud-only
-   *  folders have no on-disk directory, so the action is hidden when
-   *  this is undefined. */
   onOpenInNewWindow?: (id: string) => void
   onRename: (id: string) => void
-  /** Open the per-folder settings modal (color / icon emoji). */
   onOpenSettings?: (id: string) => void
   onShare?: (id: string) => void
   onArchive: (id: string) => void
@@ -352,8 +321,6 @@ export function buildFolderActions({
   if (onOpenInNewWindow) {
     actions.push({
       label: "Open in New Window",
-      // Same lucide icon as the project "Open in New Tab/Window"
-      // action so the two menus read consistently.
       icon: <SquareArrowOutUpRight size={14} strokeWidth={2} aria-hidden={true} />,
       action: () => onOpenInNewWindow(folderId),
     })
@@ -373,8 +340,6 @@ export function buildFolderActions({
     actions.push({ label: "Share", icon: <UserRoundPlus size={14} strokeWidth={2} aria-hidden={true} />, action: () => onShare(folderId) })
   }
 
-  // Mirror the project menu: tuck Archive + Trash under a single
-  // "More Options" submenu so the top of the menu stays uncluttered.
   actions.push({
     label: "More Options",
     icon: <MoreHorizontal size={14} strokeWidth={2} aria-hidden={true} />,
@@ -416,11 +381,6 @@ export function buildMultiSelectActions({
   return actions
 }
 
-/** Shared 4-kind create menu used by every "Create Project" entry point —
- *  NavigationPanel, Library create-card, Library and ProjectBrowserPanel
- *  context menus, FolderDetailView. Keeps the kind list (and its order +
- *  icons) consistent everywhere; adding a new ProjectKind just means
- *  extending this one builder. */
 export function buildCreateProjectActions(
   onCreate: (kind: ProjectKind) => void,
 ): ContextMenuAction[] {

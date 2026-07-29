@@ -4,7 +4,7 @@
 # Railway, the service Root Directory set to "backend").
 
 # ---- builder: install production deps (incl. native sqlite3 addon) ----
-FROM node:20-bookworm-slim AS builder
+FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 
 # sqlite3 is a native module; give it a toolchain in case no prebuilt binary
@@ -17,7 +17,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # ---- runtime ----
-FROM node:20-bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 # PORT defaults to 8080 to match the value Railway injects at runtime. Keeping
 # the image default and Railway's PORT in sync means the public domain's target
 # port is always 8080 — a stale 4000 there routes to a dead port (502 on every

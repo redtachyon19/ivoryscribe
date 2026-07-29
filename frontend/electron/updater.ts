@@ -1,7 +1,6 @@
 import electronUpdater from "electron-updater"
 import { app, ipcMain, type BrowserWindow } from "electron"
 
-// electron-updater is CommonJS; grab the singleton off the default export.
 const { autoUpdater } = electronUpdater
 
 type GetWindow = () => BrowserWindow | null
@@ -21,15 +20,7 @@ function broadcast(getWindow: GetWindow, payload: UpdaterEvent) {
   }
 }
 
-/**
- * Wires desktop auto-updates via GitHub Releases (see the `publish` block in
- * package.json). Updates are surfaced to the renderer as an in-app banner
- * rather than downloaded silently: the user opts in to download, watches
- * progress, then restarts to install. Only runs in packaged builds — dev has
- * no update feed. rAF-free, event-driven.
- */
 export function initAutoUpdater(getWindow: GetWindow) {
-  // Surface an in-app prompt first; the user chooses when to download/install.
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
 
@@ -48,26 +39,17 @@ export function initAutoUpdater(getWindow: GetWindow) {
     broadcast(getWindow, { status: "error", message: err == null ? "unknown error" : err.message ?? String(err) }),
   )
 
-  // Renderer → main controls (gated by the banner UI, which only shows the
-  // Download button once an update is actually available).
   ipcMain.on("updater:check", () => { void checkForUpdates() })
   ipcMain.on("updater:download", () => { void autoUpdater.downloadUpdate() })
   ipcMain.on("updater:install", () => {
-    // isSilent=false (show the installer), forceRunAfter=true (relaunch into
-    // the new version once installed).
     autoUpdater.quitAndInstall(false, true)
   })
 
-  // Auto-check a few seconds after launch so the window is up first.
   if (app.isPackaged) {
     setTimeout(() => { void checkForUpdates() }, 4000)
   }
 }
 
-/**
- * Kicks off an update check. Also used by the "Check for Updates…" menu item.
- * No-ops (and never throws) in dev / unpublished builds, which have no feed.
- */
 export async function checkForUpdates() {
   if (!app.isPackaged) return
   try {

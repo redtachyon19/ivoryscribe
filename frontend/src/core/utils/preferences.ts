@@ -1,10 +1,3 @@
-// Shared preference resolution.
-//
-// `useWorkspaceHydration` (cloud mode) and `useCloudPreferenceSync` (Electron
-// local mode) both load preferences from `/preferences` and apply them to the
-// orchestrator's style state. The applying logic lives here so the two paths
-// stay byte-identical.
-
 import type { Dispatch, SetStateAction } from "react"
 import {
   clampFontSize,

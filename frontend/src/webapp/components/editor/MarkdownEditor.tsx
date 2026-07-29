@@ -19,8 +19,6 @@ type MarkdownEditorProps = {
   documentId: string | null
   content: string
   editorFontSize: number
-  /** External view-mode controlled by the top-bar pill. "both" is the
-   *  classic split view; "editor"/"preview" hide the other pane. */
   viewMode?: MarkdownTabViewMode
   onViewModeChange?: (mode: MarkdownTabViewMode) => void
   onContentChange: (nextContent: string) => void
@@ -38,14 +36,7 @@ export default function MarkdownEditor({
   onWordCountChange,
   onTypingStateChange,
 }: MarkdownEditorProps) {
-  // Maps the external "both" naming to the internal "split" naming used
-  // by the rendering logic below. The transition driver effect (further
-  // down) syncs `paneViewMode` whenever the external `viewMode` changes.
   const desiredInternal: "split" | "editor" | "preview" = viewMode === "both" ? "split" : viewMode
-  // Listen for Edit-menu commands (Cmd+A/C/X/V/Z/etc) so the native menu's
-  // accelerators reach the focused <textarea>. No TipTap surface here so we
-  // pass `null` — the hook's native-text-entry branch runs the textarea
-  // operation directly.
   useEditorCommandBus(null)
   const [markdownDraft, setMarkdownDraft] = useState(() => normalizeMarkdownContentForEditing(content))
   const [paneViewMode, setPaneViewMode] = useState<"split" | "editor" | "preview">(desiredInternal)
@@ -75,7 +66,6 @@ export default function MarkdownEditor({
       return
     }
 
-    // Match preview behavior by allowing the page to scroll instead of the textarea itself.
     textarea.style.height = "auto"
     const minHeight = Number.parseFloat(window.getComputedStyle(textarea).minHeight) || 0
     textarea.style.height = `${Math.max(textarea.scrollHeight, minHeight)}px`
@@ -435,8 +425,6 @@ export default function MarkdownEditor({
       window.requestAnimationFrame(() => {
         updateSplitRatioFromClientX(event.clientX)
       })
-      // Keep the top-bar pill in sync with the drag — the local split
-      // we've just forced should be reflected as "both" externally.
       onViewModeChange?.("both")
     }
 
@@ -458,21 +446,6 @@ export default function MarkdownEditor({
     window.addEventListener("pointercancel", stopDragging)
   }
 
-  /**
-   * Drives the split/editor/preview transition animation. Called by the
-   * effect below whenever the external `viewMode` prop changes, and also
-   * usable as a fallback when no external setter is wired.
-   *
-   * State machine:
-   *   - target === "split":  mount both panes immediately, then animate
-   *                          splitRatio toward 0.5.
-   *   - target === "editor"/"preview" from split: keep both panes mounted,
-   *                          animate splitRatio toward 1 or 0, then collapse
-   *                          the other pane once the animation finishes.
-   *   - target === "editor"/"preview" from the *opposite* single pane:
-   *                          briefly remount both (so the width animation
-   *                          is visible), animate, then collapse the loser.
-   */
   const runViewTransition = (target: "split" | "editor" | "preview") => {
     if (paneViewMode === target) return
     if (paneTransitionTarget) return
@@ -508,7 +481,6 @@ export default function MarkdownEditor({
       return
     }
 
-    // editor ↔ preview: remount both, then animate
     setPaneTransitionTarget(target)
     setPaneViewMode("split")
     window.requestAnimationFrame(() => {
@@ -521,9 +493,6 @@ export default function MarkdownEditor({
     }, TRANSITION_MS)
   }
 
-  // Drive the transition whenever the external pill changes the view.
-  // Also reacts to the inline pane-label buttons below since they call
-  // onViewModeChange to update the same external state.
   useEffect(() => {
     runViewTransition(desiredInternal)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -565,10 +534,6 @@ export default function MarkdownEditor({
           type="button"
           className="markdown-editor__pane-label"
           onClick={() => {
-            // Mirrors the old toggle behaviour: clicking the label while the
-            // editor is the only visible pane returns to "both"; otherwise
-            // it goes to editor-only. Drives the same external state used
-            // by the top-bar pill, so the two stay in lockstep.
             onViewModeChange?.(viewMode === "editor" ? "both" : "editor")
           }}
         >

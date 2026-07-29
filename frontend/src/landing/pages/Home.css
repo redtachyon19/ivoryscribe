@@ -8,9 +8,6 @@
 }
 
 .auth-gateway-page--home {
-  /* Glows keep their original full % sizes (not shrunk). A black fade layered
-     ON TOP clips the whole wash to black by ~the first card's midpoint — move
-     these vh stops to slide where it ends (lower vh = ends higher). */
   background:
     linear-gradient(
       180deg,
@@ -245,14 +242,10 @@
   gap: 14px;
 }
 
-/* The hero logo is the actual app icon (public/icon.png — the same file
-   electron-builder ships as the desktop app icon). It already includes the
-   rounded-square tile and artwork, so we render it directly rather than
-   reconstructing a look-alike tile. drop-shadow (not box-shadow) follows the
-   icon's own alpha, so the shadow hugs its rounded corners. */
 .auth-gateway__hero-icon {
-  width: clamp(76px, 8.6vw, 98px);
-  height: clamp(76px, 8.6vw, 98px);
+  display: block;
+  width: clamp(92px, 10vw, 118px);
+  height: clamp(92px, 10vw, 118px);
   object-fit: contain;
   filter: drop-shadow(0 22px 44px rgba(0, 0, 0, 0.34));
 }
@@ -362,7 +355,6 @@
   text-align: center;
   gap: 12px;
   margin-top: 120px;
-  /* No bordered card container — sits directly on the page. */
   border: 0;
   border-radius: 0;
   background: none;
@@ -377,12 +369,10 @@
   overflow: visible;
 }
 
-/* No layout box — only carries the previewed palette's CSS variables. */
 .auth-gateway__preview-theme {
   display: contents;
 }
 
-/* Clickable theme swatches under the editor preview. */
 .auth-gateway__theme-swatches {
   display: flex;
   justify-content: center;
@@ -398,8 +388,6 @@
   box-sizing: border-box;
   border-radius: 50%;
   cursor: pointer;
-  /* Just the theme background; a faint hairline keeps dark swatches visible.
-     The accent ring only appears on the selected one (below). */
   background: var(--sw-bg);
   border: 2px solid color-mix(in srgb, #ffffff 28%, transparent);
   transition: transform 150ms ease, box-shadow 180ms ease;
@@ -1536,13 +1524,6 @@
   white-space: nowrap;
 }
 
-/* ── Feature rows: full-width, screenshot on one side, copy on the other,
-   flipping sides each row. ─────────────────────────────────────────────── */
-
-/* The features section opts out of the bordered card container the other
-   content sections use, and widens past the 980px column so the screenshots
-   can be large. The negative margin is symmetric (equal both sides) so it stays
-   centred; it's reset on smaller screens where there's no room (below). */
 .auth-gateway__content-section--features {
   border: 0;
   border-radius: 0;
@@ -1550,7 +1531,6 @@
   padding: 0;
   overflow: visible;
   margin-inline: -150px;
-  /* Breathing room from the app-preview section above. */
   margin-top: 120px;
 }
 
@@ -1569,14 +1549,11 @@
 
 .auth-gateway__feature-row {
   display: grid;
-  /* Image side gets the larger share of the row. */
   grid-template-columns: 1.5fr 1fr;
   gap: 56px;
   align-items: center;
 }
 
-/* Odd rows: image left (wide col first). Even rows: image right (wide col
-   second), so the screenshot stays the larger side on both. */
 .auth-gateway__feature-row:nth-child(even) {
   grid-template-columns: 1fr 1.5fr;
 }
@@ -1657,7 +1634,6 @@
   transform: translateX(-50%);
 }
 
-/* Plain text — no card box, no avatar. Centered. */
 .auth-gateway__testimonial-card {
   border: 0;
   padding: 0;
@@ -1713,14 +1689,12 @@
   gap: 12px;
 }
 
-/* Essay-style detail page: keep the width + typography, drop the card box. */
 .auth-gateway__detail-card--plain {
   border: 0;
   background: none;
   padding: 0;
 }
 
-/* ── Open source & support page ──────────────────────────────────────── */
 .opensource-main {
   flex: 1;
   padding-top: 140px;
@@ -1776,7 +1750,6 @@
   margin-top: 24px;
 }
 
-/* Two ways to contribute */
 .opensource-ways {
   margin-top: 10px;
   display: grid;
@@ -1828,7 +1801,6 @@
   text-underline-offset: 3px;
 }
 
-/* Funding goal card */
 .opensource-fund {
   margin: 12px 0 4px;
   padding: 22px 24px;
@@ -1881,7 +1853,6 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
 }
 
-/* Conservation pledge callout */
 .opensource-pledge {
   display: flex;
   align-items: flex-start;
@@ -1933,8 +1904,6 @@
   font-size: 16px;
 }
 
-/* Sub-heading within a detail card (e.g. "Support the project" on the open
-   source page); scroll-margin keeps it clear of the fixed header when linked. */
 .auth-gateway__detail-subheading {
   margin: 28px 0 0;
   scroll-margin-top: 120px;
@@ -1959,7 +1928,6 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
 }
 
-/* ── Download page: full-bleed macOS | Windows split ─────────────────── */
 .download-main {
   flex: 1;
   display: flex;
@@ -1989,7 +1957,6 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
 }
 
-/* Black background instead of the palette's near-black "elephant grey". */
 .auth-gateway-page.auth-gateway-page--download {
   background: #000;
 }
@@ -2001,8 +1968,6 @@
   flex-direction: column;
 }
 
-/* One full-bleed band per OS; the glow washes the whole band, the inner grid
-   keeps the content aligned to the page. */
 .download-section {
   position: relative;
   width: 100%;
@@ -2033,7 +1998,6 @@
   gap: 10px;
 }
 
-/* Full-width rule between the two OS bands. */
 .download-divider {
   width: 100%;
   height: 0;
@@ -2042,7 +2006,6 @@
   border-top: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 55%, transparent);
 }
 
-/* OS brand mark sits inside the Download button. */
 .download-option__cta-logo {
   height: 15px;
   width: auto;
@@ -2057,7 +2020,6 @@
   color: #3b9eff;
 }
 
-/* Same EB Garamond display treatment as the "Download IvoryScribe" heading. */
 .download-option__title {
   margin: 0;
   font-family: "EB Garamond", serif;
@@ -2076,14 +2038,12 @@
   color: color-mix(in srgb, var(--menu-button, #ededed) 68%, transparent);
 }
 
-/* Smaller than the default CTA button. */
 .download-option__cta {
   margin-top: 4px;
   font-size: 14px;
   padding: 8px 16px;
 }
 
-/* Per-OS screenshot frame (swap placeholder for <img>). */
 .download-shot {
   position: relative;
   margin: 0;
@@ -2584,7 +2544,6 @@
     gap: 20px;
   }
 
-  /* Stack image-above-copy on every row (no flipping on mobile). */
   .auth-gateway__feature-row:nth-child(even) .auth-gateway__feature-shot {
     order: 0;
   }

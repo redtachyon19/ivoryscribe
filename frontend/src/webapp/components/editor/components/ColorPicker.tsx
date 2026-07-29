@@ -1,9 +1,3 @@
-// In-app colour picker for the Typewriter toolbar's "Custom…" option.
-//
-// Replaces the OS colour dialog (which looks out of place) with a saturation/
-// value square + hue slider + hex field, styled with the app's menu variables.
-// Pure HSV maths, no dependencies. Emits a #rrggbb string via onChange.
-
 import { useCallback, useRef, useState } from "react"
 import "./ColorPicker.css"
 
@@ -84,7 +78,6 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
     [onChange],
   )
 
-  // Shared pointer-drag: fires `move` on down + every move until release.
   const startDrag = (move: (clientX: number, clientY: number) => void) =>
     (e: React.PointerEvent) => {
       e.preventDefault()
