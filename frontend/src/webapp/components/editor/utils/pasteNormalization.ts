@@ -1,18 +1,4 @@
-// Pre-parse normalization for HTML pasted into a TipTap editor.
-//
-// Pasted content from Google Docs / Word encodes bold/italic/underline as
-// inline styles on <span> wrappers, which TipTap's StarterKit doesn't pick
-// up as marks. We promote those into standard <strong>/<em>/<u> tags before
-// TipTap parses, so structural formatting survives.
-//
-// Drafting also wants a clean-prose paste (no font-family, color, highlight),
-// so it opts into `stripInlineStyles` to remove residual style/class
-// attributes and unwrap span/mark/font containers. Typewriter leaves those
-// in place so font-family / color marks parse.
-
 export type PasteNormalizationOptions = {
-  /** When true, after promoting marks: strip every `style`/`class` attribute
-   *  and unwrap every span/mark/font element. Default false. */
   stripInlineStyles?: boolean
 }
 
@@ -53,8 +39,6 @@ export function normalizePastedFormatting(
     if (styleIsUnderline(style)) wrappers.push("u")
     if (wrappers.length === 0) continue
 
-    // Build nested wrapper chain and move the element's existing children
-    // inside the innermost wrapper.
     const root = document.createElement(wrappers[0])
     let leaf: HTMLElement = root
     for (let i = 1; i < wrappers.length; i++) {

@@ -4,12 +4,6 @@ import "./AlphaBanner.css"
 
 const STORAGE_KEY = "ivoryscribe:alpha-banner-dismissed"
 
-/**
- * Dismissible accent-coloured notice pinned to the top of the marketing site.
- * Rendered only on the landing routes (see App.tsx). While it's visible it adds
- * `has-alpha-banner` to <html> so the fixed landing header + page reserve room
- * for it; dismissal is remembered in localStorage so it doesn't nag on reload.
- */
 export default function AlphaBanner() {
   const [dismissed, setDismissed] = useState(() => {
     try {
@@ -40,7 +34,6 @@ export default function AlphaBanner() {
     try {
       localStorage.setItem(STORAGE_KEY, "1")
     } catch {
-      // Storage may be unavailable (private mode) — dismiss for this session only.
     }
     setDismissed(true)
   }

@@ -1,17 +1,3 @@
-/*
- * TuskAi panel — colors are bound to the app's theme variables so the panel
- * matches whatever palette is active (light, elephant dark, midnight, etc.).
- *
- * Theme variable map:
- *   --menu-dropdown-bg     panel background
- *   --menu-bg              input / inset background
- *   --menu-button-hover-bg subtle bubble / hover surface
- *   --menu-border          dividers / borders
- *   --menu-button          primary text
- *   --app-accent           accent (user bubble, send button)
- *   --editor-text          fallback for body text
- */
-
 .tuskai {
   display: flex;
   flex-direction: column;
@@ -242,8 +228,6 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
-
-/* Mode toggle (segmented) */
 
 .tuskai__mode-toggle {
   display: inline-flex;

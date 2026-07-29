@@ -1,4 +1,5 @@
-import { Code2, Github, Heart, Mail, MessageSquare, Rocket } from "lucide-react"
+import { Code2, Heart, Mail, MessageSquare, Rocket } from "lucide-react"
+import GithubMark from "../../webapp/components/ui/GithubMark"
 import { useEffect, useState } from "react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
@@ -7,11 +8,8 @@ import type { HomeProps } from "./Home"
 const REPO_URL = "https://github.com/redtachyon19/ivoryscribe"
 const CONTACT_EMAIL = "contact@ivoryscribe.com"
 // TODO: swap these for your real donation links (GitHub Sponsors / Open
-// Collective / Ko-fi / a Stripe payment link).
 const SPONSOR_URL = "https://github.com/sponsors/redtachyon19"
 const DONATE_URL = "https://github.com/sponsors/redtachyon19"
-// Yearly running-cost goal + what the community has covered so far. Update
-// these as costs and contributions change (or wire them to a funding API).
 const FUNDING_GOAL_USD = 1200
 const FUNDING_RAISED_USD = 0
 
@@ -20,8 +18,6 @@ export default function TransparencyPage({
   onLaunchDashboard,
   onOpenAuth,
 }: HomeProps) {
-  // Header is transparent at the top and gains the translucent blur once the
-  // page scrolls — same behaviour as the Home page.
   const [isHeaderScrolled, setIsHeaderScrolled] = useState(false)
 
   useEffect(() => {
@@ -114,7 +110,7 @@ export default function TransparencyPage({
                 rel="noopener noreferrer"
                 className="auth-gateway__cta-button auth-gateway__cta-button--primary"
               >
-                <Github size={17} strokeWidth={2} aria-hidden={true} />
+                <GithubMark size={17} />
                 <span>View on GitHub</span>
               </a>
             </div>
@@ -240,7 +236,7 @@ export default function TransparencyPage({
             </div>
 
             <div className="auth-gateway__footer-social" aria-label="Social links">
-              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><Github size={16} aria-hidden={true} /></a>
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><GithubMark size={16} /></a>
               <a href="mailto:contact@ivoryscribe.com" target="_blank" rel="noopener noreferrer" aria-label="Email" className="auth-gateway__footer-social-link"><Mail size={16} aria-hidden={true} /></a>
             </div>
           </div>

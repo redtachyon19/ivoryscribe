@@ -1,22 +1,3 @@
-// Codec for .tusks (presentation) files.
-//
-// A presentation is a flat sequence of pinboards — one slide = one pinboard.
-// The codec never parses the per-slide `board` payload; it stores the opaque
-// PinboardEditor content string verbatim.
-//
-// Schema:
-//
-// <?xml version="1.0" encoding="UTF-8"?>
-// <tusks version="1" id="..." cloud-id="" created="..." color="...">
-//   <name>My Deck</name>
-//   <active-slide-id>s1</active-slide-id>
-//   <slides>
-//     <slide id="s1" title="Slide 1">
-//       <board><![CDATA[ …opaque PinboardEditor content string… ]]></board>
-//     </slide>
-//   </slides>
-// </tusks>
-
 import { XMLParser } from "fast-xml-parser"
 import { FILE_FORMAT_VERSION, type TuskPresentationFile, type TuskPresentationSlide } from "./types"
 import { emitAttrs, emitCData, escapeText, indent, XML_PROLOG } from "./xmlPrimitives"
@@ -30,9 +11,6 @@ function emitSlide(slide: TuskPresentationSlide, depth: number): string {
 }
 
 export function serializeTuskPresentation(file: TuskPresentationFile): string {
-  // No `cloud-id` — same reasoning as codecBook: a project is local
-  // OR cloud, never both. The migration in Phase 5 retires any old
-  // files still carrying the attribute.
   const head = `<tusks${emitAttrs({
     version: file.version,
     id: file.id,
@@ -52,8 +30,6 @@ export function serializeTuskPresentation(file: TuskPresentationFile): string {
 
   return `${XML_PROLOG}${head}${meta}${slidesOpen}${slidesBody}${slidesClose}${versionsBlock}</tusks>\n`
 }
-
-// ── Parsing ────────────────────────────────────────────────────────────────
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -102,7 +78,6 @@ export function parseTuskPresentation(xml: string): TuskPresentationFile {
   const versionRaw = readAttr(root, "version")
   const version = versionRaw ? Number.parseInt(versionRaw, 10) : FILE_FORMAT_VERSION
   const id = readAttr(root, "id") ?? crypto.randomUUID()
-  // `cloud-id` is no longer read either — see codecBook for context.
   const created = readAttr(root, "created") ?? new Date().toISOString()
   const color = readAttr(root, "color") ?? "#ef4444"
   const name = readText(root.name as RawNode | undefined) || "Untitled Presentation"
@@ -114,8 +89,6 @@ export function parseTuskPresentation(xml: string): TuskPresentationFile {
   const slideArray = slidesHolder && Array.isArray(slidesHolder.slide) ? (slidesHolder.slide as RawNode[]) : []
   const slides = slideArray.map(parseSlideNode)
 
-  // Versions are added in file format v2. v1 files don't have a <versions>
-  // element and start fresh on next save.
   const versions = parseVersionsBlock(root.versions as RawNode | undefined)
 
   return { version, id, created, name, color, activeSlideId, slides, versions }

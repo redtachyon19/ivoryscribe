@@ -19,15 +19,7 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
 const isMac = process.platform === "darwin"
 
-// ── File-association open queue ───────────────────────────────
-// Paths handed to us by the OS (Finder double-click on macOS, command-line
-// args on Win/Linux, `second-instance` events) before the renderer is ready
-// must be buffered. We flush them once the window finishes loading. After
-// that we just send live.
 const OPEN_PATH_CHANNEL = "app:open-path"
-// Must stay in sync with kindForExtension in core/localFiles/types.ts. Any
-// extension we let through here gets handed to openExternalFile, which uses
-// kindForExtension to dispatch to the right codec.
 const SUPPORTED_OPEN_EXTENSIONS = new Set([".tusk", ".tusks", ".md", ".txt"])
 const pendingOpenPaths: string[] = []
 let isRendererReady = false
@@ -40,8 +32,6 @@ function enqueueOpenPath(filePath: string) {
   if (!filePath || !hasSupportedExtension(filePath)) return
   if (isRendererReady && mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(OPEN_PATH_CHANNEL, filePath)
-    // Bring the window to the front so a Finder double-click on an already-
-    // running app doesn't silently load behind whatever the user was doing.
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
   } else {
@@ -55,10 +45,6 @@ function flushPendingOpenPaths() {
   pendingOpenPaths.length = 0
 }
 
-// The renderer signals (via electronAPI.notifyOpenPathReady) that it has
-// attached its open-path listener and resolved its workspace. Only now is it
-// safe to flush buffered cold-start paths. Marked ready so subsequent live
-// opens send immediately.
 ipcMain.on("app:open-path-ready", (event) => {
   if (mainWindow && event.sender === mainWindow.webContents) {
     isRendererReady = true
@@ -66,14 +52,9 @@ ipcMain.on("app:open-path-ready", (event) => {
   }
 })
 
-// Pull supported file paths out of an argv array. Skips electron-runtime
-// flags and the executable path itself. Used for Windows/Linux startup and
-// the `second-instance` event payload.
 function collectPathsFromArgv(argv: string[]): string[] {
   return argv.slice(1).filter((arg) => !arg.startsWith("-") && hasSupportedExtension(arg))
 }
-
-// ── Helpers shared by main + child windows ──
 
 function makeBrowserWindowOptions(): Electron.BrowserWindowConstructorOptions {
   const preloadPath = path.join(__dirname, "preload.cjs")
@@ -96,9 +77,6 @@ function makeBrowserWindowOptions(): Electron.BrowserWindowConstructorOptions {
   }
 }
 
-// "Open in new window" URLs come from window.open() in the renderer. We want
-// to spawn a real Electron BrowserWindow for our own app URLs (dev server +
-// blob previews) and shell out to the system browser for everything else.
 function isInternalUrl(url: string): boolean {
   if (url.startsWith("blob:") || url.startsWith("file:") || url.startsWith("about:")) {
     return true
@@ -110,7 +88,6 @@ function isInternalUrl(url: string): boolean {
       if (parsed.origin === dev.origin) return true
     }
   } catch {
-    // Malformed URL — treat as external.
   }
   return false
 }
@@ -128,22 +105,15 @@ function configureWebContents(webContents: Electron.WebContents) {
   })
 }
 
-// ── Native menu helpers ──
-
 type RendererMenuItem = {
   label: string
   id?: string
   submenu?: RendererMenuItem[]
   disabled?: boolean
   shortcut?: string
-  /** Optional Electron menu role (e.g. "paste", "pasteAndMatchStyle"). When
-   *  present, the native menu uses the role instead of dispatching through
-   *  the renderer — letting `webContents.paste()` fire a real paste event
-   *  into the focused contentEditable so TipTap can keep formatting. */
   role?: string
 }
 
-/** Map web-style shortcut glyphs to Electron accelerator strings */
 function toAccelerator(shortcut: string): string | undefined {
   if (!shortcut) return undefined
   return shortcut
@@ -164,11 +134,6 @@ function buildNativeMenu(items: RendererMenuItem[], sendCommand: (id: string) =>
       }
     }
 
-    // Native role wins when present — Electron implements it via
-    // webContents.{paste,pasteAndMatchStyle,copy,…}() which dispatches a real
-    // ClipboardEvent into the focused element. That's exactly what we need
-    // for Cmd+V to preserve bold/italic/underline through TipTap's
-    // transformPastedHTML.
     if (item.role) {
       return {
         label: item.label,
@@ -190,7 +155,6 @@ function buildNativeMenu(items: RendererMenuItem[], sendCommand: (id: string) =>
 }
 
 function applyNativeMenu(rendererItems: RendererMenuItem[]) {
-  // Route menu commands to whichever window is focused (fall back to main).
   const sendCommand = (id: string) => {
     const target = BrowserWindow.getFocusedWindow() ?? mainWindow
     target?.webContents.send("menu:command", id)
@@ -223,8 +187,6 @@ function applyNativeMenu(rendererItems: RendererMenuItem[]) {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
-// ── Window creation ──
-
 function createWindow() {
   mainWindow = new BrowserWindow(makeBrowserWindowOptions())
 
@@ -232,15 +194,6 @@ function createWindow() {
     console.error("[ivoryscribe] PRELOAD ERROR:", preload, error)
   })
 
-  // NOTE: we deliberately do NOT mark the renderer ready on did-finish-load.
-  // The renderer's open-path handler only attaches after its local workspace
-  // bootstrap (an async root resolve) completes; flushing at first-paint
-  // raced that and silently dropped the cold-start file. Instead the renderer
-  // calls electronAPI.notifyOpenPathReady() when it's genuinely ready, and we
-  // flush from the "app:open-path-ready" IPC handler below.
-
-  // If the window is closed and recreated (macOS dock activate path), reset
-  // the readiness flag so we re-buffer until the next did-finish-load.
   mainWindow.on("closed", () => {
     isRendererReady = false
     mainWindow = null
@@ -253,9 +206,6 @@ function createWindow() {
   }
 }
 
-// Window control IPC handlers. We resolve the target from `event.sender` so
-// that secondary windows (spawned via window.open) control themselves rather
-// than the main window.
 ipcMain.on("window:minimize", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize()
 })
@@ -322,14 +272,9 @@ ipcMain.handle("spellcheck:remove-word", (event, word: unknown) => {
   }
 })
 
-// Menu update from renderer
 ipcMain.on("menu:update", (_event, items: RendererMenuItem[]) => {
   applyNativeMenu(items)
 })
-
-// ── Filesystem IPC ──
-// Local-file project storage lives entirely under a user-chosen root folder.
-// Every operation takes absolute paths produced by path.join via preload.
 
 ipcMain.handle("dialog:selectDirectory", async (event, opts: { defaultPath?: string; title?: string } = {}) => {
   const parent = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
@@ -343,12 +288,21 @@ ipcMain.handle("dialog:selectDirectory", async (event, opts: { defaultPath?: str
   return result.filePaths[0]
 })
 
-// Resolve (and create if missing) the per-platform default workspace folder
-// at ~/Documents/Ivoryscribe. Called on first launch so the user doesn't have
-// to deal with a picker just to get going.
-ipcMain.handle("fs:getDefaultRoot", async () => {
-  const docs = app.getPath("documents")
-  const root = path.join(docs, "Ivoryscribe")
+const DEFAULT_ROOT_FOLDER_NAME = "Scribe"
+
+ipcMain.handle("fs:getDefaultRoot", async (_event, options: { create?: boolean } = {}) => {
+  const { create = true } = options
+  const root = path.join(app.getPath("documents"), DEFAULT_ROOT_FOLDER_NAME)
+
+  if (!create) {
+    try {
+      const stat = await fsp.stat(root)
+      return stat.isDirectory() ? root : null
+    } catch {
+      return null
+    }
+  }
+
   await fsp.mkdir(root, { recursive: true })
   return root
 })
@@ -357,26 +311,17 @@ ipcMain.handle("fs:readFile", async (_event, filePath: string) => {
   return await fsp.readFile(filePath, "utf8")
 })
 
-// Binary read for files where utf-8 would corrupt the bytes (PDFs, images,
-// etc.). Returns a Buffer; Electron IPC structured-clones it into a
-// Uint8Array on the renderer side. Keep this separate from `fs:readFile` so
-// existing utf-8 call sites don't accidentally get a Buffer back.
 ipcMain.handle("fs:readFileBinary", async (_event, filePath: string) => {
   return await fsp.readFile(filePath)
 })
 
 ipcMain.handle("fs:writeFile", async (_event, filePath: string, contents: string) => {
   await fsp.mkdir(path.dirname(filePath), { recursive: true })
-  // Atomic write: tmp + rename so a crash mid-save can't truncate the file.
   const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`
   await fsp.writeFile(tmp, contents, "utf8")
   await fsp.rename(tmp, filePath)
 })
 
-// Binary write for files where utf-8 would corrupt the bytes (PDFs after a
-// bookmark edit, etc.). `data` arrives as a Uint8Array over Electron's
-// structured-clone IPC; Buffer.from wraps it without copying. Same atomic
-// tmp+rename as the utf-8 path so a crash mid-save can't truncate the file.
 ipcMain.handle("fs:writeFileBinary", async (_event, filePath: string, data: Uint8Array) => {
   await fsp.mkdir(path.dirname(filePath), { recursive: true })
   const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}`
@@ -408,7 +353,6 @@ ipcMain.handle("fs:listDirectory", async (_event, dirPath: string): Promise<FsEn
         modifiedAt: stat.mtimeMs,
       })
     } catch {
-      // Symlink target missing or permission error — skip.
     }
   }
   return out
@@ -426,24 +370,14 @@ ipcMain.handle("fs:trash", async (_event, targetPath: string) => {
   await shell.trashItem(targetPath)
 })
 
-// Reveal a file or directory in the OS file manager (Finder/Explorer/Files).
 ipcMain.on("fs:showItemInFolder", (_event, targetPath: string) => {
   shell.showItemInFolder(targetPath)
 })
 
-// Read plain text from the system clipboard via Electron's main-process
-// clipboard module. The renderer's `navigator.clipboard.readText()` can be
-// blocked by missing user-activation in callback contexts (e.g. when a
-// menu accelerator fires), so we expose a guaranteed-to-work path here.
 ipcMain.handle("clipboard:readText", () => {
   return clipboard.readText()
 })
 
-// Render a self-contained export HTML document to a PDF, faithfully, via a
-// hidden BrowserWindow + Chromium's printToPDF. The HTML embeds a runtime that
-// paginates the typewriter layout and sets `window.__pdfxReady` when done; we
-// wait on that (and on web-font loading) before printing. Returns the raw PDF
-// bytes (a Buffer, received by the renderer as a Uint8Array).
 ipcMain.handle("print:toPdf", async (_event, html: string): Promise<{ pdf: Buffer; chapterStartPages: number[] }> => {
   const win = new BrowserWindow({
     show: false,
@@ -457,17 +391,12 @@ ipcMain.handle("print:toPdf", async (_event, html: string): Promise<{ pdf: Buffe
     },
   })
 
-  // A temp file avoids the data: URL length ceiling (documents can embed large
-  // base64 images).
   const tmpPath = path.join(app.getPath("temp"), `ivoryscribe-export-${Date.now()}-${Math.round(Math.random() * 1e9)}.html`)
 
   try {
     await fsp.writeFile(tmpPath, html, "utf-8")
     await win.loadFile(tmpPath)
 
-    // Wait until fonts have loaded AND the embedded pagination runtime finished
-    // (it sets window.__pdfxReady). Poll with an overall timeout so a failure to
-    // signal can't hang the export.
     await win.webContents.executeJavaScript(
       `new Promise((resolve) => {
         const deadline = Date.now() + 10000
@@ -482,10 +411,6 @@ ipcMain.handle("print:toPdf", async (_event, html: string): Promise<{ pdf: Buffe
       })`,
     )
 
-    // The pagination runtime records the 1-based start page of each chapter
-    // (section) in window.__pdfxChapterStartPages. Read it so the renderer can
-    // attach a per-chapter PDF outline. Empty array if the runtime didn't set it
-    // (e.g. it errored), in which case the renderer simply skips the outline.
     const chapterStartPages = (await win.webContents
       .executeJavaScript("Array.isArray(window.__pdfxChapterStartPages) ? window.__pdfxChapterStartPages : []")
       .catch(() => [])) as number[]
@@ -502,30 +427,6 @@ ipcMain.handle("print:toPdf", async (_event, html: string): Promise<{ pdf: Buffe
   }
 })
 
-
-
-/**
- * Recolor a folder's icon by installing a tinted copy of macOS's own
- * folder graphic as the folder's custom icon. macOS only.
- *
- * Strategy:
- *   1. Run a JXA script that asks AppKit for the system folder icon
- *      (`NSWorkspace.iconForFileType: "public.folder"`).
- *   2. Composite the user's hex color over it with `sourceAtop`, which
- *      tints only the opaque pixels and preserves the folder's shading.
- *   3. Hand the tinted NSImage to `NSWorkspace.setIcon:forFile:options:`,
- *      which writes `Icon\r` + flips the FinderInfo bit atomically.
- *
- * An empty hex resets to the system default (passes a nil icon to
- * setIcon, which clears the custom icon and restores the stock look).
- *
- * Path + hex are passed via environment variables — that way the JXA
- * script body is a static string with no user-controlled interpolation,
- * so we never have to think about shell or JXA quoting.
- *
- * Apple Events permission is NOT required for this path (NSWorkspace
- * just writes files inside the folder). No prompt should appear.
- */
 const TINT_FOLDER_ICON_JXA = String.raw`
 ObjC.import('AppKit');
 ObjC.import('CoreImage');
@@ -636,8 +537,6 @@ ipcMain.handle("fs:setMacFolderIconColor", async (_event, targetPath: string, he
       "/usr/bin/osascript",
       ["-l", "JavaScript", "-e", TINT_FOLDER_ICON_JXA],
       {
-        // Pass path + hex via env so the JXA body stays a constant string
-        // — no escaping concerns no matter what's in the folder name.
         env: {
           ...process.env,
           IV_FOLDER_PATH: targetPath,
@@ -680,9 +579,6 @@ ipcMain.handle("fs:stat", async (_event, targetPath: string) => {
   }
 })
 
-// Install the window-open handler on every webContents (main window + any
-// child windows opened via window.open). Without this, secondary windows
-// wouldn't be able to spawn further windows themselves.
 app.on("web-contents-created", (_event, webContents) => {
   configureWebContents(webContents)
 })
@@ -700,17 +596,11 @@ app.on("activate", () => {
   }
 })
 
-// ── File-association lifecycle ────────────────────────────────
-// Single-instance lock: a Finder double-click on a second .tusk file must
-// route to the running app (via `second-instance`) instead of spawning a
-// duplicate that would race the filesystem watcher and clobber state.
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.quit()
 } else {
   app.on("second-instance", (_event, argv) => {
-    // Foreground the existing window, then queue any file paths the new
-    // invocation was started with.
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
@@ -718,24 +608,18 @@ if (!gotSingleInstanceLock) {
     for (const p of collectPathsFromArgv(argv)) enqueueOpenPath(p)
   })
 
-  // macOS: Finder double-clicks dispatch `open-file` to the running app
-  // (warm start) OR to the launching app before `ready` (cold start). Both
-  // funnel through enqueueOpenPath, which buffers until the renderer is up.
   app.on("open-file", (event, filePath) => {
     event.preventDefault()
     enqueueOpenPath(filePath)
   })
 
-  // Cold-start argv on Windows/Linux (macOS uses open-file for this).
   if (!isMac) {
     for (const p of collectPathsFromArgv(process.argv)) enqueueOpenPath(p)
   }
 
   void app.whenReady().then(() => {
     createWindow()
-    // Set a minimal default menu; the renderer will send the full menu once loaded
     applyNativeMenu([])
-    // Desktop auto-updates (GitHub Releases). No-op in dev / unpackaged builds.
     initAutoUpdater(() => mainWindow)
   })
 }

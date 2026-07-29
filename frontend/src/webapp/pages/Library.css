@@ -1,5 +1,3 @@
-/* ── Project Hub Shell ── */
-
 .project-hub {
   position: relative;
   z-index: 16;
@@ -10,8 +8,6 @@
   overflow: hidden;
   background: var(--app-bg);
 }
-
-/* ── Main Content ── */
 
 .project-hub__main {
   position: relative;
@@ -47,12 +43,8 @@
   gap: 16px;
 }
 
-/* ── Create Row ── */
-
 .project-hub__create-row {
   display: grid;
-  /* Cap the upper bound so cards don't stretch when AppShell's side rails
-   * close — `1fr` was making cards resize whenever the center column did. */
   grid-template-columns: repeat(auto-fill, minmax(170px, 200px));
   gap: 10px;
 }
@@ -60,8 +52,6 @@
 .project-hub__create-row--project-grid {
   margin: 0;
   padding: 0;
-  /* Match the project card grid's fixed track so create cards line up with
-   * the square project cards below them. */
   grid-template-columns: repeat(auto-fill, 168px);
 }
 
@@ -95,8 +85,6 @@
   height: 166px;
   padding: 24px 12px;
 }
-
-/* ── Toolbar ── */
 
 .project-hub__toolbar {
   display: flex;
@@ -143,18 +131,12 @@
   outline: none;
 }
 
-/* ── Folder List Rows ── */
-
 .project-hub__list-row--folder svg {
   color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
 }
 
-/* ── Folders Grid ── */
-
 .project-hub__folders-grid {
   display: grid;
-  /* Same fixed track as `.project-hub__grid-view` so folder cards line up
-   * width-wise with the square project cards. */
   grid-template-columns: repeat(auto-fill, 168px);
   gap: 8px;
 }
@@ -189,9 +171,6 @@
   flex: 0 0 auto;
 }
 
-/* Emoji replacement for the default folder icon. Sized to match the 18px
-   Folder lucide icon's optical weight; the inline-block + line-height
-   keeps it from inheriting paragraph spacing. */
 .project-hub__folder-emoji {
   display: inline-flex;
   align-items: center;
@@ -220,10 +199,6 @@
   font-family: var(--app-ui-font);
   font-size: 14px;
   line-height: 1.3;
-  /* Same approach as `.project-card__info strong` — block-level clip on the
-   * title itself. Prevents long folder names from wrapping AND prevents the
-   * MarqueeText's hidden second-copy from rendering below the visible line
-   * (which is what was happening with the flex-based approach). */
   overflow: hidden;
   max-width: 100%;
 }
@@ -232,16 +207,11 @@
   width: 100%;
 }
 
-/* The folder card's title-and-count column needs a min-width: 0 so it can
- * shrink below the natural width of an overflowing title. */
 .project-hub__folder-card > div {
   flex: 1;
   min-width: 0;
 }
 
-/* Direct-child only — the descendant form (`.project-hub__folder-card span`)
- * bled into the MarqueeText's internal `__track` / `__item` spans, turning
- * them into stacked blocks and breaking the horizontal scroll-on-hover. */
 .project-hub__folder-card > div > span {
   display: block;
   margin-top: 2px;
@@ -266,8 +236,6 @@
   min-width: 0;
   caret-color: var(--app-accent, #9ab8ff);
 }
-
-/* ── Folder Detail View ── */
 
 .project-hub__folder-detail-header {
   display: flex;
@@ -333,8 +301,6 @@
   font-size: 12.5px;
   margin: 4px 0 0;
 }
-
-/* ── List View ── */
 
 .project-hub__list-view {
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
@@ -427,21 +393,15 @@
   bottom: -2px;
 }
 
-/* ── Grid View ── */
-
 .project-hub__grid-view {
   position: relative;
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  /* Fixed track width matches the project card's natural height (thumb 110 +
-   * info 56 + borders ≈ 168) so each card renders as a square. */
   grid-template-columns: repeat(auto-fill, 168px);
   gap: 10px;
 }
-
-/* ── Right Panel ── */
 
 .project-folder {
   display: flex;
@@ -496,9 +456,6 @@
   transform: translateX(-50%);
 }
 
-/* List view: rows stack vertically, so the reorder indicator is a horizontal
-   line at the top (before) / bottom (after) edge instead of a side bar — keeping
-   the indicator consistent with the vertical drop axis used there. */
 .project-hub__list-row.project-folder--drop-before::after,
 .project-hub__list-row.project-folder--drop-after::after {
   top: auto;
@@ -518,7 +475,6 @@
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34);
 }
 
-/* Dragged-folder hovers over the middle of another folder → nest. */
 .project-folder--drop-inside,
 .project-hub__folder-card.project-folder--drop-inside {
   background: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, transparent);
@@ -527,16 +483,9 @@
               0 0 14px color-mix(in srgb, var(--app-accent, #9ab8ff) 22%, transparent);
 }
 
-/* Back-arrow in folder-detail view becomes a "drop here to un-nest" target
- * during folder drag. */
-/* Drop-target highlight: tint the label + arrow with the accent color (the
-   ArrowLeft icon inherits via currentColor). No pill/background/outline.
-   Doubled class so it wins over the `:hover` color rule during a drag. */
 .project-hub__folder-back.project-hub__folder-back--drop-active {
   color: var(--app-accent, #9ab8ff);
 }
-
-/* ── Project Context Menu ── */
 
 .project-context-menu {
   position: fixed;
@@ -594,10 +543,6 @@
   flex: 0 0 auto;
 }
 
-/* ── Submenu (e.g. "More Options") ──
-   Each row wraps the item button plus an optional flyout panel. The
-   flyout panel is itself a `.project-context-menu`, just absolutely
-   positioned by JS next to the parent row. */
 .project-context-menu__row {
   position: relative;
   display: flex;
@@ -621,8 +566,6 @@
 }
 
 .project-context-menu--submenu {
-  /* JS sets left/top; we just need to make sure the flyout sits above
-     the parent menu and isn't clipped by the parent's padding. */
   z-index: 101;
 }
 
@@ -659,8 +602,6 @@
   transform: scale(0.995);
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34);
 }
-
-/* ── Thumbnail ── */
 
 .project-card__emoji-wallpaper {
   position: absolute;
@@ -724,8 +665,6 @@
   line-height: 1;
 }
 
-/* ── Info section ── */
-
 .project-card__info {
   padding: 10px 12px;
 }
@@ -737,28 +676,14 @@
   font-size: 13px;
   font-weight: 600;
   line-height: 1.3;
-  /* Hard-clip the marquee track's second (off-screen) copy of the title.
-   * This is what the document tabs do — `overflow-x: clip` on the marquee
-   * viewport alone can fail to clip when the immediate parent is a flex
-   * container, so we put the clip on the strong itself. */
   overflow: hidden;
-  /* No white-space:nowrap and no text-overflow:ellipsis — the MarqueeText
-   * inside handles nowrap on its own items and the scroll-on-hover effect
-   * replaces ellipsis as the overflow indicator. */
   max-width: 100%;
 }
 
 .project-card__title {
-  /* The marquee viewport (a block <span>) inside takes 100% of the strong's
-   * width and lets its own inline-flex track overflow horizontally; the
-   * `overflow: hidden` on the strong above clips the off-screen part. */
   width: 100%;
 }
 
-/* Direct-child only — the descendant form (`.project-card__info span`) was
- * applying `white-space: nowrap; overflow: hidden; text-overflow: ellipsis`
- * to every span inside the card, including the MarqueeText's two `__item`
- * copies, which is why both stacked copies showed `…` truncation. */
 .project-card__info > span {
   display: block;
   margin-top: 3px;
@@ -771,8 +696,6 @@
   text-overflow: ellipsis;
 }
 
-/* Cloud / shared chip in the meta line. Quiet — same colour as the
-   surrounding text, just an extra dot-separated glyph. */
 .project-card__meta-icon {
   display: inline-block;
   vertical-align: -2px;
@@ -790,40 +713,24 @@
   border: 0;
 }
 
-
-/* ── Unsupported-file (Unknown-kind) cards ──
- *
- * Files whose extension the app can't read or write still show up in the
- * library so the user can drag / delete / move them — they just can't be
- * opened or renamed. We grey them out + drop the cursor hint to make the
- * "can't click into this" affordance obvious without removing the card
- * entirely. Drag handles still work because the drag listeners sit on
- * the <li> itself and don't check opacity. */
 .project-card--unknown {
   opacity: 0.55;
   cursor: default;
 }
 
 .project-card--unknown:hover {
-  /* Most cards lift on hover; suppress that for unknowns so the card
-   * doesn't look interactable. */
   transform: none;
 }
 
 .project-card--unknown .project-card__title {
-  /* Match the muted treatment of the meta line — keeps the title from
-   * looking like a clickable link inside an otherwise-disabled card. */
   color: inherit;
   opacity: 0.9;
 }
 
-/* Same treatment for the list-view row variant. */
 .project-hub__list-row--unknown {
   opacity: 0.55;
   cursor: default;
 }
-
-/* ── Drag states ── */
 
 .project-card--dragging {
   opacity: 0.45;
@@ -903,8 +810,6 @@
   padding: 20px 0;
 }
 
-/* ── Marquee Selection ── */
-
 .project-hub__main-scroll--marquee {
   cursor: crosshair;
   user-select: none;
@@ -923,8 +828,6 @@
   border-color: var(--app-accent, #7ea8ff);
   box-shadow: 0 0 0 1px var(--app-accent, #7ea8ff);
 }
-
-/* ── Project-specific modal content styles ── */
 
 .project-settings-modal__field {
   min-width: 0;

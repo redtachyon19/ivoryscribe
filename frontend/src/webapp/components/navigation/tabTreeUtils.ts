@@ -1,7 +1,6 @@
 import type { DocumentTab } from "../../../core/utils/projects"
 import type { DropMode } from "../shared/hooks/useListDrag"
 
-// Guards against dropping a node inside its own subtree.
 export function containsId(node: DocumentTab, targetId: string): boolean {
   if (node.id === targetId) {
     return true
@@ -10,7 +9,6 @@ export function containsId(node: DocumentTab, targetId: string): boolean {
   return node.children.some((child) => containsId(child, targetId))
 }
 
-// Finds a node anywhere in the tree.
 export function findNode(nodes: DocumentTab[], targetId: string): DocumentTab | null {
   for (const node of nodes) {
     if (node.id === targetId) {
@@ -26,7 +24,6 @@ export function findNode(nodes: DocumentTab[], targetId: string): DocumentTab | 
   return null
 }
 
-// Removes a node from any depth and returns both the new tree and removed node.
 export function removeNode(
   nodes: DocumentTab[],
   targetId: string,
@@ -56,7 +53,6 @@ export function removeNode(
   return { nextNodes, removed }
 }
 
-// Inserts relative to a target node (before/after), preserving nested structure.
 export function insertRelative(
   nodes: DocumentTab[],
   targetId: string,
@@ -93,7 +89,6 @@ export function insertRelative(
   return { nextNodes, inserted }
 }
 
-// Inserts a node as a child of target.
 export function insertInside(
   nodes: DocumentTab[],
   targetId: string,
@@ -125,7 +120,6 @@ export function insertInside(
   return { nextNodes, inserted }
 }
 
-// Canonical move operation used by all drag/drop commit paths.
 export function moveNode(tabs: DocumentTab[], sourceId: string, targetId: string, mode: DropMode): DocumentTab[] {
   if (sourceId === targetId) {
     return tabs
@@ -154,7 +148,6 @@ export function moveNode(tabs: DocumentTab[], sourceId: string, targetId: string
   return insertedResult.inserted ? insertedResult.nextNodes : tabs
 }
 
-// Applies in-place title edits by ID.
 export function renameTab(nodes: DocumentTab[], targetId: string, nextTitle: string): DocumentTab[] {
   return nodes.map((node) => {
     if (node.id === targetId) {
@@ -235,10 +228,6 @@ export function moveNodes(tabs: DocumentTab[], sourceIds: string[], targetId: st
   return orderedSourceIds.reduce((current, sourceId) => moveNode(current, sourceId, targetId, mode), tabs)
 }
 
-// Pre-order list of tab ids in the order they render on screen, descending into
-// a node's children only when it is expanded — i.e. exactly the rows the user
-// can see and arrow through. `expandedById[id] === false` means collapsed;
-// anything else (including missing) is treated as expanded, matching TabNode.
 export function flattenVisibleTabIds(
   nodes: DocumentTab[],
   expandedById: Record<string, boolean>,
@@ -255,8 +244,6 @@ export function flattenVisibleTabIds(
   return ids
 }
 
-// Deep-clones a tab tree node, assigning new IDs throughout.
-// Returns the cloned node and a map of oldId → newId for content duplication.
 export function deepCloneTab(
   node: DocumentTab,
   generateId: () => string,

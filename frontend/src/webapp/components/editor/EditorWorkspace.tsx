@@ -1,7 +1,3 @@
-// The editor-content surface: Find & Replace, Spell Check and Export modals,
-// plus the four editing surfaces (Pinboard / Typewriter / Markdown / Drafting)
-// with their AI diff-review wiring. Extracted from Editor.tsx.
-
 import { Suspense, lazy, type Dispatch, type SetStateAction } from "react"
 import DraftingEditor from "./DraftingEditor"
 import MarkdownEditor from "./MarkdownEditor"
@@ -41,11 +37,7 @@ type EditorWorkspaceProps = {
   activeMarkdownViewMode: MarkdownTabViewMode
   onSetMarkdownViewMode: (mode: MarkdownTabViewMode) => void
   activeDocumentType: "prose" | "pinboard" | "markdown" | "plaintext" | "pdf" | "image"
-  /** Workspace root from settings. PDFViewer joins this with the
-   *  project's relative path at render time. Null in cloud mode. */
   workspaceRoot?: string | null
-  /** When true, the PDFViewer rasterises pages with the app palette's
-   *  background and text colour instead of the document's own. */
   matchPdfToPalette?: boolean
   activeDocumentTitle: string
   exportTabs: Array<{ id: string; title: string }>
@@ -171,10 +163,6 @@ export default function EditorWorkspace({
             onTypingStateChange={onEditorTypingStateChange}
             onContentChange={(nextContent) => {
               if (isEditOnActiveTab) return
-              // Capture THIS editor's document id: the save is debounced in
-              // useProseEditorBase, so a trailing flush can fire after the user
-              // has switched tabs. Writing to the captured id (not activeId)
-              // keeps the late write on the right document.
               const docId = project.activeId
               onProjectChange((currentProject) => setTabContentById(currentProject, docId, nextContent))
             }}
@@ -221,12 +209,6 @@ export default function EditorWorkspace({
           }}
         />
       ) : activeDocumentType === "pdf" ? (
-        // `activeContent` for a PDF is a path RELATIVE to the workspace
-        // root, set by `pdfFileToProject` during hydrate. The viewer
-        // resolves it to absolute on every render against the current
-        // `workspaceRoot` setting — so we never read from a stale
-        // absolute path, and switching workspace in settings reroots
-        // every PDF automatically.
         <PDFViewer
           workspaceRoot={workspaceRoot ?? null}
           relativePath={activeContent}
@@ -235,10 +217,6 @@ export default function EditorWorkspace({
           matchPalette={matchPdfToPalette}
         />
       ) : activeDocumentType === "image" ? (
-        // `activeContent` for an Image is a path RELATIVE to the workspace
-        // root, set by `imageFileToProject` during hydrate. Same contract
-        // as the PDF branch above — ImageViewer joins it with the live
-        // workspace root setting at render time.
         <ImageViewer
           workspaceRoot={workspaceRoot ?? null}
           relativePath={activeContent}
@@ -276,10 +254,6 @@ export default function EditorWorkspace({
             }}
             onContentChange={(nextContent) => {
               if (isEditOnActiveTab) return
-              // Capture THIS editor's document id: the save is debounced in
-              // useProseEditorBase, so a trailing flush can fire after the user
-              // has switched tabs. Writing to the captured id (not activeId)
-              // keeps the late write on the right document.
               const docId = project.activeId
               onProjectChange((currentProject) => setTabContentById(currentProject, docId, nextContent))
             }}

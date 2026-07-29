@@ -20,7 +20,6 @@ function safeGetDom(editor: TiptapEditor): HTMLElement | null {
     const dom = editor.view?.dom as HTMLElement | undefined
     return dom ?? null
   } catch {
-    // Tiptap's view proxy throws if accessed before the view is mounted.
     return null
   }
 }
@@ -85,11 +84,6 @@ export default function DiffHunkWidgets({
       })
     }
 
-    // Try to attach the MutationObserver. If the view isn't mounted yet, the
-    // dom is null — we set up a poll loop and try again on each frame until
-    // the view shows up. This survives the brief window where the editor
-    // exists but ProseMirror hasn't attached its EditorView yet (which is the
-    // common path when entering diff-review mode via a key= remount).
     const tryAttachObserver = (): boolean => {
       const dom = safeGetDom(editor)
       if (!dom) return false
@@ -124,14 +118,13 @@ export default function DiffHunkWidgets({
       editor.on("transaction", update)
       editor.on("create", update)
     } catch {
-      /* editor torn down */
     }
 
     return () => {
       stopped = true
       try {
         observer?.disconnect()
-      } catch { /* noop */ }
+      } catch {  }
       if (pollHandle !== null) cancelAnimationFrame(pollHandle)
       container.removeEventListener("scroll", update)
       window.removeEventListener("resize", update)
@@ -141,7 +134,7 @@ export default function DiffHunkWidgets({
           editor.off("transaction", update)
           editor.off("create", update)
         }
-      } catch { /* noop */ }
+      } catch {  }
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current)
         rafRef.current = null

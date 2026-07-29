@@ -22,26 +22,17 @@ import {
 import "./navPanelShared.css"
 import "./DocumentTabsPanel.css"
 
-
 type DocumentTabsProps = {
   projectName: string
   tabs: DocumentTab[]
   projectKind: ProjectKind
-  /** Full project, used to resolve per-tab file-type icons (markdown vs.
-   *  plaintext vs. PDF vs. pinboard vs. prose chapter). */
   project: Project
   activeId: string | null
   isVisible?: boolean
   pendingEditTabIds?: Set<string>
-  /** Override the per-kind entry nouns (heading + trash copy). PDFs reuse this
-   *  panel for their bookmarks and pass {singular:"Bookmark", …} so the UI reads
-   *  "Bookmarks" instead of the kind's default "Documents". */
   entryTerms?: ProjectEntryTerms
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
   onSelect: (id: string) => void
-  /** Create the project's primary entry: a Chapter in a Book, a Pinboard
-   *  (slide) in a Presentation. Caller is responsible for the actual call —
-   *  this panel just exposes the action via the context menu. */
   onCreateEntry: () => void
   onCreateMarkdown: () => void
   onCreatePlainText: () => void
@@ -73,9 +64,6 @@ export default function DocumentTabsPanel({
   const drag = useListDrag()
   const { draggingId, dropTarget, setDraggingId, setDropTarget } = drag
   const tabIds = useMemo(() => collectTabIds(tabs), [tabs])
-  // Shared click / shift-click / double-click / arrow-key / Delete selection
-  // model (also used by ProjectBrowserPanel). It owns the selection set (shared
-  // with the marquee), the anchor/lead, and the shell key handler.
   const {
     marqueeContainerRef,
     marqueeSelectedIds,
@@ -89,7 +77,6 @@ export default function DocumentTabsPanel({
   } = usePanelSelection({
     getOrderedIds: () => flattenVisibleTabIds(tabs, expandedById),
     getActiveId: () => activeId,
-    // Every tab is openable, so a plain arrow navigates (opens) like a click.
     arrowActivates: true,
     allIds: tabIds,
     onActivate: onSelect,
@@ -103,13 +90,6 @@ export default function DocumentTabsPanel({
   const [contextMenu, setContextMenu] = useState<TabsContextMenuState | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
-  // Click on a tab:
-  //  • Shift+click             → range-select.
-  //  • click the tab you're on → arm it (accent selection) so Delete can act on
-  //    it — clicking the current row is the single-tab "select for an action".
-  //  • click another tab       → navigate: open it (white "current" pill) and
-  //    drop any action-selection.
-  // Cmd/Ctrl+click is handled upstream in TabNode as "open in new tab".
   const handleSelectTab = useCallback(
     (id: string, modifiers?: { shiftKey?: boolean }) => {
       if (modifiers?.shiftKey) {
@@ -194,11 +174,6 @@ export default function DocumentTabsPanel({
     delete rowRefs.current[id]
   }
 
-  // Sliding-pill indicator behind the active tab. Same mechanism as the global
-  // settings sidebar (GlobalSettings.tsx): measure the active row's rect
-  // relative to the list and drive an absolutely-positioned pill via top/height.
-  // useLayoutEffect (not useEffect) so the first measurement lands before paint,
-  // avoiding a flash of the pill at top:0 when a tab first becomes active.
   useLayoutEffect(() => {
     if (!isVisible) {
       setActiveIndicatorStyle((current) => (current.visible ? { top: 0, height: 0, visible: false } : current))
@@ -208,8 +183,6 @@ export default function DocumentTabsPanel({
     const rootList = rootListRef.current
     const activeRow = activeId ? rowRefs.current[activeId] : null
     if (!rootList || !activeRow) {
-      // No active tab (or its row isn't mounted, e.g. collapsed ancestor): hide
-      // the pill rather than stranding it at a stale position.
       setActiveIndicatorStyle((current) => (current.visible ? { top: 0, height: 0, visible: false } : current))
       return
     }
@@ -217,8 +190,6 @@ export default function DocumentTabsPanel({
     const syncActiveIndicator = () => {
       const listRect = rootList.getBoundingClientRect()
       const rowRect = activeRow.getBoundingClientRect()
-      // getBoundingClientRect is viewport-relative, so subtracting the two rects
-      // already nets out any scroll offset of an ancestor.
       const top = rowRect.top - listRect.top
       const height = rowRect.height
 
@@ -234,14 +205,10 @@ export default function DocumentTabsPanel({
     syncActiveIndicator()
     window.addEventListener("resize", syncActiveIndicator)
 
-    // Re-measure when the list reflows (tab added/removed/reordered changes the
-    // active row's offset) or the active row itself resizes (rename/marquee).
     const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncActiveIndicator) : null
     resizeObserver?.observe(rootList)
     resizeObserver?.observe(activeRow)
 
-    // Keep the pill glued to the row when the surrounding panel scrolls. Listen
-    // in capture phase so we catch whichever ancestor actually scrolls.
     window.addEventListener("scroll", syncActiveIndicator, true)
 
     return () => {
@@ -371,7 +338,6 @@ export default function DocumentTabsPanel({
     setDropTarget(null)
   }, [getDragSourceIds, onTabsChange, setDraggingId, setDropTarget])
 
-
   const handleRootListDragOver = (event: DragEvent<HTMLUListElement>) => {
     if (!draggingId || tabs.length === 0) {
       return
@@ -379,11 +345,6 @@ export default function DocumentTabsPanel({
 
     event.preventDefault()
 
-    // Rows stopPropagation, so we only reach here over the dead space between
-    // rows (the flex gap + the invisible drop-line strips) or the empty area
-    // below the list. Resolve the cursor to the nearest row boundary so the
-    // between-rows indicator stays lit across that whole band, rather than
-    // snapping to the first/last tab.
     const boundary = nearestRowBoundary(event.currentTarget, event.clientY)
     if (boundary) setDropTarget(boundary)
   }
@@ -416,9 +377,6 @@ export default function DocumentTabsPanel({
 
       <header className="doc-tabs__header">
         <p className="doc-tabs__project-name" data-marquee-parent><MarqueeText text={projectName} /></p>
-        {/* Phase 7: per-kind count + plural heading, e.g. "5 Chapters" / "1 Chapter"
-            ("Slides" for Presentations). Single-document kinds never reach this
-            component (the list is suppressed entirely by NavigationPanel). */}
         <p className="doc-tabs__entry-heading" aria-hidden="true">
           {tabIds.length} {tabIds.length === 1 ? singular : plural}
         </p>
@@ -546,10 +504,6 @@ export default function DocumentTabsPanel({
           onClose={closeContextMenu}
           actions={(() => {
             if (contextMenu.kind === "background") {
-              // Background create options follow the slide-2 header rules:
-              //   • Book: Create Chapter / Markdown / Plain Text
-              //   • Presentation: Create Pinboard
-              //   • single-doc: unreachable (panel is hidden)
               if (projectKind === "Book") {
                 return [
                   {

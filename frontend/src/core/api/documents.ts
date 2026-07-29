@@ -1,6 +1,3 @@
-// Document CRUD. `deleteDocument` intentionally tolerates a 404 so retries
-// after a remote shred don't surface as errors.
-
 import { API_BASE, request } from "./request"
 import { ApiError, type DocumentRecord } from "./types"
 

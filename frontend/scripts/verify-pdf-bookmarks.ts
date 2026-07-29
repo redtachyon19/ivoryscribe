@@ -1,22 +1,8 @@
-// Round-trip safety net for the PDF outline writer (core/pdf/pdfOutlineWriter).
-//
-// Writing into a user's real PDF is the risky part of the bookmarks feature, so
-// this proves the write logic before the app ever touches a file: build a PDF,
-// write a bookmark tree into it with the SAME code the app uses, then read it
-// back with pdf.js (the same library the viewer uses) and assert every title
-// and page target survives — including nesting, unicode, deletion (empty tree),
-// rewrite-replaces-not-appends, and out-of-range page clamping.
-//
-// Run: node scripts/verify-pdf-bookmarks.ts   (Node 24+, strips TS types)
-
 import { PDFDocument, StandardFonts } from "pdf-lib"
 import { buildPdfWithOutline } from "../src/core/pdf/pdfOutlineWriter.ts"
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs"
 
-// Mirrors core/pdf/pdfBookmarkStore's PdfBookmark (kept local so the harness has
-// no runtime import of the React-bound store).
 type Bm = { id: string; title: string; pageNumber: number; children: Bm[] }
-// Minimal shape of a pdf.js outline item — only the fields we read.
 type OutlineItem = { title: string; dest: string | unknown[] | null; items?: OutlineItem[] }
 
 let failures = 0
@@ -42,9 +28,6 @@ async function makePdf(pageCount: number): Promise<Uint8Array> {
 type ReadNode = { title: string; page: number | null; children: ReadNode[] }
 
 async function readOutline(bytes: Uint8Array): Promise<ReadNode[] | null> {
-  // pdf.js takes ownership of and detaches the input ArrayBuffer, so hand it a
-  // copy — otherwise the caller's bytes are emptied for any later reuse. (The
-  // app does the same via .slice() in persistOutline / the viewer's loader.)
   const doc = await pdfjs.getDocument({ data: bytes.slice() }).promise
   const resolve = async (dest: unknown): Promise<number | null> => {
     const explicit = typeof dest === "string" ? await doc.getDestination(dest) : dest
@@ -65,7 +48,6 @@ async function readOutline(bytes: Uint8Array): Promise<ReadNode[] | null> {
 }
 
 async function main(): Promise<void> {
-  // ── Test 1: nested tree, titles + page targets ───────────────────────────
   console.log("Test 1: nested bookmarks round-trip")
   {
     const pdf = await makePdf(6)
@@ -90,7 +72,6 @@ async function main(): Promise<void> {
       `got ${JSON.stringify(intro?.children.map((n) => n.page))}`)
   }
 
-  // ── Test 2: deleting all bookmarks leaves no outline ─────────────────────
   console.log("Test 2: empty tree removes the outline")
   {
     const pdf = await makePdf(3)
@@ -100,7 +81,6 @@ async function main(): Promise<void> {
     check("outline gone after clear", (await readOutline(cleared)) === null)
   }
 
-  // ── Test 3: rewrite replaces (does not append/duplicate) ─────────────────
   console.log("Test 3: rewrite replaces the previous outline")
   {
     const pdf = await makePdf(4)
@@ -116,7 +96,6 @@ async function main(): Promise<void> {
     check("rewrite has new title", read?.[0]?.title === "New Only")
   }
 
-  // ── Test 4: unicode title survives ───────────────────────────────────────
   console.log("Test 4: unicode titles")
   {
     const pdf = await makePdf(2)
@@ -126,7 +105,6 @@ async function main(): Promise<void> {
     check("unicode title preserved", read?.[0]?.title === title, `got ${JSON.stringify(read?.[0]?.title)}`)
   }
 
-  // ── Test 5: out-of-range pages clamp into the document ───────────────────
   console.log("Test 5: page clamping")
   {
     const pdf = await makePdf(3)

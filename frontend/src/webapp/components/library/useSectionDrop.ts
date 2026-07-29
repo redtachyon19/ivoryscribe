@@ -2,10 +2,6 @@ import { useState, type DragEvent, type Dispatch, type SetStateAction } from "re
 import type { Project } from "../../../core/utils/projects"
 import type { ProjectFolder } from "../../pages/Library"
 
-/** "cloud" is a move-and-upload target: dropping a local project (or
- *  folder of local projects) onto it uploads the file(s) to cloud and
- *  trashes the on-disk file via `onMoveProjectToCloud`. The other
- *  targets are pure state mutations (archive flags / trash flags). */
 export type DroppableSection = "library" | "archive" | "trash" | "cloud"
 type SectionTarget = DroppableSection | null
 
@@ -14,15 +10,7 @@ type UseSectionDropOptions = {
   projects: Project[]
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
-  /** Local-mode + Electron only: upload-then-trash for a single
-   *  project. The hook calls this once per local project being moved
-   *  to cloud (whether the user dragged a project directly or dragged
-   *  a folder containing local projects). Undefined disables the
-   *  cloud drop target entirely. */
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
-  /** Called when a drag first enters a section tab, so the panel can clear the
-   *  tree's reorder/inside highlights — keeping a single live target. Optional;
-   *  if omitted, mutual exclusion with the tree is the caller's responsibility. */
   onEnterSection?: () => void
 }
 
@@ -30,17 +18,10 @@ export default function useSectionDrop({ folders, projects, setProjects, setFold
   const [sectionDropTarget, setSectionDropTarget] = useState<SectionTarget>(null)
 
   const handleSectionDragOver = (section: DroppableSection) => (event: DragEvent<HTMLElement>) => {
-    // Disable cloud drop highlight when there's no handler wired up (cloud-mode,
-    // or before the orchestration is ready). Don't claim the event in that case
-    // — let it bubble to the container's dead-space clear.
     if (section === "cloud" && !onMoveProjectToCloud) return
     event.preventDefault()
-    // This tab IS the live target: claim the event so the container-level
-    // dead-space clear doesn't fire over the tab and wipe our highlight.
     event.stopPropagation()
     if (sectionDropTarget !== section) {
-      // Entering a new tab clears the tree's reorder/inside highlights
-      // (mutual exclusion) before lighting this tab.
       onEnterSection?.()
       setSectionDropTarget(section)
     }
@@ -65,11 +46,6 @@ export default function useSectionDrop({ folders, projects, setProjects, setFold
     const folderIds = new Set(ids.filter((id) => folders.some((f) => f.id === id)))
     const projectIds = new Set(ids.filter((id) => !folderIds.has(id)))
 
-    // ── Cloud target ──────────────────────────────────────────────
-    // Resolve dragged ids into a flat list of local project ids
-    // (folder drags expand into their member local projects), then
-    // upload each in sequence. Each successful upload trashes the
-    // on-disk file and stamps source: "cloud" on the project.
     if (section === "cloud") {
       if (!onMoveProjectToCloud) {
         console.warn("[sectionDrop] cloud drop ignored — no onMoveProjectToCloud handler wired up (cloud-only mode?)")
@@ -88,9 +64,6 @@ export default function useSectionDrop({ folders, projects, setProjects, setFold
       }
 
       if (localProjectIds.size === 0) {
-        // Either every dragged project was already cloud or nothing
-        // resolved to a real project — bail loud-ish so the user
-        // doesn't think the drop silently worked.
         console.warn("[sectionDrop] cloud drop resolved to zero local projects", { projectIds: Array.from(projectIds), folderIds: Array.from(folderIds) })
         setSectionDropTarget(null)
         return
@@ -106,11 +79,6 @@ export default function useSectionDrop({ folders, projects, setProjects, setFold
             console.error("[sectionDrop] move to cloud failed for", pid, err)
           }
         }
-        // After moving the contents of a folder to cloud, drop the
-        // (now-empty) folder shell — its projects no longer live in
-        // the local library so the folder has nothing to hold. Only
-        // remove folders if at least one of their projects actually
-        // made it to cloud (avoids nuking a folder on total failure).
         if (folderIds.size > 0 && succeeded > 0) {
           setFolders((cur) => cur.filter((f) => !folderIds.has(f.id)))
         }
@@ -120,14 +88,10 @@ export default function useSectionDrop({ folders, projects, setProjects, setFold
       return
     }
 
-    // ── library / archive / trash targets ─────────────────────────
     const now = new Date().toISOString()
     const applySection = (p: Project): Project => {
       switch (section) {
         case "library":
-          // Dropping onto the sidebar "Library" tab means "put this at the top
-          // level": clear archive/trash AND move it out of any folder to the
-          // workspace root (folderId null).
           return { ...p, archivedAt: null, deletedAt: null, folderId: null, rootPosition: "top" as const }
         case "archive":
           return { ...p, archivedAt: p.archivedAt ?? now, deletedAt: null }
@@ -162,7 +126,6 @@ export default function useSectionDrop({ folders, projects, setProjects, setFold
   return { sectionDropTarget, setSectionDropTarget, handleSectionDragOver, handleSectionDragLeave, handleSectionDrop, getSectionDropClass }
 }
 
-/** Lightweight drag-start handler for cross-section project moves (used by Archive, Trash, Recent pages). */
 export function handleSectionDragStart(projectId: string, event: React.DragEvent<HTMLElement>) {
   event.dataTransfer.effectAllowed = "move"
   event.dataTransfer.setData("text/plain", projectId)

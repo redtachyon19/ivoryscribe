@@ -1,11 +1,3 @@
-// Pinboard board format — types, defaults, and JSON serialization.
-//
-// Each pinboard document is a JSON blob containing nodes (text / image / link
-// / file boxes positioned on an infinite canvas), lines (connectors between
-// nodes), and a viewport (pan + zoom). Drawings are stored as text nodes with
-// a `[drawing:<json>]` content prefix so the document format stays small and
-// every node renders through the same path.
-
 export type PinboardNodeBase = {
   id: string
   x: number
@@ -70,9 +62,6 @@ export function nodeCenter(node: PinboardNode) {
   return { cx: node.x + node.width / 2, cy: node.y + node.height / 2 }
 }
 
-/** Drawings are encoded as `text` nodes whose content starts with `[drawing:`
- *  followed by a JSON array of `{x, y}` points relative to the node origin.
- *  Returns the parsed points if `node` is a drawing, or null otherwise. */
 export function tryParseDrawingPoints(node: PinboardNode): Array<{ x: number; y: number }> | null {
   if (node.type !== "text" || !node.content.startsWith("[drawing:")) return null
   try {
@@ -82,14 +71,6 @@ export function tryParseDrawingPoints(node: PinboardNode): Array<{ x: number; y:
   }
 }
 
-/** Human-readable text of a serialized board (text boxes, link labels, file
- *  names), space-joined — or `null` if `raw` is not a pinboard document.
- *
- *  Used for word/character counting. Counting the raw serialized board would
- *  treat every JSON key, node id, and coordinate as a "word" — and because a
- *  freehand drawing is stored as a text node holding a `[drawing:...]` array
- *  of point coordinates, each stroke would inflate the count by dozens of
- *  bogus numeric "words". Drawing nodes are therefore excluded here. */
 export function pinboardPlainText(raw: string): string | null {
   if (!raw) return null
   let parsed: unknown
@@ -122,17 +103,6 @@ export function pinboardPlainText(raw: string): string | null {
   return parts.join(" ")
 }
 
-/** A normalized "meaningful state" string for a serialized board, used to
- *  detect real changes for presentation autosave/versioning.
- *
- *  Two differences from the raw content:
- *   • `viewport` (pan/zoom) is excluded — panning or zooming must NOT count as
- *     a change, so it can't mint autosave versions.
- *   • node box coordinates are rounded to integers — sub-pixel drag jitter
- *     doesn't register as a change.
- *
- *  Returns the raw string unchanged when `raw` is not a pinboard document, so
- *  callers can use it as a generic content signature regardless of kind. */
 export function boardSignature(raw: string): string {
   if (!raw) return ""
   let parsed: unknown
@@ -158,6 +128,5 @@ export function boardSignature(raw: string): string {
     width: Math.round(node.width),
     height: Math.round(node.height),
   }))
-  // `viewport` is deliberately omitted from the signature.
   return JSON.stringify({ nodes, lines: board.lines })
 }

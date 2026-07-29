@@ -111,10 +111,6 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
     const nextResults: FindReplaceResult[] = []
 
     for (const tab of projectTabs) {
-      // Skip tabs we can't search through textually: pinboards are spatial.
-      // PDFs are searchable through the pdf-text registry (handled below).
-      // Typewriter docs are prose HTML like the Draft editor, so they search
-      // and highlight through the same "text" path.
       if (
         nextResults.length >= FIND_REPLACE_RESULT_LIMIT
         || pinboardIdSet.has(tab.id)
@@ -122,13 +118,6 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
         continue
       }
 
-      // ── PDF branch ──
-      // For PDFs we search the per-page text published by the
-      // PDFViewer into pdfTextRegistry. `start` carries the 1-indexed
-      // page number (where to scroll); `end` carries the 0-indexed
-      // occurrence number *within that page* (which specific match to
-      // highlight on the page). Together these let the viewer select
-      // the exact instance the user is currently navigating to.
       if (pdfIdSet.has(tab.id)) {
         const pages = getPdfText(project.id)
         if (!pages) continue
@@ -161,8 +150,6 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
         : markdownIdSet.has(tab.id) ? "markdown"
         : "text"
       const rawContent = project.contentById[tab.id] ?? ""
-      // Markdown and PlainText are both raw strings — search them verbatim.
-      // Prose tabs (HTML) need stripping so we don't match tag names.
       const searchableContent = documentType === "text"
         ? plainTextFromHtmlForSearch(rawContent)
         : rawContent
@@ -199,7 +186,6 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
       autoNavigateRef.current = true
       navigateToResult(results[0])
 
-      // Refocus the find input after the editor steals focus via double-rAF
       const raf1 = window.requestAnimationFrame(() => {
         const raf2 = window.requestAnimationFrame(() => {
           const raf3 = window.requestAnimationFrame(() => {
@@ -223,7 +209,6 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
     } else {
       setCurrentIndex(-1)
       autoNavigateRef.current = false
-      // No matches (or query cleared): drop any lingering highlight.
       requestAppProjectSearchClear()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -283,7 +268,6 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
   const close = () => {
     setIsOpen(false)
     setExpanded(false)
-    // Remove the highlight decorations from the active editor on close.
     requestAppProjectSearchClear()
   }
 
@@ -331,9 +315,6 @@ export function useFindReplaceModal({ view, project, onProjectChange }: UseFindR
         }
 
         if (result.documentType === "pdf") {
-          // For PDFs, `start` / `end` carry the 1-indexed page number
-          // (see search loop above). PDFViewer's focus listener reads
-          // it to scroll the matching page into view.
           requestAppProjectSearchFocus({
             documentId: result.documentId,
             documentType: "pdf",

@@ -1,5 +1,3 @@
-// Public surface of the local-file data layer (no UI, just codec + sync).
-
 export * from "./types"
 export { serializeTuskBook, parseTuskBook } from "./codecBook"
 export { serializeTuskPresentation, parseTuskPresentation } from "./codecPresentation"

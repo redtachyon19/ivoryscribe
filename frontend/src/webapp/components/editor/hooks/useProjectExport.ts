@@ -1,6 +1,3 @@
-// Owns project export: the pending-format state, the menu-driven export
-// request event, and the format-dispatch in runExport. Extracted from Editor.tsx.
-
 import { useEffect, useState } from "react"
 import { APP_EXPORT_PROJECT_EVENT, type ExportProjectFormat } from "../../../../core/events/editorEvents"
 import type { Project } from "../../../../core/utils/projects"
@@ -14,7 +11,6 @@ export function useProjectExport(project: Project | null) {
   const [pendingExportFormat, setPendingExportFormat] = useState<ExportProjectFormat | null>(null)
 
   useEffect(() => {
-    // Menu action emits a global event; this hook handles it for the current project.
     const onExportRequest: EventListener = (event) => {
       if (!project) return
       const customEvent = event as CustomEvent<{ format?: ExportProjectFormat }>

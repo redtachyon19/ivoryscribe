@@ -1,20 +1,3 @@
-// Per-kind icon resolver. Keep all callsites that show a project icon going
-// through this function (and `iconForTabKind` below) so adding/swapping a
-// kind needs exactly one edit.
-//
-// House style (locked in across the app):
-//   • Markdown   → FileCode
-//   • PlainText  → FileType
-//   • PDF        → FileText
-//   • Book       → BookText
-//   • Presentation → Presentation
-//   • Image      → FileImage (PNG/JPEG opened in the read-only ImageViewer)
-//   • Unknown    → FileQuestion (any file the app can't read or write —
-//                  shown greyed out in the library)
-//
-// Anything that visually represents a document/tab/project file type MUST
-// use one of these. Do not introduce new icons for these kinds.
-
 import { BookText, FileCode, FileImage, FileQuestion, FileText, FileType, Presentation, type LucideIcon } from "lucide-react"
 import type { Project, ProjectKind } from "./projects"
 
@@ -30,11 +13,6 @@ export function iconForProjectKind(kind: ProjectKind): LucideIcon {
   }
 }
 
-/** Per-tab icon resolver. Mirrors the project-kind palette but resolves
- *  per individual document tab — a Book can have prose chapters, markdown
- *  tabs, plaintext tabs, etc. mixed together, and each tab should show
- *  the icon for its own renderer. Prose chapters fall back to the parent
- *  project's kind icon (e.g. a chapter in a Book → BookText). */
 export function iconForTabKind(tabId: string, project: Project): LucideIcon {
   if (project.pdfIds?.includes(tabId)) return FileText
   if (project.imageIds?.includes(tabId)) return FileImage

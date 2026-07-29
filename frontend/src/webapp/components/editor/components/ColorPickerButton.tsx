@@ -1,7 +1,3 @@
-// A swatch button that opens the in-app ColorPicker in a portaled popover.
-// Reusable click-to-pick control (settings, etc.) — same picker as the
-// typewriter toolbar's "Custom…" option, with the same dismiss behaviour.
-
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import { ColorPicker } from "./ColorPicker"
@@ -27,8 +23,6 @@ export function ColorPickerButton({ value, onChange, ariaLabel, id }: ColorPicke
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false)
     }
-    // Defer arming the outside-click listener so the click that opens the
-    // popover doesn't immediately dismiss it.
     let attached = false
     const armId = window.setTimeout(() => {
       attached = true
@@ -43,7 +37,6 @@ export function ColorPickerButton({ value, onChange, ariaLabel, id }: ColorPicke
   }, [open])
 
   const rect = open ? btnRef.current?.getBoundingClientRect() : undefined
-  // Open below the swatch, left-aligned; clamp so a 200px picker stays on screen.
   const popStyle: CSSProperties = rect
     ? {
         position: "fixed",

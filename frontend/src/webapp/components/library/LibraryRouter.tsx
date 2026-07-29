@@ -1,6 +1,3 @@
-// Library routing: renders the Cloud / Archive / Trash / Library collection
-// pages based on the active library section. Extracted from Editor.tsx.
-
 import { type Dispatch, type SetStateAction } from "react"
 import CloudView from "../../pages/Cloud"
 import ArchiveView from "../../pages/Archive"
@@ -23,8 +20,6 @@ type LibraryRouterProps = {
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
-  /** Open library folder (null = root) — lifted to useLibraryNavigation so the
-   *  top-bar back/forward history can record + restore it. */
   openFolderId: string | null
   setOpenFolderId: Dispatch<SetStateAction<string | null>>
   onOpenProject: (projectId: string) => void
@@ -44,11 +39,7 @@ type LibraryRouterProps = {
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
-  /** Local-only: open a folder's directory as a new BrowserWindow's
-   *  workspace root. Undefined in cloud-only mode. */
   onOpenFolderInNewWindow?: (folderId: string) => void
-  /** macOS-only: apply a Finder color label to a folder when its in-app
-   *  color changes. */
   onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
 }
 

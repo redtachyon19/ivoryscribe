@@ -1,8 +1,3 @@
-// AI proposed-edit (diff) review state and handlers. Moved verbatim out of
-// Editor.tsx — behaviour is unchanged. The "current edit" is the pending edit
-// for whichever tab the user is currently looking at, so they can click freely
-// between chapters to triage diffs in any order.
-
 import { useCallback, useMemo, useRef, useState } from "react"
 import type { Editor as TiptapEditor } from "@tiptap/react"
 import { buildDiff, renderDiffHtml, type HunkState } from "../../ai/diffBuilder"
@@ -20,10 +15,6 @@ export function useProposedEditReview({ project, activeContent, onProjectChange 
   const [tiptapEditor, setTiptapEditor] = useState<TiptapEditor | null>(null)
   const editorStageRef = useRef<HTMLDivElement | null>(null)
 
-  // The "current edit" is the pending edit for whichever tab the user is
-  // currently looking at. Switching tabs switches which edit is being
-  // reviewed — letting the user click freely between Ch2 and Ch3 to triage
-  // their diffs in any order.
   const currentEdit = useMemo(() => {
     if (!project?.activeId) return null
     return (
@@ -86,9 +77,6 @@ export function useProposedEditReview({ project, activeContent, onProjectChange 
       if (edit.isNew) newTabsToCreate.push(edit)
     }
 
-    // Materialize any AI-proposed new chapters into the project so they
-    // appear in the tab tree and the diff editor can render them. Reject-all
-    // logic later removes them again if the user dismisses.
     const landingTabId = usable[0]?.tabId ?? null
     if (newTabsToCreate.length > 0 || landingTabId) {
       onProjectChange((p) => {
@@ -100,9 +88,6 @@ export function useProposedEditReview({ project, activeContent, onProjectChange 
           nextTabs = [...nextTabs, newTab]
           nextContentById = { ...nextContentById, [edit.tabId]: "" }
         }
-        // Land on a tab that actually has an edit so the user sees a diff
-        // immediately. Prefer a brand-new chapter, otherwise the first edit
-        // in document order.
         const nextActiveId = newTabsToCreate[0]?.tabId ?? landingTabId ?? p.activeId
         return {
           ...p,
@@ -117,9 +102,6 @@ export function useProposedEditReview({ project, activeContent, onProjectChange 
     return { applied: usable.length, dropped, hunkCount, tabCount: tabIds.size }
   }, [onProjectChange])
 
-  // Compute the diff HTML for the active edit on every render — pure
-  // function of (blocks, hunkStates). When a hunk's state changes, this
-  // recomputes and the editor's content useEffect re-syncs the doc.
   const currentEditDiffContent = useMemo(() => {
     if (!currentEdit?.blocks || !currentEdit.hunks) return null
     const states = new Map<string, HunkState>()
@@ -133,9 +115,6 @@ export function useProposedEditReview({ project, activeContent, onProjectChange 
 
   const handleHunkDecision = useCallback(
     (hunkId: string, decision: "accepted" | "rejected") => {
-      // Resolve the target edit by looking up which edit owns this hunkId
-      // among the active-tab pending edits — never rely on stale closure
-      // values, so multi-tab review stays correct even mid-state-update.
       const activeTabId = project?.activeId ?? null
       const target = proposedEdits.find(
         (edit) =>
@@ -167,7 +146,6 @@ export function useProposedEditReview({ project, activeContent, onProjectChange 
         const allRejected = nextHunks.every((hunk) => hunk.state === "rejected")
 
         if (target.isNew && allRejected) {
-          // User rejected the entire new chapter — remove it from the project.
           onProjectChange((p) => {
             const nextContentById = { ...p.contentById }
             delete nextContentById[target.tabId]
@@ -201,8 +179,6 @@ export function useProposedEditReview({ project, activeContent, onProjectChange 
   )
 
   const handleAcceptAllPendingHunks = useCallback(() => {
-    // Global accept: walk every pending edit, accept all of its hunks, and
-    // commit the final content to its tab.
     const pendingEdits = proposedEdits.filter(
       (edit) => edit.state === "pending" && edit.blocks && edit.hunks,
     )
@@ -238,7 +214,6 @@ export function useProposedEditReview({ project, activeContent, onProjectChange 
   }, [proposedEdits, onProjectChange])
 
   const handleRejectAllProposedEdits = useCallback(() => {
-    // Drop any AI-created chapters that haven't been accepted yet.
     const newTabIdsToRemove = new Set<string>()
     for (const edit of proposedEdits) {
       if (edit.isNew && edit.state === "pending") {

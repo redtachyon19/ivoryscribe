@@ -1,16 +1,3 @@
-// Page-break extension. Walks each visible line box (via Range.getClientRects)
-// inside every text-bearing block. For each line whose vertical position would
-// fall in a "bad zone" (bottom-margin of one page, the inter-page gap, or the
-// top-margin of the next page) we inject a block-level inline widget
-// decoration at the document position of that line's first character. The
-// widget is an empty span with a fixed pixel height — equal to the distance
-// needed to clear the bad zone — that ProseMirror renders into the text flow,
-// forcing the rest of the paragraph onto the next page.
-//
-// This works for the typewriter case where a paragraph grows past the bottom
-// margin while the user types: the offending line jumps cleanly to the next
-// page on every keystroke.
-
 import { Extension } from "@tiptap/react"
 import { Plugin, PluginKey } from "@tiptap/pm/state"
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view"
@@ -21,15 +8,10 @@ export type PageBreakStorage = {
   mBottomPx: number
   pageHPx: number
   gapPx: number
-  /** Bumped from React when margins/page geometry change — forces a recompute. */
   remeasure: number
-  /** Direct recompute trigger registered by the plugin view; called from React. */
   requestRecompute?: () => void
 }
 
-/** Binary-search for the first character offset inside `textNode` whose
- *  bounding rect sits on the same line as `lineRect`. Returns -1 if not
- *  found (shouldn't happen for a non-empty text node). */
 function findFirstCharOnLine(textNode: Text, lineRect: DOMRect): number {
   const len = textNode.length
   if (len === 0) return -1
@@ -94,31 +76,17 @@ export const PageBreakExtension = Extension.create<unknown, PageBreakStorage>({
             const pageH = storage.pageHPx
             const gap = storage.gapPx
             const stride = pageH + gap
-            const contentBotInPage = pageH - mBot   // posInPage threshold for bottom
+            const contentBotInPage = pageH - mBot
 
             const dom = view.dom as HTMLElement
             if (!dom.isConnected) return
 
-            // Hide our own spacer widgets so we read NATURAL line positions.
-            // The base `.tw-page-spacer` rule uses `display: block !important`
-            // (so nothing collapses the spacer height in normal flow), so we
-            // must override that with an `!important` inline display:none here
-            // and remove the property afterwards to restore.
             const existing = dom.querySelectorAll<HTMLElement>(".tw-page-spacer")
             existing.forEach((s) => { s.style.setProperty("display", "none", "important") })
-            // Force a synchronous reflow so subsequent rect reads are post-hide.
             void dom.offsetHeight
 
             const pmRect = dom.getBoundingClientRect()
 
-            // The page stack is CSS-`zoom`ed (snap-to-fit), so getClientRects()
-            // returns RENDERED (zoomed) px while the page geometry below
-            // (pageH / mTop / stride / contentBotInPage) is in NATURAL px.
-            // Divide every measured offset by the live scale so all the
-            // comparisons happen in natural px. Without this, any zoom != 100%
-            // makes pages break early (zoomed in) or lets text spill past the
-            // bottom margin (zoomed out). Mirrors the renderScale calibration
-            // in TypewriterEditor's Cmd+Enter handler. No-op at 100% zoom.
             const surfEl = dom.closest(".tw-editor-surf") as HTMLElement | null
             let renderScale = 1
             if (surfEl) {
@@ -131,12 +99,11 @@ export const PageBreakExtension = Extension.create<unknown, PageBreakStorage>({
 
             type Push = { pos: number; pushPx: number }
             const pushes: Push[] = []
-            let cumPush = 0  // total pushes accumulated above the current line
+            let cumPush = 0
 
             const blocks = Array.from(dom.children) as HTMLElement[]
 
             for (const block of blocks) {
-              // Skip our own spacer placeholders if any leaked to top level
               if (block.classList.contains("tw-page-spacer")) continue
 
               const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
@@ -146,7 +113,6 @@ export const PageBreakExtension = Extension.create<unknown, PageBreakStorage>({
                 textNodes.push(n as Text)
               }
 
-              // Empty block (no text): treat the block element itself as a single line
               if (textNodes.length === 0 || textNodes.every((t) => !t.length)) {
                 const r = block.getBoundingClientRect()
                 if (r.height < 1) continue
@@ -195,8 +161,6 @@ export const PageBreakExtension = Extension.create<unknown, PageBreakStorage>({
                   if (pushes.length > 0 && pushes[pushes.length - 1].pos === docPos) continue
                   pushes.push({ pos: docPos, pushPx })
                   cumPush += pushPx
-                  // Continue checking remaining rects — long paragraphs may
-                  // have multiple bad lines spanning many pages.
                 }
               }
             }
@@ -228,8 +192,6 @@ export const PageBreakExtension = Extension.create<unknown, PageBreakStorage>({
 
             suppressOnce = true
             view.dispatch(view.state.tr.setMeta(pageBreakKey, { set }))
-            // Re-position the typing caret in the same frame — its RAF runs
-            // before this dispatch so it would otherwise target stale coords.
             window.dispatchEvent(new CustomEvent("tw:pagebreak"))
             schedule()
           }
@@ -239,20 +201,16 @@ export const PageBreakExtension = Extension.create<unknown, PageBreakStorage>({
             raf = requestAnimationFrame(recompute)
           }
 
-          // Initial measure once layout settles
           schedule()
 
           const onResize = () => schedule()
           window.addEventListener("resize", onResize)
 
-          // Direct trigger from React (margins changed). Bypasses both polling
-          // latency and the lastSig short-circuit.
           ;(ext.storage as PageBreakStorage).requestRecompute = () => {
             lastSig = "__force__"
             schedule()
           }
 
-          // Watch storage.remeasure for margin changes from React (fallback)
           let lastRemeasure = (ext.storage as PageBreakStorage).remeasure
           const pollId = window.setInterval(() => {
             const r = (ext.storage as PageBreakStorage).remeasure

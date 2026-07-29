@@ -1,13 +1,3 @@
-// Listens for the three font-related events the global menu dispatches:
-//   • EDITOR_FONT_SIZE_CHANGE_EVENT — delta from a +/- menu action
-//   • EDITOR_FONT_SIZE_SET_EVENT    — absolute size from the size dropdown
-//   • EDITOR_FONT_FAMILY_CHANGE_EVENT — new font family from the picker
-//
-// Used by DraftingEditor (and any future editor that wants the same global
-// menu hookup). The hook clamps font sizes to [min, max] and wraps the font
-// family in `withEmojiFontFallback` so emoji glyphs render even when the
-// chosen font lacks them.
-
 import { useEffect, type Dispatch, type SetStateAction } from "react"
 import {
   EDITOR_FONT_FAMILY_CHANGE_EVENT,

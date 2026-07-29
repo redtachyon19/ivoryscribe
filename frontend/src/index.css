@@ -24,7 +24,6 @@ body {
   background-color: #0f0f0f;
 }
 
-/* Electron macOS: make html/body transparent for native vibrancy */
 html.electron-mac.translucent-nav,
 html.electron-mac.translucent-nav body {
   background-color: transparent !important;
@@ -35,14 +34,6 @@ html.electron-mac.translucent-nav body {
   overflow: hidden;
 }
 
-/* ── Marketing / landing pages scroll the document ───────────────────────
-   The app shell pins html / body / #root to the viewport (height:100% +
-   overflow:hidden) so the web editor and Electron app never scroll as a whole
-   — they manage their own inner scroll regions. The landing pages are ordinary
-   long documents and must scroll the page itself, so opt them back into normal
-   document flow. Scoped via :has(.auth-gateway-page) — the shared root class of
-   every landing route and nothing in the editor / Electron shell — so those are
-   completely untouched. Scrollbars stay hidden by the rules below. */
 html:has(.auth-gateway-page),
 html:has(.auth-gateway-page) body {
   height: auto;
@@ -55,16 +46,15 @@ html:has(.auth-gateway-page) #root {
   overflow: visible;
 }
 
-/* ── Globally hide scrollbars while preserving scroll behavior ────────── */
 * {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE 10+ and old Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 *::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
-  display: none !important; /* Chrome, Safari, new Edge */
+  display: none !important;
 }
 
 *::-webkit-scrollbar-track,

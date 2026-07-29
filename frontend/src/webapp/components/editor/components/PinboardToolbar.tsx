@@ -1,6 +1,3 @@
-// Floating toolbar for PinboardEditor — tool selection (select / text / line
-// / draw / marquee), quick-add buttons (image / link), and zoom controls.
-
 import type { RefObject } from "react"
 import { Brush, ImageUp, Link as LinkIcon, SquareDashed, TextInitial } from "lucide-react"
 import type { PinboardTool } from "../utils/pinboardData"

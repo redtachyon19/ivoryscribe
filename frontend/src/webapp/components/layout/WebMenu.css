@@ -150,8 +150,6 @@
   text-align: left;
 }
 
-/* ── Electron window controls (non-macOS) ── */
-
 .web-menu__window-controls {
   display: flex;
   align-items: center;

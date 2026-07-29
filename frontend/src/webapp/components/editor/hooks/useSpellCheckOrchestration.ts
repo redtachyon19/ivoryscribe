@@ -1,8 +1,3 @@
-// Spell-check orchestration: dictionary + ignored-word state, the global
-// spell-check request/shortcut/focus events, issue navigation, and the
-// suggestion/ignore/add-to-dictionary handlers. Moved verbatim out of
-// Editor.tsx — behaviour and effect ordering are unchanged.
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   APP_SPELL_CHECK_EVENT,
@@ -45,9 +40,6 @@ export function useSpellCheckOrchestration({
   const [spellCheckIgnoredWords, setSpellCheckIgnoredWords] = useState<string[]>([])
   const [spellCheckIgnoredDocumentId, setSpellCheckIgnoredDocumentId] = useState<string | null>(null)
 
-  // Latest-value refs so releaseSessionIgnoredSpellCheckWords can read the
-  // current dictionary / ignored-word state without closing over them — that
-  // previously forced every effect calling it to list those values as deps.
   const spellCheckIgnoredWordsRef = useRef(spellCheckIgnoredWords)
   const spellCheckDictionaryRef = useRef(spellCheckDictionary)
 
@@ -73,8 +65,6 @@ export function useSpellCheckOrchestration({
     spellCheckDictionaryRef.current = spellCheckDictionary
   }, [spellCheckDictionary])
 
-  // Stable identity (refs supply the current values), so effects that call it
-  // do not need to depend on the dictionary / ignored-word state.
   const releaseSessionIgnoredSpellCheckWords = useCallback(() => {
     const persistedDictionarySet = new Set(spellCheckDictionaryRef.current)
 
@@ -176,7 +166,6 @@ export function useSpellCheckOrchestration({
         return
       }
 
-      // Option can change event.key on macOS layouts, so prefer the physical key code.
       const isXShortcut = event.code === "KeyX" || event.key.toLowerCase() === "x"
       if (!isXShortcut) {
         return

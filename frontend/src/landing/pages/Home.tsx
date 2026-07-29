@@ -1,4 +1,5 @@
-import { Download, Github, Mail, Rocket } from "lucide-react"
+import { Download, Mail, Rocket } from "lucide-react"
+import GithubMark from "../../webapp/components/ui/GithubMark"
 import { useEffect, useState, type CSSProperties } from "react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
@@ -11,9 +12,6 @@ export type HomeProps = {
   onOpenAuth?: () => void
 }
 
-// The six built-in colour themes, shown as clickable swatches under the editor
-// preview so visitors can preview each theme regardless of sign-in state. Each
-// swatch shows the theme's background + accent; clicking re-themes the preview.
 const THEME_SWATCHES: { value: Palette; label: string; bg: string; accent: string }[] = [
   { value: "ivory", label: "Ivory Tusk", bg: "#f8f3e3", accent: "#ff306a" },
   { value: "elephant", label: "Elephant", bg: "#121212", accent: "#d9c2a1" },
@@ -29,7 +27,6 @@ export default function Home({
   onOpenAuth,
 }: HomeProps) {
   const [isHeaderScrolled, setIsHeaderScrolled] = useState(false)
-  // Theme previewed in the editor mockup — independent of sign-in state.
   const [previewPalette, setPreviewPalette] = useState<Palette>("elephant")
 
   useEffect(() => {
@@ -109,9 +106,12 @@ export default function Home({
 
       <section className="auth-gateway auth-gateway--landing" id="home" aria-label="Home">
         <div className="auth-gateway__hero">
-          <div className="auth-gateway__hero-icon" aria-hidden={true}>
-            <span className="auth-gateway__hero-mark" />
-          </div>
+          <img
+            src="/icon-256.png"
+            alt=""
+            className="auth-gateway__hero-icon"
+            aria-hidden={true}
+          />
           <h1>
             A minimalist, distraction free, writing canvas.
             <br />
@@ -138,8 +138,6 @@ export default function Home({
 
       <main className="auth-gateway__sections" aria-label="Landing content sections">
         <section className="auth-gateway__content-section auth-gateway__content-section--preview" aria-label="Writing canvas preview">
-          {/* `display: contents` wrapper — injects the selected palette's CSS
-              variables into the preview without adding a layout box. */}
           <div className={`auth-gateway__preview-theme app--palette-${previewPalette}`}>
             <EditorPreview onBackToProjects={handleBackToProjects} />
           </div>
@@ -161,9 +159,6 @@ export default function Home({
         </section>
 
         <section className="auth-gateway__content-section auth-gateway__content-section--features" aria-label="Features">
-          {/* Alternating feature rows (image side flips each row). Swap each
-              placeholder <div> for:
-              <img src="…" alt="…" className="auth-gateway__feature-shot-img" /> */}
           <div className="auth-gateway__feature-rows">
             <article className="auth-gateway__feature-row">
               <figure className="auth-gateway__feature-shot">
@@ -273,17 +268,15 @@ export default function Home({
               <p className="auth-gateway__footer-brand-name">ivoryscribe</p>
             </div>
 
-
             <div className="auth-gateway__footer-social" aria-label="Social links">
               <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link">
-                <Github size={16} aria-hidden={true} />
+                <GithubMark size={16} />
               </a>
               <a href="mailto:contact@ivoryscribe.com" target="_blank" rel="noopener noreferrer" aria-label="Email" className="auth-gateway__footer-social-link">
                 <Mail size={16} aria-hidden={true} />
               </a>
             </div>
           </div>
-
 
           <div className="auth-gateway__footer-right">
             <p className="auth-gateway__footer-copy">&copy;2026 ivoryscribe. all rights reserved</p>

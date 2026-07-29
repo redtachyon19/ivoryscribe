@@ -1,19 +1,12 @@
-// Word-count tree walks over a project's tab tree. Extracted from Editor.tsx.
-
 import { countWords, countWordsFromContent } from "../../../../core/utils/markdown"
 import type { Project } from "../../../../core/utils/projects"
 import { pinboardPlainText } from "./pinboardData"
 
-/** Word count for a single document's stored content, aware of document type.
- *  Pinboard documents store a JSON board, so they're counted on their visible
- *  text only (text boxes / link labels / file names, drawings excluded);
- *  everything else falls back to the prose/markdown counter. */
 export function countWordsForContent(content: string): number {
   const boardText = pinboardPlainText(content)
   return boardText !== null ? countWords(boardText) : countWordsFromContent(content)
 }
 
-/** Total word count across every tab in the tree (recursive). */
 export function totalWordsAcrossTabs(tabs: Project["tabs"], contentById: Project["contentById"]): number {
   return tabs.reduce((total, tab) => {
     const currentWords = countWordsForContent(contentById[tab.id] ?? "")
@@ -28,7 +21,6 @@ export type FlattenedTabWordStat = {
   wordCount: number
 }
 
-/** Flattens the tab tree into a depth-tagged list with per-tab word counts. */
 export function flattenTabWordStats(
   tabs: Project["tabs"],
   contentById: Project["contentById"],
@@ -52,12 +44,6 @@ export type FlattenedTab = {
   depth: number
 }
 
-/**
- * Flattens the tab tree into a depth-tagged list — structure only, no word
- * counts. Unlike `flattenTabWordStats` this does not read `contentById`, so it
- * stays cheap and can be keyed on the (keystroke-stable) tabs array. Use this
- * for anything that only needs tab identity/structure.
- */
 export function flattenTabList(tabs: Project["tabs"], depth = 0): FlattenedTab[] {
   return tabs.flatMap((tab) => [
     { id: tab.id, title: tab.title, depth },

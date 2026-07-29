@@ -23,9 +23,6 @@ export default function CloudView({ projects, setProjects, projectDocumentMap, o
   const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
-  // A project is "in the cloud" iff a Document.id has been stamped onto it
-  // (see `enableCloudSharing` in useAppOrchestration). Local-only projects
-  // never appear in this map, so this filter is the cloud/local cut.
   const sorted = useMemo(
     () => applySortMode(
       projects.filter((p) => !p.archivedAt && !p.deletedAt && Boolean(projectDocumentMap[p.id])),

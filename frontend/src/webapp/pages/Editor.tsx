@@ -33,13 +33,7 @@ export type EditorProps = {
   tuskAiActivated: boolean
   isStartingTuskCheckout: boolean
   activeContent: string
-  /** Current workspace root from settings. Read-only kinds (PDFs) store
-   *  paths relative to this and resolve to absolute at render time, so
-   *  the path always reflects the chosen workspace and never a cached
-   *  absolute string. Null in cloud / web mode. */
   workspaceRoot?: string | null
-  /** Settings toggle: PDFViewer rasterises pages with the app palette
-   *  background + text colour when true. Forwarded as-is. */
   matchPdfToPalette?: boolean
   editorFontSize: number
   menuBarEnabled: boolean
@@ -60,7 +54,6 @@ export type EditorProps = {
   onToggleSettings: () => void
   onProjectChange: (updater: (project: Project) => Project) => void
   onEditorTypingStateChange: (isTyping: boolean) => void
-  // Library integration
   view: "projects" | "editor"
   activeProjectId: string | null
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
@@ -79,34 +72,14 @@ export type EditorProps = {
   onAcceptShareRequest: (shareId: string) => void
   onRejectShareRequest: (shareId: string) => void
   onRefreshPendingShareRequests: () => void
-  /** Local mode: upload the local file as a cloud Document and stamp it with
-   *  the returned cloud-id. Wired through to ShareDialog so the user can
-   *  enable cloud sharing for a previously local-only project. */
   onEnableCloudSharing?: (projectId: string) => Promise<string | null>
-  /** Promote a local project to cloud: upload + trash local file.
-   *  Returns the new cloud doc id, or null if it failed / cancelled. */
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
-  /** Copy the project's absolute on-disk path to the clipboard. Only
-   *  defined for local projects in Electron. */
   onCopyProjectPath?: (projectId: string) => void
-  /** Reveal the project's on-disk file in the OS file manager. Only
-   *  defined for local projects in Electron. */
   onShowProjectInFinder?: (projectId: string) => void
-  /** Spawn a new BrowserWindow rooted at this folder's on-disk directory.
-   *  Only defined for local mode (cloud folders have no directory). */
   onOpenFolderInNewWindow?: (folderId: string) => void
-  /** macOS Finder label painter — fires alongside in-app color changes so
-   *  the folder gets the same color in Finder. No-op on other OSes or
-   *  when there's no on-disk folder. */
   onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
 }
 
-/**
- * The Editor page is a thin coordinator: it resolves the editing concerns into
- * focused hooks (library navigation, document stats, export, spell-check,
- * AI diff review, view mode) and renders the chrome (`AppShell`) around either
- * the library (`LibraryRouter`) or the editing surface (`EditorWorkspace`).
- */
 export default function Editor({
   sessionToken,
   project,
@@ -163,19 +136,12 @@ export default function Editor({
     ? getProjectEntryTerms(project.kind)
     : { singular: "Chapter", plural: "Chapters", untitled: "Untitled" }
 
-  /* ── Editing concerns, each owned by a focused hook ── */
   const library = useLibraryNavigation()
   const viewModeState = useTabViewMode(project)
   const markdownViewModeState = useTabMarkdownViewMode(project)
   const documentStats = useDocumentStats(project, activeContent)
   const proposedEditReview = useProposedEditReview({ project, activeContent, onProjectChange })
 
-  /* ── Derived facts about the active document. These are keyed on the
-       specific project slices they read — `tabs`, `activeId`, the id arrays —
-       all referentially stable across content keystrokes, rather than the
-       whole `project` object (a fresh reference on every edit). Hoisting the
-       slices into locals keeps the memo bodies and dependency lists aligned,
-       which the React Compiler requires to preserve the memoization. ── */
   const projectTabs = project?.tabs ?? null
   const activeTabId = project?.activeId ?? null
   const projectPinboardIds = project?.pinboardIds
@@ -201,8 +167,6 @@ export default function Editor({
     return "prose"
   }, [activeTabId, projectTabs, projectPinboardIds, projectPdfIds, projectImageIds, projectPlaintextIds, projectMarkdownIds, projectMarkdownEditorEnabled])
 
-  /* ── ⌘/Ctrl + 1/2/3 view switching. Prose: Draft / Typewriter. Markdown:
-       Editor / Both / View. ── */
   useViewModeShortcuts({
     enabled: view === "editor" && !!project?.activeId,
     activeDocumentType,
@@ -231,9 +195,6 @@ export default function Editor({
     return findTabTitleById(projectTabs, activeTabId) ?? untitledLabel
   }, [projectTabs, activeTabId, untitledLabel])
 
-  // Reflect the active document's title in the browser tab. Falls back to the
-  // app name in the library view and once the editor unmounts (e.g. back to
-  // the marketing site).
   useEffect(() => {
     const editing = view === "editor" && Boolean(activeTabId)
     document.title = editing ? (activeDocumentTitle.trim() || untitledLabel) : "ivoryscribe"

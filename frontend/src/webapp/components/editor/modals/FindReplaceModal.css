@@ -1,5 +1,3 @@
-/* ── Find & Replace Modal ── */
-
 .find-replace-modal__wrap {
   position: sticky;
   top: 46px;
@@ -88,8 +86,6 @@
   gap: 4px;
 }
 
-/* ── Expand / Collapse ── */
-
 .find-replace-modal__expandable {
   display: grid;
   grid-template-rows: 0fr;
@@ -110,8 +106,6 @@
   flex-direction: column;
   gap: 5px;
 }
-
-/* ── Inputs ── */
 
 .find-replace-modal__input {
   width: 200px;
@@ -135,7 +129,6 @@
   border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
 }
 
-/* Override global caret overlay hiding native caret (z-index conflict) */
 .find-replace-modal .global-caret-target {
   caret-color: var(--app-accent, #9ab8ff) !important;
 }
@@ -217,8 +210,6 @@
   cursor: default;
   pointer-events: none;
 }
-
-/* ── Animations ── */
 
 @keyframes find-replace-modal-in {
   from {

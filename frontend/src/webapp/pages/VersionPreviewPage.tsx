@@ -1,15 +1,3 @@
-// Standalone read-only view of a single saved version, opened in its own
-// window from Version History ("Open in New Window"). It is a *real* React
-// view (not a detached HTML blob) so it inherits the app palette and reuses
-// the real Find & Replace modal + the version-history toolbar buttons —
-// no duplicated UI.
-//
-// Read-only: find works (Cmd/Ctrl+F), but there is no editing. Replace is
-// inert because `onProjectChange` is a no-op — same posture as the PDF
-// viewer. The toolbar actions (Restore / Add Copy / Export / Delete) don't
-// run here either; they post a message back to the main app window, which
-// owns the live project and performs the action.
-
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Copy, Download, RotateCcw, Trash2 } from "lucide-react"
 import Button from "../components/ui/Button"
@@ -29,8 +17,6 @@ import "./VersionPreviewPage.css"
 
 type VersionAction = "restore" | "duplicate" | "export" | "delete"
 
-/** Read the handoff payload the opener stashed in localStorage (keyed by the
- *  `?key=` query param) and consume it so the key doesn't linger. */
 function readHandoff(): VersionPreviewHandoff | null {
   try {
     const key = new URLSearchParams(window.location.search).get("key")
@@ -44,7 +30,6 @@ function readHandoff(): VersionPreviewHandoff | null {
   }
 }
 
-/** Strip executables out of stored chapter HTML before rendering it live. */
 function sanitizeSnapshotHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -54,9 +39,6 @@ function sanitizeSnapshotHtml(html: string): string {
     .replace(/javascript:/gi, "")
 }
 
-/** Select the n-th (0-indexed) case-insensitive occurrence of `query` within
- *  `host`, using the native Selection API so the ::selection highlight shows
- *  it — mirrors how the PDF viewer surfaces a search hit. */
 function selectNthOccurrence(host: HTMLElement, query: string, n: number) {
   if (!query) return
   const needle = query.toLowerCase()
@@ -88,8 +70,6 @@ function selectNthOccurrence(host: HTMLElement, query: string, n: number) {
 
 const NOOP_PROJECT_CHANGE = () => {}
 
-/** Recursive contents list of the snapshot's tabs + sub-tabs. Clicking an
- *  entry scrolls its card into view. */
 function TabTree({
   nodes,
   depth,
@@ -139,18 +119,12 @@ export default function VersionPreviewPage() {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [status, setStatus] = useState("")
 
-  // The real find/replace hook — driven against the snapshot project. The
-  // no-op `onProjectChange` keeps it read-only: navigation still fires focus
-  // events (which we highlight below), and replace becomes inert.
   const find = useFindReplaceModal({
     view: "editor",
     project: snapshot,
     onProjectChange: NOOP_PROJECT_CHANGE,
   })
 
-  // The hook publishes the match to highlight via the same focus event the
-  // editor/PDF viewer listen for. We render every chapter at once, so we
-  // just locate the matching chapter and select the n-th occurrence in it.
   useEffect(() => {
     const onFocus = (event: Event) => {
       const detail = (event as CustomEvent<ProjectSearchFocusDetail>).detail

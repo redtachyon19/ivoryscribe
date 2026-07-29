@@ -1,26 +1,5 @@
-// On-disk representations of the four Tusk-family file types.
-// These are the canonical shapes after parse and before serialize — the in-memory
-// editor state (Project / PinboardData / etc.) is bridged via the `bridge.ts` module.
-//
-// File-type model:
-//   • .tusk  → Book (chapters + embedded md/txt docs)         — codecBook.ts
-//   • .tusks → Presentation (many pinboards, one per slide)   — codecPresentation.ts
-//   • .md    → standalone Markdown document                   — codecPlainDoc.ts
-//   • .txt   → standalone PlainText document                  — codecPlainDoc.ts
-//   • .pdf   → standalone PDF document (read-only, view-only) — no codec; the
-//             scanner records the file path and the PDFViewer renders the
-//             bytes directly via the binary readFile IPC. PDFs are never
-//             written by the app — `serializeProjectForDisk` skips them.
-//
-// Legacy `.tuskb` (standalone pinboard) and the old HTML-slideshow form of
-// `.tusks` are not supported — the scanner ignores them; no migration code.
-
 import type { Margins, ProjectKind, ProjectVersion } from "../utils/projects"
 
-// Bumped from 1 → 2 when versions moved inside the .tusk / .tusks file.
-// Version 1 files load fine (parser tolerates a missing <versions> block);
-// they just open with an empty version history that begins accruing on
-// the first save under the new app.
 export const FILE_FORMAT_VERSION = 2
 
 export type ChapterMode = "default" | "markdown" | "typewriter" | "plaintext"
@@ -31,9 +10,6 @@ export type TuskChapter = {
   mode: ChapterMode
   content: string
   children: TuskChapter[]
-  /** Typewriter page margins for this chapter, in inches. Absent means "use
-   *  DEFAULT_MARGINS" — only chapters where the user has dragged a ruler
-   *  guide carry an explicit value, keeping untouched files/diffs small. */
   margins?: Margins
 }
 
@@ -47,28 +23,13 @@ export type TuskBookFile = {
   rootPosition: "top" | "bottom"
   activeChapterId: string | null
   chapters: TuskChapter[]
-  /** Newest-first version snapshots embedded in the .tusk file. Missing on
-   *  legacy v1 files; defaults to []. */
   versions?: ProjectVersion[]
-  /** Base64 of a 1:1 PDF render of the whole document (the same output the PDF
-   *  export produces). Embedded as <preview kind="pdf"> purely so the macOS
-   *  QuickLook thumbnail/preview extension can show a faithful page without the
-   *  app running. Not part of the editable model — the filesystem-sync layer
-   *  manages it out-of-band, so it never enters version snapshots. */
   previewPdf?: string
 }
 
-// ── Presentation (.tusks) ────────────────────────────────────────────────
-//
-// A presentation is a flat list of pinboards. Each slide is one
-// PinboardEditor content string — the codec stores it verbatim and never
-// parses the payload.
-
 export type TuskPresentationSlide = {
   id: string
-  /** Display label for the slide in the Slides tab list. */
   title: string
-  /** Opaque PinboardEditor content string. The codec never parses this. */
   board: string
 }
 
@@ -80,34 +41,20 @@ export type TuskPresentationFile = {
   color: string
   activeSlideId: string | null
   slides: TuskPresentationSlide[]
-  /** Newest-first version snapshots embedded in the .tusks file. Missing on
-   *  legacy v1 files; defaults to []. */
   versions?: ProjectVersion[]
 }
-
-// ── Extensions & kind enum ───────────────────────────────────────────────
 
 export const TUSK_BOOK_EXT = ".tusk"
 export const TUSK_PRESENTATION_EXT = ".tusks"
 export const MARKDOWN_EXT = ".md"
 export const PLAINTEXT_EXT = ".txt"
 export const PDF_EXT = ".pdf"
-// Images: PNG + JPEG (both .jpg and .jpeg) all collapse onto a single
-// "image" file kind / "Image" project kind. The on-disk extension is
-// preserved verbatim in fileMetaRef.filePath so renames and moves keep
-// whichever extension the file originally had.
 export const PNG_EXT = ".png"
 export const JPG_EXT = ".jpg"
 export const JPEG_EXT = ".jpeg"
 
 export type TuskFileKind = "book" | "presentation" | "markdown" | "plaintext" | "pdf" | "image" | "unknown"
 
-/** Maps a file extension to the editor kind that handles it. Returns
- *  null for unrecognized extensions — callers that want a "treat unknown
- *  files as Unknown projects" behaviour should use `kindForExtensionOrUnknown`
- *  instead. We keep both forms so the OS file-association handler can
- *  still reject unsupported double-clicks (returns null) while the
- *  workspace scanner ingests every file (returns "unknown"). */
 export function kindForExtension(ext: string): TuskFileKind | null {
   switch (ext.toLowerCase()) {
     case TUSK_BOOK_EXT: return "book"
@@ -123,9 +70,6 @@ export function kindForExtension(ext: string): TuskFileKind | null {
   }
 }
 
-/** Variant that maps any extension (or none) the workspace scanner sees
- *  to a TuskFileKind, falling back to "unknown" so the file still shows
- *  up in the library (greyed out, no editor). */
 export function kindForExtensionOrUnknown(ext: string): TuskFileKind {
   return kindForExtension(ext) ?? "unknown"
 }
@@ -137,20 +81,12 @@ export function extensionForKind(kind: TuskFileKind): string {
     case "markdown": return MARKDOWN_EXT
     case "plaintext": return PLAINTEXT_EXT
     case "pdf": return PDF_EXT
-    // Images collapse three extensions (.png / .jpg / .jpeg) onto one
-    // kind, so there's no canonical answer — the on-disk extension is
-    // read off meta.filePath instead, same pattern as "unknown".
     case "image":
       throw new Error("extensionForKind: 'image' has no canonical extension — read it from meta.filePath")
-    // Unknown files preserve whatever extension they had on disk — the
-    // hook tracks that via meta.filePath, not via this function. There
-    // is no canonical extension to return.
     case "unknown":
       throw new Error("extensionForKind: 'unknown' has no canonical extension")
   }
 }
-
-// ── In-memory ↔ on-disk kind mapping ────────────────────────────────────
 
 const PROJECT_KIND_BY_FILE_KIND: Record<TuskFileKind, ProjectKind> = {
   book: "Book",

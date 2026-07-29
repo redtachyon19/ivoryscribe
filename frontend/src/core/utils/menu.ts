@@ -21,10 +21,6 @@ export type MenuItem = {
   disabled?: boolean
   shortcut?: string
   icon?: string
-  /** When set, Electron's native menu uses this role instead of the JS click
-   *  handler — bypassing renderer code so `webContents.paste()` /
-   *  `pasteAndMatchStyle()` etc. fire natively. The web build ignores this
-   *  field and continues to dispatch `action`. */
   electronRole?: "paste" | "pasteAndMatchStyle" | "copy" | "cut" | "undo" | "redo" | "selectAll"
 }
 
@@ -74,12 +70,6 @@ const editMenuItem: MenuItem = {
       label: "Paste",
       icon: "paste",
       shortcut: "⌘V",
-      // In Electron, route to the native `paste` role so the keystroke
-      // triggers a real paste event in the focused contentEditable
-      // (TipTap then keeps bold/italic/underline marks via
-      // transformPastedHTML). The web build falls back to the JS action
-      // below — Cmd+V there is handled directly by the browser anyway,
-      // since the WebMenu doesn't bind accelerators.
       electronRole: "paste",
       action: () => {
         requestEditorCommand("paste")
@@ -89,8 +79,6 @@ const editMenuItem: MenuItem = {
       label: "Paste Without Formatting",
       icon: "paste",
       shortcut: "⇧⌘V",
-      // Electron's `pasteAndMatchStyle` strips formatting natively. The
-      // web build falls back to the JS action (read text, insert plain).
       electronRole: "pasteAndMatchStyle",
       action: () => {
         requestEditorCommand("paste-plain")
@@ -450,23 +438,15 @@ export function getAppMenu(options?: { markdownDocumentActive?: boolean }): Menu
 
 export const appMenu: MenuItem[] = getAppMenu()
 
-// ── Electron native menu helpers ──
-
 export type NativeMenuItem = {
   label: string
   id?: string
   submenu?: NativeMenuItem[]
   disabled?: boolean
   shortcut?: string
-  /** Passed straight to Electron's MenuItemConstructorOptions.role when
-   *  present (see MenuItem.electronRole for the rationale). */
   role?: string
 }
 
-/**
- * Convert the MenuItem tree into a serializable structure for Electron's main process,
- * and collect a flat map of id→action callbacks for the renderer to dispatch.
- */
 export function serializeMenuForElectron(
   items: MenuItem[],
   parentPath = "menu",

@@ -35,13 +35,8 @@ export type ProjectFolder = {
   id: string
   name: string
   description: string
-  /** Parent folder id, or null for top-level folders. Allows nested folders
-   *  to be hidden until the user navigates into their parent. */
   parentFolderId?: string | null
-  /** Hex color (`#RRGGBB`) tinting the folder's icon and accents. Empty /
-   *  undefined renders with the default editor-text color. */
   color?: string | null
-  /** Single emoji that replaces the default Folder icon when set. */
   iconEmoji?: string | null
 }
 
@@ -61,9 +56,6 @@ export type LibraryProps = {
   setProjects: Dispatch<SetStateAction<Project[]>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
   setActiveProjectId: Dispatch<SetStateAction<string | null>>
-  /** The open library folder (null = root). Owned by useLibraryNavigation so it
-   *  survives the editor view and the top-bar back/forward history can restore
-   *  it; this component reads + sets it but no longer holds it. */
   openFolderId: string | null
   setOpenFolderId: Dispatch<SetStateAction<string | null>>
   pendingShareRequests: PendingShareRequest[]
@@ -73,20 +65,11 @@ export type LibraryProps = {
   userEmail?: string
   sharedProjectIds?: Set<string>
   ownerEmailByProjectId?: Map<string, string>
-  /** Local mode: upload the local file as a cloud Document and return its id.
-   *  Returns null if the user needs to sign in (the orchestrator handles
-   *  showing the auth overlay). Returns the existing id if already shared. */
   onEnableCloudSharing?: (projectId: string) => Promise<string | null>
-  /** Upload a local project to cloud and trash its local file. */
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
-  /** Local-only: spawn a new BrowserWindow whose workspace root is the
-   *  folder's on-disk directory. Wired by the orchestration when the
-   *  local FS handle is available; cloud-only folders pass undefined. */
   onOpenFolderInNewWindow?: (folderId: string) => void
-  /** macOS-only: paint the folder's Finder color label to match the
-   *  in-app color the user just picked. */
   onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
 }
 
@@ -128,14 +111,9 @@ export default function Library({
   const { viewMode, toggle: toggleView } = useViewMode()
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [shareDialogProjectId, setShareDialogProjectId] = useState<string | null>(null)
-  // True only while a dragged item (project OR folder) is hovering over the
-  // folder "back" button — drives the accent highlight so it shows on hover,
-  // not for the entire drag, for either drag type.
   const [isOverBackButton, setIsOverBackButton] = useState(false)
 
   const activeProjects = projects.filter((p) => !p.archivedAt && !p.deletedAt)
-  // Guard against a stale stored folder id (folder deleted / not yet loaded):
-  // if it doesn't resolve once folders are present, fall back to the root.
   useEffect(() => {
     if (openFolderId && folders.length > 0 && !folders.some((f) => f.id === openFolderId)) {
       setOpenFolderId(null)
@@ -144,10 +122,6 @@ export default function Library({
 
   const openFolder = openFolderId ? folders.find((f) => f.id === openFolderId) ?? null : null
   const folderProjects = openFolderId ? activeProjects.filter((p) => p.folderId === openFolderId) : []
-  // Top-level folders (no parent) for the root library view; sub-folders of
-  // the currently open folder for the folder-detail view. Folders that come
-  // from disk-walked subdirectories carry a parentFolderId so we can keep
-  // them hidden until the user navigates in.
   const topLevelFolders = useMemo(
     () => folders.filter((f) => !f.parentFolderId),
     [folders],
@@ -164,9 +138,6 @@ export default function Library({
   const shareDialogProject = shareDialogProjectId ? projects.find((p) => p.id === shareDialogProjectId) ?? null : null
   const shareDialogDocumentId = shareDialogProjectId ? (projectDocumentMap[shareDialogProjectId] ?? null) : null
 
-  // Open the share dialog regardless of whether the project has a cloud-id
-  // yet. The dialog handles the "not yet shared" case with an upload CTA that
-  // calls onEnableCloudSharing — which prompts sign-in if needed.
   const openShareDialog = (projectId: string) => {
     setShareDialogProjectId(projectId)
   }
@@ -200,9 +171,6 @@ export default function Library({
 
   const [contextMenu, setContextMenu] = useState<LibraryContextMenuState>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
-  /** Anchor for the kind-picker that opens from the empty-state "Create"
-   *  card. Reuses the same ProjectContextMenu component as right-click
-   *  menus so spacing/keyboard/dismiss behaviour is identical. */
   const [createKindMenu, setCreateKindMenu] = useState<{ x: number; y: number; folderId?: string } | null>(null)
   const closeCreateKindMenu = useCallback(() => setCreateKindMenu(null), [])
 
@@ -270,22 +238,14 @@ export default function Library({
       id: createLocalId(),
       name: `Folder ${nextIndex}`,
       description: "Add a folder description here. You don't have the memory of an elephant.",
-      // Create the folder inside whatever folder is currently open (matches how
-      // createNewProject nests via openFolderId); null at the top level.
       parentFolderId: openFolderId ?? null,
     }
     setFolders((current) => [newFolder, ...current])
   }
 
-  // Global create events from the menu bar. The CREATE_BOOK event now
-  // carries an optional `kind` so the same channel can request
-  // Presentation/Markdown/PlainText projects too. Missing detail → Book.
   useEffect(() => {
     const handleCreateProject = (event: Event) => {
       const detail = (event as CustomEvent<import("../../core/events/editorEvents").CreateProjectEventDetail>).detail
-      // Create inside the folder the user is currently viewing (not the root) —
-      // mirrors the right-click and folder-detail create paths. openFolderId is
-      // in the dep array below so this closure always sees the current folder.
       createNewProject(detail?.kind ?? "Book", openFolderId ?? undefined)
     }
     const handleCreateFolder = () => createFolder()
@@ -297,8 +257,6 @@ export default function Library({
       window.removeEventListener(PROJECTS_CREATE_BOOK_EVENT, handleCreateProject as EventListener)
       window.removeEventListener(PROJECTS_CREATE_FOLDER_EVENT, handleCreateFolder)
     }
-    // openFolderId is included so the menu-bar "New Project"/"New Folder"
-    // closures create inside the currently-open folder, not a stale one.
   }, [bookCounter, folders.length, openFolderId])
 
   const renderProjectCard = (project: Project) => (
@@ -319,10 +277,6 @@ export default function Library({
       setProjects={setProjects}
       onContextMenu={handleProjectContextMenu}
       marqueeSelected={multiSelect.liveSelectedIds.has(project.id)}
-      // Cloud chip is driven by `project.source === "cloud"` inside the
-      // card. We only need to tell it about share state here — a cloud
-      // project that's also shared shows the Users icon instead of the
-      // plain Cloud icon. Local projects ignore both signals.
       isShared={Boolean(sharedProjectIds?.has(project.id))}
     />
   )
@@ -335,18 +289,11 @@ export default function Library({
           className={`project-hub__main-scroll ${multiSelect.scrollClassName}`}
           onMouseDown={multiSelect.handleMouseDown}
           onContextMenu={handleLibraryBackgroundContextMenu}
-          // Single-live-target invariant: every real drop target (cards,
-          // folders, root zones, back button) calls stopPropagation, so this
-          // container-level dragover only fires over DEAD SPACE — clear all
-          // highlights there so nothing stays accented where it won't drop.
           onDragOver={() => {
             if (!drag.draggingProjectId && !drag.draggingFolderId) return
             drag.clearDropTarget()
             if (isOverBackButton) setIsOverBackButton(false)
           }}
-          // Leaving the library view entirely (e.g. onto the sidebar) must also
-          // drop this view's highlight, so only the target now under the cursor
-          // is accented.
           onDragLeave={(e) => {
             if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
             drag.clearDropTarget()
@@ -382,22 +329,15 @@ export default function Library({
                 onFolderDrop={multiSelect.handleMultiFolderDrop}
                 getFolderDropClassName={drag.getFolderDropClassName}
                 getFolderReorderClassName={drag.getFolderReorderClassName}
-                // Highlight ONLY while the dragged item is actually over the
-                // button — hover-driven for both project AND folder drags, never
-                // for the whole drag.
                 isUnnestDropActive={isOverBackButton}
                 onUnnestFolderDragOver={(e) => {
                   if (!drag.draggingProjectId && !drag.draggingFolderId) return
                   e.preventDefault()
                   e.stopPropagation()
-                  // The back button is now the live destination: clear any other
-                  // target we crossed on the way here, then light it up.
                   drag.clearDropTarget()
                   if (!isOverBackButton) setIsOverBackButton(true)
                 }}
                 onUnnestFolderDragLeave={(e) => {
-                  // Ignore leaves that just cross onto a child (icon/label) of
-                  // the button — only clear when the cursor truly exits it.
                   if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
                   if (isOverBackButton) setIsOverBackButton(false)
                 }}
@@ -407,8 +347,6 @@ export default function Library({
                     e.preventDefault()
                     e.stopPropagation()
                     setIsOverBackButton(false)
-                    // Un-nest the dragged folder one level up. Cycle-safe by
-                    // construction because we only move UP the tree.
                     drag.moveFolderIntoFolder(drag.draggingFolderId, target)
                     drag.handleFolderDragEnd()
                     return
@@ -417,8 +355,6 @@ export default function Library({
                     e.preventDefault()
                     e.stopPropagation()
                     setIsOverBackButton(false)
-                    // Move the dragged project (and any multi-selection) up one
-                    // level — the workspace root when this is a top-level folder.
                     if (target === null) {
                       multiSelect.handleMultiRootDrop("bottom")(e)
                     } else {
@@ -430,7 +366,6 @@ export default function Library({
               />
             ) : (
               <>
-            {/* Header */}
             <div className="project-hub__folder-detail-header">
               <div className="project-hub__folder-detail-title">
                 <LibraryIcon size={20} aria-hidden={true} />
@@ -440,10 +375,8 @@ export default function Library({
               <p className="project-hub__folder-detail-count">{activeProjects.length} {activeProjects.length === 1 ? "project" : "projects"}</p>
             </div>
 
-            {/* Toolbar */}
             <ViewToggle viewMode={viewMode} onToggle={toggleView} />
 
-            {/* Share Requests */}
             {pendingShareRequests.length > 0 ? (
               <ShareRequestList
                 requests={pendingShareRequests}
@@ -452,7 +385,6 @@ export default function Library({
               />
             ) : null}
 
-            {/* Folders — only top-level here; nested folders show inside their parent. */}
             {viewMode === "list" ? (
               topLevelFolders.length > 0 ? (
                 <div className="project-hub__list-view" aria-label="Library folders list">
@@ -521,13 +453,10 @@ export default function Library({
               />
             )}
 
-            {/* Projects — List View */}
             {viewMode === "list" ? (
               activeProjects.filter((p) => !p.folderId).length > 0 ? (
                 <div className="project-hub__list-view" aria-label="Library projects list">
                   {activeProjects.filter((p) => !p.folderId).map((project) => {
-                    // Unknown-kind files appear in the list but click /
-                    // Enter don't open them — there's no editor to mount.
                     const isUnknown = project.kind === "Unknown"
                     return (
                     <article
@@ -564,7 +493,6 @@ export default function Library({
                 </div>
               ) : null
             ) : (
-              /* Projects — Grid View (existing card components with drag/drop) */
               <ul className="project-hub__grid-view">
                 {drag.topRootProjects.map((project) => renderProjectCard(project))}
 
@@ -580,10 +508,6 @@ export default function Library({
                   role="listitem"
                   aria-haspopup="menu"
                   aria-expanded={Boolean(createKindMenu)}
-                  // Empty-state "Create" card opens the kind picker rather
-                  // than implicitly creating a Book — matches the sidebar
-                  // "Create Project" button so the four kinds are reachable
-                  // from every entry point.
                   onClick={(event) => {
                     const rect = event.currentTarget.getBoundingClientRect()
                     setCreateKindMenu({ x: rect.left, y: rect.bottom + 6 })
@@ -682,8 +606,6 @@ export default function Library({
           actions={
             contextMenu.kind === "background"
               ? [
-                  // 4-kind picker inlined into the right-click menu so the
-                  // user can pick a kind without an intermediate submenu.
                   ...buildCreateProjectActions((kind) =>
                     createNewProject(kind, openFolderId ?? undefined),
                   ),
@@ -705,10 +627,6 @@ export default function Library({
                     multiSelect.clearSelection()
                   },
                   onShare: (ids) => {
-                    // Prefer projects that are already shared (have a cloud
-                    // documentId) so the dialog opens straight into the
-                    // collaborator list. Fall back to the first project — the
-                    // dialog itself handles the "upload first" CTA.
                     const ranked = [...ids].filter((id) => !folderIdSet.has(id))
                     const targetId = ranked.find((id) => Boolean(projectDocumentMap[id])) ?? ranked[0]
                     if (targetId) openShareDialog(targetId)
@@ -754,13 +672,6 @@ export default function Library({
                 })
               : buildProjectActions({
                   projectId: contextMenu.projectId,
-                  // Files of an Unknown kind have no in-app editor and no
-                  // settable name — we strip the actions the app couldn't
-                  // honour. Delete/Archive/Trash + Show in Finder + Copy
-                  // Path still apply (the file exists on disk regardless
-                  // of whether we can read it). Passing `() => {}` would
-                  // silently fail; passing the real handler would call
-                  // into code that assumes a parseable project.
                   isUnknownKind: (projects.find((p) => p.id === contextMenu.projectId)?.kind === "Unknown"),
                   onOpenInNewTab: onOpenProjectInNewTab,
                   onRename: (id) => setEditingProjectId(id),
@@ -770,18 +681,12 @@ export default function Library({
                   },
                   onDuplicate: (id) => setProjects((cur) => duplicateProject(cur, id)),
                   onShare: (id) => openShareDialog(id),
-                  // Only offer "Move to Cloud" for local projects (cloud
-                  // projects are already there). Hides the action when
-                  // the orchestration didn't provide a handler (e.g.
-                  // cloud-mode where every project is already cloud).
                   onMoveToCloud: (() => {
                     if (!onMoveProjectToCloud) return undefined
                     const target = projects.find((p) => p.id === contextMenu.projectId)
                     if (!target || target.source === "cloud") return undefined
                     return (id) => { void onMoveProjectToCloud(id) }
                   })(),
-                  // Local-only: copy path / reveal in Finder. Hidden for
-                  // cloud projects (no on-disk file) and on web (no Electron).
                   onCopyPath: (() => {
                     if (!onCopyProjectPath) return undefined
                     const target = projects.find((p) => p.id === contextMenu.projectId)
@@ -835,14 +740,7 @@ export default function Library({
           if (!folderSettingsTarget) return
           const targetId = folderSettingsTarget.id
           setFolders((current) => current.map((f) => f.id === targetId ? { ...f, ...patch } : f))
-          // Mirror to the per-folder localStorage shadow so the change
-          // survives reload in local mode (cloud mode also benefits — its
-          // preferences sync will write back, but the local mirror keeps
-          // the value visible until that round-trip lands).
           setFolderMeta(targetId, patch)
-          // macOS only: also stamp the folder's Finder color label so a
-          // user opening Finder sees the same accent. Snaps to the nearest
-          // of Finder's seven preset colors (see macFolderLabels.ts).
           if (patch.color !== undefined) onApplyFolderFinderColor?.(targetId, patch.color)
         }}
       />

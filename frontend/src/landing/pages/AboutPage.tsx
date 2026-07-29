@@ -1,4 +1,5 @@
-import { Github, Mail, Rocket } from "lucide-react"
+import { Mail, Rocket } from "lucide-react"
+import GithubMark from "../../webapp/components/ui/GithubMark"
 import { useEffect, useState } from "react"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
@@ -9,8 +10,6 @@ export default function AboutPage({
   onLaunchDashboard,
   onOpenAuth,
 }: HomeProps) {
-  // Header is transparent at the top and gains the translucent blur once the
-  // page scrolls — same behaviour as the Home page.
   const [isHeaderScrolled, setIsHeaderScrolled] = useState(false)
 
   useEffect(() => {
@@ -125,7 +124,7 @@ export default function AboutPage({
             </div>
 
             <div className="auth-gateway__footer-social" aria-label="Social links">
-              <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><Github size={16} aria-hidden={true} /></a>
+              <a href="https://github.com/redtachyon19/ivoryscribe" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="auth-gateway__footer-social-link"><GithubMark size={16} /></a>
               <a href="mailto:contact@ivoryscribe.com" target="_blank" rel="noopener noreferrer" aria-label="Email" className="auth-gateway__footer-social-link"><Mail size={16} aria-hidden={true} /></a>
             </div>
           </div>

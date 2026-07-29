@@ -85,9 +85,6 @@ export function parseBlocks(html: string): Block[] {
     }
   }
 
-  // Fallback: if no block-level children were found (e.g. the model returned
-  // plain text without any tags), treat the entire textContent as one or more
-  // paragraphs split on blank lines.
   if (blocks.length === 0) {
     const fullText = wrapper.textContent ?? ""
     const paragraphs = fullText
@@ -266,13 +263,6 @@ function wordDiffWithinBlock(
   return segments
 }
 
-/**
- * Build a diff structure that preserves original block tags. Returns blocks
- * (each with tag + segments) and the list of hunks. The actual HTML for the
- * editor is produced by `renderDiffHtml(blocks, hunkStates)` — that lets the
- * editor's content track hunk-state changes by recomputing the HTML, which
- * sidesteps any in-place document mutation pitfalls.
- */
 export function buildDiff(beforeHtml: string, afterHtml: string): DiffResult {
   const beforeBlocks = parseBlocks(beforeHtml)
   const afterBlocks = parseBlocks(afterHtml)
@@ -332,10 +322,8 @@ export function renderDiffHtml(
         }
       } else if (state === "accepted") {
         if (seg.type === "add") inner += escaped
-        // type === "remove" + accepted: drop the text
       } else if (state === "rejected") {
         if (seg.type === "remove") inner += escaped
-        // type === "add" + rejected: drop the text
       }
     }
     if (inner.length === 0) continue

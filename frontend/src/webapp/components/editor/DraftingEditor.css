@@ -6,8 +6,6 @@
   margin: 0 auto;
   padding: 0 var(--page-content-gutter);
   font-size: 38px;
-  /* Match Typewriter's Google-Docs-style line spacing so the two views render
-     paragraph breaks consistently. */
   line-height: 1.15;
   font-family: var(--editor-body-font, var(--app-body-font));
   color: var(--editor-text, #ffffff);
@@ -46,8 +44,6 @@
   caret-color: var(--app-accent, #9ab8ff);
 }
 
-/* Overlay sits behind the editable (z-index: 1 < 2).
-   Hidden imperatively via onFocus/onBlur in JS — synchronous before paint. */
 .editor-document-title-overlay {
   position: absolute;
   inset: 0;
@@ -67,7 +63,6 @@
   color: #ffffff;
 }
 
-/* Target TipTap's editable area */
 .ProseMirror {
   outline: none;
   text-align: left;
@@ -77,8 +72,6 @@
   word-break: break-word;
   font-family: var(--editor-body-font, var(--app-body-font));
   caret-color: transparent;
-  /* Match Google Docs' rendering — greyscale antialiasing + ligatures/kerning
-     make strokes thicker/crisper on HiDPI than the browser default. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -93,27 +86,10 @@
   pointer-events: none;
 }
 
-/* Hide the body's first block when it duplicates the tab title shown above
-   (set by DraftingEditor when titles match). The block stays in the document
-   model — only its rendering is suppressed — so toggling back to Typewriter
-   mode shows the original content unchanged. */
 .editor-container--hide-first-block .ProseMirror > :first-child {
   display: none;
 }
 
-/* Drafting mode is plain prose. Visually strip every Typewriter-applied
-   formatting (font-family / size / color via textStyle, highlight, indents,
-   text-align). The underlying marks/attributes stay in the document model so
-   switching back to Typewriter restores everything. Bold / italic / underline
-   are left alone — those are structural marks the writer expects in either
-   mode (Cmd+B / Cmd+I / Cmd+U keep working). */
-
-/* Catch-all: any element carrying an inline style attribute (most Typewriter
-   formatting flows through here). [style] is a low-specificity selector but
-   the !important values still override the inline declarations.
-   :not(mark) — highlight marks carry their colour as an inline
-   background-color; we deliberately let those through so highlighter marks
-   stay visible in draft mode (see the mark rule below). */
 .editor-container .ProseMirror [style]:not(mark) {
   font-size: inherit !important;
   font-family: inherit !important;
@@ -125,8 +101,6 @@
   text-align: inherit !important;
 }
 
-/* Belt-and-suspenders: span/mark/font wrappers regardless of style attribute,
-   in case TipTap parsing strips the style but keeps the wrapper. */
 .editor-container .ProseMirror span,
 .editor-container .ProseMirror mark,
 .editor-container .ProseMirror font {
@@ -134,9 +108,6 @@
   font-size: inherit !important;
   color: inherit !important;
 }
-/* mark:not([style]) — diff marks (<mark class="diff-add">) carry no inline
-   style and keep getting stripped; highlighter marks DO carry an inline
-   background-color, so they're excluded here and stay visible in draft mode. */
 .editor-container .ProseMirror span,
 .editor-container .ProseMirror font,
 .editor-container .ProseMirror mark:not([style]) {
@@ -144,10 +115,6 @@
   background-color: transparent !important;
 }
 
-/* …but the Find highlight is ALSO an inline span, so the strip above was wiping
-   it — that's why Cmd+F matches showed in Typewriter but not Draft. Re-assert it
-   with higher specificity + !important so matches stay visible here too. Colours
-   must mirror searchHighlight.css / the PDF find (grey, then app-accent active). */
 .editor-container .ProseMirror span.search-hit {
   background-color: rgba(140, 140, 140, 0.32) !important;
 }
@@ -155,9 +122,6 @@
   background-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent) !important;
 }
 
-/* Block-level indents / alignment (ParaIndent extension uses inline margins,
-   TextAlign uses inline text-align — both already handled above; this rule
-   covers any class-based variant). */
 .editor-container .ProseMirror p,
 .editor-container .ProseMirror h1,
 .editor-container .ProseMirror h2,
@@ -174,17 +138,10 @@
   text-align: inherit !important;
 }
 
-/* Collapse consecutive empty paragraphs (Typewriter's Cmd+Enter inserts a
-   stack of these to push content onto the next page; in Drafting they read as
-   a wall of blank lines). The first empty paragraph stays so a freshly
-   pressed Enter still has somewhere visible for the cursor to live. */
 .editor-container .ProseMirror p:empty + p:empty {
   display: none;
 }
 
-/* Paragraph spacing — Enter creates a new paragraph with a generous gap that
-   scales with the editor's font size. Shift+Enter inserts a <br> that stays
-   at the line-height with no extra spacing. */
 .ProseMirror p {
   margin-top: 0;
   margin-bottom: 1.25em;
@@ -196,12 +153,6 @@
   margin: 0;
 }
 
-/* Six-hyphen divider (HorizontalRuleSixDashes). Symmetric vertical margins that
-   match the paragraph rhythm (p margin-bottom: 1.25em) so the rule sits centred
-   between the lines above and below, instead of hugging the line below it (the
-   gap above otherwise collapses to the paragraph's 1.25em while the gap below
-   was only the hr's small default margin). Clean 1px line, not the browser's
-   beveled default. */
 .ProseMirror hr {
   border: none;
   border-top: 2px solid color-mix(in srgb, var(--editor-text, #888) 42%, transparent);

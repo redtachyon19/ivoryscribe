@@ -1,23 +1,3 @@
-// Free-floating, resizable, croppable image node for the prose editors.
-//
-// Every image is absolutely positioned ("placed anywhere on the page") and can
-// be cropped. There is no text wrap and no in-flow/alignment mode.
-//
-// Stored as data URLs (base64) in the document HTML — the same convention the
-// Pinboard editor uses — so they round-trip through the .tusk codec with no
-// extra asset infrastructure, in both the web and Electron builds.
-//
-// Lives in the SHARED prose schema (sharedProseExtensions.ts) so both the
-// Drafting and Typewriter views understand the node.
-//
-// Attributes (all round-trip via HTML attributes / inline style):
-//   • width — display width in px (style width)
-//   • x, y  — position in layout px from the editor content's top-left
-//             (data-x / data-y)
-//   • crop  — { top,right,bottom,left } fractions (data-crop="t,r,b,l"), or null
-//
-// Interaction (drag-anywhere, resize, crop tool) lives in ImageNodeView.tsx.
-
 import { Node, mergeAttributes } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
 import { Plugin } from "@tiptap/pm/state"
@@ -26,8 +6,6 @@ import "./resizableImage.css"
 
 export type ImageCrop = { top: number; right: number; bottom: number; left: number }
 
-/** Mask shapes the crop tool can apply. "square" and "circle" lock the crop to
- *  a 1:1 box; the rest stretch freely with the crop window. */
 export type ImageShape =
   | "square"
   | "circle"
@@ -45,9 +23,6 @@ export const IMAGE_SHAPES: ImageShape[] = [
   "rightTriangle", "heart", "squircle",
 ]
 
-/** Ephemeral handoff from the cropping image's node view to the editor chrome
- *  (TypewriterEditor), so the formatting toolbar can swap in shape controls
- *  while an image is in crop mode. Lives on the node's editor storage. */
 export type ImageCropSession = {
   shape: ImageShape | null
   setShape: (shape: ImageShape) => void
@@ -56,7 +31,6 @@ export type ImageCropSession = {
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     resizableImage: {
-      /** Insert a free-floating image. x/y default to the cursor position. */
       setImage: (options: { src: string; alt?: string; title?: string; width?: number | null; x?: number; y?: number }) => ReturnType
     }
   }
@@ -80,8 +54,6 @@ function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
-/** Convert a screen point to layout-px coordinates within the editor content
- *  (accounting for the Typewriter's CSS `zoom`). */
 function pointToContentCoords(dom: HTMLElement, clientX: number, clientY: number) {
   const rect = dom.getBoundingClientRect()
   const scale = dom.offsetWidth > 0 ? rect.width / dom.offsetWidth : 1
@@ -92,15 +64,11 @@ export const ResizableImage = Node.create({
   name: "resizableImage",
   group: "block",
   atom: true,
-  draggable: false, // we implement our own absolute-position pointer drag
+  draggable: false,
   selectable: true,
 
   addOptions() {
     return {
-      // When false (the Drafting view), the React node view renders the image
-      // passive: it keeps its position but doesn't capture pointer events, so
-      // it can't be dragged, resized, cropped, or accidentally selected. The
-      // free-float interactions are a Typewriter (page-layout) affordance.
       interactive: true,
     }
   },
@@ -126,8 +94,6 @@ export const ResizableImage = Node.create({
       x: {
         default: 0,
         parseHTML: (el: HTMLElement) => { const v = parseFloat(el.getAttribute("data-x") || ""); return Number.isNaN(v) ? 0 : v },
-        // Keep 2 decimals (not integer) so a snapped, flush alignment survives a
-        // save/reload instead of drifting by up to half a pixel.
         renderHTML: (attrs: Record<string, unknown>) => ({ "data-x": String(Math.round(((attrs.x as number) || 0) * 100) / 100) }),
       },
       y: {
@@ -157,8 +123,6 @@ export const ResizableImage = Node.create({
     }
   },
 
-  // Crop-mode handoff to the editor chrome (see ImageCropSession). One image
-  // crops at a time, so a single slot is enough.
   addStorage() {
     return { cropSession: null as ImageCropSession }
   },
@@ -200,7 +164,6 @@ export const ResizableImage = Node.create({
     }
   },
 
-  // Paste / drop image files → insert as data URLs at the drop/cursor point.
   addProseMirrorPlugins() {
     const editor = this.editor
     const insertFiles = (files: FileList | null, point?: { x: number; y: number }) => {

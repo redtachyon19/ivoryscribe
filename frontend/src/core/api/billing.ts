@@ -1,5 +1,3 @@
-// Billing / Stripe checkout for Tusk AI access.
-
 import { request } from "./request"
 import type { BillingStatusResponse } from "./types"
 

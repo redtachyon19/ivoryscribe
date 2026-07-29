@@ -1,28 +1,3 @@
-// Version history modal — in-app React view that replaces the standalone
-// blob-HTML popup the orchestration used to open. Living inside the React
-// tree means the app's CSS variables (palette, fonts) flow in automatically
-// and every theme change picks up the next render without us rebuilding a
-// detached HTML page.
-//
-// Selection model:
-//   • Click a row → select only that row.
-//   • Cmd/Ctrl + click → toggle that row in the selection.
-//   • Shift + click → range select from the most recent anchor.
-//   • Drag in empty space → marquee select (powered by usePanelMarquee,
-//     same hook the library and tab panels use, so the visual selection
-//     box matches everywhere).
-//
-// Toolbar actions act on the current selection. They're disabled when no
-// row is selected and (where appropriate) when the action wouldn't make
-// sense on more than one row (e.g. Open in New Window, Make a Copy,
-// Restore — those operate on a single version).
-//
-// Snapshot saving is *not* affected by this view — it just reads the
-// embedded `project.versions` array and surfaces buttons that route into
-// the same restore / duplicate / export / delete callbacks that
-// useProjectVersioning + useAppOrchestration already own. This view is
-// pure presentation + selection state.
-
 import {
   useCallback,
   useEffect,
@@ -31,13 +6,6 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react"
-// useMarqueeSelection (the shared hook this view sits on top of) early-
-// bails on mousedown if the target sits inside `li, article, button, …`.
-// That filter exists so panels with reorder-drag handles don't accidentally
-// double-fire on drag-to-reorder; for this view we want the opposite —
-// dragging anywhere should start a marquee. We side-step the filter by
-// rendering rows as `<div role="option">` instead of `<li>`. Same a11y
-// semantics, but the hook sees a div and lets mousedown through.
 import { Copy, Download, ExternalLink, History, RotateCcw, Trash2 } from "lucide-react"
 import Button from "../ui/Button"
 import Modal from "../ui/Modal"
@@ -49,45 +17,24 @@ import "./VersionHistory.css"
 export type VersionHistoryProps = {
   isOpen: boolean
   onClose: () => void
-  /** Fallback for the modal title when there's no project context. The
-   *  per-row title still pulls the project name out of each snapshot, so
-   *  this only shows up at the modal header. */
   projectName: string
-  /** Newest-first list of versions for the current project. The component
-   *  re-sorts defensively — callers don't have to. */
   versions: ProjectVersion[]
-  /** Restore the given version into the active project. */
   onRestore: (versionId: string) => void
-  /** Duplicate the given version into a fresh project in the library. */
   onDuplicate: (versionId: string) => void
-  /** Export the given version's snapshot as a PDF. */
   onExportPdf: (versionId: string) => void
-  /** Open a per-version preview as a new browser window/tab. */
   onOpenInNewWindow: (versionId: string) => void
-  /** Permanently delete the listed versions. Bulk-aware. */
   onDelete: (versionIds: string[]) => void
 }
 
 type RowMeta = {
   version: ProjectVersion
-  /** Project name as captured in the snapshot. Falls back to current
-   *  project name when the snapshot is unreadable. */
   titleAtSave: string
-  /** Number of document tabs in the snapshot. */
   entryCount: number
-  /** Unit word for `entryCount` — "chapter" for Books, "slide" for
-   *  Presentations (tusks). */
   entryUnit: "chapter" | "slide"
-  /** Word count captured at save time. */
   wordCount: number
-  /** Estimated page count from the word count. Exact pagination would mean
-   *  running the PDF layout engine per version — far too heavy for a list
-   *  render — so we approximate with a manuscript-standard words-per-page. */
   pageCount: number
 }
 
-/** Words per page used to estimate a version's page count. 250 is the
- *  classic double-spaced manuscript page. */
 const WORDS_PER_PAGE = 250
 
 function buildRowMetas(versions: ProjectVersion[], fallbackName: string): RowMeta[] {
@@ -119,19 +66,8 @@ export default function VersionHistory({
   onOpenInNewWindow,
   onDelete,
 }: VersionHistoryProps) {
-  // Local selection state — a set of version ids. The marquee hook
-  // computes its own transient set during drag; on mouseup it commits
-  // into here via the panel hook's `marqueeSelectedIds`.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const lastClickedIdRef = useRef<string | null>(null)
-  // When a marquee drag starts and ends on the same row, the browser
-  // fires a trailing synthetic `click` on that row after mouseup. Without
-  // intervention that click runs handleRowClick and collapses the marquee
-  // selection back down to a single row — the exact opposite of what the
-  // user just drew. This ref records "the last mouseup ended a real
-  // drag", and the row click handler short-circuits when it's set.
-  // Reset on every fresh mousedown so a previous drag that didn't end on
-  // a row can't suppress a later, genuine click.
   const wasMarqueeDragRef = useRef(false)
 
   const {
@@ -142,16 +78,9 @@ export default function VersionHistory({
     liveSelectedIds,
   } = usePanelMarquee()
 
-  // Mirror marquee.isActive into a ref so the mouseup handler below can
-  // read the value React rendered with *before* the hook's window-level
-  // mouseup listener flips it back to false. This is stable across
-  // renders so the wrapping callbacks don't have to be rebuilt.
   const marqueeIsActiveRef = useRef(false)
   marqueeIsActiveRef.current = marquee.isActive
 
-  // Wrapped mousedown — clears the drag-suppression flag, then forwards
-  // to the marquee hook. Without the reset, a previous drag's flag could
-  // leak into the next click.
   const handleContainerMouseDown = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       wasMarqueeDragRef.current = false
@@ -160,34 +89,19 @@ export default function VersionHistory({
     [marquee.handleMouseDown],
   )
 
-  // React's onMouseUp fires during the bubble phase *before* the hook's
-  // window-level mouseup listener — at this point marquee.isActive (via
-  // the ref) is still true if the user was dragging. We record that so
-  // the synthetic click event the browser fires next gets ignored.
   const handleContainerMouseUp = useCallback(() => {
     if (marqueeIsActiveRef.current) {
       wasMarqueeDragRef.current = true
     }
   }, [])
 
-  // Keep the displayed selection in sync with the marquee. After a drag
-  // ends, `marqueeSelectedIds` holds whatever the rectangle covered; we
-  // promote that into the canonical click-driven `selectedIds` so the
-  // toolbar buttons can act on the same set. The conditional
-  // (marquee.isActive) prevents writes during the drag itself — the
-  // hook is already publishing `liveSelectedIds` for that case.
   useEffect(() => {
     if (marquee.isActive) return
     if (marqueeSelectedIds.size === 0) return
     setSelectedIds(new Set(marqueeSelectedIds))
-    // Reset the marquee hook's own committed set so a subsequent click
-    // (not a drag) doesn't pick this up again.
     setMarqueeSelectedIds(new Set())
   }, [marquee.isActive, marqueeSelectedIds, setMarqueeSelectedIds])
 
-  // Reset selection whenever the modal closes — opening it again should
-  // start with nothing selected rather than whatever was selected last
-  // time (versions may have been deleted in between).
   useEffect(() => {
     if (!isOpen) {
       setSelectedIds(new Set())
@@ -197,14 +111,8 @@ export default function VersionHistory({
 
   const rowMetas = useMemo(() => buildRowMetas(versions, projectName), [versions, projectName])
 
-  /** Display selection = canonical clicks ∪ live marquee preview.
-   *  During a drag, `marquee.isActive` is true and `liveSelectedIds`
-   *  holds the rectangle's contents. Outside drags it's just
-   *  `selectedIds`. */
   const displayedSelection = useMemo(() => {
     if (!marquee.isActive) return selectedIds
-    // Union the two so the user sees both their pre-drag picks AND
-    // whatever the marquee is currently covering.
     const merged = new Set(selectedIds)
     for (const id of liveSelectedIds) merged.add(id)
     return merged
@@ -212,14 +120,8 @@ export default function VersionHistory({
 
   const handleRowClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>, versionId: string) => {
-      // Stop propagation so the click doesn't get treated as a marquee
-      // mousedown on the container.
       event.stopPropagation()
 
-      // If a marquee drag just ended on this row, the browser fires a
-      // click event we never asked for. Swallow it — the marquee already
-      // committed the right selection and the genuine click on this row
-      // would replace it with a single-row selection.
       if (wasMarqueeDragRef.current) {
         wasMarqueeDragRef.current = false
         return
@@ -230,7 +132,6 @@ export default function VersionHistory({
 
       setSelectedIds((current) => {
         if (isModifier) {
-          // Toggle just this row.
           const next = new Set(current)
           if (next.has(versionId)) next.delete(versionId)
           else next.add(versionId)
@@ -238,7 +139,6 @@ export default function VersionHistory({
           return next
         }
         if (isRange && lastClickedIdRef.current) {
-          // Range select between anchor and this row, additive.
           const ids = versions.map((v) => v.id)
           const anchorIndex = ids.indexOf(lastClickedIdRef.current)
           const targetIndex = ids.indexOf(versionId)
@@ -250,7 +150,6 @@ export default function VersionHistory({
             : [targetIndex, anchorIndex]
           return new Set(ids.slice(start, end + 1))
         }
-        // Plain click — single-row selection.
         lastClickedIdRef.current = versionId
         return new Set([versionId])
       })
@@ -265,10 +164,6 @@ export default function VersionHistory({
   const hasSelection = selectionCount > 0
   const hasSingle = singleSelectionId !== null
 
-  // Toolbar handlers — each pulls fresh ids from `displayedSelection` at
-  // click time. Bulk actions iterate; single-target actions early-return
-  // when the selection size doesn't match (defensive — the buttons
-  // themselves are disabled in that case).
   const runOnSingle = useCallback(
     (handler: (versionId: string) => void) => () => {
       if (!singleSelectionId) return

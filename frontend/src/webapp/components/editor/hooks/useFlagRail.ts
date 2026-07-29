@@ -69,7 +69,6 @@ export function useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef
         .setTextSelection({ from: previousSelection.from, to: previousSelection.to })
         .run()
     } catch {
-      // no-op when mapped positions are no longer valid
     }
   }
 
@@ -98,7 +97,6 @@ export function useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef
     try {
       const coords = editor.view.coordsAtPos(target.pos)
 
-      // Ignore paragraph spacing gaps so the create flag only appears on real line boxes.
       const verticalPadding = 2
       if (clientY < coords.top - verticalPadding || clientY > coords.bottom + verticalPadding) {
         return false
@@ -114,7 +112,6 @@ export function useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef
   }
 
   useEffect(() => {
-    // Hide transient UI while switching active documents.
     setHoverLineAnchor(null)
     setHoverLineTop(null)
     setIsFlagRailHovered(false)
@@ -126,7 +123,6 @@ export function useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef
       return
     }
 
-    // Immediately clear hover-only flag affordances when feature is turned off.
     setIsFlagRailHovered(false)
     setHoverLineTop(null)
     setHoverLineAnchor(null)
@@ -230,7 +226,6 @@ export function useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef
           const coords = editor.view.coordsAtPos(anchor)
           next[anchor] = coords.top - surfaceRect.top
         } catch {
-          // Skip anchors that no longer resolve after document changes.
         }
       }
 
@@ -268,11 +263,6 @@ export function useFlagRail({ editor, flagsEnabled, documentId, editorSurfaceRef
     }
   }, [editor, editorSurfaceRef, activeDocumentKey, flaggedAnchorsByDocument])
 
-  /* ── Flag create / remove ──
-       Bundling these here means the consumer (DraftingEditor) just renders
-       <FlagRail onCreateFlag={...} onRemoveFlag={...} /> with these callbacks
-       and doesn't have to know about flaggedAnchorsByDocument or
-       highlightRangesByDocument internals. */
   const handleCreateFlag = (anchor: number) => {
     const highlightedRange = highlightSelectionIfPresent()
 

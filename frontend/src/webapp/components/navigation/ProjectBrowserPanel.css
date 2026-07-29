@@ -81,18 +81,8 @@
   padding-bottom: 352px;
 }
 
-/* Sliding-pill indicator behind the active project row. Mirrors the global
-   settings sidebar (.global-settings__section-nav-indicator) and
-   .doc-tabs__active-indicator: radius 10px, 88% hover-bg fill, 26% foreground
-   border, identical slide easing/duration. Unlike the doc-tabs pill (which uses
-   left:0;right:0), this one is positioned via measured left/width from JS so it
-   hugs nested rows that are inset by .project-browser__list--nested
-   (margin-left:10px per depth); a full-width pill would overhang them. */
 .project-browser__active-indicator {
   position: absolute;
-  /* border-box so the 1px border is drawn inside the JS-measured left/width/
-     top/height (a border-box measurement of the row), instead of adding ~2px
-     all round and reading bigger than the rows / marquee outlines. */
   box-sizing: border-box;
   border-radius: 10px;
   background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 88%, transparent);
@@ -101,29 +91,17 @@
   transition: top 240ms cubic-bezier(0.2, 0.85, 0.2, 1), left 240ms cubic-bezier(0.2, 0.85, 0.2, 1),
     width 240ms cubic-bezier(0.2, 0.85, 0.2, 1), height 240ms cubic-bezier(0.2, 0.85, 0.2, 1),
     opacity 160ms ease;
-  /* Sit behind the rows (.project-browser__row is z-index:1) so text stays on top. */
   z-index: 0;
 }
 
-/* The sliding pill is now the active-project affordance. Neutralize the shared
-   per-row active fill/outline (navPanelShared.css) for THIS panel only, so it
-   doesn't double up with the pill. .project-browser__row--active is used
-   exclusively in ProjectBrowserPanel (folders never get --active and no other
-   view consumes this class). navPanelShared.css is untouched; this wins by
-   source order (ProjectBrowserPanel.css is imported after navPanelShared.css,
-   equal specificity). */
 .project-browser__row--active {
   background: transparent;
   box-shadow: none;
 }
 
-/* Marquee shell + selection rectangle live in navPanelShared.css */
-
 .project-browser__list {
   display: flex;
   flex-direction: column;
-  /* Roomy enough that the empty strip between rows is a comfortable place to
-     press-and-drag a marquee selection (the rows themselves start a drag). */
   gap: 8px;
   list-style: none;
   padding: 0;
@@ -138,31 +116,18 @@
   position: relative;
 }
 
-/* .project-browser__item--drop-inside, __drop-line, and __label--dragging
-   live in navPanelShared.css */
-
 .project-browser__row {
   position: relative;
   z-index: 1;
   width: 100%;
   display: flex;
   align-items: center;
-  /* border-box so the row's 1px border is internal — keeps its outer box equal
-     to the container width and lets the active pill (also border-box) match it
-     exactly in both dimensions. */
   box-sizing: border-box;
   border: 1px solid transparent;
-  /* 10px to match the active-project sliding pill (.project-browser__active-indicator)
-     and the document-tabs rows, so the accent marquee-select / drag / drop-into
-     outlines — which inherit this radius via their inset box-shadow
-     (navPanelShared.css) — read with the same roundedness in both panels. */
   border-radius: 10px;
   color: var(--menu-button, #ededed);
   transition: background-color 0ms linear;
 }
-
-/* Row hover and the active/marquee/dragging "picked" outline all live in
-   navPanelShared.css */
 
 .project-browser__label {
   font-family: var(--app-ui-font);
@@ -210,9 +175,6 @@
   line-height: 1;
 }
 
-
-
-/* Collapse button */
 .project-browser__collapse-btn {
   flex: 0 0 auto;
   width: 26px;
@@ -246,7 +208,6 @@
   transform: rotate(180deg);
 }
 
-/* Rename input */
 .project-browser__rename-input {
   font-family: var(--app-ui-font);
   width: 100%;

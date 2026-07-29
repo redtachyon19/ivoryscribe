@@ -2,17 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import useMarqueeSelection from "../shared/hooks/useMarqueeSelection"
 
 type UsePanelMarqueeOptions = {
-  /** Forwarded to useMarqueeSelection — see its `ignoreSelector`. Panels
-   *  whose rows are themselves the selectable items (so a press on a row
-   *  should start a marquee, not bail) pass a narrower selector. */
   ignoreSelector?: string
 }
 
-/**
- * Shared marquee selection setup used by navigation panel components.
- * Encapsulates the container ref, getItemRects helper, useMarqueeSelection wiring,
- * and the liveSelectedIds computation that is identical in both panels.
- */
 export default function usePanelMarquee(options: UsePanelMarqueeOptions = {}) {
   const marqueeContainerRef = useRef<HTMLDivElement | null>(null)
   const [marqueeSelectedIds, setMarqueeSelectedIds] = useState<Set<string>>(new Set())
@@ -39,9 +31,6 @@ export default function usePanelMarquee(options: UsePanelMarqueeOptions = {}) {
 
   const liveSelectedIds = marquee.isActive ? marquee.selectedIds : marqueeSelectedIds
 
-  // Escape clears the current selection (consistent with text deselection).
-  // Skip while editing a field (rename, etc.) — Escape means "cancel edit"
-  // there — and only act when something is actually selected.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
@@ -53,12 +42,6 @@ export default function usePanelMarquee(options: UsePanelMarqueeOptions = {}) {
     return () => document.removeEventListener("keydown", onKeyDown)
   }, [])
 
-  // "Click off" clears the committed selection: a plain left-press that lands
-  // OUTSIDE the list (the editor, panel chrome, another panel, anywhere) drops
-  // it. Presses inside the list are handled elsewhere — empty space starts a new
-  // marquee, and a row's own open handler collapses the selection — so we ignore
-  // those here. Modifier-clicks (extend) and presses inside a popover/menu are
-  // left alone so they don't fight selection or context-menu actions.
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey) return

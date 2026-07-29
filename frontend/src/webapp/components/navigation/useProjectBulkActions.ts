@@ -10,12 +10,6 @@ type UseProjectBulkActionsOptions = {
   onOpenShareDialog: (projectId: string) => void
 }
 
-/**
- * Encapsulates the four bulk project operations (delete, archive, duplicate, share)
- * used in ProjectBrowserPanel. The Delete/Backspace key itself is handled by the
- * shared usePanelSelection hook (focus-scoped to the panel), which calls
- * deleteProjectsByIds with the current selection.
- */
 export default function useProjectBulkActions({
   setProjects,
   setMarqueeSelectedIds,

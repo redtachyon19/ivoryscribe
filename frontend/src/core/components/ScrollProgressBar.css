@@ -1,6 +1,3 @@
-/* Shared reading-progress bar: a thin accent line pinned to the bottom of a top
-   bar that fills left→right via scaleX as its source scrolls. Used by both the
-   web editor top bar and the marketing top bar. */
 .scroll-progress {
   position: absolute;
   left: 0;
@@ -12,7 +9,6 @@
   z-index: 1;
 }
 
-/* Editor top bar sits the line 1px lower to straddle the bar's bottom edge. */
 .scroll-progress--overlap {
   bottom: -1px;
 }

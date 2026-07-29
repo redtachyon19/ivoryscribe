@@ -1,21 +1,3 @@
-// LocalStorage shadow of the cloud preferences record.
-//
-// The app talks to /api/preferences for account-bound persistence — but that
-// path silently no-ops when the backend isn't reachable (dev mode without
-// the API, offline, network hiccup). Without a local mirror, every reload
-// loses palette / font / UI-toggle changes back to the defaults computed
-// inside useAppStyle and useAppOrchestration.
-//
-// This module is that local mirror. It's deliberately a thin
-// read-merge-write façade over a single JSON blob so adding a new pref
-// is one new key on the StoredPreferences type — no extra storage call
-// site or migration step.
-//
-// Cloud remains authoritative when it answers: useCloudPreferenceSync (or
-// useWorkspaceHydration in cloud mode) overwrites local state on hydrate,
-// and that overwrite naturally flows back into localStorage through the
-// same setX → effect → write pipeline as a manual edit.
-
 import {
   DEFAULT_BODY_FONT,
   DEFAULT_CUSTOM_ACCENT,
@@ -49,7 +31,6 @@ function safeWindow(): Storage | null {
   try {
     return window.localStorage
   } catch {
-    // Storage can throw in Safari private mode / file:// contexts.
     return null
   }
 }
@@ -76,8 +57,6 @@ export function writeStoredPreferences(patch: StoredPreferences): void {
     const next = { ...current, ...patch }
     storage.setItem(STORAGE_KEY, JSON.stringify(next))
   } catch {
-    // Quota errors / disabled storage — best-effort only. Cloud sync
-    // (when it eventually reconnects) is the durable path.
   }
 }
 
@@ -87,15 +66,8 @@ export function clearStoredPreferences(): void {
   try {
     storage.removeItem(STORAGE_KEY)
   } catch {
-    /* ignore */
   }
 }
-
-// ── Per-field accessors with defaults baked in ──
-//
-// Call sites read these in useState initializers; an unknown key returns
-// the canonical default, so a corrupted/cleared store degrades cleanly
-// to "first launch" state rather than `undefined` propagating.
 
 const stored = (): StoredPreferences => readStoredPreferences()
 
@@ -119,8 +91,6 @@ export function getStoredBoolean(key: keyof StoredPreferences, fallback: boolean
   return typeof value === "boolean" ? value : fallback
 }
 
-// Convenience: hydrate-with-defaults for the appStyle hook so its
-// useState initializers stay one-liners.
 export function getStoredAppStyleDefaults() {
   const s = stored()
   return {

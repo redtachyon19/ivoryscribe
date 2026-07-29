@@ -6,15 +6,6 @@ export function normalizeLineEndings(value: string) {
   return value.replace(/\r\n?/g, "\n")
 }
 
-// One Marked instance, configured once. Reusing it keeps per-render cost
-// low (no re-registration of the highlight + link-safety hooks on every
-// preview update — and there are a lot of preview updates).
-//
-//  • GFM on (tables, task lists, autolinks, strikethrough)
-//  • Soft line breaks → <br> (matches what most writers expect from a
-//    Markdown PREVIEW, even though it diverges from CommonMark)
-//  • Code blocks routed through highlight.js when a known language tag is
-//    present, escaped otherwise
 const markedRuntime = new Marked({
   gfm: true,
   breaks: true,
@@ -26,7 +17,6 @@ const markedRuntime = new Marked({
           const highlighted = hljs.highlight(text, { language, ignoreIllegals: true }).value
           return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`
         } catch {
-          /* fall through to plain rendering */
         }
       }
       const escaped = text
@@ -35,9 +25,6 @@ const markedRuntime = new Marked({
         .replace(/>/g, "&gt;")
       return `<pre><code class="hljs">${escaped}</code></pre>`
     },
-    // Strip `javascript:` / `data:` / etc. — preview is injected via
-    // dangerouslySetInnerHTML so a hostile .md file could otherwise wire
-    // up a click-to-XSS. We allow http(s), mailto, and same-origin paths.
     link({ href, title, text }: { href: string; title?: string | null; text: string }) {
       const trimmed = (href ?? "").trim()
       const safe =
@@ -51,18 +38,11 @@ const markedRuntime = new Marked({
   },
 })
 
-// LaTeX math: $inline$, $$display$$, \(inline\), \[display\] all route
-// through KaTeX. `throwOnError: false` keeps a bad expression from
-// blowing up the entire preview render — KaTeX falls back to showing
-// the source string with a red outline. `output: "html"` keeps the
-// generated DOM smaller than the default MathML+HTML pair (we don't
-// need the MathML duplication for an in-app preview, and skipping it
-// halves the node count for math-heavy docs).
 markedRuntime.use(
   markedKatex({
     throwOnError: false,
     output: "html",
-    nonStandard: true, // allow $...$ without strict CommonMark spacing rules
+    nonStandard: true,
   }),
 )
 
@@ -112,8 +92,5 @@ export function normalizeMarkdownContentForEditing(value: string) {
 }
 
 export function renderMarkdownToHtml(markdown: string) {
-  // marked.parse is sync when no async extensions are registered. We
-  // explicitly cast to string so the call-site (a useMemo) doesn't have
-  // to deal with a Promise.
   return markedRuntime.parse(normalizeLineEndings(markdown), { async: false }) as string
 }

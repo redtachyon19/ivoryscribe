@@ -1,5 +1,3 @@
-/* Desktop auto-update prompt — a floating card pinned to the bottom-centre of
-   the editor. Uses the app palette variables (inherited from `.app`). */
 .update-banner {
   position: fixed;
   left: 50%;

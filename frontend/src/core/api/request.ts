@@ -1,9 +1,3 @@
-// Shared HTTP transport for every endpoint module.
-//
-// Resolves the API base URL from VITE_API_URL / VITE_API_PORT, with a
-// localhost dev fallback when the configured base is unreachable. All
-// non-OK responses raise ApiError so callers can branch on status codes.
-
 import { ApiError } from "./types"
 
 const configuredApiBase = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "")
@@ -74,15 +68,16 @@ export async function request<T>(path: string, options: RequestInit = {}, token?
         if (isLikelyNetworkFailure(fallbackMessage)) {
           throw new Error(
             `[NETWORK] Unable to reach backend at ${API_BASE} or fallback ${DEV_FALLBACK_API_BASE}. Check that the API server is running.`,
+            { cause: fallbackError },
           )
         }
 
-        throw new Error(`[NETWORK] ${fallbackMessage}`)
+        throw new Error(`[NETWORK] ${fallbackMessage}`, { cause: fallbackError })
       }
     } else if (isLikelyNetworkFailure(originalMessage)) {
-      throw new Error(`[NETWORK] Unable to reach backend at ${API_BASE}. Check that the API server is running.`)
+      throw new Error(`[NETWORK] Unable to reach backend at ${API_BASE}. Check that the API server is running.`, { cause: error })
     } else {
-      throw new Error(`[NETWORK] ${originalMessage}`)
+      throw new Error(`[NETWORK] ${originalMessage}`, { cause: error })
     }
   }
 

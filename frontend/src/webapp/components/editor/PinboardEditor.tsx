@@ -27,7 +27,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
   const canvasRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  /* ── Board state ── */
   const board = useMemo<PinboardData>(() => parseBoardData(content), [content])
   const { nodes, lines, viewport } = board
   const contentRef = useRef(content)
@@ -41,10 +40,8 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     [onContentChange],
   )
 
-  /* ── Active tool + reset on document switch ── */
   const [activeTool, setActiveTool] = useState<PinboardTool>("select")
 
-  /* ── Gestures (pan / drag / resize / draw / marquee / line / delete) ── */
   const gestures = usePinboardGestures({
     board,
     commitBoard,
@@ -56,17 +53,12 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
   useEffect(() => {
     setActiveTool("select")
     gestures.resetSelectionState()
-    // gestures is intentionally not in the deps — its identity changes on
-    // every render and we only want to reset on document switch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId])
 
-  /* ── Toolbar drag (parent-relative because the toolbar lives inside the
-       canvas container) ── */
   const { toolbarRef, toolbarPos, isDragging: isDraggingToolbar, onGripMouseDown } =
     useToolbarDrag({ useParentRelativeCoords: true })
 
-  /* ── Wheel zoom (zoom around the cursor, not the canvas origin) ── */
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       e.preventDefault()
@@ -96,7 +88,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     [commitBoard],
   )
 
-  /* ── Drop handler: URL → LinkNode, image file → ImageNode, other → FileNode ── */
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
@@ -152,7 +143,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     [gestures, commitBoard],
   )
 
-  /* ── Add-image / add-link toolbar buttons ── */
   const handleAddImage = useCallback(() => {
     fileInputRef.current?.click()
   }, [])
@@ -196,7 +186,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     commitBoard((prev) => ({ ...prev, nodes: [...prev.nodes, newNode] }))
   }, [viewport, commitBoard])
 
-  /* ── Inline text-edit handlers (forwarded to PinboardNodeView) ── */
   const handleTextChange = useCallback(
     (nodeId: string, value: string) => {
       commitBoard((prev) => ({
@@ -211,7 +200,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     window.open(url, "_blank", "noopener,noreferrer")
   }, [])
 
-  /* ── Line click → delete that connector ── */
   const removeLine = useCallback(
     (lineId: string) => {
       commitBoard((prev) => ({ ...prev, lines: prev.lines.filter((l) => l.id !== lineId) }))
@@ -219,7 +207,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
     [commitBoard],
   )
 
-  /* ── Derived render values ── */
   const drawingPath = activeDrawingPath(gestures.isDrawing, gestures.drawingPoints)
   const zoomPercent = Math.round(viewport.zoom * 100)
   const canvasClasses = [
@@ -231,7 +218,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
 
   return (
     <div className="pinboard-editor">
-      {/* canvas */}
       <div
         ref={canvasRef}
         className={canvasClasses}
@@ -247,7 +233,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
             transformOrigin: "0 0",
           }}
         >
-          {/* SVG layer for connectors + active drawing path */}
           <svg className="pinboard-canvas__svg">
             {lines.map((line) => {
               const from = nodes.find((n) => n.id === line.fromId)
@@ -282,7 +267,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
             ) : null}
           </svg>
 
-          {/* Nodes */}
           {nodes.map((node) => (
             <PinboardNodeView
               key={node.id}
@@ -298,7 +282,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
             />
           ))}
 
-          {/* Marquee selection rectangle */}
           {gestures.marqueeRect ? (
             <div
               className="pinboard-marquee"
@@ -328,7 +311,6 @@ export default function PinboardEditor({ documentId, content, onContentChange }:
         onResetZoom={resetZoom}
       />
 
-      {/* Hidden file input for the add-image button */}
       <input
         ref={fileInputRef}
         type="file"

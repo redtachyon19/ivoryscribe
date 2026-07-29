@@ -1,8 +1,3 @@
-// Reference dialog summarizing the Markdown features the preview renders,
-// plus a LaTeX section for the math syntax the marked-katex pipeline
-// accepts. Opened from the Info button beside the editor's Settings
-// button (rendered for active markdown documents only).
-
 import Modal from "../ui/Modal"
 import "./MarkdownCheatsheetModal.css"
 

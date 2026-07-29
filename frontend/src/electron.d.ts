@@ -1,6 +1,5 @@
 export {}
 
-/** Payloads pushed from the main process's auto-updater (electron/updater.ts). */
 export type UpdaterEvent =
   | { status: "checking" }
   | { status: "available"; version: string }
@@ -37,39 +36,23 @@ declare global {
       removeSpellCheckerWord?: (word: string) => Promise<boolean>
       updateMenu: (items: unknown) => void
       onMenuCommand: (callback: (commandId: string) => void) => () => void
-      /** Subscribe to OS-driven file-open events (Finder double-click on a
-       *  .tusk/.tusks, second-instance launch with file args, or cold-start
-       *  argv on Win/Linux). Returns an unsubscribe function. Main buffers
-       *  paths until the renderer subscribes, then flushes. */
       onOpenPath?: (callback: (filePath: string) => void) => () => void
-      /** Signal main that the renderer's open-path listener is attached and
-       *  the workspace is resolved, so buffered cold-start paths can flush. */
       notifyOpenPathReady?: () => void
 
       fs: {
         selectDirectory: (opts?: { defaultPath?: string; title?: string }) => Promise<string | null>
-        getDefaultRoot: () => Promise<string>
+        getDefaultRoot: (options?: { create?: boolean }) => Promise<string | null>
         readFile: (filePath: string) => Promise<string>
-        /** Binary read for non-utf-8 files (PDFs, images). */
         readFileBinary: (filePath: string) => Promise<Uint8Array>
         writeFile: (filePath: string, contents: string) => Promise<void>
-        /** Binary write for non-utf-8 files (e.g. saving edited bookmarks back
-         *  into a PDF). */
         writeFileBinary: (filePath: string, data: Uint8Array) => Promise<void>
         listDirectory: (dirPath: string) => Promise<FsEntry[]>
         mkdir: (dirPath: string) => Promise<void>
         rename: (oldPath: string, newPath: string) => Promise<void>
         trash: (targetPath: string) => Promise<void>
-        /** Reveal a file or directory in the OS file manager (Finder on
-         *  macOS, File Explorer on Windows, Files on Linux). */
         showItemInFolder: (targetPath: string) => void
         exists: (targetPath: string) => Promise<boolean>
         stat: (targetPath: string) => Promise<FsStat>
-        /** macOS only. Tint the macOS system folder icon to the given
-         *  hex color and install it as the folder's custom icon
-         *  (`Icon\r` + FinderInfo bit). Pass empty / null to clear the
-         *  custom icon and revert to the system default. Resolves
-         *  `{ ok, error? }`. */
         setMacFolderIconColor: (targetPath: string, hex: string | null) => Promise<{ ok: boolean; error?: string }>
       }
 
@@ -82,32 +65,17 @@ declare global {
       }
 
       clipboard?: {
-        /** Read plain-text from the system clipboard via Electron's main
-         *  process. Reliable even when `navigator.clipboard.readText()`
-         *  is blocked by missing user-activation. */
         readText: () => Promise<string>
       }
 
       print?: {
-        /** Render a self-contained export HTML document to PDF via the main
-         *  process (hidden BrowserWindow + Chromium printToPDF). Returns the PDF
-         *  bytes (Uint8Array over structured-clone IPC) plus the 1-based start
-         *  page of each chapter/section, in order, so the renderer can attach a
-         *  per-chapter outline. `chapterStartPages` is empty if the pagination
-         *  runtime didn't report them. */
         toPdf: (html: string) => Promise<{ pdf: Uint8Array; chapterStartPages: number[] }>
       }
 
-      /** Desktop auto-updates (GitHub Releases). Present only in packaged
-       *  builds; the in-app UpdateBanner drives these. */
       updater?: {
-        /** Manually trigger an update check. */
         check: () => void
-        /** Start downloading an available update (call after "available"). */
         download: () => void
-        /** Quit and install a downloaded update, relaunching afterwards. */
         install: () => void
-        /** Subscribe to updater state changes. Returns an unsubscribe fn. */
         onEvent: (callback: (event: UpdaterEvent) => void) => () => void
       }
     }

@@ -1,7 +1,3 @@
-// Spell-check user-dictionary helpers — localStorage persistence + native
-// Electron spellchecker sync. The orchestrating state lives in Editor.tsx;
-// these are the pure helpers it uses.
-
 export const SPELL_CHECK_DICTIONARY_STORAGE_KEY = "ivoryscribe:spell-check-dictionary"
 
 export function normalizeSpellCheckWord(value: string) {

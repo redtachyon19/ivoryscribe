@@ -1,7 +1,3 @@
-// Per-tab markdown view-mode preference (editor / both / preview), persisted
-// to localStorage per device. Mirrors viewModePrefs.ts (drafting/typewriter)
-// but for the Markdown editor's split-pane mode.
-
 const VIEW_MODE_STORAGE_KEY = "ivoryscribe:tab-markdown-view-mode"
 
 export type MarkdownTabViewMode = "editor" | "both" | "preview"
@@ -27,6 +23,5 @@ export function saveMarkdownViewModeMap(map: Record<string, MarkdownTabViewMode>
   try {
     window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, JSON.stringify(map))
   } catch {
-    /* ignore */
   }
 }

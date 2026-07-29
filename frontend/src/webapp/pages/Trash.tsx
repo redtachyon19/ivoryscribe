@@ -27,7 +27,6 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
   const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
-  /* ── shred-confirmation state ── */
   const [pendingShredIds, setPendingShredIds] = useState<Set<string>>(new Set())
   const [pendingShredName, setPendingShredName] = useState("")
   const [confirmationText, setConfirmationText] = useState("")

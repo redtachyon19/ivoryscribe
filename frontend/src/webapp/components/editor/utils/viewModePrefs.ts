@@ -1,7 +1,3 @@
-// Per-tab editor view-mode preference (drafting vs typewriter), persisted to
-// localStorage per device so two collaborators on the same project can each
-// keep their own preferred view. Extracted from Editor.tsx.
-
 const VIEW_MODE_STORAGE_KEY = "ivoryscribe:tab-view-mode"
 
 export type TabViewMode = "drafting" | "typewriter"
@@ -27,6 +23,5 @@ export function saveViewModeMap(map: Record<string, TabViewMode>) {
   try {
     window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, JSON.stringify(map))
   } catch {
-    /* ignore */
   }
 }

@@ -1,7 +1,3 @@
-// Workspace settings panel: shows the current local-workspace root and lets
-// the user point Ivoryscribe at a different folder on disk. Only rendered in
-// the Electron app (the orchestrator gates by `localWorkspaceRoot` presence).
-
 import { useState } from "react"
 import { FolderOpen, HardDrive } from "lucide-react"
 import Button from "../ui/Button"
@@ -9,10 +5,18 @@ import Button from "../ui/Button"
 type Props = {
   rootPath: string | null
   onChangeLocalWorkspace?: () => Promise<string | null> | void
+  autoCreateDefaultRoot?: boolean
+  onAutoCreateDefaultRootChange?: (enabled: boolean) => void
   sectionRef: (element: HTMLElement | null) => void
 }
 
-export default function WorkspaceSettings({ rootPath, onChangeLocalWorkspace, sectionRef }: Props) {
+export default function WorkspaceSettings({
+  rootPath,
+  onChangeLocalWorkspace,
+  autoCreateDefaultRoot,
+  onAutoCreateDefaultRootChange,
+  sectionRef,
+}: Props) {
   const [isPicking, setIsPicking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -65,6 +69,35 @@ export default function WorkspaceSettings({ rootPath, onChangeLocalWorkspace, se
         </div>
         {error ? <p className="workspace-settings__error">{error}</p> : null}
       </div>
+
+      {onAutoCreateDefaultRootChange ? (
+        <>
+          <label
+            className="global-settings__field global-settings__field--toggle"
+            htmlFor="settings-auto-create-default-root-toggle"
+          >
+            <span>Create a default workspace folder</span>
+            <span className="global-settings__switch" aria-hidden="true">
+              <input
+                id="settings-auto-create-default-root-toggle"
+                type="checkbox"
+                checked={autoCreateDefaultRoot ?? true}
+                onChange={(event) => {
+                  onAutoCreateDefaultRootChange(event.target.checked)
+                }}
+              />
+              <span className="global-settings__switch-track" />
+            </span>
+          </label>
+          <p className="global-settings__field-description">
+            When on, Ivoryscribe creates <code>Scribe</code> in your Documents folder on
+            first launch so there&apos;s somewhere to write straight away. Turn it off to keep
+            Documents untouched and choose your own folder instead — an existing{" "}
+            <code>Scribe</code> folder is still used if you already have one. Turning this
+            off never deletes anything.
+          </p>
+        </>
+      ) : null}
     </section>
   )
 }

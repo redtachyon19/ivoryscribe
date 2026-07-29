@@ -1,8 +1,3 @@
-// Hand-written XML emit primitives. We control formatting so the on-disk files
-// are deterministic, diff-friendly, and round-trip cleanly through git.
-//
-// Parsing uses fast-xml-parser; serialization is hand-rolled here.
-
 export function escapeAttr(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -19,8 +14,6 @@ export function escapeText(value: string): string {
     .replaceAll(">", "&gt;")
 }
 
-// CDATA cannot contain "]]>". If it appears in the payload (rare but possible
-// inside HTML/markdown), we split the CDATA across the boundary.
 export function emitCData(value: string): string {
   if (value.length === 0) return "<![CDATA[]]>"
   const safe = value.replaceAll("]]>", "]]]]><![CDATA[>")

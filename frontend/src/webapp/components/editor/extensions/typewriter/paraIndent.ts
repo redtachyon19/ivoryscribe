@@ -1,16 +1,3 @@
-// Per-paragraph indent: three attributes ride on every paragraph/heading.
-//   • firstLineIndent — CSS `text-indent`, just the first line
-//   • indentLeft      — CSS `margin-left`, the whole block
-//   • indentRight     — CSS `margin-right`, the whole block
-//
-// Tab / Shift-Tab cycle each selected paragraph through alternating first-line
-// vs. block indents:
-//   0 → first-line → block → block + first-line → 2× block → …
-// so the first press behaves like a typographic paragraph indent and the next
-// press promotes it to a full block indent (and keeps stepping forward).
-// Shift-Tab walks the same ladder back down. Backspace at offset 0 also walks
-// back, so users can un-indent without selecting the paragraph.
-
 import { Extension } from "@tiptap/react"
 
 export const TAB_INDENT_PX = 48
@@ -51,19 +38,16 @@ export const ParaIndentExtension = Extension.create({
     ]
   },
   addKeyboardShortcuts() {
-    // Forward one rung on the ladder. (N*TAB, 0) → (N*TAB, TAB); (N*TAB, TAB) → ((N+1)*TAB, 0).
     const stepForward = (il: number, fli: number) =>
       fli === 0
         ? { indentLeft: il, firstLineIndent: TAB_INDENT_PX }
         : { indentLeft: il + TAB_INDENT_PX, firstLineIndent: 0 }
-    // Reverse: (N*TAB, TAB) → (N*TAB, 0); (N*TAB, 0) → ((N-1)*TAB, TAB).
     const stepBack = (il: number, fli: number) => {
       if (fli > 0) return { indentLeft: il, firstLineIndent: 0 }
       if (il > 0) return { indentLeft: Math.max(0, il - TAB_INDENT_PX), firstLineIndent: TAB_INDENT_PX }
       return null
     }
 
-    // Tab steps every selected paragraph forward.
     const handleTab = () => {
       const editor = this.editor
       if (!editor) return false
@@ -85,10 +69,6 @@ export const ParaIndentExtension = Extension.create({
       return true
     }
 
-    // Backspace at the very start of an indented paragraph walks one rung
-    // back instead of merging into the previous block. If the cursor is
-    // anywhere else — or the current paragraph has no indent — fall through
-    // to the editor's default Backspace handling.
     const handleBackspace = () => {
       const editor = this.editor
       if (!editor) return false

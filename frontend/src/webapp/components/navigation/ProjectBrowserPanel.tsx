@@ -28,7 +28,6 @@ type ProjectBrowserPanelProps = {
   projects: Project[]
   folders: ProjectFolder[]
   activeProjectId: string | null
-  /** Active library section — single source of truth, owned by Editor.tsx. */
   librarySection: LibrarySection
   setLibrarySection: React.Dispatch<React.SetStateAction<LibrarySection>>
   onNavigateLibrary: () => void
@@ -40,23 +39,11 @@ type ProjectBrowserPanelProps = {
   projectDocumentMap: Record<string, string>
   onCopyProjectPath?: (projectId: string) => void
   onShowProjectInFinder?: (projectId: string) => void
-  /** Local-only: upload-then-trash a local project. Powers both the
-   *  right-click "Move to Cloud" action and the drag-into-Cloud
-   *  section drop target. Undefined disables both in cloud-only mode. */
   onMoveProjectToCloud?: (projectId: string) => Promise<string | null>
-  /** Local-only: spawn a new BrowserWindow with this folder's directory as
-   *  the workspace root. Undefined in cloud-only mode. */
   onOpenFolderInNewWindow?: (folderId: string) => void
-  /** macOS-only: paint the folder's Finder color label. Undefined when not
-   *  on macOS / not in local mode. */
   onApplyFolderFinderColor?: (folderId: string, color: string | null | undefined) => void
   onCreateProject: (kind: import("../../../core/utils/projects").ProjectKind) => void
   onCreateFolder: () => void
-  /** When set, the tree is rooted at this folder instead of the workspace
-   *  top: only this folder's direct sub-folders and files render as roots.
-   *  Used by the editor's single-document sidebar to scope the browser to
-   *  the folder the open file lives in. Default (undefined/null) = whole
-   *  workspace, the library/Slide-1 behavior. */
   rootFolderId?: string | null
 }
 
@@ -86,8 +73,6 @@ export default function ProjectBrowserPanel({
   onCreateFolder,
   rootFolderId = null,
 }: ProjectBrowserPanelProps) {
-  // Cross-pane (external) drag's "drop inside this folder" highlight. Declared
-  // before the drag hooks so onEnterSection / clearAllDropTargets can clear it.
   const [externalFolderDropId, setExternalFolderDropId] = useState<string | null>(null)
   const drag = useListDrag({ flatOnly: true })
   const sectionDrop = useSectionDrop({
@@ -96,41 +81,21 @@ export default function ProjectBrowserPanel({
     setProjects,
     setFolders,
     onMoveProjectToCloud,
-    // Entering a section tab clears the tree highlights (mutual exclusion).
-    // References only stable setters — never `sectionDrop` itself (circular).
     onEnterSection: () => {
       drag.clearDropTarget()
       setExternalFolderDropId(null)
     },
   })
-  // Single composite clear: nulls every highlight this panel owns — the tree
-  // reorder/inside target (useListDrag), the external folder target, and the
-  // section-tab target. Called over dead space and on leaving the panel. Plain
-  // function (not useCallback): `drag`/`sectionDrop` are fresh each render, so
-  // memoizing on them would never actually memoize.
   const clearAllDropTargets = () => {
     drag.clearDropTarget()
     setExternalFolderDropId(null)
     sectionDrop.setSectionDropTarget(null)
   }
   const settings = useProjectSettings({ projects, setProjects })
-  // Every selectable id (projects + folders) — drives the hook's prune of
-  // vanished ids from the selection.
   const selectableIds = useMemo(
     () => [...projects.map((p) => p.id), ...folders.map((f) => f.id)],
     [projects, folders],
   )
-  // Rows are draggable <button>s. We don't bail on `button` (so the marquee
-  // can begin in the empty space between/below rows), but we MUST bail on
-  // draggable elements: the marquee's mousedown preventDefault (which stops
-  // text selection) also suppresses the browser's native drag, so pressing a
-  // row to drag a project would otherwise do nothing. Bailing on
-  // `[draggable='true']` lets a row-press start a native drag, while a drag
-  // from empty space still marquee-selects.
-  // Shared click / shift-click / double-click / arrow-key / Delete selection
-  // model (also used by DocumentTabsPanel). arrowActivates is false: a plain
-  // arrow moves an accent selection cursor without opening, since opening a
-  // project would navigate away from the library.
   const {
     marqueeContainerRef,
     marqueeSelectedIds,
@@ -153,7 +118,6 @@ export default function ProjectBrowserPanel({
     onDelete: (ids) => deleteProjectsByIds([...ids].filter((id) => !folderIdSet.has(id))),
   })
   const multiDragIdsRef = useRef<Set<string>>(new Set())
-  // Per-row element map (keyed by project id) for the sliding active-pill.
   const rowRefs = useRef<Record<string, HTMLDivElement>>({})
   const registerRowRef = (id: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -162,9 +126,6 @@ export default function ProjectBrowserPanel({
     }
     delete rowRefs.current[id]
   }
-  // Pill geometry is measured per-row (left/width as well as top/height) so it
-  // hugs nested rows, which are inset by `.project-browser__list--nested`
-  // (margin-left:10px per depth). A full-width pill would misalign for them.
   const [activeIndicatorStyle, setActiveIndicatorStyle] = useState<{
     top: number
     left: number
@@ -205,10 +166,6 @@ export default function ProjectBrowserPanel({
     }
   }
 
-  // "Root" here means the level the panel is anchored at — the workspace top
-  // (rootFolderId null) for the library, or a specific folder for the editor's
-  // single-document sidebar. Everything else (drag, marquee, context menus)
-  // is unchanged; only the starting level of the tree shifts.
   const topRootProjects = projects.filter((p) => (p.folderId ?? null) === rootFolderId && p.rootPosition === "top")
   const bottomRootProjects = projects.filter((p) => (p.folderId ?? null) === rootFolderId && p.rootPosition === "bottom")
 
@@ -220,8 +177,6 @@ export default function ProjectBrowserPanel({
     onOpenShareDialog: openShareDialog,
   })
 
-  // Build a flat ordering of visible item IDs for root list drag handlers.
-  // Recurses through nested folders so drag targets match what the user sees.
   const visibleItemIds = useMemo(() => {
     const ids: string[] = []
     const childrenByParent = new Map<string | null | undefined, ProjectFolder[]>()
@@ -233,8 +188,6 @@ export default function ProjectBrowserPanel({
     }
     const walk = (folder: ProjectFolder) => {
       ids.push(folder.id)
-      // Folders start collapsed — only walk into them when explicitly
-      // expanded. (Mirrors the isFolderExpanded predicate below.)
       if (expandedFolders[folder.id] !== true) return
       for (const child of childrenByParent.get(folder.id) ?? []) walk(child)
       for (const p of projects.filter((pr) => pr.folderId === folder.id)) ids.push(p.id)
@@ -260,8 +213,6 @@ export default function ProjectBrowserPanel({
     )
   }, [setProjects])
 
-  /** True iff `candidateAncestorId` appears anywhere up `descendantId`'s
-   *  parent chain. Used to refuse cycle-creating folder drops. */
   const isFolderDescendantOf = useCallback((descendantId: string, candidateAncestorId: string): boolean => {
     if (descendantId === candidateAncestorId) return true
     let cursor: string | null | undefined = descendantId
@@ -276,7 +227,6 @@ export default function ProjectBrowserPanel({
     return false
   }, [folders])
 
-  /** Nest a folder into a new parent (or null = top-level). Cycle-safe. */
   const moveFolderIntoFolder = useCallback((folderId: string, nextParentId: string | null) => {
     if (folderId === nextParentId) return
     if (nextParentId !== null && isFolderDescendantOf(nextParentId, folderId)) return
@@ -289,8 +239,6 @@ export default function ProjectBrowserPanel({
     })
   }, [isFolderDescendantOf, setFolders])
 
-  /** Reorder a folder relative to a sibling. Also adopts the target's parent
-   *  so dropping a folder among siblings moves it into their tier. */
   const moveFolderRelativeToSibling = useCallback(
     (folderId: string, targetFolderId: string, position: "before" | "after") => {
       setFolders((current) => {
@@ -388,9 +336,6 @@ export default function ProjectBrowserPanel({
     drag.handleDragEnd()
   }, [drag])
 
-  // Folders default to *collapsed* — only an explicit true means open.
-  // That way a freshly hydrated sidebar shows just the folder rows, and
-  // the user opts in to seeing each folder's contents.
   const isFolderExpanded = (folderId: string) => expandedFolders[folderId] === true
 
   const toggleFolder = (folderId: string) => {
@@ -471,21 +416,10 @@ export default function ProjectBrowserPanel({
     setContextMenu({ x: event.clientX, y: event.clientY, kind: "background" })
   }, [])
 
-  // Sliding-pill indicator behind the active PROJECT row. Same mechanism as the
-  // global settings sidebar (GlobalSettings.tsx) and DocumentTabsPanel: measure
-  // the active row's rect relative to the list shell and drive an absolutely-
-  // positioned pill via top/left/width/height. useLayoutEffect so the first
-  // measurement lands before paint (no flash at 0,0 when a project first
-  // becomes active). Measured against `.project-browser__list-shell`
-  // (marqueeContainerRef) — the pill's positioned ancestor — NOT the inner
-  // <ul>, which is not positioned. left/width are measured (not full-width) so
-  // the pill hugs nested rows inset by `.project-browser__list--nested`.
   useLayoutEffect(() => {
     const shell = marqueeContainerRef.current
     const activeRow = activeProjectId ? rowRefs.current[activeProjectId] : null
     if (!shell || !activeRow) {
-      // No active project, or its row isn't mounted (e.g. inside a collapsed
-      // ancestor folder): hide the pill rather than stranding it at a stale spot.
       setActiveIndicatorStyle((current) => (current.visible ? { ...current, visible: false } : current))
       return
     }
@@ -493,8 +427,6 @@ export default function ProjectBrowserPanel({
     const syncActiveIndicator = () => {
       const shellRect = shell.getBoundingClientRect()
       const rowRect = activeRow.getBoundingClientRect()
-      // getBoundingClientRect is viewport-relative, so subtracting the two rects
-      // already nets out any scroll offset of an ancestor.
       const top = rowRect.top - shellRect.top
       const left = rowRect.left - shellRect.left
       const width = rowRect.width
@@ -517,14 +449,10 @@ export default function ProjectBrowserPanel({
     syncActiveIndicator()
     window.addEventListener("resize", syncActiveIndicator)
 
-    // Re-measure when the list reflows (project/folder added/removed/reordered
-    // shifts the active row's offset) or the active row itself resizes.
     const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncActiveIndicator) : null
     resizeObserver?.observe(shell)
     resizeObserver?.observe(activeRow)
 
-    // Keep the pill glued to the row when the surrounding panel scrolls. Capture
-    // phase so we catch whichever ancestor actually scrolls.
     window.addEventListener("scroll", syncActiveIndicator, true)
 
     return () => {
@@ -532,12 +460,6 @@ export default function ProjectBrowserPanel({
       window.removeEventListener("scroll", syncActiveIndicator, true)
       resizeObserver?.disconnect()
     }
-    // Deps: activeProjectId (pill follows active change); expandedFolders
-    // (collapsing the active row's ancestor unmounts its ref → !activeRow branch
-    // hides the pill; expanding remounts → re-measures); projects/folders
-    // (reorder/add/remove/rename reflows offsets and re-attaches the observer to
-    // the fresh activeRow element after any remount). marqueeContainerRef is a
-    // stable ref (from usePanelMarquee) — listed only to satisfy exhaustive-deps.
   }, [activeProjectId, expandedFolders, projects, folders, marqueeContainerRef])
 
   const renderProject = (project: Project) => {
@@ -561,9 +483,6 @@ export default function ProjectBrowserPanel({
           className={`project-browser__row ${isActive ? "project-browser__row--active" : ""} ${isMarqueeSelected ? "project-browser__row--marquee-selected" : ""}`.trim()}
           onDragOver={(event) => {
             if (!drag.draggingId) return
-            // Mutual exclusion: a tree row is now the live target — drop any
-            // section-tab highlight crossed on the way here. (handleRowDragOver
-            // stops propagation, so the container clear won't fire here.)
             if (sectionDrop.sectionDropTarget) sectionDrop.setSectionDropTarget(null)
             drag.handleRowDragOver(event, project.id)
           }}
@@ -596,11 +515,9 @@ export default function ProjectBrowserPanel({
                 if ((event.metaKey || event.ctrlKey) && onOpenProjectInNewTab) {
                   onOpenProjectInNewTab(project.id)
                 } else if (event.shiftKey) {
-                  // Range-select — don't let the browser select label text too.
                   event.preventDefault()
                   selectRange(project.id)
                 } else if (project.id === activeProjectId) {
-                  // Clicking the project you're already in arms it (accent).
                   armSelection(project.id)
                 } else {
                   selectSingle(project.id)
@@ -662,17 +579,11 @@ export default function ProjectBrowserPanel({
           onDragOver={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            // Mutual exclusion: a folder row is now the live target — drop any
-            // section-tab highlight crossed on the way here.
             if (sectionDrop.sectionDropTarget) sectionDrop.setSectionDropTarget(null)
             if (drag.draggingId) {
               if (draggingIsFolder) {
                 if (drag.draggingId === folder.id) return
                 if (isCycleTarget) return
-                // Folder-over-folder reorder ease (mirrors the Library grid's
-                // wide between-zones): top 35% = before, bottom 35% = after,
-                // middle 30% = inside (nest). The sidebar is a vertical list, so
-                // the split is along Y.
                 const rect = event.currentTarget.getBoundingClientRect()
                 const ratio = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5
                 const mode: "before" | "after" | "inside" =
@@ -754,10 +665,6 @@ export default function ProjectBrowserPanel({
                   }
                 }}
                 onDragStart={(event) => {
-                  // Drive both the native dataTransfer (so external/cross-pane
-                  // drops still receive the id) and useListDrag's internal
-                  // tracking (so dragover/drop handlers know what's being
-                  // dragged before dataTransfer is readable).
                   drag.handleDragStart(event, folder.id, editingFolderId)
                 }}
                 onDragEnd={drag.handleDragEnd}
@@ -816,19 +723,10 @@ export default function ProjectBrowserPanel({
     <div
       className="project-browser"
       onContextMenu={handleBackgroundContextMenu}
-      // Single-live-target invariant: every real drop target (section tabs,
-      // root list, rows, folders) calls stopPropagation, so this container-level
-      // dragover only fires over DEAD SPACE (header, dividers, list-shell /
-      // nested-list padding) — clear all highlights there so nothing stays
-      // accented where it won't drop.
       onDragOver={() => {
         if (!drag.draggingId && !externalFolderDropId && !sectionDrop.sectionDropTarget) return
         clearAllDropTargets()
       }}
-      // Leaving the panel entirely (e.g. onto the editor/main view) must also
-      // drop this panel's highlights, so only the target now under the cursor is
-      // accented. relatedTarget === null (left the window) → contains(null) is
-      // false → falls through and clears, which is correct.
       onDragLeave={(event) => {
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
         clearAllDropTargets()
@@ -941,18 +839,11 @@ export default function ProjectBrowserPanel({
         <ul
           className="project-browser__list"
           onDragOver={(event) => {
-            // Mutual exclusion: entering the root list's reorder zone is a live
-            // target — drop the section-tab and external-folder highlights.
-            // (Guarded no-op when bubbling through over a child row.)
             if (sectionDrop.sectionDropTarget) sectionDrop.setSectionDropTarget(null)
             if (externalFolderDropId) setExternalFolderDropId(null)
             rootListHandlers.onDragOver(event)
           }}
           onDrop={(event) => {
-            // If a folder was being dragged and it lands on the root list
-            // background (i.e. not on another folder/project row), un-nest
-            // it to the top-level. Folder-over-folder drops are handled by
-            // the folder row's own onDrop, which stops propagation.
             if (drag.draggingId && folderIdSet.has(drag.draggingId)) {
               event.preventDefault()
               moveFolderIntoFolder(drag.draggingId, null)
@@ -1062,8 +953,6 @@ export default function ProjectBrowserPanel({
           actions={(() => {
             if (contextMenu.kind === "background") {
               return [
-                // Inline the 4-kind picker so a single right-click reaches
-                // any project type without an intermediate submenu.
                 ...buildCreateProjectActions(onCreateProject),
                 {
                   label: "Create Folder",
@@ -1122,10 +1011,6 @@ export default function ProjectBrowserPanel({
             const isLocalProject = !!target && target.source !== "cloud"
             return buildProjectActions({
               projectId: contextMenu.projectId,
-              // Unsupported-file entries skip Open / Rename / Duplicate /
-              // Share / Settings — same gating the Library context menu
-              // applies. The Trash/Archive/Show-in-Finder actions still
-              // come through because they don't need to read the file.
               isUnknownKind: target?.kind === "Unknown",
               onOpenInNewTab: onOpenProject,
               onRename: (id) => {
@@ -1148,10 +1033,6 @@ export default function ProjectBrowserPanel({
               onShare: (id) => openShareDialog(id),
               onCopyPath: isLocalProject && onCopyProjectPath ? onCopyProjectPath : undefined,
               onShowInFinder: isLocalProject && onShowProjectInFinder ? onShowProjectInFinder : undefined,
-              // Local-only: upload the on-disk file to cloud and trash
-              // the local copy. Hidden for cloud projects (already
-              // there) and when the orchestration didn't provide a
-              // handler (web / cloud-only mode).
               onMoveToCloud: isLocalProject && onMoveProjectToCloud
                 ? (id) => { void onMoveProjectToCloud(id) }
                 : undefined,

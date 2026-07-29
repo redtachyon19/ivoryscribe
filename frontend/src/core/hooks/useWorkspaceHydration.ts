@@ -28,17 +28,12 @@ import {
 import type { ProjectFolder } from "../../webapp/pages/Library"
 
 export type WorkspaceMutators = {
-  // Auth
   setIsAuthBootstrapping: Dispatch<SetStateAction<boolean>>
   setAuthLoadError: Dispatch<SetStateAction<string>>
-  /** Called when the cloud rejects the stored token (401). Orchestrator
-   *  clears the session and persisted storage. */
   onAuthFailure: (message: string) => void
 
-  // Hydration progress
   setIsWorkspaceHydrated: Dispatch<SetStateAction<boolean>>
 
-  // Workspace data
   setProjects: Dispatch<SetStateAction<Project[]>>
   setProjectDocumentMap: Dispatch<SetStateAction<Record<string, string>>>
   setFolders: Dispatch<SetStateAction<ProjectFolder[]>>
@@ -48,7 +43,6 @@ export type WorkspaceMutators = {
   setPendingShareRequests: Dispatch<SetStateAction<PendingShareRequest[]>>
   setTuskAiBilling: Dispatch<SetStateAction<BillingStatusResponse>>
 
-  // Preferences
   setIsMenuBarEnabled: Dispatch<SetStateAction<boolean>>
   setIsFlagsEnabled: Dispatch<SetStateAction<boolean>>
   setIsTranslucentNavPanel: Dispatch<SetStateAction<boolean>>
@@ -64,10 +58,10 @@ export type WorkspaceMutators = {
 
 type UseWorkspaceHydrationParams = {
   session: UserSession | null
+  actionSession?: UserSession | null
   mutators: WorkspaceMutators
   isWorkspaceHydrated: boolean
   projectDocumentMap: Record<string, string>
-  // Sync state reads (current values driving the debounced sync effect)
   projects: Project[]
   activeProjectId: string | null
   palette: Palette
@@ -89,6 +83,7 @@ type UseWorkspaceHydrationParams = {
 export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
   const {
     session,
+    actionSession,
     mutators,
     isWorkspaceHydrated,
     projectDocumentMap,
@@ -140,16 +135,11 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
   const isSyncingRef = useRef(false)
   const lastPushedContentRef = useRef<Map<string, string>>(new Map())
   const sharedDocumentIdsRef = useRef<Set<string>>(new Set())
-  // Tombstones: project IDs that are being permanently deleted.
-  // Prevents the polling loop from resurrecting them.
   const shredProjectIdsRef = useRef<Set<string>>(new Set())
-  // Maps project ID → shareId for projects shared WITH this user (recipient side).
-  // Used to call leaveShare when the user shreds a shared project.
   const shareIdByProjectIdRef = useRef<Map<string, string>>(new Map())
-  // Maps project ID → owner email for projects shared WITH this user (recipient side).
   const ownerEmailByProjectIdRef = useRef<Map<string, string>>(new Map())
 
-  const hydrateWorkspace = async (token: string) => {
+  const hydrateWorkspace = async (token: string, isStale?: () => boolean) => {
     const [documentsResult, preferencesResult, billingResult, sharedResult, pendingResult] = await Promise.allSettled([
       getDocuments(token),
       getPreferences(token),
@@ -157,6 +147,8 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
       getSharedWithMe(token),
       getPendingShareRequests(token),
     ])
+
+    if (isStale?.()) return
 
     if (documentsResult.status === "rejected") {
       throw documentsResult.reason
@@ -183,10 +175,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     const nextDocumentMap: Record<string, string> = {}
 
     for (const documentRecord of documents) {
-      // Version records used to be separate Documents — they're now
-      // embedded inside the project's own content. Skip any non-project
-      // record we encounter (legacy version Documents on the server are
-      // ignored; see the migration note at the top of this commit).
       if (documentRecord.metadata?.recordType !== PROJECT_RECORD_TYPE) continue
 
       const project = parseProjectFromDocument(documentRecord)
@@ -194,14 +182,10 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
         continue
       }
 
-      // Tag projects loaded from the cloud API as `source: "cloud"`
-      // so the UI and save paths know there is no local file behind
-      // this project — no path resolution, no local autosave.
       nextProjects.push({ ...project, source: "cloud" })
       nextDocumentMap[project.id] = documentRecord.id
     }
 
-    // Merge shared documents (projects shared with this user by others)
     const nextSharedDocumentIds = new Set<string>()
     if (sharedResult.status === "fulfilled") {
       const sharedEntries = sharedResult.value
@@ -213,7 +197,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
         const sharedProject = parseProjectFromDocument(entry.document)
         if (!sharedProject) continue
 
-        // Skip if the user already owns a project with the same ID
         if (ownedProjectIds.has(sharedProject.id)) continue
 
         nextProjects.push({ ...sharedProject, source: "cloud" })
@@ -240,10 +223,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
     setProjects(projectList)
     setProjectDocumentMap(nextDocumentMap)
-    // Versions are part of the Project shape now (embedded inside .tusk /
-    // .tusks files, and inside the cloud Document's content blob), so
-    // there's no separate version map to seed here — `setProjects` above
-    // carries them.
     setFolders(Array.isArray(uiSettings?.folders) ? uiSettings.folders : [])
 
     const requestedActiveProjectId = uiSettings?.activeProjectId
@@ -253,7 +232,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
         : (projectList[0]?.id ?? null)
     setActiveProjectId(resolvedActiveProjectId)
 
-    // Always land in library on login/refresh, regardless of previously saved view.
     setView("projects")
 
     applyPreferences(preferences, {
@@ -265,8 +243,9 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     setBookCounter(typeof uiSettings?.bookCounter === "number" ? uiSettings.bookCounter : extractCounterFromNames(projectList, "Book"))
   }
 
-  // Bootstrap effect
   useEffect(() => {
+    let cancelled = false
+
     const bootstrapSession = async () => {
       if (!session) {
         setIsAuthBootstrapping(false)
@@ -276,10 +255,12 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
       }
 
       try {
-        await hydrateWorkspace(session.token)
+        await hydrateWorkspace(session.token, () => cancelled)
+        if (cancelled) return
         setIsWorkspaceHydrated(true)
         setAuthLoadError("")
       } catch (error) {
+        if (cancelled) return
         const message = error instanceof Error ? error.message : "Workspace load failed"
 
         if (message.includes("[401]") || message.toLowerCase().includes("unauthorized")) {
@@ -296,14 +277,14 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           setAuthLoadError("")
         }
       } finally {
-        setIsAuthBootstrapping(false)
+        if (!cancelled) setIsAuthBootstrapping(false)
       }
     }
 
     void bootstrapSession()
+    return () => { cancelled = true }
   }, [session])
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
@@ -312,7 +293,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     }
   }, [])
 
-  // Poll for remote document updates from collaborators (both directions)
   useEffect(() => {
     if (!session || !isWorkspaceHydrated) {
       return
@@ -321,17 +301,14 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     const pollRemoteUpdates = async () => {
       if (isSyncingRef.current) return
       try {
-        // Fetch both owned documents and shared-with-me in parallel
         const [ownedDocs, sharedEntries] = await Promise.all([
           getDocuments(session.token),
           getSharedWithMe(session.token),
         ])
 
-        // Build a map of remote project states from BOTH sources
         const remoteProjectUpdates = new Map<string, { project: Project; documentId: string }>()
         const nextSharedDocumentIds = new Set<string>()
 
-        // Parse owned documents for changes made by collaborators
         for (const doc of ownedDocs) {
           if (doc.metadata?.recordType !== PROJECT_RECORD_TYPE) continue
           const project = parseProjectFromDocument(doc)
@@ -342,13 +319,11 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           })
         }
 
-        // Parse shared documents (recipient side)
         for (const entry of sharedEntries) {
           if (!entry.document || !entry.document.content) continue
           const sharedProject = parseProjectFromDocument(entry.document)
           if (!sharedProject) continue
           nextSharedDocumentIds.add(entry.document.id)
-          // Shared entries take precedence (they're the canonical source for shared projects)
           remoteProjectUpdates.set(sharedProject.id, {
             project: { ...sharedProject, source: "cloud" },
             documentId: entry.document.id,
@@ -365,17 +340,14 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
               const remote = remoteProjectUpdates.get(p.id)
               if (!remote) return p
 
-              // Check if user has local unsaved edits for this project.
               const localContent = JSON.stringify({ ...p, activeId: null })
               const lastPushed = lastPushedContentRef.current.get(p.id)
               const hasLocalEdits = lastPushed != null && localContent !== lastPushed
 
               if (hasLocalEdits) {
-                // User has unsaved edits — don't overwrite with remote data
                 return p
               }
 
-              // Apply remote content but preserve local activeId (per-user nav state)
               const merged = { ...remote.project, activeId: p.activeId }
               if (JSON.stringify(p) !== JSON.stringify(merged)) {
                 changed = true
@@ -400,7 +372,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           setProjectDocumentMap((current) => {
             const additions: Record<string, string> = {}
             for (const [projectId, { documentId }] of remoteProjectUpdates) {
-              // Never re-add a shredded project to the document map
               if (shredProjectIdsRef.current.has(projectId)) continue
               if (current[projectId] !== documentId) {
                 additions[projectId] = documentId
@@ -410,7 +381,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           })
         }
       } catch {
-        // Polling failure is non-critical
       }
     }
 
@@ -418,7 +388,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
     return () => window.clearInterval(intervalId)
   }, [session, isWorkspaceHydrated])
 
-  // Debounced sync effect
   useEffect(() => {
     if (!session || !isWorkspaceHydrated) {
       return
@@ -437,7 +406,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
       const syncWorkspace = async () => {
         try {
-          // ── Step 1: Push local changes to backend ────────────────
           const remoteDocuments = await getDocuments(session.token)
           const remoteProjectDocuments = remoteDocuments.filter(
             (documentRecord) => documentRecord.metadata?.recordType === PROJECT_RECORD_TYPE,
@@ -458,7 +426,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
           const nextDocumentMap: Record<string, string> = {}
 
           for (const project of projects) {
-            // Never push a project that has been permanently shredded
             if (shredProjectIdsRef.current.has(project.id)) continue
 
             const contentJson = JSON.stringify(project)
@@ -479,7 +446,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
             const isSharedDocument = existingDocumentId ? sharedDocumentIdsRef.current.has(existingDocumentId) : false
 
             if (existingDocumentId) {
-              // Skip push if content hasn't changed since last push (avoids echo cycles)
               const lastPushed = lastPushedContentRef.current.get(project.id)
               if (lastPushed != null && contentForComparison === lastPushed) {
                 nextDocumentMap[project.id] = existingDocumentId
@@ -490,7 +456,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
                 await updateDocument(session.token, existingDocumentId, payload)
                 lastPushedContentRef.current.set(project.id, contentForComparison)
               } catch {
-                // Shared doc with view-only permission will 403 — keep the map entry
               }
               nextDocumentMap[project.id] = existingDocumentId
               continue
@@ -519,11 +484,9 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
             }
 
             await deleteDocument(session.token, documentRecord.id)
-            // Confirmed remote deletion — safe to clear the tombstone
             shredProjectIdsRef.current.delete(projectId)
           }
 
-          // Clear tombstones for shredded projects that had no remote doc at all
           for (const shredId of shredProjectIdsRef.current) {
             if (!remoteByProjectId.has(shredId)) {
               shredProjectIdsRef.current.delete(shredId)
@@ -532,9 +495,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
 
           setProjectDocumentMap(nextDocumentMap)
 
-          // ── Step 2: Pull shared document updates AFTER saving ────
-          // Fetching after push ensures we get back what we just saved
-          // (or newer changes from the owner), avoiding overwrite races.
           const sharedEntries = await getSharedWithMe(session.token)
 
           const nextSharedDocumentIds = new Set<string>()
@@ -560,7 +520,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
               const updated = current.map((p) => {
                 const remote = sharedProjectUpdates.get(p.id)
                 if (!remote) return p
-                // Preserve local activeId — it's per-user navigation state
                 const merged = { ...remote.project, activeId: p.activeId }
                 if (JSON.stringify(p) !== JSON.stringify(merged)) {
                   changed = true
@@ -593,8 +552,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
             })
           }
 
-          // ── Step 3: Save preferences ────────────────────────────
-
           await updatePreferences(session.token, {
             theme: {
               palette,
@@ -619,7 +576,6 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
             },
           })
         } catch {
-          // Keep the app responsive even if sync fails temporarily.
         } finally {
           isSyncingRef.current = false
         }
@@ -650,12 +606,11 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
   ])
 
   const permanentlyDeleteProjects = async (ids: Set<string>) => {
-    if (!session) return
+    const auth = actionSession ?? session
+    if (!auth) return
 
-    // 1. Tombstone immediately — prevents polling from resurrecting these projects
     for (const id of ids) shredProjectIdsRef.current.add(id)
 
-    // 2. Remove from local state immediately
     setProjects((cur) => cur.filter((p) => !ids.has(p.id)))
     setProjectDocumentMap((cur) => {
       const next = { ...cur }
@@ -663,26 +618,25 @@ export function useWorkspaceHydration(params: UseWorkspaceHydrationParams) {
       return next
     })
 
-    // 3. Directly delete/leave each project on the backend.
-    //    Do NOT rely on the debounced sync — it can be skipped if isSyncingRef is true.
     for (const projectId of ids) {
       const shareId = shareIdByProjectIdRef.current.get(projectId)
       if (shareId) {
-        // Shared project (recipient side): leave the share so it disappears for this user
         try {
-          await leaveShare(session.token, shareId)
-        } catch { /* best-effort */ }
+          await leaveShare(auth.token, shareId)
+        } catch (err) {
+          console.error("[shred] leaveShare failed for", projectId, err)
+        }
         shareIdByProjectIdRef.current.delete(projectId)
       } else {
-        // Owned project: permanently delete the document
         const documentId = projectDocumentMap[projectId]
         if (documentId) {
           try {
-            await deleteDocument(session.token, documentId)
-          } catch { /* best-effort */ }
+            await deleteDocument(auth.token, documentId)
+          } catch (err) {
+            console.error("[shred] deleteDocument failed for", projectId, err)
+          }
         }
       }
-      // Clear tombstone — remote is gone
       shredProjectIdsRef.current.delete(projectId)
     }
   }

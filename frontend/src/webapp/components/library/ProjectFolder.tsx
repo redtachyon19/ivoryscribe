@@ -90,34 +90,19 @@ export default function ProjectFolderGrid({
 type FolderDetailViewProps = {
   folder: ProjectFolderType
   folderProjects: Project[]
-  /** Sub-folders that live directly inside this folder. Rendered as cards
-   *  above the project grid so the user can drill into them. */
   subFolders?: ProjectFolderType[]
-  /** Marquee/multi-selected ids — used to highlight selected sub-folder
-   *  cards, matching the top-level folder grid. */
   selectedIds?: Set<string>
-  /** Back-button label. Defaults to "Library" but can be a parent folder
-   *  name when navigating up out of a nested folder. */
   backLabel?: string
   onBack: () => void
-  /** Open the create-kind picker. The view doesn't own the menu — it just
-   *  reports the click position and lets the parent (Library) render the
-   *  shared `buildCreateProjectActions` picker. */
   onOpenCreateMenu: (anchor: { x: number; y: number; folderId: string }) => void
   onOpenSubFolder?: (folderId: string) => void
   renderProjectCard: (project: Project) => ReactNode
-  /** Folder drag handlers (forwarded from useProjectDrag). When present,
-   *  subfolders become draggable + droppable, and the back button becomes a
-   *  drop target that un-nests the dragged folder one level up. */
   onFolderDragStart?: (folderId: string, event: DragEvent<HTMLElement>) => void
   onFolderDragEnd?: () => void
   onFolderDragOver?: (folder: ProjectFolderType) => (event: DragEvent<HTMLElement>) => void
   onFolderDrop?: (folder: ProjectFolderType) => (event: DragEvent<HTMLElement>) => void
   getFolderDropClassName?: (folderId: string) => string
   getFolderReorderClassName?: (folderId: string) => string
-  /** Called when the user drops a folder on the back button. Moves the
-   *  dragged folder so its new parent is this folder's parent (un-nest one
-   *  level). */
   onUnnestFolderDrop?: (event: DragEvent<HTMLElement>) => void
   onUnnestFolderDragOver?: (event: DragEvent<HTMLElement>) => void
   onUnnestFolderDragLeave?: (event: DragEvent<HTMLElement>) => void

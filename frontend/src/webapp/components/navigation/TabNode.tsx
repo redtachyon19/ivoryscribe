@@ -6,8 +6,6 @@ import { getDropMode, type DropMode, type DropTarget } from "../shared/hooks/use
 
 export type TabNodeProps = {
   tab: DocumentTab
-  /** The project this tab belongs to — used to resolve the per-tab
-   *  file-type icon (markdown, plaintext, PDF, pinboard, chapter). */
   project: Project
   depth: number
   activeId: string | null
@@ -182,8 +180,6 @@ export default function TabNode({
                   event.preventDefault()
                   onOpenInNewTab(tab.id)
                 } else {
-                  // Shift+click range-selects — stop the browser from also
-                  // selecting the label text across the rows it spans.
                   if (event.shiftKey) event.preventDefault()
                   onSelect(tab.id, { shiftKey: event.shiftKey })
                 }

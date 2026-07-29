@@ -1,17 +1,9 @@
-/* Find & Replace decoration highlights (see searchHighlight.ts).
-   Loaded by both prose editors (Draft + Typewriter). The spans are injected by
-   ProseMirror as inline decorations, so they live inside `.ProseMirror`. */
-
 .ProseMirror .search-hit {
-  /* All matches: translucent grey — exactly the PDF find highlight
-     (::highlight(pdf-find) in PDFViewer.css). */
   background-color: rgba(140, 140, 140, 0.32);
   border-radius: 2px;
 }
 
 .ProseMirror .search-hit--active {
-  /* Active match: the app accent — exactly the PDF active find highlight
-     (::highlight(pdf-find-active) in PDFViewer.css). */
   background-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
   border-radius: 2px;
 }

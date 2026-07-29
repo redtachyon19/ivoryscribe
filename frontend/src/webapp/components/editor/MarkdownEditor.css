@@ -1,52 +1,26 @@
 .markdown-editor {
   --markdown-brand-end-offset: 150px;
-  /* Minimum breathing room between the editor content and a side rail.
-     Each gutter falls back to this floor once the adjacent rail is wider
-     than the brand offset — see the padding rule below. */
   --markdown-gutter-floor: 24px;
   position: relative;
   width: 100%;
   max-width: none;
   box-sizing: border-box;
   margin: 0;
-  /* No top margin: we want the divider rule to touch the top bar. The
-     breathing room above the first line of text now lives entirely in the
-     pane's top padding (see .markdown-editor__textarea / __preview). */
   margin-top: 0;
-  /* Stretch to fill the editor-center column so the divider reaches the
-     bottom of the viewport, even when the document is short. The panes
-     are flex children with the default `align-items: stretch`, so they
-     and the divider all inherit this height. */
   min-height: 100%;
-  /* Dynamic gutters: when both rails are collapsed --rail-left-w and
-     --rail-right-w (set on .editor-workspace__body by AppShell) are 0, so
-     each side reads the full 150px brand offset — the layout the user calls
-     out as "perfect". As a rail opens the editor center already loses that
-     rail's width on the outside, so we shrink the gutter on the same side
-     by the same amount (clamped at the floor). The opposite side stays put,
-     so a single open panel only collapses its own gutter. */
   padding: 0
     max(var(--markdown-gutter-floor), calc(var(--markdown-brand-end-offset) - var(--rail-right-w, 0px)))
     0
     max(var(--markdown-gutter-floor), calc(var(--markdown-brand-end-offset) - var(--rail-left-w, 0px)));
-  /* Smooth the gutter shift so the editor breathes in/out instead of
-     snapping when a panel toggles. */
   transition: padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   display: flex;
   align-items: stretch;
   gap: 0;
 }
 
-/* Only when BOTH side rails are collapsed AND only one markdown pane is
-   visible (editor-only or preview-only): widen the left/right gutters by
-   ~1in. We do this by bumping --markdown-brand-end-offset — the existing
-   padding formula already reads that variable, so the same `max(floor, …)`
-   clamp and 220ms transition apply. The split (both-pane) layout is
-   unaffected because .markdown-editor--single-pane is only set when
-   paneViewMode is "editor" or "preview". */
 .editor-workspace__body--collapsed-left.editor-workspace__body--collapsed-right
   .markdown-editor--single-pane {
-  --markdown-brand-end-offset: 246px; /* 150px baseline + ~1in (96px) */
+  --markdown-brand-end-offset: 246px;
 }
 
 .markdown-editor__pane {
@@ -110,10 +84,6 @@
   overflow: hidden;
   background: transparent;
   color: var(--editor-text, #f5f5f5);
-  /* Top padding leaves just enough room for the absolutely-positioned
-     pane label (top:6px + ~20px tall). Was 34/18 — reduced so the text
-     hugs the top edge of the pane and the divider line no longer feels
-     bracketed by dead space. */
   padding: 28px 10px 10px;
   font-family: "IBM Plex Mono", "Menlo", "Consolas", "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji", monospace;
   font-size: var(--markdown-source-font-size, 18px);
@@ -194,7 +164,6 @@
   min-height: min(72vh, 920px);
   overflow: visible;
   box-sizing: border-box;
-  /* Matches .markdown-editor__textarea — see the comment there for why. */
   padding: 28px 10px 10px;
   color: var(--editor-text, #f5f5f5);
   font-family: var(--app-body-font);
@@ -237,7 +206,6 @@
   padding-left: 1.3em;
 }
 
-/* GFM task lists: render the checkbox cleanly and drop the bullet. */
 .markdown-editor__preview li > input[type="checkbox"] {
   margin-right: 0.5em;
   transform: translateY(-1px);
@@ -255,9 +223,6 @@
   color: color-mix(in srgb, var(--editor-text, #f5f5f5) 82%, transparent);
 }
 
-/* Code blocks: clear contrast against the editor background. The dark
-   bias (#0d1117 floor) lets the highlight.js github-dark theme tokens
-   stay legible regardless of the surrounding palette. */
 .markdown-editor__preview pre {
   border-radius: 8px;
   padding: 12px 14px;
@@ -275,7 +240,6 @@
   font-size: 1em;
 }
 
-/* Inline code: a soft pill so it stands out from prose. */
 .markdown-editor__preview code {
   font-family: "IBM Plex Mono", "Menlo", "Consolas", "Noto Emoji", "Apple Color Emoji", "Segoe UI Emoji", monospace;
   font-size: 0.86em;
@@ -289,8 +253,6 @@
   color: color-mix(in srgb, var(--app-accent, #9ab8ff) 76%, white 10%);
 }
 
-/* Visible horizontal rule — the previous 1px border was nearly invisible
-   against the editor background. */
 .markdown-editor__preview hr {
   border: 0;
   height: 2px;
@@ -299,7 +261,6 @@
   border-radius: 2px;
 }
 
-/* GFM tables. */
 .markdown-editor__preview table {
   border-collapse: collapse;
   width: 100%;
@@ -315,17 +276,12 @@
   font-weight: 600;
 }
 
-/* Images shouldn't blow out the pane when a writer pastes a giant URL. */
 .markdown-editor__preview img {
   max-width: 100%;
   height: auto;
   border-radius: 6px;
 }
 
-/* KaTeX math. Display blocks ($$…$$ / \[…\]) get vertical breathing room
-   and overflow-x: auto so long equations scroll inside the pane instead
-   of pushing the layout. Inline math inherits the surrounding font color
-   so it doesn't look pasted-in. */
 .markdown-editor__preview .katex-display {
   margin: 0.9em 0;
   overflow-x: auto;
@@ -336,8 +292,6 @@
   color: inherit;
   font-size: 1.05em;
 }
-/* When KaTeX has `throwOnError: false`, a bad expression renders inside
-   .katex-error — make it visibly stand out so the writer notices. */
 .markdown-editor__preview .katex-error {
   color: #e55353;
   font-family: "IBM Plex Mono", "Menlo", "Consolas", monospace;
@@ -347,11 +301,7 @@
 @media (max-width: 980px) {
   .markdown-editor {
     flex-direction: column;
-    /* In the stacked layout there's no vertical divider to align, so a
-       small top margin is fine. */
     margin-top: 16px;
-    /* Override the desktop full-bleed rule — when stacked, the panes use
-       their own min-heights again. */
     min-height: 0;
     gap: 16px;
     padding: 0 8px;

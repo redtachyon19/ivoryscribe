@@ -20,11 +20,6 @@ import {
 import { getStoredAppStyleDefaults, writeStoredPreferences } from "../state/preferencesStorage"
 
 export function useAppStyle() {
-  // Seed every preference from localStorage on mount so a reload preserves
-  // the user's last selection even when the API isn't reachable. Cloud
-  // sync (useCloudPreferenceSync / useWorkspaceHydration) still wins when
-  // it answers — it calls setX, which flows through the persistence
-  // effects below and refreshes the local shadow.
   const stored = getStoredAppStyleDefaults()
   const [displayFont, setDisplayFont] = useState<string>(stored.displayFont)
   const [bodyFont, setBodyFont] = useState<string>(stored.bodyFont)
@@ -34,16 +29,8 @@ export function useAppStyle() {
   const [palette, setPalette] = useState<Palette>(() => stored.palette ?? getInitialPalette())
   const [customPaletteBackground, setCustomPaletteBackground] = useState(stored.customPaletteBackground)
   const [customPaletteAccent, setCustomPaletteAccent] = useState(stored.customPaletteAccent)
-  /** When true, the PDF viewer renders pages with the app's palette
-   *  background and text colour instead of the document's own. Default
-   *  off (PDFs render with their original colours). */
   const [matchPdfToPalette, setMatchPdfToPalette] = useState<boolean>(stored.matchPdfToPalette)
 
-  // Persist every preference change to localStorage. The single batched
-  // effect (rather than 9 single-key effects) is intentional: one merged
-  // write per change, no risk of an unrelated re-render touching every
-  // key. The write itself is read-merge-write so concurrent state changes
-  // within the same batch land atomically.
   useEffect(() => {
     writeStoredPreferences({
       palette,

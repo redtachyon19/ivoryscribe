@@ -3,35 +3,16 @@ import { useCallback, useEffect, useRef, useState } from "react"
 type Rect = { x: number; y: number; width: number; height: number }
 
 type MarqueeState = {
-  /** Whether a marquee drag is currently in progress */
   isActive: boolean
-  /** The visible rectangle in viewport coordinates (for rendering the overlay) */
   rect: Rect | null
-  /** IDs currently inside the marquee */
   selectedIds: Set<string>
 }
 
 type UseMarqueeSelectionOptions = {
-  /**
-   * Map of selectable item IDs to their bounding rects (relative to the container).
-   * Called continuously during drag to compute intersections.
-   */
   getItemRects: () => Map<string, DOMRect>
-  /** The scroll container ref — marquee coords are relative to this */
   containerRef: React.RefObject<HTMLElement | null>
-  /** Called when marquee finishes with final set of selected IDs */
   onSelectionChange: (ids: Set<string>) => void
-  /** Minimum drag distance (px) before marquee activates */
   threshold?: number
-  /**
-   * CSS selector for elements that, when the mousedown lands inside them,
-   * suppress the marquee (so the press is treated as a click / drag-handle
-   * instead). Defaults to a conservative set that also bails on `li` /
-   * `article` / `[draggable]` — appropriate for reorder-drag panels where a
-   * row press means "grab to reorder". Panels whose rows ARE the selectable
-   * items (so a press on a row should start a marquee) pass a narrower
-   * selector — e.g. just interactive controls.
-   */
   ignoreSelector?: string
 }
 
@@ -66,20 +47,17 @@ export default function useMarqueeSelection({
       const scrollLeft = container.scrollLeft
       const scrollTop = container.scrollTop
 
-      // Convert marquee to absolute container-scroll coords
       const mx1 = marqueeRect.x
       const my1 = marqueeRect.y
       const mx2 = mx1 + marqueeRect.width
       const my2 = my1 + marqueeRect.height
 
       for (const [id, domRect] of items) {
-        // Item rect is viewport-relative, convert to container-scroll-relative
         const ix1 = domRect.left - containerRect.left + scrollLeft
         const iy1 = domRect.top - containerRect.top + scrollTop
         const ix2 = ix1 + domRect.width
         const iy2 = iy1 + domRect.height
 
-        // AABB intersection
         if (mx1 < ix2 && mx2 > ix1 && my1 < iy2 && my2 > iy1) {
           selected.add(id)
         }
@@ -92,7 +70,6 @@ export default function useMarqueeSelection({
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Only left click, not on interactive elements
       if (e.button !== 0) return
       const target = e.target as HTMLElement
       if (target.closest(ignoreSelector)) return
@@ -100,7 +77,6 @@ export default function useMarqueeSelection({
       const container = containerRef.current
       if (!container) return
 
-      // Prevent text selection while dragging
       e.preventDefault()
 
       const scrollLeft = container.scrollLeft
@@ -158,7 +134,6 @@ export default function useMarqueeSelection({
         if (prev.isActive) {
           onSelectionChange(prev.selectedIds)
         } else if (!didDrag) {
-          // Click without drag — clear selection
           onSelectionChange(new Set())
         }
         return { isActive: false, rect: null, selectedIds: new Set() }
@@ -174,13 +149,9 @@ export default function useMarqueeSelection({
   }, [containerRef, threshold, rectsToSelection, onSelectionChange])
 
   return {
-    /** Whether marquee is currently being drawn */
     isActive: state.isActive,
-    /** The current marquee rectangle (container-scroll-relative coords) */
     rect: state.rect,
-    /** IDs currently inside the marquee during drag */
     selectedIds: state.selectedIds,
-    /** Attach to the container's onMouseDown */
     handleMouseDown,
   }
 }

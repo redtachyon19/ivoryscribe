@@ -18,8 +18,6 @@ type ExportTab = { id: string; title: string }
 function toExportDoc(project: Project, tab: ExportTab, markdownIds: Set<string>): ExportDoc {
   const raw = project.contentById[tab.id] ?? DEFAULT_DOCUMENT_CONTENT
 
-  // Markdown tabs store raw markdown text — render it the same way the preview
-  // pane does so the PDF shows the formatted preview, not the literal source.
   if (markdownIds.has(tab.id)) {
     return {
       title: tab.title,
@@ -42,11 +40,6 @@ function pdfFileName(project: Project): string {
   return `ivoryscribe-${slugifyFileName(project.name)}-${stamp}.pdf`
 }
 
-// Render a self-contained export HTML document to PDF bytes. In Electron the
-// hidden BrowserWindow + printToPDF returns the bytes. On the web there is no
-// programmatic PDF API, so we fall back to the browser's native print dialog
-// (vector + selectable, same layout) and return null — callers that need the
-// bytes (the ZIP path) degrade to a combined print on web.
 async function htmlToPdfBytes(
   html: string,
 ): Promise<{ bytes: Uint8Array; chapterStartPages: number[] } | null> {
@@ -59,11 +52,6 @@ async function htmlToPdfBytes(
   return null
 }
 
-// Mirror the chapter hierarchy as a nested PDF outline. Walks the project's tab
-// tree; each tab that was actually exported (i.e. has a recorded start page)
-// becomes a bookmark carrying its own exported children. A tab that wasn't
-// exported but has exported descendants is skipped and its descendants promoted
-// up, so a partial-selection export still produces a coherent tree.
 function buildBookmarkTree(tabs: DocumentTab[], pageByTabId: Map<string, number>): PdfBookmark[] {
   const nodes: PdfBookmark[] = []
   for (const tab of tabs) {
@@ -78,11 +66,6 @@ function buildBookmarkTree(tabs: DocumentTab[], pageByTabId: Map<string, number>
   return nodes
 }
 
-// Attach a nested PDF outline (one bookmark per exported chapter, mirroring the
-// chapter tree) pointing at the page each chapter starts on. `exportTabs` is the
-// flat, in-order list that was paginated, aligned 1:1 with `chapterStartPages`.
-// Best-effort: if the outline can't be written, return the original bytes so the
-// export still succeeds without bookmarks.
 async function withChapterBookmarks(
   bytes: Uint8Array,
   project: Project,
@@ -110,13 +93,9 @@ async function withChapterBookmarks(
   }
 }
 
-// Web fallback: print the export HTML via a hidden iframe. The embedded runtime
-// builds the paginated layout and sets window.__pdfxReady; we wait for that
-// before invoking print so every page is laid out first.
 function printHtmlViaIframe(html: string): Promise<void> {
   return new Promise((resolve) => {
     const iframe = document.createElement("iframe")
-    // Real size (off-screen) so the document lays out for measurement.
     iframe.style.cssText = "position:fixed;left:-100000px;top:0;width:816px;height:1056px;border:0;opacity:0;"
     document.body.appendChild(iframe)
 
@@ -139,7 +118,6 @@ function printHtmlViaIframe(html: string): Promise<void> {
         win.focus()
         win.print()
       } catch {
-        /* user may dismiss; nothing to do */
       }
       finish()
     }
@@ -166,8 +144,6 @@ async function exportSeparatePdfZip(project: Project, sequence: ExportTab[]) {
   const folderName = sanitizeZipEntryName(project.name)
   const toPdf = window.electronAPI?.print?.toPdf
 
-  // The native print dialog can only produce one file, so a true per-tab ZIP is
-  // desktop-only. On the web, degrade to a single combined print.
   if (!toPdf) {
     if (sequence.length > 0) {
       console.warn("[pdfExport] Per-file PDF/ZIP export needs the desktop app; printing a single combined PDF instead.")
@@ -195,11 +171,6 @@ async function exportSeparatePdfZip(project: Project, sequence: ExportTab[]) {
   downloadBlob(zipBlob, `${slugifyFileName(project.name)}-chapters.zip`)
 }
 
-// Render the whole project (every tab, in order) to a 1:1 PDF and return it as
-// base64 — the same output as the combined PDF export. Used to embed a faithful
-// QuickLook preview inside the .tusk file. Electron-only: without the hidden
-// BrowserWindow + printToPDF there's no way to get bytes (the web path only
-// drives the print dialog), so this returns null on the web.
 export async function renderProjectPdfBase64(project: Project): Promise<string | null> {
   const toPdf = window.electronAPI?.print?.toPdf
   if (!toPdf) return null
@@ -217,8 +188,6 @@ export async function renderProjectPdfBase64(project: Project): Promise<string |
   return uint8ToBase64(pdf)
 }
 
-// Chunked base64 of a byte array — avoids "Maximum call stack size exceeded"
-// from String.fromCharCode(...hugeArray) on large (image-heavy) PDFs.
 function uint8ToBase64(bytes: Uint8Array): string {
   let binary = ""
   const CHUNK = 0x8000

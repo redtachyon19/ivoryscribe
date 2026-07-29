@@ -1,5 +1,3 @@
-
-
 .global-settings__overlay {
   position: fixed;
   inset: 0;
@@ -938,7 +936,6 @@
 
 }
 
-/* ── Workspace section ──────────────────────────────────────────────── */
 .workspace-settings__path-row {
   display: flex;
   align-items: center;
@@ -973,7 +970,6 @@
   margin: 8px 0 0;
 }
 
-/* ── Signed-out account section CTA ────────────────────────────────── */
 .global-settings__signed-out {
   display: flex;
   flex-direction: column;

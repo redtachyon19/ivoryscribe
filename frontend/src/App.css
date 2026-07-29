@@ -3,11 +3,6 @@
   --page-content-gutter: 24px;
 }
 
-/* Text selection everywhere — the live palette accent at 50% opacity.
-   `--app-accent` is defined on `.app` (and re-defined per palette), so a
-   selection inside the app picks up the current accent; the fallback covers
-   anything outside it. Per-context rules (PDF text layer, editor title) keep
-   their own text `color` but reuse this same background. */
 ::selection {
   background: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
 }
@@ -49,12 +44,10 @@
   transition: background-color var(--palette-transition-duration) var(--palette-transition-easing);
 }
 
-/* In Electron macOS: make root layers transparent so native vibrancy shows through the left panel */
 .app--electron-mac.app--translucent-nav {
   background-color: transparent;
 }
 
-/* ── Custom fullscreen traffic lights (simple-fullscreen is borderless, so native buttons disappear) ── */
 .mac-fs-traffic-lights {
   position: fixed;
   top: 14px;
@@ -110,8 +103,6 @@
   }
 }
 
-/* Ivory is the base `.app` theme; this explicit class lets a subtree opt into
-   it (e.g. the home-page theme preview) regardless of the app's active palette. */
 .app--palette-ivory {
   --app-bg: #f8f3e3;
   --brand-color: #1d180f;
@@ -289,11 +280,9 @@
   flex: none;
   width: 38px;
   height: 38px;
-  /* Line-art mark tinted with --brand-color so it adapts to every theme,
-     exactly like the wordmark text. Placeholder raster until it's vectorized. */
   background-color: var(--brand-color);
-  -webkit-mask: url(/brand-mark.png) center / contain no-repeat;
-  mask: url(/brand-mark.png) center / contain no-repeat;
+  -webkit-mask: url(/logo.svg) center / contain no-repeat;
+  mask: url(/logo.svg) center / contain no-repeat;
 }
 
 .app-brand__name {
@@ -317,8 +306,6 @@
   font-weight: 400;
   opacity: 0.92;
 }
-
-/* ── Shared Marquee Text ── */
 
 .marquee-text {
   display: block;
@@ -402,11 +389,6 @@
   border-color: rgba(255, 255, 255, 0.28);
 }
 
-/* ── Auth overlay (Electron sign-in prompt for share) ─────────────────── */
-/* Electron sign-in: render the full-page AuthPage at its natural size over the
-   (still-mounted) editor, so it looks like the web /auth page rather than a
-   cramped dialog. The AuthPage's own fixed header + gradient line up with the
-   viewport because this container fills it. */
 .auth-overlay {
   position: fixed;
   inset: 0;
@@ -419,7 +401,6 @@
   position: fixed;
   top: 16px;
   right: 18px;
-  /* Above the AuthPage's fixed header (z-index 24). */
   z-index: 30;
   appearance: none;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #1b1b1b) 78%, transparent);

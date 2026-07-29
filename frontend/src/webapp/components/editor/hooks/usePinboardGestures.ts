@@ -1,12 +1,3 @@
-// All pointer-driven board interactions for PinboardEditor: pan, drag, resize,
-// freehand draw, marquee select, line-connect, and global keyboard delete.
-//
-// The hook owns every piece of interaction state plus the global mousemove /
-// mouseup / keydown listeners. The parent passes the current board, a
-// `commitBoard` updater, and a canvas ref; the hook returns event handlers
-// and a few rendered-state values (drawing points for the active path,
-// marquee rect, selection ids) for the JSX.
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   createNodeId,
@@ -16,10 +7,6 @@ import {
 } from "../utils/pinboardData"
 import { snapStrokeToShape } from "../utils/shapeRecognition"
 
-/** Hold the mouse still mid-stroke for this long (button still down) to snap
- *  the freehand drawing to a recognized shape: straight line, ellipse,
- *  rectangle, or triangle. The snapped shape previews immediately and commits
- *  on release. */
 const SHAPE_SNAP_HOLD_MS = 2000
 
 type CommitBoard = (updater: (prev: PinboardData) => PinboardData) => void
@@ -39,12 +26,10 @@ export function usePinboardGestures({
   activeTool,
   onActiveToolChange,
 }: UsePinboardGesturesParams) {
-  /* ── Selection / edit state ── */
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set())
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
 
-  /* ── Active-gesture state ── */
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
   const [dragOffset, setDragOffset] = useState({ dx: 0, dy: 0 })
   const [isPanning, setIsPanning] = useState(false)
@@ -53,13 +38,11 @@ export function usePinboardGestures({
   const [resizeStart, setResizeStart] = useState({ startW: 0, startH: 0, startX: 0, startY: 0 })
   const [lineStart, setLineStart] = useState<string | null>(null)
 
-  /* ── Marquee selection ── */
   const [isMarquee, setIsMarquee] = useState(false)
   const [marqueeOrigin, setMarqueeOrigin] = useState({ x: 0, y: 0 })
   const [marqueeEnd, setMarqueeEnd] = useState({ x: 0, y: 0 })
   const isMarqueeRef = useRef(false)
 
-  /* ── Freehand drawing ── */
   const [drawingPoints, setDrawingPoints] = useState<Array<{ x: number; y: number }>>([])
   const drawingPointsRef = useRef<Array<{ x: number; y: number }>>([])
   const lastDrawingPointRef = useRef<{ x: number; y: number } | null>(null)
@@ -67,10 +50,7 @@ export function usePinboardGestures({
   const [isDrawing, setIsDrawing] = useState(false)
   const isDrawingRef = useRef(false)
 
-  /* ── Hold-to-snap-shape ── */
   const snapHoldTimerRef = useRef<number | null>(null)
-  // True once the active stroke has snapped to a shape; further movement is
-  // ignored until release so the recognized shape stays put.
   const strokeSnappedRef = useRef(false)
 
   const scheduleDrawingUpdate = useCallback(() => {
@@ -88,8 +68,6 @@ export function usePinboardGestures({
     }
   }, [])
 
-  // (Re)start the hold timer. Called on each added stroke point, so it only
-  // fires once the pointer has been still (no new points) for the hold window.
   const armSnapHoldTimer = useCallback(() => {
     clearSnapHoldTimer()
     snapHoldTimerRef.current = window.setTimeout(() => {
@@ -100,7 +78,6 @@ export function usePinboardGestures({
       strokeSnappedRef.current = true
       drawingPointsRef.current = snapped
       lastDrawingPointRef.current = null
-      // Show the snapped shape right away (skip the rAF coalescing).
       if (drawingFrameRef.current !== null) {
         window.cancelAnimationFrame(drawingFrameRef.current)
         drawingFrameRef.current = null
@@ -109,11 +86,9 @@ export function usePinboardGestures({
     }, SHAPE_SNAP_HOLD_MS)
   }, [clearSnapHoldTimer])
 
-  /* ── Viewport ref (avoids recreating handlers on every pan) ── */
   const viewportRef = useRef(board.viewport)
   viewportRef.current = board.viewport
 
-  /* ── client→canvas coordinate translation ── */
   const clientToCanvas = useCallback(
     (clientX: number, clientY: number) => {
       const rect = canvasRef.current?.getBoundingClientRect()
@@ -127,7 +102,6 @@ export function usePinboardGestures({
     [canvasRef],
   )
 
-  /* ── Background mouse-down: pan, marquee, draw, or add text ── */
   const handleCanvasMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if ((e.target as HTMLElement).closest(".pinboard-node")) return
@@ -184,9 +158,6 @@ export function usePinboardGestures({
     [activeTool, clientToCanvas, commitBoard, onActiveToolChange, armSnapHoldTimer],
   )
 
-  /* ── Global mouse-move / mouse-up listener ──
-       Covers every active gesture: pan, node drag, resize, freehand draw,
-       marquee. All five reset together on mouseup. */
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (isPanning) {
@@ -236,7 +207,6 @@ export function usePinboardGestures({
       }
 
       if (isDrawingRef.current) {
-        // Once the stroke has snapped to a shape, freeze it until release.
         if (strokeSnappedRef.current) return
         const rect = canvasRef.current?.getBoundingClientRect()
         if (!rect) return
@@ -253,7 +223,6 @@ export function usePinboardGestures({
           drawingPointsRef.current = [...drawingPointsRef.current, nextPoint]
           lastDrawingPointRef.current = nextPoint
           scheduleDrawingUpdate()
-          // Pointer moved → restart the hold-to-snap countdown.
           armSnapHoldTimer()
         }
         return
@@ -276,9 +245,6 @@ export function usePinboardGestures({
       clearSnapHoldTimer()
       strokeSnappedRef.current = false
 
-      // Materialize a completed freehand drawing as a tight text node with
-      // `[drawing:...]` content. The bounding rect of the path becomes the
-      // node's box so the hit area is exact.
       if (isDrawingRef.current && drawingPointsRef.current.length > 1) {
         const pts = drawingPointsRef.current
         const minX = Math.min(...pts.map((p) => p.x))
@@ -328,7 +294,6 @@ export function usePinboardGestures({
     clientToCanvas, commitBoard, canvasRef, armSnapHoldTimer, clearSnapHoldTimer,
   ])
 
-  /* ── Node mouse-down: start drag, or wire up a line connection ── */
   const handleNodeMouseDown = useCallback(
     (e: React.MouseEvent, nodeId: string) => {
       e.stopPropagation()
@@ -358,7 +323,6 @@ export function usePinboardGestures({
     [activeTool, lineStart, clientToCanvas, board.nodes, commitBoard, onActiveToolChange],
   )
 
-  /* ── Resize-handle mouse-down ── */
   const handleResizeMouseDown = useCallback(
     (e: React.MouseEvent, nodeId: string) => {
       e.stopPropagation()
@@ -370,13 +334,10 @@ export function usePinboardGestures({
     [board.nodes],
   )
 
-  /* ── Keyboard: Escape to deselect, Backspace / Delete to remove ── */
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (editingNodeId) return
 
-      // Escape clears the current node selection (consistent with the rest of
-      // the app's deselect-on-Escape behaviour).
       if (e.key === "Escape" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
         if (selectedNodeId || selectedNodeIds.size > 0) {
           setSelectedNodeId(null)
@@ -411,7 +372,6 @@ export function usePinboardGestures({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [selectedNodeId, selectedNodeIds, editingNodeId, commitBoard])
 
-  /* ── Marquee rectangle + selection ── */
   const marqueeRect = useMemo(() => {
     if (!isMarquee) return null
     const x = Math.min(marqueeOrigin.x, marqueeEnd.x)
@@ -421,7 +381,6 @@ export function usePinboardGestures({
     return { x, y, width, height }
   }, [isMarquee, marqueeOrigin, marqueeEnd])
 
-  // Recompute which nodes intersect the marquee as the user drags.
   useEffect(() => {
     if (!marqueeRect) return
     const mx1 = marqueeRect.x
@@ -441,7 +400,6 @@ export function usePinboardGestures({
     setSelectedNodeIds(ids)
   }, [marqueeRect, board.nodes])
 
-  /* ── Reset on document switch ── */
   const resetSelectionState = useCallback(() => {
     setSelectedNodeId(null)
     setSelectedNodeIds(new Set())
@@ -455,29 +413,21 @@ export function usePinboardGestures({
   )
 
   return {
-    // Per-node helpers
     isNodeSelected,
     editingNodeId,
     setEditingNodeId,
-    // Event handlers
     handleCanvasMouseDown,
     handleNodeMouseDown,
     handleResizeMouseDown,
-    // Render-state values
     drawingPoints,
     isDrawing,
     marqueeRect,
     isPanning,
-    // Helpers
     clientToCanvas,
     resetSelectionState,
   } as const
 }
 
-/** Render-friendly drawing-path string, or null when no path is active.
- *  A single point (the initial mouse-down, before any movement) is duplicated
- *  so the round-capped polyline paints a visible dot right away — the stroke
- *  appears the instant the mouse is pressed, not only once it moves. */
 export function activeDrawingPath(isDrawing: boolean, drawingPoints: Array<{ x: number; y: number }>) {
   if (!isDrawing || drawingPoints.length === 0) return null
   const pts = drawingPoints.length === 1 ? [drawingPoints[0], drawingPoints[0]] : drawingPoints
