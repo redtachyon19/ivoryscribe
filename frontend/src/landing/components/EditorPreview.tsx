@@ -1,5 +1,6 @@
 import { ArrowLeft, ChevronDown, CornerDownRight, PanelLeft, PanelRight, Settings } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import "./EditorPreview.css"
 
 type EditorPreviewProps = {
   onBackToProjects: () => void

@@ -1,14 +1,3 @@
-.project-hub {
-  position: relative;
-  z-index: 16;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--app-bg);
-}
-
 .project-hub__main {
   position: relative;
   min-width: 0;
@@ -56,11 +45,11 @@
 }
 
 .project-hub__create-card {
-  border: 1px dashed color-mix(in srgb, var(--menu-button, #ededed) 42%, transparent);
-  border-radius: 10px;
+  border: 1px dashed var(--text-ghost);
+  border-radius: var(--radius-md);
   padding: 24px 12px;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #181818) 62%, transparent);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: 13px;
   display: grid;
@@ -69,13 +58,13 @@
   gap: 10px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 160ms ease, background-color 160ms ease, transform 140ms ease;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease, transform var(--dur-fast) ease;
 }
 
 .project-hub__create-card:hover,
 .project-hub__create-card:focus-visible {
   border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 62%, transparent);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #262626) 70%, transparent);
+  background: var(--surface-hover);
   color: var(--menu-button, #ededed);
   outline: none;
   transform: translateY(-1px);
@@ -95,7 +84,7 @@
 
 .project-hub__toolbar p {
   margin: 0;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 92%, transparent);
+  color: var(--text-normal);
   font-family: var(--app-ui-font);
   font-size: 14px;
   font-weight: 600;
@@ -113,26 +102,26 @@
   width: 28px;
   height: 28px;
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #1b1b1b) 90%, transparent);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  color: var(--text-muted);
   cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 
 .project-hub__view-toggle:hover,
 .project-hub__view-toggle:focus-visible {
-  border-color: color-mix(in srgb, var(--menu-button, #ededed) 34%, transparent);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 80%, transparent);
+  border-color: var(--text-ghost);
+  background: var(--surface-hover);
   color: var(--menu-button, #ededed);
   outline: none;
 }
 
 .project-hub__list-row--folder svg {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
+  color: var(--text-subtle);
 }
 
 .project-hub__folders-grid {
@@ -144,19 +133,19 @@
 .project-hub__folder-card {
   position: relative;
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
-  border-radius: 11px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--menu-dropdown-bg, #202020) 84%, transparent);
   padding: 12px;
   display: flex;
   gap: 10px;
   align-items: flex-start;
   cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, transform 120ms ease;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, transform var(--dur-quick) ease;
 }
 
 .project-hub__folder-card:hover {
-  border-color: color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #262626) 70%, transparent);
+  border-color: var(--text-ghost);
+  background: var(--surface-hover);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
   transform: translateY(-3px);
 }
@@ -167,7 +156,7 @@
 
 .project-hub__folder-card svg {
   margin-top: 2px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
+  color: var(--text-subtle);
   flex: 0 0 auto;
 }
 
@@ -195,7 +184,7 @@
 
 .project-hub__folder-card strong {
   display: block;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: 14px;
   line-height: 1.3;
@@ -215,7 +204,7 @@
 .project-hub__folder-card > div > span {
   display: block;
   margin-top: 2px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+  color: var(--text-faint);
   font-family: var(--app-ui-font);
   font-size: 13px;
   line-height: 1.3;
@@ -224,7 +213,7 @@
 .project-hub__folder-rename-input {
   background: transparent;
   border: 0;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-weight: 700;
   font-size: 14px;
@@ -250,18 +239,18 @@
   gap: 5px;
   background: none;
   border: none;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+  color: var(--text-faint);
   font-family: var(--app-ui-font);
   font-size: 13px;
   cursor: pointer;
   padding: 4px 0;
   margin-bottom: 8px;
   width: fit-content;
-  transition: color 120ms ease;
+  transition: color var(--dur-quick) ease;
 }
 
 .project-hub__folder-back:hover {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);
+  color: var(--text-muted);
 }
 
 .project-hub__folder-detail-title {
@@ -280,12 +269,12 @@
 }
 
 .project-hub__folder-detail-title svg {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 64%, transparent);
+  color: var(--text-subtle);
   flex: 0 0 auto;
 }
 
 .project-hub__folder-detail-desc {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 74%, transparent);
+  color: var(--text-subtle);
   font-family: var(--app-ui-font);
   font-size: 13px;
   line-height: 1.3;
@@ -296,7 +285,7 @@
 }
 
 .project-hub__folder-detail-count {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 48%, transparent);
+  color: var(--text-faint);
   font-family: var(--app-ui-font);
   font-size: 12.5px;
   margin: 4px 0 0;
@@ -304,7 +293,7 @@
 
 .project-hub__list-view {
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 86%, transparent);
   overflow: hidden;
 }
@@ -317,7 +306,7 @@
   padding: 10px 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 56%, transparent);
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: background-color var(--dur-quick) ease;
 }
 
 .project-hub__list-row:last-child {
@@ -325,11 +314,11 @@
 }
 
 .project-hub__list-row:hover {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 60%, transparent);
+  background: var(--surface-hover);
 }
 
 .project-hub__list-row--selected {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 50%, transparent);
+  background: var(--surface-hover);
 }
 
 .project-hub__list-row-main {
@@ -340,7 +329,7 @@
 }
 
 .project-hub__list-row-main svg {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  color: var(--text-subtle);
   flex: 0 0 auto;
 }
 
@@ -349,13 +338,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  color: var(--text-normal);
   font-family: var(--app-ui-font);
   font-size: 14px;
 }
 
 .project-hub__list-row > span {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 66%, transparent);
+  color: var(--text-subtle);
   font-family: var(--app-ui-font);
   font-size: 13px;
   white-space: nowrap;
@@ -363,37 +352,7 @@
 
 .project-hub__list-row--dragging {
   opacity: 0.45;
-}
-
-.project-hub__list-row--drop-before,
-.project-hub__list-row--drop-after {
-  position: relative;
-}
-
-.project-hub__list-row--drop-before::before,
-.project-hub__list-row--drop-after::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 3px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 96%, white 4%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-accent, #9ab8ff) 52%, #0f0f0f),
-              0 0 10px color-mix(in srgb, var(--app-accent, #9ab8ff) 45%, transparent);
-  z-index: 3;
-  pointer-events: none;
-}
-
-.project-hub__list-row--drop-before::before {
-  top: -2px;
-}
-
-.project-hub__list-row--drop-after::after {
-  bottom: -2px;
-}
-
-.project-hub__grid-view {
+}.project-hub__grid-view {
   position: relative;
   margin: 0;
   padding: 0;
@@ -440,7 +399,7 @@
   top: 14px;
   bottom: 14px;
   width: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--app-accent, #9ab8ff);
   pointer-events: none;
   z-index: 3;
@@ -493,17 +452,12 @@
   min-width: 200px;
   background: var(--menu-dropdown-bg, #151515);
   border: 1px solid var(--menu-dropdown-border, #2a2a2a);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 5px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
-  animation: context-menu-in 120ms ease;
-}
-
-@keyframes context-menu-in {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
+  animation: panel-pop-in var(--dur-quick) ease;
 }
 
 .project-context-menu__item {
@@ -513,18 +467,18 @@
   width: 100%;
   padding: 7px 10px;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: 13px;
   cursor: pointer;
-  transition: background-color 80ms ease, color 80ms ease;
+  transition: background-color var(--dur-quick) ease, color var(--dur-quick) ease;
 }
 
 .project-context-menu__item:hover,
 .project-context-menu__item:focus-visible {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
+  background: var(--surface-hover);
   color: var(--menu-button, #ededed);
   outline: none;
 }
@@ -575,15 +529,15 @@
   position: relative;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--menu-dropdown-bg, #171717) 86%, transparent);
   cursor: pointer;
   list-style: none;
-  transition: border-color 140ms ease, box-shadow 140ms ease, opacity 120ms ease, transform 120ms ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, opacity var(--dur-quick) ease, transform var(--dur-quick) ease;
 }
 
 .project-card:hover {
-  border-color: color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
+  border-color: var(--text-ghost);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
   transform: translateY(-3px);
 }
@@ -671,7 +625,7 @@
 
 .project-card__info strong {
   display: block;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  color: var(--text-normal);
   font-family: var(--app-ui-font);
   font-size: 13px;
   font-weight: 600;
@@ -687,7 +641,7 @@
 .project-card__info > span {
   display: block;
   margin-top: 3px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 56%, transparent);
+  color: var(--text-faint);
   font-family: var(--app-ui-font);
   font-size: 12px;
   line-height: 1.3;
@@ -699,7 +653,7 @@
 .project-card__meta-icon {
   display: inline-block;
   vertical-align: -2px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
+  color: var(--text-subtle);
 }
 .project-card__meta-sr {
   position: absolute;
@@ -751,10 +705,10 @@
   top: 14px;
   bottom: 14px;
   width: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--app-accent, #9ab8ff);
   z-index: 3;
-  transition: opacity 120ms ease;
+  transition: opacity var(--dur-quick) ease;
 }
 
 .project-card--drop-before::before {
@@ -778,7 +732,7 @@
   resize: none;
   font-family: var(--app-ui-font);
   font-weight: 600;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  color: var(--text-normal);
   font-size: 13px;
   line-height: 1.3;
   min-height: 1.3em;
@@ -820,7 +774,7 @@
   z-index: 50;
   border: 1.5px solid color-mix(in srgb, var(--app-accent, #7ea8ff) 75%, transparent);
   background: color-mix(in srgb, var(--app-accent, #7ea8ff) 10%, transparent);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   pointer-events: none;
 }
 
@@ -844,7 +798,7 @@
 
 .project-delete-modal__copy {
   margin: 0;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  color: var(--text-muted);
   font-size: 16px;
   line-height: 1.35;
 }
@@ -858,17 +812,17 @@
   display: flex;
   align-items: center;
   border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
   min-height: 50px;
   cursor: text;
-  transition: border-color 160ms ease;
+  transition: border-color var(--dur-fast) ease;
   overflow-x: auto;
   overflow-y: hidden;
 }
 
 .project-delete-modal__typing-box:focus-within {
-  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
+  border-color: var(--text-ghost);
 }
 
 .project-delete-modal__typing-text {
@@ -884,11 +838,11 @@
 }
 
 .project-delete-modal__typing-char--pending {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 36%, transparent);
+  color: var(--text-ghost);
 }
 
 .project-delete-modal__typing-char--correct {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 94%, transparent);
+  color: var(--text-normal);
 }
 
 .project-delete-modal__typing-char--wrong {
@@ -907,7 +861,7 @@
   background: transparent;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  caret-color: color-mix(in srgb, var(--menu-button, #ededed) 94%, transparent);
+  caret-color: var(--text-normal);
   font-family: var(--app-body-font);
   font-size: 20px;
   letter-spacing: 0;

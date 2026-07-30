@@ -1,0 +1,135 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.field--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+.field--row .field__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.field__label {
+  display: block;
+  text-align: left;
+  color: var(--text-normal);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+}
+
+.field__label--micro {
+  color: var(--text-muted);
+  font-size: var(--text-3xs);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+}
+
+.field__hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+}
+
+.field__error {
+  margin: 0;
+  color: var(--danger-text);
+  font-size: var(--text-xs);
+}
+
+.field__input,
+.field__textarea,
+.field__select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-normal);
+  border-radius: var(--radius-md);
+  background: var(--surface-field);
+  color: var(--text-strong);
+  font-family: var(--app-body-font);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+  transition: var(--transition-control);
+}
+
+.field__textarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: var(--leading-normal);
+}
+
+.field__select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: var(--space-8);
+}
+
+.field__input::placeholder,
+.field__textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.field__input:focus,
+.field__textarea:focus,
+.field__select:focus {
+  outline: none;
+  border-color: var(--accent-ring);
+}
+
+.field__input:focus-visible,
+.field__textarea:focus-visible,
+.field__select:focus-visible {
+  outline: none;
+  border-color: var(--accent-ring);
+}
+
+.field__input:disabled,
+.field__textarea:disabled,
+.field__select:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.field__input--inline {
+  width: auto;
+  flex: 1;
+}
+
+.field__input--glyph {
+  width: 64px;
+  flex: 0 0 auto;
+  padding: var(--space-2) var(--space-3);
+  text-align: center;
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+
+.field__input--code {
+  font-family: var(--app-mono-font, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: 0.04em;
+}
+
+.field__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}

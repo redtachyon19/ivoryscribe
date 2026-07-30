@@ -1,99 +1,22 @@
-.share-dialog__modal-panel .ui-modal__header {
-  display: none;
-}
-
-.share-dialog__custom-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-}
-
-.share-dialog__custom-title {
-  margin: 0;
-  color: var(--menu-button, #efefef);
-  font-family: var(--app-display-font);
-  font-size: 28px;
-  font-weight: 400;
-  line-height: 1.1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-.share-dialog__title-label {
+.share-dialog__title {
   display: inline-flex;
   width: 100%;
   min-width: 0;
   overflow: hidden;
 }
 
-.share-dialog__title-label:focus-visible {
+.share-dialog__title:focus-visible {
   outline: none;
-}
-
-.share-dialog__title-marquee {
-  display: block;
-  width: 100%;
-  overflow: hidden;
-}
-
-.share-dialog__title-marquee-track {
-  display: inline-flex;
-  align-items: baseline;
-  min-width: 100%;
-  transform: translateX(0);
-}
-
-.share-dialog__title-marquee-text {
-  white-space: nowrap;
-}
-
-.share-dialog__title-marquee-gap {
-  flex: 0 0 28px;
-}
-
-.share-dialog__title-label:hover .share-dialog__title-marquee--overflowing .share-dialog__title-marquee-track,
-.share-dialog__title-label:focus-visible .share-dialog__title-marquee--overflowing .share-dialog__title-marquee-track {
-  animation: shared-marquee-scroll 15s linear infinite;
 }
 
 .share-dialog__form {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
 }
 
 .share-dialog__email-input {
   flex: 1;
-  box-sizing: border-box;
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--menu-dropdown-border, #2e2e2e);
-  border-radius: 8px;
-  background: var(--menu-bg, #1d1d1d);
-  color: var(--menu-button, #ededed);
-  font-family: var(--app-body-font);
-  font-size: 16px;
-}
-
-.share-dialog__email-input::placeholder {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 42%, transparent);
-}
-
-.share-dialog__email-input:focus {
-  border-color: color-mix(in srgb, var(--menu-button, #ededed) 44%, transparent);
-  outline: none;
-}
-
-.share-dialog__email-input:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--menu-button, #ededed) 75%, transparent);
-  outline-offset: 2px;
 }
 
 .share-dialog__permission-wrap {
@@ -102,56 +25,25 @@
 }
 
 .share-dialog__permission-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border: 1px solid var(--menu-dropdown-border, #2e2e2e);
-  border-radius: 8px;
-  background: var(--menu-bg, #1d1d1d);
-  color: var(--menu-button, #ededed);
-  padding: 8px 10px;
-  font-family: var(--app-ui-font);
-  font-size: 16px;
-  text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
   flex-shrink: 0;
-  transition: background-color 160ms ease;
-}
-
-.share-dialog__permission-trigger--small {
-  font-size: 16px;
-  padding: 9px 10px;
-}
-
-.share-dialog__permission-trigger:hover {
-  background: var(--menu-button-hover-bg, #242424);
-}
-
-.share-dialog__permission-trigger:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--menu-button, #ededed) 75%, transparent);
-  outline-offset: 2px;
 }
 
 .share-dialog__permission-menu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + var(--space-3));
   right: 0;
   left: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px;
-  border: 1px solid var(--menu-dropdown-border, #2f2f2f);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 96%, transparent);
-  box-shadow: 0 10px 22px color-mix(in srgb, var(--app-bg, #0f0f0f) 72%, #000000);
-  z-index: 20;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  z-index: var(--z-dropdown);
   opacity: 0;
   transform: translate3d(0, 10px, 0);
   pointer-events: none;
-  transition: opacity 320ms ease-out, transform 320ms ease-out;
+  transition:
+    opacity var(--dur-slow) ease-out,
+    transform var(--dur-slow) ease-out;
 }
 
 .share-dialog__permission-menu--open {
@@ -160,29 +52,13 @@
   pointer-events: auto;
 }
 
-.share-dialog__permission-menu--closed {
-  opacity: 0;
-  transform: translate3d(0, 10px, 0);
-  pointer-events: none;
-}
-
 .share-dialog__permission-option {
-  display: inline-flex;
-  align-items: center;
-  width: 100%;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--menu-button, #e9e9e9);
-  font-family: var(--app-ui-font);
-  font-size: 15px;
-  text-align: left;
-  padding: 7px 8px;
-  cursor: pointer;
-  white-space: nowrap;
   opacity: 0;
   transform: translate3d(0, 8px, 0);
-  transition: opacity 320ms ease-out, transform 320ms ease-out, background-color 160ms ease;
+  transition:
+    opacity var(--dur-slow) ease-out,
+    transform var(--dur-slow) ease-out,
+    background-color var(--dur-fast) var(--ease-standard);
 }
 
 .share-dialog__permission-menu--open .share-dialog__permission-option {
@@ -191,164 +67,77 @@
 }
 
 .share-dialog__permission-menu--open .share-dialog__permission-option:nth-child(1) {
-  transition-delay: 40ms;
+  transition-delay: var(--stagger-1);
 }
 
 .share-dialog__permission-menu--open .share-dialog__permission-option:nth-child(2) {
-  transition-delay: 80ms;
+  transition-delay: var(--stagger-2);
 }
 
-.share-dialog__permission-option:hover,
-.share-dialog__permission-option:focus-visible,
-.share-dialog__permission-option--active {
-  background: var(--menu-button-hover-bg, #232323);
-  outline: none;
-}
-
-.share-dialog__send-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
-  font-family: var(--app-ui-font);
-  font-size: 16px;
-  line-height: 1.2;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.share-dialog__send-btn:hover,
-.share-dialog__send-btn:focus-visible {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
-  border-color: transparent;
-  color: var(--menu-button, #ededed);
-  outline: none;
-}
-
-.share-dialog__send-btn:disabled {
-  opacity: 0.56;
-  cursor: not-allowed;
-}
-
-.share-dialog__error {
-  margin: 0;
-  color: color-mix(in srgb, #ffb8b8 92%, transparent);
-  font-size: 15px;
-  line-height: 1.3;
+.share-dialog__permission-option--owner {
+  border-bottom: 1px solid var(--text-ghost);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-5);
 }
 
 .share-dialog__success {
   margin: 0;
-  color: color-mix(in srgb, #9de0b0 82%, var(--menu-button, #ededed));
-  font-size: 15px;
+  color: color-mix(in srgb, #9de0b0 82%, var(--text-strong));
+  font-size: var(--text-sm);
   line-height: 1.3;
+}
+
+.share-dialog__placeholder {
+  margin: 0;
+  padding: var(--space-7) 0;
+  color: var(--text-subtle);
+  font-size: var(--text-md);
+  text-align: center;
 }
 
 .share-dialog__list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
 }
 
 .share-dialog__list-title {
-  font-size: 18px;
+  margin-bottom: var(--space-2);
+  color: var(--text-normal);
+  font-size: var(--text-lg);
   font-weight: 400;
-  color: var(--menu-button, #e6e6e6);
-  font-family: var(--app-ui-font);
-  margin-bottom: 4px;
 }
 
 .share-dialog__item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: 10px;
-  padding: 4px 0;
+  column-gap: var(--space-5);
+  padding: var(--space-2) 0;
+}
+
+.share-dialog__item-group {
+  display: flex;
+  flex-direction: column;
 }
 
 .share-dialog__item-info {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.share-dialog__item-accepted-icon {
-  flex-shrink: 0;
-  color: color-mix(in srgb, #9de0b0 82%, var(--menu-button, #ededed));
-}
-
 .share-dialog__item-email {
-  font-size: 16px;
-  font-family: var(--app-ui-font);
-  color: var(--menu-button, #ededed);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.share-dialog__item-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.share-dialog__revoke-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: transparent;
-  color: #d38d8d;
-  font-family: var(--app-ui-font);
-  font-size: 16px;
-  cursor: pointer;
-  flex: 0 0 auto;
-  white-space: nowrap;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.share-dialog__revoke-btn:hover,
-.share-dialog__revoke-btn:focus-visible {
-  background: rgba(255, 123, 123, 0.18);
-  border-color: transparent;
-  color: #ff9f9f;
-  outline: none;
-}
-
-.share-dialog__empty {
-  margin: 0;
-  font-size: 16px;
-  font-family: var(--app-ui-font);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
-  text-align: center;
-  padding: 16px 0;
-}
-
-.share-dialog__loading {
-  margin: 0;
-  font-size: 16px;
-  font-family: var(--app-ui-font);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
-  text-align: center;
-  padding: 16px 0;
-}
-
-.share-dialog__item-owner-icon {
-  flex-shrink: 0;
-  color: color-mix(in srgb, #f5c842 80%, var(--menu-button, #ededed));
+  color: var(--text-strong);
+  font-size: var(--text-md);
 }
 
 .share-dialog__item-email--owner {
@@ -356,189 +145,136 @@
 }
 
 .share-dialog__item-role {
-  font-size: 13px;
-  font-family: var(--app-ui-font);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 48%, transparent);
   flex: 0 0 auto;
   white-space: nowrap;
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+}
+
+.share-dialog__item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+}
+
+.share-dialog__item-owner-icon {
+  flex-shrink: 0;
+  color: color-mix(in srgb, #f5c842 80%, var(--text-strong));
+}
+
+.share-dialog__item-accepted-icon {
+  flex-shrink: 0;
+  color: color-mix(in srgb, #9de0b0 82%, var(--text-strong));
 }
 
 .share-dialog__item-pending-dot {
   flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--menu-button, #ededed) 40%, transparent);
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-circle);
+  background: var(--text-faint);
 }
 
 .share-dialog__item-pending-label {
-  font-size: 12px;
-  font-family: var(--app-ui-font);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 44%, transparent);
   flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: var(--text-2xs);
 }
 
 .share-dialog__readonly {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-8);
 }
 
 .share-dialog__readonly-notice {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 9%, transparent);
-  border: 1px solid color-mix(in srgb, var(--app-accent, #9ab8ff) 22%, transparent);
-  font-size: 15px;
-  font-family: var(--app-ui-font);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-7);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
 .share-dialog__readonly-icon {
   flex-shrink: 0;
   margin-top: 1px;
-  color: color-mix(in srgb, var(--app-accent, #9ab8ff) 80%, var(--menu-button, #ededed));
-}
-
-.share-dialog__item-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.share-dialog__permission-option--owner {
-  border-bottom: 1px solid color-mix(in srgb, var(--menu-button, #ededed) 12%, transparent);
-  margin-bottom: 4px;
-  padding-bottom: 10px;
-}
-
-.share-dialog__permission-option--owner:hover,
-.share-dialog__permission-option--owner:focus-visible {
-  background: color-mix(in srgb, var(--menu-button, #ededed) 8%, transparent);
+  color: color-mix(in srgb, var(--accent) 80%, var(--text-strong));
 }
 
 .share-dialog__transfer-confirm {
-  margin: 6px 0 8px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: color-mix(in srgb, #f5c842 7%, transparent);
-  border: 1px solid color-mix(in srgb, #f5c842 25%, transparent);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-5);
+  margin: var(--space-3) 0 var(--space-4);
+  padding: var(--space-6) var(--space-7);
+  border: 1px solid color-mix(in srgb, #f5c842 25%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, #f5c842 7%, transparent);
 }
 
 .share-dialog__transfer-confirm-text {
   margin: 0;
-  font-size: 14px;
-  font-family: var(--app-ui-font);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 80%, transparent);
+  color: var(--text-normal);
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
 .share-dialog__transfer-confirm-text strong {
-  color: var(--menu-button, #ededed);
+  color: var(--text-strong);
   font-weight: 500;
 }
 
 .share-dialog__transfer-confirm-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
   justify-content: flex-end;
-}
-
-.share-dialog__transfer-confirm-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  font-family: var(--app-ui-font);
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease, opacity 140ms ease;
-}
-
-.share-dialog__transfer-confirm-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.share-dialog__transfer-confirm-btn--cancel {
-  background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 65%, transparent);
-  border-color: color-mix(in srgb, var(--menu-button, #ededed) 18%, transparent);
-}
-
-.share-dialog__transfer-confirm-btn--cancel:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--menu-button, #ededed) 8%, transparent);
+  gap: var(--space-4);
 }
 
 .share-dialog__transfer-confirm-btn--confirm {
-  background: color-mix(in srgb, #f5c842 18%, transparent);
-  color: color-mix(in srgb, #f5c842 90%, var(--menu-button, #ededed));
   border-color: color-mix(in srgb, #f5c842 30%, transparent);
+  background: color-mix(in srgb, #f5c842 18%, transparent);
+  color: color-mix(in srgb, #f5c842 90%, var(--text-strong));
 }
 
-.share-dialog__transfer-confirm-btn--confirm:hover:not(:disabled) {
+.share-dialog__transfer-confirm-btn--confirm:hover:not(:disabled),
+.share-dialog__transfer-confirm-btn--confirm:focus-visible:not(:disabled) {
+  border-color: color-mix(in srgb, #f5c842 42%, transparent);
   background: color-mix(in srgb, #f5c842 26%, transparent);
+  color: color-mix(in srgb, #f5c842 90%, var(--text-strong));
 }
 
 .share-dialog__enable-cloud {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: var(--space-7);
+  padding: var(--space-10) var(--space-9) var(--space-4);
   text-align: center;
-  gap: 14px;
-  padding: 28px 24px 8px;
 }
 
 .share-dialog__enable-cloud-icon {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 80%, transparent);
+  color: var(--text-normal);
   opacity: 0.85;
 }
 
 .share-dialog__enable-cloud-title {
   margin: 0;
-  font-size: 16px;
+  color: var(--text-strong);
+  font-size: var(--text-md);
   font-weight: 600;
-  color: var(--menu-button, #ededed);
 }
 
 .share-dialog__enable-cloud-body {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 65%, transparent);
   max-width: 380px;
-}
-
-.share-dialog__enable-cloud-btn {
-  appearance: none;
-  background: color-mix(in srgb, #7ea8ff 18%, transparent);
-  color: color-mix(in srgb, #7ea8ff 95%, var(--menu-button, #ededed));
-  border: 1px solid color-mix(in srgb, #7ea8ff 35%, transparent);
-  padding: 8px 18px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.share-dialog__enable-cloud-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, #7ea8ff 28%, transparent);
-}
-
-.share-dialog__enable-cloud-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
 }

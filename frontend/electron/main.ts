@@ -374,6 +374,8 @@ ipcMain.on("fs:showItemInFolder", (_event, targetPath: string) => {
   shell.showItemInFolder(targetPath)
 })
 
+ipcMain.handle("app:getVersion", () => app.getVersion())
+
 ipcMain.handle("clipboard:readText", () => {
   return clipboard.readText()
 })

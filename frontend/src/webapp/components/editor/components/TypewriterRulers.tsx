@@ -93,15 +93,15 @@ export function TypewriterRulerRow({
 
       <button
         type="button"
-        className={`tw-corner-btn${isUiTyping ? " tw-corner-btn--typing" : ""}`}
+        className={`btn btn--icon btn--sm btn--raised btn--spin-icon tw-corner-btn${isUiTyping ? " is-hidden-while-typing" : ""}`}
         onClick={onToggleRulers}
         title={showRulers ? "Hide rulers" : "Show rulers"}
         aria-label={showRulers ? "Hide rulers" : "Show rulers"}
       >
-        <span className={`tw-corner-btn__icon${showRulers ? " tw-corner-btn__icon--visible" : ""}`} aria-hidden="true">
+        <span className={`btn__icon${showRulers ? " btn__icon--visible" : ""}`} aria-hidden="true">
           <X size={14} />
         </span>
-        <span className={`tw-corner-btn__icon${!showRulers ? " tw-corner-btn__icon--visible" : ""}`} aria-hidden="true">
+        <span className={`btn__icon${!showRulers ? " btn__icon--visible" : ""}`} aria-hidden="true">
           <RulerDimensionLine size={14} />
         </span>
       </button>

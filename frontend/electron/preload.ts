@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send("app:open-path-ready")
   },
 
+  getVersion: () => ipcRenderer.invoke("app:getVersion") as Promise<string>,
+
   fs: {
     selectDirectory: (opts?: { defaultPath?: string; title?: string }) =>
       ipcRenderer.invoke("dialog:selectDirectory", opts ?? {}),

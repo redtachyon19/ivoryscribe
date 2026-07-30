@@ -186,21 +186,21 @@ export default function VersionPreviewPage() {
         </p>
 
         <div className="version-preview__toolbar" role="toolbar" aria-label="Version actions">
-          <Button type="button" onClick={() => runAction("restore")} aria-label="Restore this version">
+          <Button size="sm" type="button" onClick={() => runAction("restore")} aria-label="Restore this version">
             <RotateCcw size={15} strokeWidth={1.8} aria-hidden="true" />
             <span>Restore</span>
           </Button>
-          <Button type="button" onClick={() => runAction("duplicate")} aria-label="Add a copy to the library">
+          <Button size="sm" type="button" onClick={() => runAction("duplicate")} aria-label="Add a copy to the library">
             <Copy size={15} strokeWidth={1.8} aria-hidden="true" />
             <span>Add Copy to Library</span>
           </Button>
-          <Button type="button" onClick={() => runAction("export")} aria-label="Export this version as PDF">
+          <Button size="sm" type="button" onClick={() => runAction("export")} aria-label="Export this version as PDF">
             <Download size={15} strokeWidth={1.8} aria-hidden="true" />
             <span>Export</span>
           </Button>
-          <Button
+          <Button size="sm"
             type="button"
-            variant="footer-danger"
+            variant="danger"
             onClick={() => runAction("delete")}
             aria-label="Delete this version"
           >

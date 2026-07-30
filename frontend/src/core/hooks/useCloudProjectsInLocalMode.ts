@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import { getDocuments, getSharedWithMe, updateDocument } from "../api"
 import type { UserSession } from "../state/session"
 import { PROJECT_RECORD_TYPE } from "../state/versioning"
@@ -26,7 +26,9 @@ export function useCloudProjectsInLocalMode({
   projects,
   setProjects,
   setProjectDocumentMap,
-}: Params): CloudInLocalShareInfo {
+}: Params): CloudInLocalShareInfo & {
+  registerCloudProject: (projectId: string, docId: string, project: Project) => void
+} {
   const token = session?.token ?? null
 
   const [shareInfo, setShareInfo] = useState<CloudInLocalShareInfo>({
@@ -173,6 +175,14 @@ export function useCloudProjectsInLocalMode({
     }
   }, [projects, token, isLocalMode])
 
+  const registerCloudProject = useCallback((projectId: string, docId: string, project: Project) => {
+    docIdByProjectRef.current.set(projectId, docId)
+    lastPushedRef.current.set(
+      projectId,
+      JSON.stringify({ ...project, source: "cloud", activeId: null }),
+    )
+  }, [])
+
   useEffect(() => {
     return () => {
       for (const timer of saveTimersRef.current.values()) {
@@ -182,5 +192,5 @@ export function useCloudProjectsInLocalMode({
     }
   }, [])
 
-  return shareInfo
+  return { ...shareInfo, registerCloudProject }
 }

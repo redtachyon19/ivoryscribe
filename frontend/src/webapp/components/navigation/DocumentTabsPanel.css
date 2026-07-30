@@ -11,7 +11,7 @@
 
 .doc-tabs__section-divider {
   height: 1px;
-  background: color-mix(in srgb, var(--menu-button, #ededed) 16%, transparent);
+  background: var(--text-ghost);
 }
 
 .doc-tabs__header {
@@ -25,7 +25,7 @@
 .doc-tabs__entry-heading {
   margin: 2px 0 6px;
   padding: 0 8px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 50%, transparent);
+  color: var(--text-faint);
   font-family: var(--app-ui-font);
   font-size: 11px;
   letter-spacing: 0.06em;
@@ -63,11 +63,11 @@
   box-sizing: border-box;
   left: 0;
   right: 0;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  border: 1px solid var(--text-ghost);
   pointer-events: none;
-  transition: top 240ms cubic-bezier(0.2, 0.85, 0.2, 1), height 240ms cubic-bezier(0.2, 0.85, 0.2, 1), opacity 160ms ease;
+  transition: top var(--dur-med) cubic-bezier(0.2, 0.85, 0.2, 1), height var(--dur-med) cubic-bezier(0.2, 0.85, 0.2, 1), opacity var(--dur-fast) ease;
   z-index: 0;
 }
 
@@ -92,7 +92,7 @@
   align-items: center;
   box-sizing: border-box;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   color: var(--menu-button, #ededed);
   transition: background-color 0ms linear, border-color 0ms linear;
 }
@@ -119,26 +119,26 @@
   margin-left: 2px;
   margin-right: 4px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  color: var(--text-faint);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   cursor: pointer;
-  transition: color 120ms ease, background-color 120ms ease;
+  transition: color var(--dur-quick) ease, background-color var(--dur-quick) ease;
 }
 
 .doc-tabs__collapse-btn:hover,
 .doc-tabs__collapse-btn:focus-visible {
   color: var(--menu-button, #ededed);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 68%, transparent);
+  background: var(--surface-hover);
   outline: none;
 }
 
 .doc-tabs__collapse-btn svg {
-  transition: transform 150ms ease;
+  transition: transform var(--dur-fast) ease;
 }
 
 .doc-tabs__collapse-btn--open svg {
@@ -154,14 +154,14 @@
   color: inherit;
   text-align: left;
   padding: 9px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: grab;
   font-size: 15px;
   line-height: 1.25;
   overflow: hidden;
   white-space: nowrap;
   opacity: 0.75;
-  transition: opacity 320ms ease-in-out;
+  transition: opacity var(--dur-slow) ease-in-out;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -172,7 +172,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
+  color: var(--text-subtle);
 }
 
 .doc-tabs__row:hover .doc-tabs__label,
@@ -188,7 +188,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  color: var(--text-faint);
   pointer-events: none;
 }
 
@@ -224,7 +224,7 @@
 
 .doc-tabs__label:hover .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track,
 .doc-tabs__label:focus-visible .doc-tabs__label-marquee--overflowing .doc-tabs__label-marquee-track {
-  animation: shared-marquee-scroll 15s linear infinite;
+  animation: marquee-scroll 15s linear infinite;
 }
 
 .doc-tabs__rename-input {
@@ -236,7 +236,7 @@
   font-size: 15px;
   line-height: 1.25;
   padding: 9px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   outline: none;
   caret-color: var(--app-accent, #9ab8ff);
 }
@@ -251,7 +251,7 @@
 
 .doc-tabs__trash-copy {
   margin: 0;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  color: var(--text-muted);
   font-size: 16px;
   line-height: 1.35;
 }
@@ -261,7 +261,7 @@
   padding-left: 20px;
   max-height: 180px;
   overflow-y: auto;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 76%, transparent);
+  color: var(--text-subtle);
   font-size: 15px;
   line-height: 1.35;
 }

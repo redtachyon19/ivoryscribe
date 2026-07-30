@@ -319,16 +319,16 @@ export default function TypewriterEditor({
 
       <button
         type="button"
-        className={`tw-toolcase-btn${!showToolbar ? " tw-toolcase-btn--off" : ""}${isUiTyping ? " tw-toolcase-btn--typing" : ""}`}
+        className={`btn btn--icon btn--sm btn--raised btn--spin-icon tw-toolcase-btn${!showToolbar ? " tw-toolcase-btn--off" : ""}${isUiTyping ? " is-hidden-while-typing" : ""}`}
         onClick={() => setShowToolbar((v) => !v)}
         title={showToolbar ? "Hide toolbar" : "Show toolbar"}
         aria-label={showToolbar ? "Hide toolbar" : "Show toolbar"}
         aria-pressed={!showToolbar}
       >
-        <span className={`tw-toolcase-btn__icon${showToolbar ? " tw-toolcase-btn__icon--visible" : ""}`} aria-hidden="true">
+        <span className={`btn__icon${showToolbar ? " btn__icon--visible" : ""}`} aria-hidden="true">
           <X size={14} />
         </span>
-        <span className={`tw-toolcase-btn__icon${!showToolbar ? " tw-toolcase-btn__icon--visible" : ""}`} aria-hidden="true">
+        <span className={`btn__icon${!showToolbar ? " btn__icon--visible" : ""}`} aria-hidden="true">
           <ToolCase size={14} />
         </span>
       </button>

@@ -25,11 +25,11 @@
 }
 
 .ProseMirror .tw-image--selected .tw-image__holder {
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   box-shadow:
     0 0 0 2px var(--app-bg, #fff),
     0 0 0 3.5px var(--app-accent, #9ab8ff);
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow var(--dur-fast) ease;
 }
 @supports (background: color-mix(in srgb, red, blue)) {
   .ProseMirror .tw-image--selected .tw-image__holder {
@@ -46,15 +46,15 @@
   bottom: -7px;
   width: 14px;
   height: 14px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: var(--app-bg, #fff);
   border: 2.5px solid var(--app-accent, #9ab8ff);
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
   cursor: nwse-resize;
   z-index: 3;
   touch-action: none;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-  animation: tw-image-pop-in 0.14s ease-out;
+  transition: transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+  animation: tw-image-pop-in var(--dur-fast) ease-out;
 }
 .ProseMirror .tw-image__handle:hover {
   transform: scale(1.2);
@@ -117,11 +117,11 @@
   user-select: none;
 }
 .ProseMirror .tw-image__cropwindow {
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   box-shadow:
     0 0 0 2px var(--app-bg, #fff),
     0 0 0 3.5px #fff;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow var(--dur-fast) ease;
 }
 @supports (background: color-mix(in srgb, red, blue)) {
   .ProseMirror .tw-image__cropwindow {
@@ -135,14 +135,14 @@
   width: 14px;
   height: 14px;
   transform: translate(-50%, -50%);
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: var(--app-bg, #fff);
   border: 2.5px solid #fff;
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
   z-index: 4;
   touch-action: none;
   transition: transform 0.1s ease;
-  animation: tw-image-crophandle-pop-in 0.14s ease-out;
+  animation: tw-image-crophandle-pop-in var(--dur-fast) ease-out;
 }
 .ProseMirror .tw-image__crophandle:hover {
   transform: translate(-50%, -50%) scale(1.18);

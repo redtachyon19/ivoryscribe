@@ -852,7 +852,7 @@ export default function AppShell({
         titleIcon={<Pencil size={19} strokeWidth={1.9} aria-hidden="true" />}
         closeLabel="Cancel"
         footer={(
-          <Button variant="footer" onClick={commitRename}>
+          <Button variant="default" onClick={commitRename}>
             Rename
           </Button>
         )}

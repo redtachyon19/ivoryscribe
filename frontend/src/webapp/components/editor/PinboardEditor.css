@@ -18,7 +18,7 @@
   padding: 4px 6px;
   background: var(--editor-surface, #1a1a1a);
   border: 1px solid var(--editor-border, rgba(255, 255, 255, 0.08));
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   z-index: 20;
   user-select: none;
@@ -44,7 +44,7 @@
   font-size: 13px;
   line-height: 1;
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .pinboard-toolbar__grip:hover {
@@ -59,13 +59,13 @@
   width: 30px;
   height: 30px;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--editor-text, #ccc);
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 
 .pinboard-toolbar__btn:hover {
@@ -152,13 +152,13 @@
 
 .pinboard-node {
   position: absolute;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--editor-surface, #1e1e1e);
   border: 1.5px solid var(--editor-border, rgba(255, 255, 255, 0.1));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   overflow: hidden;
   user-select: none;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
   cursor: move;
 }
 
@@ -179,7 +179,7 @@
   height: 14px;
   cursor: nwse-resize;
   background: linear-gradient(135deg, transparent 40%, var(--app-accent, #7ea8ff) 40%);
-  border-radius: 0 0 6px 0;
+  border-radius: 0 0 var(--radius-sm) 0;
   opacity: 0.6;
 }
 
@@ -231,7 +231,7 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .pinboard-node--link {
@@ -333,7 +333,7 @@
   position: absolute;
   border: 1.5px solid color-mix(in srgb, var(--app-accent, #7ea8ff) 75%, transparent);
   background: color-mix(in srgb, var(--app-accent, #7ea8ff) 10%, transparent);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   pointer-events: none;
   z-index: 10;
 }

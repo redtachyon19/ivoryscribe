@@ -252,7 +252,7 @@ export function TypewriterToolbar({
   return (
     <div
       ref={toolbarRef}
-      className={`tw-toolbar${isDraggingToolbar ? " tw-toolbar--dragging" : ""}${!showToolbar ? " tw-toolbar--hidden" : ""}${isUiTyping ? " tw-toolbar--typing" : ""}`}
+      className={`tw-toolbar${isDraggingToolbar ? " tw-toolbar--dragging" : ""}${!showToolbar ? " tw-toolbar--hidden" : ""}${isUiTyping ? " is-hidden-while-typing" : ""}`}
       style={
         toolbarPos
           ? { left: toolbarPos.x, top: toolbarPos.y, bottom: "auto", transform: "none" }

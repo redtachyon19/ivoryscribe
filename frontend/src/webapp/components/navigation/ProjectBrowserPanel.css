@@ -30,7 +30,7 @@
 
 .project-browser__section-divider {
   height: 1px;
-  background: color-mix(in srgb, var(--menu-button, #ededed) 16%, transparent);
+  background: var(--text-ghost);
 }
 
 .project-browser__section-buttons {
@@ -42,9 +42,9 @@
 .project-browser__section-btn {
   width: 100%;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  color: var(--text-subtle);
   font-family: var(--app-ui-font);
   font-size: 13px;
   font-weight: 500;
@@ -55,19 +55,19 @@
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  transition: color 120ms ease, background-color 120ms ease;
+  transition: color var(--dur-quick) ease, background-color var(--dur-quick) ease;
 }
 
 .project-browser__section-btn:hover,
 .project-browser__section-btn:focus-visible {
   color: var(--menu-button, #ededed);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
+  background: var(--surface-hover);
   outline: none;
 }
 
 .project-browser__section-btn--active {
   color: var(--menu-button, #ededed);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 82%, transparent);
+  background: var(--surface-hover);
 }
 
 .project-browser__section-btn--drop-target {
@@ -84,13 +84,13 @@
 .project-browser__active-indicator {
   position: absolute;
   box-sizing: border-box;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--menu-button, #ededed) 26%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--surface-hover);
+  border: 1px solid var(--text-ghost);
   pointer-events: none;
-  transition: top 240ms cubic-bezier(0.2, 0.85, 0.2, 1), left 240ms cubic-bezier(0.2, 0.85, 0.2, 1),
-    width 240ms cubic-bezier(0.2, 0.85, 0.2, 1), height 240ms cubic-bezier(0.2, 0.85, 0.2, 1),
-    opacity 160ms ease;
+  transition: top var(--dur-med) cubic-bezier(0.2, 0.85, 0.2, 1), left var(--dur-med) cubic-bezier(0.2, 0.85, 0.2, 1),
+    width var(--dur-med) cubic-bezier(0.2, 0.85, 0.2, 1), height var(--dur-med) cubic-bezier(0.2, 0.85, 0.2, 1),
+    opacity var(--dur-fast) ease;
   z-index: 0;
 }
 
@@ -124,7 +124,7 @@
   align-items: center;
   box-sizing: border-box;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   color: var(--menu-button, #ededed);
   transition: background-color 0ms linear;
 }
@@ -137,7 +137,7 @@
   color: inherit;
   text-align: left;
   padding: 9px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: grab;
   font-size: 15px;
   line-height: 1.25;
@@ -146,7 +146,7 @@
   gap: 8px;
   overflow: hidden;
   opacity: 0.75;
-  transition: opacity 320ms ease-in-out;
+  transition: opacity var(--dur-slow) ease-in-out;
 }
 
 .project-browser__row:hover .project-browser__label,
@@ -182,26 +182,26 @@
   margin-left: 2px;
   margin-right: 4px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  color: var(--text-faint);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   cursor: pointer;
-  transition: color 120ms ease, background-color 120ms ease;
+  transition: color var(--dur-quick) ease, background-color var(--dur-quick) ease;
 }
 
 .project-browser__collapse-btn:hover,
 .project-browser__collapse-btn:focus-visible {
   color: var(--menu-button, #ededed);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 68%, transparent);
+  background: var(--surface-hover);
   outline: none;
 }
 
 .project-browser__collapse-btn svg {
-  transition: transform 150ms ease;
+  transition: transform var(--dur-fast) ease;
 }
 
 .project-browser__collapse-btn--open svg {
@@ -217,7 +217,7 @@
   font-size: 15px;
   line-height: 1.25;
   padding: 9px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   outline: none;
   caret-color: var(--app-accent, #9ab8ff);
 }

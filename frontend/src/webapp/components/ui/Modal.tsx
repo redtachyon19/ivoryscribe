@@ -8,6 +8,8 @@ type ModalProps = {
   isOpen: boolean
   onClose: () => void
   title?: string
+
+  titleNode?: ReactNode
   titleIcon?: ReactNode
   closeLabel?: string
   showCloseButton?: boolean
@@ -24,6 +26,7 @@ export default function Modal({
   isOpen,
   onClose,
   title,
+  titleNode,
   titleIcon,
   closeLabel = "Close",
   showCloseButton = true,
@@ -70,7 +73,7 @@ export default function Modal({
   return createPortal(
     <>
       <div
-        className={`ui-modal__overlay ui-modal__overlay${animSuffix}`}
+        className={`backdrop backdrop${animSuffix}`}
         onMouseDown={onClose}
         aria-hidden="true"
       />
@@ -86,21 +89,21 @@ export default function Modal({
           </GhostButton>
         ) : null}
         <div
-          className={`ui-modal__panel ui-modal__panel${animSuffix}${panelClassName ? ` ${panelClassName}` : ""}`}
+          className={`panel ui-modal__panel ui-modal__panel${animSuffix}${panelClassName ? ` ${panelClassName}` : ""}`}
           role="dialog"
           aria-modal="true"
           aria-label={title || "Dialog"}
         >
-          {title ? (
-            <div className="ui-modal__header">
-              <h3 className="ui-modal__title">
+          {titleNode || title ? (
+            <div className="panel__header">
+              <h3 className="panel__title">
                 {titleIcon}
-                <span>{title}</span>
+                {titleNode ?? <span>{title}</span>}
               </h3>
             </div>
           ) : null}
-          <div className="ui-modal__body">{children}</div>
-          {resolvedFooter ? <div className="ui-modal__footer ui-modal__actions">{resolvedFooter}</div> : null}
+          <div className="panel__body">{children}</div>
+          {resolvedFooter ? <div className="panel__footer">{resolvedFooter}</div> : null}
         </div>
       </div>
     </>,

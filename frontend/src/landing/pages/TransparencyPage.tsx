@@ -1,7 +1,8 @@
 import { Code2, Heart, Mail, MessageSquare, Rocket } from "lucide-react"
 import GithubMark from "../../webapp/components/ui/GithubMark"
 import { useEffect, useState } from "react"
-import "./Home.css"
+import "../landing.css"
+import "./TransparencyPage.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
 import type { HomeProps } from "./Home"
 

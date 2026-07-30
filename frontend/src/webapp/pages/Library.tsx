@@ -536,12 +536,12 @@ export default function Library({
         closeLabel="Close Settings"
         actions={
           <>
-            <Button variant="footer" onClick={settings.duplicate} disabled={!settings.settingsProject}>
+            <Button variant="default" onClick={settings.duplicate} disabled={!settings.settingsProject}>
               <BookCopy size={14} strokeWidth={2} aria-hidden={true} />
               Duplicate
             </Button>
             <Button
-              variant="footer"
+              variant="default"
               onClick={() => {
                 if (!settings.settingsProject) return
                 setProjects((cur) => cur.map((p) => p.id === settings.settingsProject!.id ? { ...p, archivedAt: new Date().toISOString() } : p))
@@ -553,7 +553,7 @@ export default function Library({
               Archive
             </Button>
             <Button
-              variant="footer-danger"
+              variant="danger"
               onClick={() => {
                 if (!settings.settingsProject) return
                 settings.close()
@@ -595,7 +595,7 @@ export default function Library({
           sessionToken={sessionToken}
           documentId={settingsProjectId ? (projectDocumentMap[settingsProjectId] ?? undefined) : undefined}
         />
-        {settings.error ? <p className="ui-modal__error">{settings.error}</p> : null}
+        {settings.error ? <p className="field__error">{settings.error}</p> : null}
       </Modal>
 
       {contextMenu ? (

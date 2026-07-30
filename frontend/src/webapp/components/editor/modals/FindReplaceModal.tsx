@@ -109,15 +109,15 @@ export default function FindReplaceModal({
         ? `${currentIndex + 1} of ${resultCount}`
         : `${resultCount} found`
 
-  const modalStateClassName = isClosing ? "find-replace-modal--closing" : "find-replace-modal--opening"
+  const modalStateClassName = isClosing ? "editor-popover--closing" : "editor-popover--opening"
   const expandableClassName = `find-replace-modal__expandable${expanded ? " find-replace-modal__expandable--open" : ""}`
 
   return (
-    <div className={`find-replace-modal__wrap ${modalStateClassName}`}>
-      <aside className="find-replace-modal" role="dialog" aria-label="Find and replace">
+    <div className={`editor-popover ${modalStateClassName}`}>
+      <aside className="panel panel--popover panel--glass editor-popover__panel find-replace-modal" role="dialog" aria-label="Find and replace">
         <button
           type="button"
-          className="find-replace-modal__close-btn"
+          className="btn btn--icon btn--sm btn--pill btn--spin-icon btn--floating-close"
           onClick={onClose}
           aria-label="Close"
         >
@@ -127,7 +127,7 @@ export default function FindReplaceModal({
         <div className="find-replace-modal__row">
           <button
             type="button"
-            className="find-replace-modal__btn find-replace-modal__toggle"
+            className="btn btn--icon btn--sm find-replace-modal__toggle"
             onClick={onToggleExpanded}
             aria-label={expanded ? "Collapse replace" : "Expand replace"}
           >
@@ -138,7 +138,7 @@ export default function FindReplaceModal({
 
           <input
             ref={findInputRef}
-            className="find-replace-modal__input"
+            className="field__input find-replace-modal__input"
             type="text"
             value={query}
             onChange={(event) => {
@@ -165,7 +165,7 @@ export default function FindReplaceModal({
 
           <button
             type="button"
-            className="find-replace-modal__btn"
+            className="btn btn--icon btn--sm"
             onClick={onGoPrevious}
             disabled={resultCount === 0}
             aria-label="Previous match"
@@ -175,7 +175,7 @@ export default function FindReplaceModal({
 
           <button
             type="button"
-            className="find-replace-modal__btn"
+            className="btn btn--icon btn--sm"
             onClick={onGoNext}
             disabled={resultCount === 0}
             aria-label="Next match"
@@ -188,7 +188,7 @@ export default function FindReplaceModal({
           <div className="find-replace-modal__expandable-inner">
             <div className="find-replace-modal__row find-replace-modal__replace-row">
               <input
-                className="find-replace-modal__input"
+                className="field__input find-replace-modal__input"
                 type="text"
                 value={replaceQuery}
                 onChange={(event) => {
@@ -201,7 +201,7 @@ export default function FindReplaceModal({
 
               <button
                 type="button"
-                className="find-replace-modal__action-btn"
+                className="btn btn--sm"
                 onClick={onReplaceCurrent}
                 disabled={resultCount === 0 || currentIndex < 0}
                 tabIndex={expanded ? 0 : -1}
@@ -211,7 +211,7 @@ export default function FindReplaceModal({
 
               <button
                 type="button"
-                className="find-replace-modal__action-btn"
+                className="btn btn--sm"
                 onClick={onReplaceAll}
                 disabled={resultCount === 0}
                 tabIndex={expanded ? 0 : -1}

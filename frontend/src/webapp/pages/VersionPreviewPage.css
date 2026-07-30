@@ -13,7 +13,7 @@
   justify-content: center;
   padding: 24px;
   text-align: center;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
+  color: var(--text-subtle);
 }
 
 .version-preview__head {
@@ -33,7 +33,7 @@
 .version-preview__meta {
   margin: 6px 0 0;
   font-size: 14px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+  color: var(--text-faint);
 }
 
 .version-preview__toolbar {
@@ -44,19 +44,6 @@
   margin-top: 16px;
   padding-bottom: 14px;
   border-bottom: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 70%, transparent);
-}
-
-.version-preview__toolbar .ui-button {
-  padding: 8px 12px;
-  font-size: 14px;
-}
-
-.version-preview__toolbar .ui-button > span {
-  white-space: nowrap;
-}
-
-.version-preview__toolbar .ui-button svg {
-  flex-shrink: 0;
 }
 
 .version-preview__status {
@@ -87,7 +74,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 50%, transparent);
+  color: var(--text-faint);
 }
 
 .version-preview__toc {
@@ -102,9 +89,9 @@
   box-sizing: border-box;
   text-align: left;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 82%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: 14px;
   line-height: 1.3;
@@ -113,13 +100,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: background-color 120ms ease, color 120ms ease;
+  transition: background-color var(--dur-quick) ease, color var(--dur-quick) ease;
 }
 
 .version-preview__toc-item:hover,
 .version-preview__toc-item:focus-visible {
   outline: none;
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #242424) 60%, transparent);
+  background: var(--surface-hover);
   color: var(--menu-button, #ededed);
 }
 
@@ -131,7 +118,7 @@
   overflow-y: auto;
 }
 
-.version-preview__scroll .find-replace-modal__wrap {
+.version-preview__scroll .editor-popover {
   top: 12px;
 }
 
@@ -146,7 +133,7 @@
 
 .version-preview__card {
   border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #313642) 80%, transparent);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 16px 18px;
   background: color-mix(in srgb, var(--menu-dropdown-bg, #171a21) 80%, transparent);
 }
@@ -160,7 +147,7 @@
 }
 
 .version-preview__entry {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 88%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-body-font, var(--app-ui-font));
   font-size: 16px;
   line-height: 1.55;
@@ -175,7 +162,7 @@
 .version-preview__entry img { max-width: 100%; height: auto; }
 
 .version-preview__empty {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 50%, transparent);
+  color: var(--text-faint);
   font-style: italic;
 }
 

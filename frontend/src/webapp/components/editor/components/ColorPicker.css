@@ -2,7 +2,7 @@
   padding: 10px;
   background: var(--menu-dropdown-bg, #1a1a1a);
   border: 1px solid var(--menu-dropdown-border, var(--menu-border, rgba(255, 255, 255, 0.08)));
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 }
 
@@ -16,7 +16,7 @@
   position: relative;
   width: 100%;
   height: 120px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: crosshair;
   touch-action: none;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
@@ -25,7 +25,7 @@
   position: absolute;
   width: 12px;
   height: 12px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   transform: translate(-50%, -50%);
   border: 2px solid #fff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
@@ -35,7 +35,7 @@
   position: relative;
   width: 100%;
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   touch-action: none;
   background: linear-gradient(to right,
@@ -47,7 +47,7 @@
   top: 50%;
   width: 12px;
   height: 12px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   transform: translate(-50%, -50%);
   background: #fff;
   border: 2px solid #fff;
@@ -62,7 +62,7 @@
 .tw-colorpicker__preview {
   width: 24px;
   height: 24px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
@@ -71,7 +71,7 @@
   min-width: 0;
   background: var(--menu-bg, #141414);
   border: 1px solid var(--menu-border, rgba(255, 255, 255, 0.1));
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--menu-button, #ededed);
   font-family: var(--app-ui-font);
   font-size: 12px;
@@ -87,7 +87,7 @@
   height: 32px;
   padding: 3px;
   border: 1px solid var(--menu-dropdown-border, #2e2e2e);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--menu-bg, #1d1d1d);
   cursor: pointer;
   flex-shrink: 0;
@@ -98,6 +98,6 @@
 }
 .color-swatch-btn__fill {
   flex: 1;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
 }

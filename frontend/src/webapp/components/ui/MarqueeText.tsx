@@ -34,12 +34,17 @@ export default function MarqueeText({ text }: MarqueeTextProps) {
 
     measure()
 
+    const rafId = window.requestAnimationFrame(measure)
+    const settleId = window.setTimeout(measure, 240)
+
     const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null
     resizeObserver?.observe(viewport)
     resizeObserver?.observe(textEl)
     window.addEventListener("resize", measure)
 
     return () => {
+      window.cancelAnimationFrame(rafId)
+      window.clearTimeout(settleId)
       resizeObserver?.disconnect()
       window.removeEventListener("resize", measure)
     }

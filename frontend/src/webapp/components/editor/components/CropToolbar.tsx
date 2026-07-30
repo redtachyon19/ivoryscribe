@@ -61,7 +61,7 @@ export function CropToolbar({
   return (
     <div
       ref={toolbarRef}
-      className={`tw-toolbar${isDraggingToolbar ? " tw-toolbar--dragging" : ""}${isUiTyping ? " tw-toolbar--typing" : ""}`}
+      className={`tw-toolbar${isDraggingToolbar ? " tw-toolbar--dragging" : ""}${isUiTyping ? " is-hidden-while-typing" : ""}`}
       style={
         toolbarPos
           ? ({ left: toolbarPos.x, top: toolbarPos.y, bottom: "auto", transform: "none" } as CSSProperties)
