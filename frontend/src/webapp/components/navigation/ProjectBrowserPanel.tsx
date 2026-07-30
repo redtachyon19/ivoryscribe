@@ -869,7 +869,7 @@ export default function ProjectBrowserPanel({
             titleIcon={<Trash2 size={19} strokeWidth={1.9} aria-hidden="true" />}
             closeLabel="Cancel"
             footer={
-              <Button variant="footer-danger" onClick={confirmTrashFolder}>
+              <Button variant="danger" onClick={confirmTrashFolder}>
                 <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
                 Trash
               </Button>
@@ -891,12 +891,12 @@ export default function ProjectBrowserPanel({
             closeLabel="Close Settings"
             actions={
               <>
-                <Button variant="footer" onClick={settings.duplicate} disabled={!settings.settingsProject}>
+                <Button variant="default" onClick={settings.duplicate} disabled={!settings.settingsProject}>
                   <BookCopy size={14} strokeWidth={2} aria-hidden={true} />
                   Duplicate
                 </Button>
                 <Button
-                  variant="footer"
+                  variant="default"
                   onClick={() => {
                     if (!settings.settingsProject) return
                     setProjects((cur) => cur.map((p) => p.id === settings.settingsProject!.id ? { ...p, archivedAt: new Date().toISOString() } : p))
@@ -908,7 +908,7 @@ export default function ProjectBrowserPanel({
                   Archive
                 </Button>
                 <Button
-                  variant="footer-danger"
+                  variant="danger"
                   onClick={() => {
                     if (!settings.settingsProject) return
                     settings.close()
@@ -939,7 +939,7 @@ export default function ProjectBrowserPanel({
               sessionToken={sessionToken}
               documentId={settings.settingsProject ? (projectDocumentMap[settings.settingsProject.id] ?? undefined) : undefined}
             />
-            {settings.error ? <p className="ui-modal__error">{settings.error}</p> : null}
+            {settings.error ? <p className="field__error">{settings.error}</p> : null}
           </Modal>
         </>,
         document.querySelector('.app') ?? document.body,

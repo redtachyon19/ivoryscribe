@@ -13,7 +13,7 @@ import { requestAppColorPaletteChange, requestExportProject } from "../events/ed
 import { getAppMenu, projectWorkspaceMenu, serializeMenuForElectron } from "../utils/menu"
 import { exportProjectAsPdf } from "../../webapp/components/export/pdfExport"
 import { buildDuplicateProjectName, createLocalId } from "../utils/libraryUtils"
-import { createProject, createId, generateUntitledName, normalizeProjectAfterTabs, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, removeProjectVersions, type Project } from "../utils/projects"
+import { createProject, createId, generateUntitledName, isReadOnlyKind, normalizeProjectAfterTabs, DEFAULT_DOCUMENT_CONTENT, getProjectMarkdownIds, removeProjectVersions, type Project } from "../utils/projects"
 import { mapVersionsForSettings, openVersionPreviewWindow, parseVersionSnapshot, restoreProjectFromVersion, type VersionSettingsEntry } from "../state/versioning"
 import { readLastEditorLocation, readLastLibraryLocation, writeLastEditorLocation } from "../state/lastLocationStorage"
 import { useSession } from "./useSession"
@@ -27,7 +27,7 @@ import { setSessionInStorage } from "../state/session"
 import { buildRootOverrideUrl, isPathInsideRoot, readOpenFileFromLocation, useLocalRoot } from "../electron/localWorkspace"
 import { setMacFolderColor } from "../electron/macFolderLabels"
 import { useLocalFilesystemSync } from "../localFiles"
-import { uploadLocalFileAsCloudDocument } from "../localFiles/cloudOverlay"
+import { uploadProjectAsCloudDocument } from "../localFiles/cloudOverlay"
 import { useCloudPreferenceSync } from "./useCloudPreferenceSync"
 import { useNativeTextEntryCommandBus } from "./useNativeTextEntryCommandBus"
 import { getStoredBoolean, writeStoredPreferences } from "../state/preferencesStorage"
@@ -254,7 +254,7 @@ export function useAppOrchestration() {
     for (const [projectId, shareId] of cloudInLocal.shareIdByProjectId) {
       shareIdByProjectIdRef.current.set(projectId, shareId)
     }
-  }, [cloudInLocal, shareIdByProjectIdRef])
+  }, [cloudInLocal.shareIdByProjectId, shareIdByProjectIdRef])
 
   useDualStateMigration({
     isLocalMode,
@@ -286,9 +286,20 @@ export function useAppOrchestration() {
       return null
     }
 
+    const project = projects.find((p) => p.id === projectId)
+    if (!project) {
+      console.warn("[moveToCloud] project not in state", projectId)
+      window.alert("Couldn't find this project — nothing to upload.")
+      return null
+    }
+    if (isReadOnlyKind(project.kind)) {
+      window.alert(`${project.kind} files can't be moved to the cloud — they stay on disk.`)
+      return null
+    }
+
     let cloudId: string
     try {
-      cloudId = await uploadLocalFileAsCloudDocument(session.token, filePath)
+      cloudId = await uploadProjectAsCloudDocument(session.token, project)
     } catch (err) {
       console.error("[moveToCloud] upload failed; local file left intact:", err)
       const detail = err instanceof Error ? err.message : String(err)
@@ -296,6 +307,7 @@ export function useAppOrchestration() {
       return null
     }
 
+    cloudInLocal.registerCloudProject(projectId, cloudId, project)
     setProjectDocumentMap((cur) => ({ ...cur, [projectId]: cloudId }))
     setProjects((cur) => cur.map((p) => p.id === projectId ? { ...p, source: "cloud" } : p))
     try {

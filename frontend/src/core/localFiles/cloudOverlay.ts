@@ -1,33 +1,19 @@
 import { createDocument } from "../api"
 import { getDocumentShares, createShare, revokeShare } from "../api"
 import type { ShareRecord } from "../api"
+import { PROJECT_RECORD_TYPE } from "../state/versioning"
+import type { Project } from "../utils/projects"
 
-function pathApi() {
-  const api = window.electronAPI?.path
-  if (!api) throw new Error("Path unavailable")
-  return api
-}
-
-function fs() {
-  const api = window.electronAPI?.fs
-  if (!api) throw new Error("Filesystem unavailable")
-  return api
-}
-
-function readDisplayName(filePath: string): string {
-  const filename = pathApi().basename(filePath)
-  const ext = pathApi().extname(filename)
-  return filename.slice(0, filename.length - ext.length)
-}
-
-export async function uploadLocalFileAsCloudDocument(token: string, filePath: string): Promise<string> {
-  const raw = await fs().readFile(filePath)
-  const title = readDisplayName(filePath)
+export async function uploadProjectAsCloudDocument(token: string, project: Project): Promise<string> {
   const document = await createDocument(token, {
-    title,
-    content: raw,
+    title: project.name,
+    content: JSON.stringify({ ...project, source: "cloud" }),
     metadata: {
-      ivoryscribeLocal: true,
+      recordType: PROJECT_RECORD_TYPE,
+      projectId: project.id,
+    },
+    theme: {
+      projectColor: project.color,
     },
   })
   return document.id

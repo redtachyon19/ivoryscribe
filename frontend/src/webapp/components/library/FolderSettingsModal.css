@@ -14,7 +14,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--menu-bg, #1d1d1d) 72%, transparent);
   border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 60%, transparent);
 }
@@ -45,7 +45,7 @@
   font-size: 11.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 70%, transparent);
+  color: var(--text-subtle);
 }
 
 .folder-settings-modal__color-row {
@@ -59,24 +59,24 @@
   height: 36px;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 70%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
   cursor: pointer;
 }
 .folder-settings-modal__color-swatch::-webkit-color-swatch {
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .folder-settings-modal__color-swatch::-webkit-color-swatch-wrapper {
   padding: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .folder-settings-modal__color-hex {
   font-family: "IBM Plex Mono", "Menlo", "Consolas", monospace;
   font-size: 13px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 60%, transparent);
   background: color-mix(in srgb, var(--menu-bg, #1d1d1d) 78%, transparent);
   color: var(--menu-button, #ededed);
@@ -91,15 +91,15 @@
 .folder-settings-modal__reset {
   font-size: 12.5px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 60%, transparent);
   background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 80%, transparent);
+  color: var(--text-muted);
   cursor: pointer;
 }
 .folder-settings-modal__reset:hover,
 .folder-settings-modal__reset:focus-visible {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 70%, transparent);
+  background: var(--surface-hover);
   color: var(--menu-button, #ededed);
   outline: none;
 }
@@ -116,7 +116,7 @@
   font-size: 22px;
   line-height: 1;
   padding: 4px 6px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 60%, transparent);
   background: color-mix(in srgb, var(--menu-bg, #1d1d1d) 78%, transparent);
   color: var(--menu-button, #ededed);
@@ -128,5 +128,5 @@
 
 .folder-settings-modal__emoji-hint {
   font-size: 12px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 64%, transparent);
+  color: var(--text-subtle);
 }

@@ -51,6 +51,16 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Stamp version from the release tag
+        working-directory: frontend
+        shell: bash
+        # electron-builder reads the version from package.json, so the tag has to
+        # be written into it or every build ships as 0.0.0.
+        run: |
+          raw="${{ inputs.tag || github.ref_name }}"
+          npm pkg set version="${raw#v}"
+          echo "Building version $(npm pkg get version)"
+
       - name: Build ${{ matrix.platform }} installer
         working-directory: frontend
         # CSC_IDENTITY_AUTO_DISCOVERY=false stops electron-builder from failing the

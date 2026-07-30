@@ -38,7 +38,7 @@
   min-width: 0;
   box-sizing: border-box;
   border: 1px solid color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 88%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 82%, #000);
   color: var(--menu-button, #f4f4f4);
   font-size: 20px;
@@ -48,47 +48,13 @@
 }
 
 .project-preferences-fields__input:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--menu-button, #ededed) 75%, transparent);
+  outline: 2px solid var(--text-subtle);
   outline-offset: 2px;
 }
 
 .project-preferences-fields__input:focus {
-  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
-}
-
-.project-preferences-fields__input--color {
-  width: 52px;
-  height: 38px;
-  padding: 2px;
-  border-radius: 8px;
-  border: 1px solid var(--menu-dropdown-border, #2e2e2e);
-  background: var(--menu-bg, #1d1d1d);
-  cursor: pointer;
-  align-self: auto;
-  box-shadow: none;
-  flex-shrink: 0;
-  transition: border-color 160ms ease;
-}
-
-.project-preferences-fields__input--color:hover {
-  border-color: color-mix(in srgb, var(--menu-button, #ededed) 38%, transparent);
-}
-
-.project-preferences-fields__input--color::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.project-preferences-fields__input--color::-webkit-color-swatch {
-  border: 0;
-  border-radius: 6px;
-}
-
-.project-preferences-fields__input--color::-moz-color-swatch {
-  border: 0;
-  border-radius: 6px;
-}
-
-.project-preferences-fields__wallpaper-row {
+  border-color: var(--text-ghost);
+}.project-preferences-fields__wallpaper-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -101,7 +67,7 @@
   min-width: 0;
   box-sizing: border-box;
   border: 1px solid var(--menu-dropdown-border, #2e2e2e);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--menu-bg, #1d1d1d);
   color: var(--menu-button, #ededed);
   padding: 8px 10px;
@@ -125,7 +91,7 @@
 }
 
 .project-preferences-fields__color-value-input:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--menu-button, #ededed) 75%, transparent);
+  outline: 2px solid var(--text-subtle);
   outline-offset: 2px;
 }
 .project-preferences-fields__input--emoji {
@@ -167,19 +133,19 @@
   justify-content: center;
   padding: 6px 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: 15px;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 
 .project-preferences-fields__export-format-btn:hover,
 .project-preferences-fields__export-format-btn:focus-visible {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 72%, transparent);
+  background: var(--surface-hover);
   border-color: transparent;
   color: var(--menu-button, #ededed);
   outline: none;

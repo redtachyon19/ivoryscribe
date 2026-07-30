@@ -202,8 +202,8 @@ export default function TrashView({ projects, setProjects, onOpenProject, onOpen
           panelClassName="project-delete-modal__panel"
           actions={
             <>
-              <Button variant="footer" onClick={closeShredConfirmation}>Cancel</Button>
-              <Button variant="footer-danger" onClick={confirmShred}>Shred</Button>
+              <Button variant="default" onClick={closeShredConfirmation}>Cancel</Button>
+              <Button variant="danger" onClick={confirmShred}>Shred</Button>
             </>
           }
         >

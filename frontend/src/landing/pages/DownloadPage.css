@@ -1,0 +1,195 @@
+.download-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding-top: 180px;
+  padding-bottom: 44px;
+}
+
+.download-intro {
+  text-align: center;
+  padding: 0 24px 120px;
+}
+
+.download-intro h1 {
+  margin: 0 0 8px;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: 40px;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 96%, transparent);
+}
+
+.download-intro p {
+  margin: 0;
+  font-family: var(--app-ui-font);
+  font-size: 16px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+}
+
+.auth-gateway-page.auth-gateway-page--download {
+  background: #000;
+}
+
+.download-sections {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.download-section {
+  position: relative;
+  width: 100%;
+}
+
+.download-section--mac {
+  background: radial-gradient(58% 130% at 76% 50%, color-mix(in srgb, #ff306a 14%, transparent), transparent 68%);
+}
+
+.download-section--windows {
+  background: radial-gradient(58% 130% at 26% 50%, color-mix(in srgb, #f4ead2 10%, transparent), transparent 68%);
+}
+
+.download-section__inner {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 44px 24px;
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) 1.15fr;
+  gap: 40px;
+  align-items: center;
+}
+
+.download-section__info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.download-divider {
+  width: 100%;
+  height: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 55%, transparent);
+}
+
+.download-option__cta-logo {
+  height: 15px;
+  width: auto;
+  flex: none;
+}
+
+.download-section--mac .download-option__cta-logo {
+  color: #f5f5f7;
+}
+
+.download-section--windows .download-option__cta-logo {
+  color: #3b9eff;
+}
+
+.download-option__title {
+  margin: 0;
+  font-family: "EB Garamond", serif;
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 97%, transparent);
+}
+
+.download-option__note {
+  margin: 0;
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 68%, transparent);
+}
+
+.download-option__cta {
+  margin-top: 4px;
+  font-size: 14px;
+  padding: 8px 16px;
+}
+
+.download-shot {
+  position: relative;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 55%, transparent);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--menu-dropdown-bg, #141414) 88%, #000);
+  aspect-ratio: 16 / 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.download-shot__placeholder {
+  font-family: var(--app-ui-font);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 40%, transparent);
+}
+
+.download-shot__caption {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(4px);
+  font-family: var(--app-ui-font);
+  font-size: 12px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+}
+
+.download-browser-hint {
+  margin: 30px auto 0;
+  text-align: center;
+  font-family: var(--app-ui-font);
+  font-size: 14px;
+  color: color-mix(in srgb, var(--menu-button, #ededed) 60%, transparent);
+}
+
+.download-browser-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--app-accent, #9ab8ff);
+  cursor: pointer;
+  text-underline-offset: 3px;
+}
+
+.download-browser-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 680px) {
+    .download-main {
+      padding-top: 150px;
+    }
+
+    .download-section__inner {
+      grid-template-columns: 1fr;
+      gap: 24px;
+      padding: 32px 16px;
+    }
+
+    .download-option__title {
+      font-size: 25px;
+    }
+
+    .download-intro h1 {
+      font-size: 32px;
+    }
+}

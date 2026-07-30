@@ -20,7 +20,7 @@
 
 .tuskai__empty {
   margin: auto;
-  color: color-mix(in srgb, var(--menu-button) 55%, transparent);
+  color: var(--text-faint);
   font-size: 13px;
   text-align: center;
   padding: 0 8px;
@@ -44,7 +44,7 @@
 
 .tuskai__bubble {
   padding: 10px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   line-height: 1.5;
   font-size: 14px;
   white-space: pre-wrap;
@@ -67,20 +67,20 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: color-mix(in srgb, var(--menu-button) 55%, transparent);
+  color: var(--text-faint);
   font-style: italic;
 }
 
 .tuskai__meta {
   margin-top: 4px;
   font-size: 11px;
-  color: color-mix(in srgb, var(--menu-button) 55%, transparent);
+  color: var(--text-faint);
 }
 
 .tuskai__error {
   margin: 0 16px 8px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, #ef4444 20%, var(--menu-dropdown-bg));
   color: #fca5a5;
   border: 1px solid color-mix(in srgb, #ef4444 40%, transparent);
@@ -90,7 +90,7 @@
 .tuskai__pending {
   margin: 0 16px 8px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, #22c55e 14%, var(--menu-dropdown-bg));
   color: color-mix(in srgb, #22c55e 70%, var(--menu-button));
   border: 1px solid color-mix(in srgb, #22c55e 32%, transparent);
@@ -112,7 +112,7 @@
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   font: inherit;
   font-size: 11px;
@@ -152,7 +152,7 @@
   width: 100%;
   resize: none;
   border: 1px solid var(--menu-border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   font: inherit;
   font-size: 14px;
@@ -160,12 +160,12 @@
   background: var(--menu-bg);
   color: var(--menu-button);
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--dur-fast) ease;
   box-sizing: border-box;
 }
 
 .tuskai__input::placeholder {
-  color: color-mix(in srgb, var(--menu-button) 45%, transparent);
+  color: var(--text-ghost);
 }
 
 .tuskai__input:focus {
@@ -186,7 +186,7 @@
 
 .tuskai__model {
   border: 1px solid var(--menu-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 6px 10px;
   font: inherit;
   font-size: 13px;
@@ -201,14 +201,14 @@
   gap: 6px;
   padding: 8px 14px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--app-accent);
   color: var(--menu-bg);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
+  transition: background-color var(--dur-fast) ease, opacity var(--dur-fast) ease;
 }
 
 .tuskai__send:hover:not(:disabled) {
@@ -221,18 +221,13 @@
 }
 
 .tuskai__spin {
-  animation: tuskai-spin 0.8s linear infinite;
-}
-
-@keyframes tuskai-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  animation: icon-spin 0.8s linear infinite;
 }
 
 .tuskai__mode-toggle {
   display: inline-flex;
   border: 1px solid var(--menu-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -240,7 +235,7 @@
   padding: 6px 12px;
   border: none;
   background: var(--menu-bg);
-  color: color-mix(in srgb, var(--menu-button) 70%, transparent);
+  color: var(--text-subtle);
   font: inherit;
   font-size: 12px;
   font-weight: 500;

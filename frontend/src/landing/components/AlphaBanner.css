@@ -44,11 +44,11 @@
   height: 22px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
   cursor: pointer;
-  transition: background-color 160ms ease;
+  transition: background-color var(--dur-fast) ease;
 }
 
 .alpha-banner__close:hover {

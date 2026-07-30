@@ -108,7 +108,7 @@
 
 .web-auth-card__heading {
   opacity: 1;
-  transition: opacity 220ms ease-out;
+  transition: opacity var(--dur-med) ease-out;
 }
 
 .web-auth-card__heading--fading-out,
@@ -134,14 +134,14 @@
 }
 
 .web-auth-card__field span {
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
 }
 
 .web-auth-card__field input {
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 84%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--menu-bg, #151515);
   color: var(--menu-button, #efefef);
   font-family: var(--app-body-font);
@@ -193,7 +193,7 @@
 
 .web-auth-card__hint {
   margin: -6px 0 14px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
   line-height: 1.25;
@@ -218,7 +218,7 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: 15px;
 }
@@ -255,7 +255,7 @@
 
 .web-auth-card__mode-switch-block p {
   margin: 0;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: var(--web-auth-text-size);
 }
@@ -263,7 +263,7 @@
 .web-auth-card__crash {
   margin: 4px 0 12px;
   border: 1px solid color-mix(in srgb, #ff8a7a 68%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 12px;
   background: color-mix(in srgb, #5a2018 48%, transparent);
 }
@@ -289,7 +289,7 @@
 
 .web-auth-button {
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 84%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--menu-dropdown-bg, #1d1d1d) 84%, transparent);
   color: var(--menu-button, #ededed);
   font-family: var(--app-ui-font);
@@ -300,7 +300,7 @@
 }
 
 .web-auth-button:hover {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #262626) 88%, transparent);
+  background: var(--surface-hover);
 }
 
 .web-auth-button--primary {

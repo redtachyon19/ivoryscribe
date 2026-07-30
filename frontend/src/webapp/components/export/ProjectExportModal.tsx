@@ -89,9 +89,9 @@ export default function ProjectExportModal({
       closeLabel="Close Export Modal"
       footer={(
         <>
-          <Button variant="footer" onClick={onClose}>Cancel</Button>
+          <Button variant="default" onClick={onClose}>Cancel</Button>
           <Button
-            variant="footer-primary"
+            variant="primary"
             onClick={() => {
               onConfirm({
                 mode,

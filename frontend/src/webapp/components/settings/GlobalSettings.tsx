@@ -5,6 +5,7 @@ import AccountSettings from "./AccountSettings"
 import AppearanceSettings from "./AppearanceSettings"
 import ProjectSettings from "./ProjectSettings"
 import WorkspaceSettings from "./WorkspaceSettings"
+import { useAppVersion } from "../../../core/hooks/useAppVersion"
 import Button from "../ui/Button"
 import "./GlobalSettings.css"
 
@@ -184,6 +185,7 @@ export default function GlobalSettings({
   const [isRendered, setIsRendered] = useState(isOpen)
   const [isClosing, setIsClosing] = useState(false)
   const [isActionFeedbackVisible, setIsActionFeedbackVisible] = useState(false)
+  const appVersion = useAppVersion()
 
   const sectionNavItems: { id: SectionId; label: string; icon: ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean }> }[] = [
     { id: "account", label: "Account Settings", icon: UserRound },
@@ -417,7 +419,7 @@ export default function GlobalSettings({
               <h2>Settings</h2>
               <div className="global-settings__header-actions">
                 <Button
-                  variant="footer"
+                  variant="default"
                   className="global-settings__restore-btn"
                   onClick={onRestoreDefaults}
                 >
@@ -449,6 +451,10 @@ export default function GlobalSettings({
                     </button>
                   )
                 })}
+
+                <div className="global-settings__nav-footer">
+                  © ivoryscribe v{appVersion.version} for {appVersion.platformLabel}
+                </div>
               </nav>
 
               <div className="global-settings__content" ref={contentRef}>

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { ChevronDown, Cloud, Send, UserCheck, UserX, UserRoundPlus, Crown, Users, LogIn } from "lucide-react"
 import Modal from "../ui/Modal"
+import MarqueeText from "../ui/MarqueeText"
 import {
   createShare,
   getDocumentShares,
@@ -26,13 +27,11 @@ function PermissionMenu({
   value,
   onChange,
   onTransferOwnership,
-  size = "normal",
   showOwnerOption = false,
 }: {
   value: "view" | "edit"
   onChange: (next: "view" | "edit") => void
   onTransferOwnership?: () => void
-  size?: "normal" | "small"
   showOwnerOption?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -58,7 +57,7 @@ function PermissionMenu({
     <div className="share-dialog__permission-wrap" ref={wrapRef}>
       <button
         type="button"
-        className={`share-dialog__permission-trigger ${size === "small" ? "share-dialog__permission-trigger--small" : ""}`.trim()}
+        className="btn btn--field share-dialog__permission-trigger"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((c) => !c)}
@@ -67,7 +66,7 @@ function PermissionMenu({
         <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
       </button>
       <div
-        className={`share-dialog__permission-menu ${isOpen ? "share-dialog__permission-menu--open" : "share-dialog__permission-menu--closed"}`.trim()}
+        className={`panel panel--popover share-dialog__permission-menu ${isOpen ? "share-dialog__permission-menu--open" : ""}`.trim()}
         role="listbox"
         aria-label="Permission"
       >
@@ -76,7 +75,7 @@ function PermissionMenu({
             type="button"
             role="option"
             aria-selected={false}
-            className="share-dialog__permission-option share-dialog__permission-option--owner"
+            className="row share-dialog__permission-option share-dialog__permission-option--owner"
             onClick={() => {
               onTransferOwnership?.()
               setIsOpen(false)
@@ -91,7 +90,7 @@ function PermissionMenu({
             type="button"
             role="option"
             aria-selected={opt.value === value}
-            className={`share-dialog__permission-option ${opt.value === value ? "share-dialog__permission-option--active" : ""}`.trim()}
+            className={`row share-dialog__permission-option ${opt.value === value ? "row--active" : ""}`.trim()}
             onClick={() => {
               onChange(opt.value)
               setIsOpen(false)
@@ -179,7 +178,7 @@ export function SharePanel({
         </p>
         <button
           type="button"
-          className="share-dialog__enable-cloud-btn"
+          className="btn btn--sm btn--primary"
           onClick={handleEnableCloudSharing}
           disabled={isEnablingCloud || !onEnableCloudSharing}
         >
@@ -189,7 +188,7 @@ export function SharePanel({
             <><Cloud size={14} strokeWidth={2} /> {isEnablingCloud ? "Uploading…" : "Enable cloud sharing"}</>
           )}
         </button>
-        {error ? <p className="share-dialog__error">{error}</p> : null}
+        {error ? <p className="field__error">{error}</p> : null}
       </div>
     )
   }
@@ -292,7 +291,7 @@ export function SharePanel({
     <>
       <div className="share-dialog__form">
         <input
-          className="share-dialog__email-input"
+          className="field__input share-dialog__email-input"
           type="text"
           inputMode="email"
           autoComplete="email"
@@ -316,7 +315,7 @@ export function SharePanel({
         <PermissionMenu value={permission} onChange={setPermission} />
         <button
           type="button"
-          className="share-dialog__send-btn"
+          className="btn"
           onClick={handleSendInvite}
           disabled={isSending || !email.trim()}
         >
@@ -325,11 +324,11 @@ export function SharePanel({
         </button>
       </div>
 
-      {error ? <p className="share-dialog__error">{error}</p> : null}
+      {error ? <p className="field__error">{error}</p> : null}
       {success ? <p className="share-dialog__success">{success}</p> : null}
 
       {isLoading ? (
-        <p className="share-dialog__loading">Loading shared users…</p>
+        <p className="share-dialog__placeholder">Loading shared users…</p>
       ) : (
         <div className="share-dialog__list">
           <span className="share-dialog__list-title">Collaborators</span>
@@ -360,11 +359,10 @@ export function SharePanel({
                     onChange={(next) => handlePermissionChange(share.id, next)}
                     onTransferOwnership={share.status === "accepted" ? () => setTransferTarget({ shareId: share.id, email: share.recipientEmail }) : undefined}
                     showOwnerOption={share.status === "accepted"}
-                    size="small"
                   />
                   <button
                     type="button"
-                    className="share-dialog__revoke-btn"
+                    className="btn btn--danger"
                     onClick={() => handleRevoke(share.id)}
                     title="Revoke access"
                   >
@@ -381,7 +379,7 @@ export function SharePanel({
                   <div className="share-dialog__transfer-confirm-actions">
                     <button
                       type="button"
-                      className="share-dialog__transfer-confirm-btn share-dialog__transfer-confirm-btn--cancel"
+                      className="btn btn--sm btn--outline"
                       onClick={() => setTransferTarget(null)}
                       disabled={isTransferring}
                     >
@@ -389,7 +387,7 @@ export function SharePanel({
                     </button>
                     <button
                       type="button"
-                      className="share-dialog__transfer-confirm-btn share-dialog__transfer-confirm-btn--confirm"
+                      className="btn btn--sm share-dialog__transfer-confirm-btn--confirm"
                       onClick={handleTransferOwnership}
                       disabled={isTransferring}
                     >
@@ -400,7 +398,7 @@ export function SharePanel({
               ) : null}
             </div>
           )) : (
-            <p className="share-dialog__empty">No collaborators yet.</p>
+            <p className="share-dialog__placeholder">No collaborators yet.</p>
           )}
         </div>
       )}
@@ -431,85 +429,19 @@ export default function ShareDialog({
   ownerEmail = "",
   onEnableCloudSharing,
 }: ShareDialogProps) {
-  const [viewportEl, setViewportEl] = useState<HTMLSpanElement | null>(null)
-  const marqueeTextRef = useRef<HTMLSpanElement | null>(null)
-  const [marquee, setMarquee] = useState({ isOverflowing: false, loopDistance: 0 })
-
-  useEffect(() => {
-    if (!isOpen || !viewportEl) return
-
-    const text = marqueeTextRef.current
-    if (!text) return
-
-    const measure = () => {
-      const viewportWidth = viewportEl.clientWidth
-      const textWidth = text.scrollWidth
-      const nextIsOverflowing = textWidth > viewportWidth + 1
-      const nextLoopDistance = nextIsOverflowing ? textWidth + 28 : 0
-
-      setMarquee((current) => {
-        if (current.isOverflowing === nextIsOverflowing && current.loopDistance === nextLoopDistance) return current
-        return { isOverflowing: nextIsOverflowing, loopDistance: nextLoopDistance }
-      })
-    }
-
-    measure()
-    const rafId = window.requestAnimationFrame(measure)
-    const delayedMeasureId = window.setTimeout(measure, 240)
-
-    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null
-    resizeObserver?.observe(viewportEl)
-    resizeObserver?.observe(text)
-    window.addEventListener("resize", measure)
-
-    return () => {
-      window.cancelAnimationFrame(rafId)
-      window.clearTimeout(delayedMeasureId)
-      resizeObserver?.disconnect()
-      window.removeEventListener("resize", measure)
-    }
-  }, [isOpen, projectName, viewportEl])
-
-  const titleNode = (
-    <span
-      ref={setViewportEl}
-      className={`share-dialog__title-marquee ${marquee.isOverflowing ? "share-dialog__title-marquee--overflowing" : ""}`.trim()}
-      style={
-        marquee.isOverflowing
-          ? ({ "--marquee-distance": `${marquee.loopDistance}px` } as CSSProperties)
-          : undefined
-      }
-    >
-      <span className="share-dialog__title-marquee-track">
-        <span ref={marqueeTextRef} className="share-dialog__title-marquee-text">
-          Share &ldquo;{projectName}&rdquo;
-        </span>
-        {marquee.isOverflowing ? <span className="share-dialog__title-marquee-gap" aria-hidden="true" /> : null}
-        {marquee.isOverflowing ? (
-          <span className="share-dialog__title-marquee-text" aria-hidden="true">
-            Share &ldquo;{projectName}&rdquo;
-          </span>
-        ) : null}
-      </span>
-    </span>
-  )
-
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
+      title={`Share "${projectName}"`}
+      titleNode={
+        <span className="share-dialog__title" tabIndex={0} data-marquee-parent>
+          <MarqueeText text={`Share “${projectName}”`} />
+        </span>
+      }
       titleIcon={<UserRoundPlus size={19} strokeWidth={1.9} aria-hidden="true" />}
       closeLabel="Close Share Dialog"
-      panelClassName="share-dialog__modal-panel"
     >
-      <div className="share-dialog__custom-header">
-        <h3 className="share-dialog__custom-title">
-          <UserRoundPlus size={19} strokeWidth={1.9} aria-hidden="true" />
-          <span className="share-dialog__title-label" tabIndex={0}>
-            {titleNode}
-          </span>
-        </h3>
-      </div>
       <SharePanel
         sessionToken={sessionToken}
         documentId={documentId}

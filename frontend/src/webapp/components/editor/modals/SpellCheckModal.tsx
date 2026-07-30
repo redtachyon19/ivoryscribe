@@ -104,14 +104,14 @@ export default function SpellCheckModal({
     return null
   }
 
-  const modalStateClassName = isClosing ? "spell-check-popup--closing" : "spell-check-popup--opening"
+  const modalStateClassName = isClosing ? "editor-popover--closing" : "editor-popover--opening"
 
   return (
-    <div className={`spell-check-popup__wrap ${modalStateClassName}`}>
-      <aside className="spell-check-popup" role="dialog" aria-label="Spell check" aria-live="polite">
+    <div className={`editor-popover ${modalStateClassName}`}>
+      <aside className="panel panel--popover panel--glass editor-popover__panel spell-check-popup" role="dialog" aria-label="Spell check" aria-live="polite">
         <button
           type="button"
-          className="spell-check-popup__close-btn"
+          className="btn btn--icon btn--sm btn--pill btn--spin-icon btn--floating-close"
           onClick={onClose}
           aria-label="Close spell check"
         >
@@ -127,7 +127,7 @@ export default function SpellCheckModal({
           <div className="spell-check-popup__header-actions">
             <button
               type="button"
-              className="spell-check-popup__icon-btn"
+              className="btn btn--icon btn--sm"
               onClick={onPrevious}
               disabled={!canGoPrevious}
               aria-label="Previous issue"
@@ -137,7 +137,7 @@ export default function SpellCheckModal({
 
             <button
               type="button"
-              className="spell-check-popup__icon-btn"
+              className="btn btn--icon btn--sm"
               onClick={onNext}
               disabled={!canGoNext}
               aria-label="Next issue"
@@ -147,7 +147,7 @@ export default function SpellCheckModal({
 
             <button
               type="button"
-              className={`spell-check-popup__icon-btn${isDictionaryOpen ? " spell-check-popup__icon-btn--active" : ""}`}
+              className={`btn btn--icon btn--sm${isDictionaryOpen ? " btn--active" : ""}`}
               onClick={() => {
                 setIsDictionaryOpen((current) => !current)
               }}
@@ -200,7 +200,7 @@ export default function SpellCheckModal({
           <div className="spell-check-popup__footer">
             <button
               type="button"
-              className="spell-check-popup__btn"
+              className="btn btn--sm"
               onClick={onIgnore}
             >
               Ignore
@@ -208,7 +208,7 @@ export default function SpellCheckModal({
 
             <button
               type="button"
-              className={`spell-check-popup__btn${suggestions.length === 0 ? " spell-check-popup__btn--auto" : ""}`}
+              className={`btn btn--sm${suggestions.length === 0 ? " btn--primary" : ""}`}
               onClick={onAddToDictionary}
             >
               Add to Dictionary
@@ -227,7 +227,7 @@ export default function SpellCheckModal({
                   <span className="spell-check-popup__dictionary-word">{word}</span>
                   <button
                     type="button"
-                    className="spell-check-popup__dictionary-remove"
+                    className="btn btn--icon btn--sm btn--danger"
                     onClick={() => {
                       onRemoveDictionaryWord(word)
                     }}

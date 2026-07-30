@@ -60,7 +60,7 @@ export default function WorkspaceSettings({
             <span className="workspace-settings__path-text">{rootPath ?? "Not set"}</span>
           </div>
           <Button
-            variant="footer"
+            variant="default"
             onClick={() => { void handleChange() }}
             disabled={isPicking || !onChangeLocalWorkspace}
           >

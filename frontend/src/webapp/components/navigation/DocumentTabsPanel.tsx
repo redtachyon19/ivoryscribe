@@ -478,7 +478,7 @@ export default function DocumentTabsPanel({
         panelClassName="doc-tabs__trash-modal-panel"
         closeLabel="Cancel"
         footer={(
-          <Button variant="footer-danger" onClick={confirmDelete}>
+          <Button variant="danger" onClick={confirmDelete}>
             <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
             Trash
           </Button>

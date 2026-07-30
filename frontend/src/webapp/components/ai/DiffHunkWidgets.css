@@ -14,7 +14,7 @@
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--app-surface, #ffffff);
   border: 1px solid var(--app-border, #e5e7eb);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -28,7 +28,7 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: none;
   cursor: pointer;
   font: inherit;
@@ -63,7 +63,7 @@ mark.diff-add,
   color: #16a34a !important;
   text-decoration: none !important;
   padding: 0 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 
 .editor-container .ProseMirror s[data-diff-remove],
@@ -76,5 +76,5 @@ s.diff-remove,
   text-decoration: line-through !important;
   text-decoration-thickness: 2px !important;
   padding: 0 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }

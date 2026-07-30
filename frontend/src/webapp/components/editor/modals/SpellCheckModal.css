@@ -1,33 +1,8 @@
-.spell-check-popup__wrap {
-  position: sticky;
-  top: 46px;
-  z-index: 10;
-  float: right;
-  margin-right: 14px;
-  width: fit-content;
-  pointer-events: auto;
-  height: 0;
-  overflow: visible;
-}
-
-.spell-check-popup__wrap.spell-check-popup--opening {
-  animation: spell-check-modal-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-.spell-check-popup__wrap.spell-check-popup--closing {
-  animation: spell-check-modal-out 140ms ease-in forwards;
-}
-
-.spell-check-popup__wrap.spell-check-popup--closing .spell-check-popup__close-btn svg {
-  animation: spell-check-icon-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
-  transform-origin: 50% 50%;
-}
-
 .spell-check-popup {
   position: relative;
   width: min(360px, calc(100vw - 24px));
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 64%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--menu-dropdown-bg, #161616) 96%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -38,40 +13,7 @@
   gap: 8px;
   color: var(--menu-button, #ededed);
   pointer-events: auto;
-}
-
-.spell-check-popup__close-btn {
-  position: absolute;
-  top: -30px;
-  right: 0;
-  border: 0;
-  border-radius: 999px;
-  width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #161616) 90%, transparent);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
-  cursor: pointer;
-  padding: 0;
-  transition: background-color 140ms ease, color 140ms ease;
-}
-
-.spell-check-popup__close-btn:hover,
-.spell-check-popup__close-btn:focus-visible {
-  outline: none;
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
-  color: var(--menu-button, #ededed);
-}
-
-.spell-check-popup__close-btn:hover svg,
-.spell-check-popup__close-btn:focus-visible svg {
-  animation: spell-check-icon-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) 1;
-  transform-origin: 50% 50%;
-}
-
-.spell-check-popup__header {
+}.spell-check-popup__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -92,39 +34,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.spell-check-popup__icon-btn {
-  border: 0;
-  border-radius: 8px;
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
-  cursor: pointer;
-}
-
-.spell-check-popup__icon-btn:hover,
-.spell-check-popup__icon-btn:focus-visible {
-  outline: none;
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 82%, transparent);
-  color: var(--menu-button, #ededed);
-}
-
-.spell-check-popup__icon-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.spell-check-popup__icon-btn--active {
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
-  color: var(--menu-button, #ededed);
-}
-
-.spell-check-popup__note,
+}.spell-check-popup__note,
 .spell-check-popup__label,
 .spell-check-popup__word,
 .spell-check-popup__counter,
@@ -135,26 +45,26 @@
 
 .spell-check-popup__note {
   font-size: 14px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
+  color: var(--text-muted);
 }
 
 .spell-check-popup__label {
   font-size: 11px;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  color: var(--text-faint);
 }
 
 .spell-check-popup__counter {
   font-size: 11px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 56%, transparent);
+  color: var(--text-faint);
 }
 
 .spell-check-popup__word,
 .spell-check-popup__context {
   font-size: 15px;
   line-height: 1.3;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  color: var(--text-normal);
 }
 
 .spell-check-popup__word {
@@ -164,7 +74,7 @@
 .spell-check-popup__context {
   font-size: 13px;
   line-height: 1.35;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 82%, transparent);
+  color: var(--text-muted);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -177,9 +87,9 @@
 
 .spell-check-popup__suggestion-btn {
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--menu-dropdown-bg, #1f1f1f) 92%, transparent);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
+  color: var(--text-muted);
   font-family: var(--app-ui-font);
   font-size: 13px;
   padding: 7px 10px;
@@ -190,7 +100,7 @@
 .spell-check-popup__suggestion-btn:focus-visible {
   outline: none;
   color: var(--menu-button, #ededed);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
+  background: var(--surface-hover);
 }
 
 .spell-check-popup__suggestion-btn--auto {
@@ -202,7 +112,7 @@
 .spell-check-popup__primary-hint {
   font-size: 12px;
   line-height: 1.3;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 62%, transparent);
+  color: var(--text-faint);
 }
 
 .spell-check-popup__footer {
@@ -211,47 +121,7 @@
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 2px;
-}
-
-.spell-check-popup__btn {
-  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 62%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--menu-dropdown-bg, #1f1f1f) 92%, transparent);
-  color: color-mix(in srgb, var(--menu-button, #ededed) 84%, transparent);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: var(--app-ui-font);
-  font-size: 13px;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-
-.spell-check-popup__btn:hover,
-.spell-check-popup__btn:focus-visible {
-  outline: none;
-  color: var(--menu-button, #ededed);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
-}
-
-.spell-check-popup__btn:disabled {
-  opacity: 0.58;
-  cursor: not-allowed;
-}
-
-.spell-check-popup__btn--auto {
-  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 56%, #0f0f0f);
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, transparent);
-  color: var(--menu-button, #ededed);
-}
-
-.spell-check-popup__btn--auto:hover,
-.spell-check-popup__btn--auto:focus-visible {
-  border-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 64%, #0f0f0f);
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 24%, transparent);
-}
-
-.spell-check-popup__dictionary {
+}.spell-check-popup__dictionary {
   border-top: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
   margin-top: 2px;
   padding-top: 8px;
@@ -277,93 +147,28 @@
 
 .spell-check-popup__dictionary-word {
   border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 52%, transparent);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 3px 8px;
   font-size: 12px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 82%, transparent);
+  color: var(--text-muted);
   background: color-mix(in srgb, var(--menu-dropdown-bg, #1f1f1f) 92%, transparent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.spell-check-popup__dictionary-remove {
-  border: 1px solid color-mix(in srgb, var(--menu-border, #2b2b2b) 58%, transparent);
-  border-radius: 6px;
-  background: transparent;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 78%, transparent);
-  font-family: var(--app-ui-font);
-  font-size: 12px;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-
-.spell-check-popup__dictionary-remove:hover,
-.spell-check-popup__dictionary-remove:focus-visible {
-  outline: none;
-  color: var(--menu-button, #ededed);
-  background: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 84%, transparent);
-}
-
-.spell-check-popup__complete {
+}.spell-check-popup__complete {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: color-mix(in srgb, var(--menu-button, #ededed) 90%, transparent);
+  color: var(--text-normal);
 }
 
 .spell-check-popup__complete p {
   margin: 0;
 }
 
-@keyframes spell-check-modal-in {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
+@media (prefers-reduced-motion: reduce) {}
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes spell-check-modal-out {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  to {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes spell-check-icon-spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spell-check-popup__wrap,
-  .spell-check-popup__close-btn svg {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-@media (max-width: 720px) {
-  .spell-check-popup__wrap {
-    margin-right: 10px;
-  }
-
-  .spell-check-popup {
+@media (max-width: 720px) {  .spell-check-popup {
     width: min(360px, calc(100vw - 44px));
   }
 }

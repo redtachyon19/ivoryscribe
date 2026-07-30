@@ -1,9 +1,10 @@
 import { Download, Mail, Rocket } from "lucide-react"
 import GithubMark from "../../webapp/components/ui/GithubMark"
 import { useEffect, useState, type CSSProperties } from "react"
+import "../landing.css"
 import "./Home.css"
 import ScrollProgressBar from "../../core/components/ScrollProgressBar"
-import EditorPreview from "./EditorPreview"
+import EditorPreview from "../components/EditorPreview"
 import type { Palette } from "../../core/utils/appearance"
 
 export type HomeProps = {

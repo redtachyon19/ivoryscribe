@@ -1,5 +1,4 @@
 import type { ReactNode, ButtonHTMLAttributes } from "react"
-import "./GhostButton.css"
 
 type GhostButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   label?: string
@@ -19,9 +18,11 @@ export default function GhostButton({
   ...rest
 }: GhostButtonProps) {
   const classes = [
-    "ghost-btn",
-    small && "ghost-btn--small",
-    spinIcon && "ghost-btn--spin-icon",
+    "btn",
+    "btn--icon",
+    "btn--pill",
+    small && "btn--sm",
+    spinIcon && "btn--spin-nudge",
     className,
   ]
     .filter(Boolean)
@@ -30,7 +31,7 @@ export default function GhostButton({
   return (
     <button type="button" className={classes} {...rest}>
       {children}
-      {label ? <span className={`ghost-btn__label ghost-btn__label--${labelSide}`}>{label}</span> : null}
+      {label ? <span className={`btn__label btn__label--${labelSide}`}>{label}</span> : null}
     </button>
   )
 }

@@ -1,21 +1,35 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react"
-import "./Button.css"
 
-type ButtonVariant = "footer" | "footer-primary" | "footer-danger"
+type ButtonVariant = "default" | "primary" | "danger" | "outline"
+type ButtonSize = "sm" | "md" | "lg"
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant
+  size?: ButtonSize
   children: ReactNode
 }
 
-const variantClassMap: Record<ButtonVariant, string> = {
-  footer: "ui-button--footer",
-  "footer-primary": "ui-button--footer-primary",
-  "footer-danger": "ui-button--footer-danger",
+const variantClass: Record<ButtonVariant, string> = {
+  default: "",
+  primary: "btn--primary",
+  danger: "btn--danger",
+  outline: "btn--outline",
 }
 
-export default function Button({ variant = "footer", className = "", children, ...rest }: ButtonProps) {
-  const classes = ["ui-button", variantClassMap[variant], className].filter(Boolean).join(" ")
+const sizeClass: Record<ButtonSize, string> = {
+  sm: "btn--sm",
+  md: "",
+  lg: "btn--lg",
+}
+
+export default function Button({
+  variant = "default",
+  size = "md",
+  className = "",
+  children,
+  ...rest
+}: ButtonProps) {
+  const classes = ["btn", variantClass[variant], sizeClass[size], className].filter(Boolean).join(" ")
 
   return (
     <button type="button" className={classes} {...rest}>

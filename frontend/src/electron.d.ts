@@ -39,6 +39,8 @@ declare global {
       onOpenPath?: (callback: (filePath: string) => void) => () => void
       notifyOpenPathReady?: () => void
 
+      getVersion: () => Promise<string>
+
       fs: {
         selectDirectory: (opts?: { defaultPath?: string; title?: string }) => Promise<string | null>
         getDefaultRoot: (options?: { create?: boolean }) => Promise<string | null>
@@ -80,4 +82,8 @@ declare global {
       }
     }
   }
+}
+
+declare global {
+  const __APP_VERSION__: string
 }

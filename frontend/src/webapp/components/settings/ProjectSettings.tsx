@@ -219,7 +219,7 @@ export default function ProjectSettings({
               <span>Version History</span>
             </span>
             <Button
-              variant="footer"
+              variant="default"
               className="project-preferences-fields__history-open-btn"
               onClick={() => {
                 onShowVersionHistory?.()

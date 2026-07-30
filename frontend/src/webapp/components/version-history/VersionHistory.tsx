@@ -201,7 +201,7 @@ export default function VersionHistory({
         onMouseUp={handleContainerMouseUp}
       >
         <div className="version-history__toolbar" role="toolbar" aria-label="Version actions">
-          <Button
+          <Button size="sm"
             type="button"
             onClick={runOnSingle(onRestore)}
             disabled={!hasSingle}
@@ -210,7 +210,7 @@ export default function VersionHistory({
             <RotateCcw size={15} strokeWidth={1.8} aria-hidden="true" />
             <span>Restore</span>
           </Button>
-          <Button
+          <Button size="sm"
             type="button"
             onClick={runOnSingle(onDuplicate)}
             disabled={!hasSingle}
@@ -219,7 +219,7 @@ export default function VersionHistory({
             <Copy size={15} strokeWidth={1.8} aria-hidden="true" />
             <span>Add Copy to Library</span>
           </Button>
-          <Button
+          <Button size="sm"
             type="button"
             onClick={runOnSingle(onExportPdf)}
             disabled={!hasSingle}
@@ -228,7 +228,7 @@ export default function VersionHistory({
             <Download size={15} strokeWidth={1.8} aria-hidden="true" />
             <span>Export</span>
           </Button>
-          <Button
+          <Button size="sm"
             type="button"
             onClick={runOnSingle(onOpenInNewWindow)}
             disabled={!hasSingle}
@@ -237,9 +237,9 @@ export default function VersionHistory({
             <ExternalLink size={15} strokeWidth={1.8} aria-hidden="true" />
             <span>Open in New Window</span>
           </Button>
-          <Button
+          <Button size="sm"
             type="button"
-            variant="footer-danger"
+            variant="danger"
             onClick={handleDeleteClick}
             disabled={!hasSelection}
             aria-label="Delete selected versions"

@@ -376,7 +376,7 @@ export default function AccountSettings({
             sign in only when you want to share documents or use Tusk AI.
           </p>
           <Button
-            variant="footer-primary"
+            variant="primary"
             onClick={() => onRequestSignIn?.()}
             disabled={!onRequestSignIn}
           >
@@ -599,7 +599,7 @@ export default function AccountSettings({
           footer={
             activeActionFeedback.kind === "delete" ? (
               <Button
-                variant="footer-danger"
+                variant="danger"
                 onClick={() => {
                   void confirmDeleteAccountWithCode()
                 }}

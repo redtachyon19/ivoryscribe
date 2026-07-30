@@ -1,9 +1,9 @@
 .ProseMirror .search-hit {
   background-color: rgba(140, 140, 140, 0.32);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 
 .ProseMirror .search-hit--active {
   background-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 30%, transparent);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }

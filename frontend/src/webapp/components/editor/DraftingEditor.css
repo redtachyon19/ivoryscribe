@@ -185,12 +185,12 @@
   top: 0;
   left: 0;
   width: 2px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--app-accent, #9ab8ff);
   pointer-events: none;
   opacity: 0.9;
   will-change: transform, height, opacity;
-  transition: opacity 120ms ease;
+  transition: opacity var(--dur-quick) ease;
   animation: caret-blink 1.1s ease-in-out infinite;
 }
 
@@ -205,7 +205,7 @@
   box-sizing: border-box;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -214,7 +214,7 @@
   opacity: 0.52;
   cursor: pointer;
   z-index: 3;
-  transition: opacity 280ms ease-out, color 140ms ease;
+  transition: opacity var(--dur-slow) ease-out, color var(--dur-fast) ease;
 }
 
 .editor-line-flag--create {
@@ -229,7 +229,7 @@
   width: 52px;
   z-index: 2;
   opacity: 1;
-  transition: opacity 280ms ease-out;
+  transition: opacity var(--dur-slow) ease-out;
 }
 
 .editor-flag-rail--active {
@@ -263,7 +263,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 120ms ease;
+  transition: opacity var(--dur-quick) ease;
 }
 
 .editor-line-flag__icon--default {
@@ -280,14 +280,7 @@
 
 .editor-line-flag--persistent:hover .editor-line-flag__icon--hover {
   opacity: 1;
-}
-
-.editor-line-flag--hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.editor-flag-rail--typing {
+}.editor-flag-rail--typing {
   opacity: 0;
   pointer-events: none;
 }
@@ -307,13 +300,3 @@
   animation: none;
 }
 
-@keyframes caret-blink {
-  0%,
-  50%,
-  100% {
-    opacity: 0.9;
-  }
-  75% {
-    opacity: 0;
-  }
-}
