@@ -5,6 +5,7 @@ import { TextLayer } from "pdfjs-dist"
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from "pdfjs-dist"
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url"
 import { registerPdfText, unregisterPdfText, type PdfPageText } from "../../../core/pdf/pdfTextRegistry"
+import { createPdfBinaryDataFactory, resolvePdfAssetUrls } from "../../../core/pdf/pdfAssets"
 import {
   initPdfBookmarks,
   clearPdfBookmarks,
@@ -79,7 +80,19 @@ function collectMatchRanges(container: HTMLElement, needle: string): Range[] {
   return ranges
 }
 
-const OVERSAMPLE = 2
+// Pages are rasterised at exactly the pixel size they are displayed at, so glyphs
+// land on the device pixel grid instead of being resampled from an oversized bitmap.
+// Zooming re-rasterises once the gesture settles; until then the existing bitmap is
+// stretched by CSS so the gesture stays responsive.
+const MAX_CANVAS_PIXELS = 2 ** 25
+const ZOOM_RERENDER_DELAY_MS = 180
+
+// clientWidth includes the horizontal padding the pages are inset by, so fitting a
+// page to it overflows the column and forces a horizontal scrollbar.
+function measureContentWidth(el: HTMLElement): number {
+  const cs = getComputedStyle(el)
+  return el.clientWidth - parseFloat(cs.paddingLeft || "0") - parseFloat(cs.paddingRight || "0")
+}
 
 function applyZoomToPdfWrapper(
   wrapper: HTMLDivElement,
@@ -130,6 +143,7 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
   const pendingZoomRef = useRef(1)
   const lastPinchTimeRef = useRef(0)
   const clampHitTimeRef = useRef(0)
+  const scheduleZoomRerenderRef = useRef<(() => void) | null>(null)
 
   const applyZoom = useCallback((zoom: number) => {
     const pagesEl = pagesRef.current
@@ -199,14 +213,11 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       try {
         const bytes = await api.readFileBinary(filePath)
         if (cancelled) return
-        const baseUrl = window.location.href
-        const cMapUrl = new URL("pdfjs/cmaps/", baseUrl).toString()
-        const standardFontDataUrl = new URL("pdfjs/standard_fonts/", baseUrl).toString()
         const loadingTask = pdfjs.getDocument({
           data: bytes.slice(),
-          cMapUrl,
           cMapPacked: true,
-          standardFontDataUrl,
+          ...resolvePdfAssetUrls(),
+          BinaryDataFactory: createPdfBinaryDataFactory(),
         })
         const loadedDoc = await loadingTask.promise
         if (cancelled) {
@@ -520,6 +531,7 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       }
 
       applyZoom(newZoom)
+      scheduleZoomRerenderRef.current?.()
 
       if (anchorEl) {
         const wr = anchorEl.getBoundingClientRect()
@@ -543,7 +555,11 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
     let cancelled = false
     let generation = 0
     const activeRenderTasks = new Set<RenderTask>()
-    const renderedTasks = new Map<number, RenderTask | null>()
+    // Per page: the task currently rasterising, plus the zoom the on-screen bitmap
+    // was rasterised at (null while nothing has landed yet).
+    type PageRecord = { task: RenderTask | null; renderedZoom: number | null; pendingZoom: number | null }
+    const records = new Map<number, PageRecord>()
+    const visiblePages = new Set<number>()
     const dpr = window.devicePixelRatio || 1
 
     const wrapperFor = (pageNumber: number) =>
@@ -560,105 +576,154 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       return { background, foreground }
     }
 
-    const renderPage = async (pageNumber: number, myGen: number) => {
+    const renderPage = async (pageNumber: number, myGen: number, zoom: number) => {
       if (cancelled || myGen !== generation) return
-      if (renderedTasks.has(pageNumber)) return
       const wrapper = wrapperFor(pageNumber)
       if (!wrapper) return
-      renderedTasks.set(pageNumber, null)
+
+      const record = records.get(pageNumber) ?? { task: null, renderedZoom: null, pendingZoom: null }
+      records.set(pageNumber, record)
+      // Already showing this zoom, or already on its way there.
+      if (record.renderedZoom === zoom && record.task === null) return
+      if (record.pendingZoom === zoom) return
+      // A render for a stale zoom is in flight — drop it and rasterise the current one.
+      if (record.task) {
+        try { record.task.cancel() } catch {  }
+        activeRenderTasks.delete(record.task)
+        record.task = null
+      }
+      record.pendingZoom = zoom
+
+      // Superseded by a newer zoom, or the page was scrolled out and unrendered
+      // (which drops the record) while we were waiting on an await.
+      const isStale = () =>
+        cancelled ||
+        myGen !== generation ||
+        records.get(pageNumber) !== record ||
+        record.pendingZoom !== zoom
+
+      const abandon = () => {
+        if (records.get(pageNumber) === record && record.pendingZoom === zoom) {
+          record.pendingZoom = null
+          if (record.renderedZoom === null) records.delete(pageNumber)
+        }
+      }
 
       let page: PDFPageProxy
       try {
         page = await doc.getPage(pageNumber)
       } catch {
-        renderedTasks.delete(pageNumber)
+        abandon()
         return
       }
-      if (cancelled || myGen !== generation || !renderedTasks.has(pageNumber)) {
-        renderedTasks.delete(pageNumber)
+      if (isStale()) {
+        abandon()
         return
       }
 
-      const containerWidth = pagesContainer.clientWidth
-      if (containerWidth === 0) {
-        renderedTasks.delete(pageNumber)
+      const contentWidth = measureContentWidth(pagesContainer)
+      if (contentWidth <= 0) {
+        abandon()
         return
       }
 
       const baseViewport = page.getViewport({ scale: 1 })
-      const fitScale = containerWidth / baseViewport.width
-      const viewport = page.getViewport({ scale: fitScale * OVERSAMPLE })
-      const displayViewport = page.getViewport({ scale: fitScale })
-      const baseW = Math.floor(displayViewport.width)
-      const baseH = Math.floor(displayViewport.height)
+      const fitScale = contentWidth / baseViewport.width
+      const fitViewport = page.getViewport({ scale: fitScale })
+      const baseW = Math.floor(fitViewport.width)
+      const baseH = Math.floor(fitViewport.height)
       wrapper.dataset.baseWidth = String(baseW)
       wrapper.dataset.baseHeight = String(baseH)
-      applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
+      applyZoomToPdfWrapper(wrapper, baseW, baseH, zoom)
+
+      // Derive the scale from the rounded CSS width so the bitmap matches the box
+      // it is painted into exactly, with no sub-pixel resampling.
+      const displayViewport = page.getViewport({ scale: (baseW * zoom) / baseViewport.width })
+      const pixelBudget = Math.sqrt(MAX_CANVAS_PIXELS / (displayViewport.width * displayViewport.height))
+      const outputScale = Math.min(dpr, pixelBudget)
 
       const canvas = document.createElement("canvas")
       canvas.className = "pdf-viewer__page"
-      canvas.width = Math.floor(viewport.width * dpr)
-      canvas.height = Math.floor(viewport.height * dpr)
-      canvas.style.width = `${baseW}px`
+      canvas.width = Math.max(1, Math.floor(displayViewport.width * outputScale))
+      canvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale))
+      canvas.style.width = `${displayViewport.width}px`
+      canvas.style.height = `${displayViewport.height}px`
 
       const ctx = canvas.getContext("2d")
       if (!ctx) {
-        renderedTasks.delete(pageNumber)
+        abandon()
         return
       }
 
       const renderTask = page.render({
         canvas,
         canvasContext: ctx,
-        viewport,
-        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+        viewport: displayViewport,
+        transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
         pageColors: resolvePageColors(),
       })
-      renderedTasks.set(pageNumber, renderTask)
+      record.task = renderTask
       activeRenderTasks.add(renderTask)
       try {
         await renderTask.promise
       } catch {
         activeRenderTasks.delete(renderTask)
-        renderedTasks.delete(pageNumber)
+        if (record.task === renderTask) record.task = null
+        abandon()
         return
       }
       activeRenderTasks.delete(renderTask)
-      if (cancelled || myGen !== generation) return
+      if (record.task === renderTask) record.task = null
+      if (isStale()) {
+        abandon()
+        return
+      }
 
+      // Swap in only once the new bitmap is complete, so a zoom re-render never
+      // blanks the page mid-gesture.
+      wrapper.querySelector(".pdf-viewer__page")?.remove()
       wrapper.insertBefore(canvas, wrapper.firstChild)
+      record.renderedZoom = zoom
+      if (record.pendingZoom === zoom) record.pendingZoom = null
+      applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
 
-      try {
-        const textContent = await page.getTextContent()
-        if (cancelled || myGen !== generation) return
-        const textLayerDiv = document.createElement("div")
-        textLayerDiv.className = "pdf-viewer__text-layer"
-        textLayerDiv.style.width = `${baseW}px`
-        textLayerDiv.style.height = `${baseH}px`
-        textLayerDiv.style.setProperty("--total-scale-factor", String(displayViewport.scale))
-        wrapper.appendChild(textLayerDiv)
+      // The text layer is zoom-independent — it is laid out at fit-width size and
+      // scaled by CSS — so it only ever needs building once per page.
+      if (!wrapper.querySelector(".pdf-viewer__text-layer")) {
+        try {
+          const textContent = await page.getTextContent()
+          if (cancelled || myGen !== generation) return
+          if (records.get(pageNumber) !== record) return
+          if (wrapper.querySelector(".pdf-viewer__text-layer")) return
+          const textLayerDiv = document.createElement("div")
+          textLayerDiv.className = "pdf-viewer__text-layer"
+          textLayerDiv.style.width = `${baseW}px`
+          textLayerDiv.style.height = `${baseH}px`
+          textLayerDiv.style.setProperty("--total-scale-factor", String(fitViewport.scale))
+          wrapper.appendChild(textLayerDiv)
 
-        const textLayer = new TextLayer({
-          textContentSource: textContent,
-          container: textLayerDiv,
-          viewport: displayViewport,
-        })
-        await textLayer.render()
-        if (cancelled || myGen !== generation) return
-        applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
-      } catch {
+          const textLayer = new TextLayer({
+            textContentSource: textContent,
+            container: textLayerDiv,
+            viewport: fitViewport,
+          })
+          await textLayer.render()
+          if (cancelled || myGen !== generation) return
+          applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
+        } catch {
+        }
       }
       scheduleHighlightRefreshRef.current?.()
     }
 
     const unrenderPage = (pageNumber: number) => {
-      const task = renderedTasks.get(pageNumber)
-      if (task === undefined) return
-      if (task) {
-        try { task.cancel() } catch {  }
-        activeRenderTasks.delete(task)
+      const record = records.get(pageNumber)
+      if (!record) return
+      if (record.task) {
+        try { record.task.cancel() } catch {  }
+        activeRenderTasks.delete(record.task)
       }
-      renderedTasks.delete(pageNumber)
+      records.delete(pageNumber)
       const wrapper = wrapperFor(pageNumber)
       if (!wrapper) return
       const canvas = wrapper.querySelector<HTMLCanvasElement>(".pdf-viewer__page")
@@ -671,13 +736,28 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       scheduleHighlightRefreshRef.current?.()
     }
 
+    let zoomRerenderTimer: number | null = null
+    scheduleZoomRerenderRef.current = () => {
+      if (zoomRerenderTimer != null) window.clearTimeout(zoomRerenderTimer)
+      zoomRerenderTimer = window.setTimeout(() => {
+        zoomRerenderTimer = null
+        const zoom = pendingZoomRef.current
+        for (const pageNumber of visiblePages) void renderPage(pageNumber, generation, zoom)
+      }, ZOOM_RERENDER_DELAY_MS)
+    }
+
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           const pageNumber = Number((entry.target as HTMLElement).dataset.pageNumber)
           if (!pageNumber) continue
-          if (entry.isIntersecting) void renderPage(pageNumber, generation)
-          else unrenderPage(pageNumber)
+          if (entry.isIntersecting) {
+            visiblePages.add(pageNumber)
+            void renderPage(pageNumber, generation, pendingZoomRef.current)
+          } else {
+            visiblePages.delete(pageNumber)
+            unrenderPage(pageNumber)
+          }
         }
       },
       { root: scrollContainer, rootMargin: "150% 0px" },
@@ -716,18 +796,19 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
         try { t.cancel() } catch {  }
       }
       activeRenderTasks.clear()
-      renderedTasks.clear()
+      records.clear()
+      visiblePages.clear()
       io.disconnect()
 
-      const containerWidth = pagesContainer.clientWidth
-      if (containerWidth === 0) return
+      const contentWidth = measureContentWidth(pagesContainer)
+      if (contentWidth <= 0) return
 
-      let assumedW = Math.floor(containerWidth)
-      let assumedH = Math.floor(containerWidth * 1.2941)
+      let assumedW = Math.floor(contentWidth)
+      let assumedH = Math.floor(contentWidth * 1.2941)
       try {
         const first = await doc.getPage(1)
         const bv = first.getViewport({ scale: 1 })
-        const dv = first.getViewport({ scale: containerWidth / bv.width })
+        const dv = first.getViewport({ scale: contentWidth / bv.width })
         assumedW = Math.floor(dv.width)
         assumedH = Math.floor(dv.height)
       } catch {  }
@@ -790,10 +871,14 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
     return () => {
       cancelled = true
       generation = -1
+      if (zoomRerenderTimer != null) window.clearTimeout(zoomRerenderTimer)
+      scheduleZoomRerenderRef.current = null
       for (const t of activeRenderTasks) {
         try { t.cancel() } catch {  }
       }
       activeRenderTasks.clear()
+      records.clear()
+      visiblePages.clear()
       io.disconnect()
       ro.disconnect()
     }

@@ -122,7 +122,10 @@
       }
     ],
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "public/icon.png",
       "extendInfo": {
         "UTExportedTypeDeclarations": [

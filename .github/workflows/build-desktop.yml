@@ -14,6 +14,12 @@ name: Build & release desktop apps
 # Builds are UNSIGNED (mac = ad-hoc via after-sign.mjs, win = unsigned NSIS), so
 # downloaders get Gatekeeper / SmartScreen warnings until signing is added. That
 # does not block the download.
+#
+# It DOES block auto-update on macOS: Squirrel.Mac validates the incoming build's
+# signature against the running app's, and an ad-hoc signature fails that check.
+# Mac users will see the update banner and download it fine, then hit an error at
+# install. Needs a real Developer ID cert to go the last step. Windows has no such
+# requirement and updates end-to-end.
 
 on:
   push:
@@ -71,18 +77,48 @@ jobs:
           npm run build:electron
           npx electron-builder --${{ matrix.platform }} --publish never
 
-      - name: Rename installer to a stable asset name
+      - name: Collect release assets
         shell: bash
+        # Two sets of files go up, and the distinction matters:
+        #
+        #   1. electron-builder's own output, under the names IT chose. The update
+        #      manifests (latest-mac.yml / latest.yml) record those exact filenames
+        #      alongside their sha512, so renaming them breaks the updater — it asks
+        #      the release for a file that isn't there and 404s. Ship them as-is.
+        #   2. A stable-named COPY of the installer, so the website's /download
+        #      buttons keep pointing at one fixed URL across releases. The updater
+        #      never looks at these; only the manifests do.
+        #
+        # Globbing by extension deliberately skips release/mac-arm64/ and
+        # release/win-unpacked/, which are the multi-hundred-MB unpacked app trees.
         run: |
-          f="$(ls ${{ matrix.glob }} | head -n1)"
-          cp "$f" "${{ matrix.asset }}"
-          echo "Prepared ${{ matrix.asset }} from $f"
+          mkdir -p staging
+          shopt -s nullglob
+          for f in frontend/release/*.dmg frontend/release/*.zip frontend/release/*.exe \
+                   frontend/release/*.blockmap frontend/release/latest*.yml; do
+            cp "$f" staging/
+          done
+          shopt -u nullglob
+
+          primary="$(ls ${{ matrix.glob }} | head -n1)"
+          cp "$primary" "staging/${{ matrix.asset }}"
+          echo "Prepared ${{ matrix.asset }} from $primary"
+
+          echo "--- staged for release ---"
+          ls -la staging/
+
+          # A missing manifest is the whole bug this step exists to prevent, so fail
+          # loudly here rather than shipping another release that can't self-update.
+          if ! ls staging/latest*.yml >/dev/null 2>&1; then
+            echo "::error::No latest*.yml produced — auto-update would silently break."
+            exit 1
+          fi
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
+          name: ${{ matrix.platform }}-release-assets
+          path: staging/
 
   release:
     needs: build
