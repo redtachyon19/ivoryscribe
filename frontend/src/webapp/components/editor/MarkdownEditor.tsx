@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import {
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react"
 import { Eye, SquarePen } from "lucide-react"
 import {
   APP_PROJECT_SEARCH_FOCUS_EVENT,
@@ -8,12 +16,14 @@ import {
   type ProjectSearchFocusDetail,
   type SpellCheckFocusDetail,
 } from "../../../core/events/editorEvents"
-import { countWords, normalizeMarkdownContentForEditing, renderMarkdownToHtml } from "../../../core/utils/markdown"
+import { countWords, normalizeMarkdownContentForEditing } from "../../../core/utils/markdown"
+import { renderMarkdownPreviewHtml } from "../../../core/utils/markdownPreview"
 import type { MarkdownTabViewMode } from "./utils/markdownViewModePrefs"
 import { useEditorCommandBus } from "./hooks/useEditorCommandBus"
-import "highlight.js/styles/github-dark.css"
+import { useMarkdownPreviewCopy } from "./hooks/useMarkdownPreviewCopy"
 import "katex/dist/katex.min.css"
 import "./MarkdownEditor.css"
+import "./MarkdownPreview.css"
 
 type MarkdownEditorProps = {
   documentId: string | null
@@ -46,6 +56,9 @@ export default function MarkdownEditor({
   const paneTransitionTimeoutRef = useRef<number | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const layoutRef = useRef<HTMLDivElement | null>(null)
+  const previewRef = useRef<HTMLDivElement | null>(null)
+
+  useMarkdownPreviewCopy(previewRef)
 
   const emitWordCounts = (value: string, selection?: { start: number; end: number }) => {
     const documentWordCount = countWords(value)
@@ -360,9 +373,13 @@ export default function MarkdownEditor({
     }
   }, [documentId])
 
+  // Re-parsing on every keystroke stalls typing on long documents; deferring
+  // lets the textarea update first and the preview catch up on an idle pass.
+  const deferredDraft = useDeferredValue(markdownDraft)
+
   const previewHtml = useMemo(() => {
-    return renderMarkdownToHtml(markdownDraft)
-  }, [markdownDraft])
+    return renderMarkdownPreviewHtml(deferredDraft)
+  }, [deferredDraft])
 
   const markdownFontStyle = useMemo(() => {
     const clampedSize = Math.min(84, Math.max(20, editorFontSize))
@@ -595,6 +612,7 @@ export default function MarkdownEditor({
           <span>Preview</span>
         </button>
         <div
+          ref={previewRef}
           className="markdown-editor__preview"
           dangerouslySetInnerHTML={{ __html: previewHtml }}
         />
