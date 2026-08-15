@@ -93,6 +93,37 @@
   background: transparent;
 }
 
+/* Sits above the text layer so a link wins the click, matching how pdf.js's own
+   viewer stacks its annotation layer. The page's link artwork is already painted
+   on the canvas, so these boxes stay invisible until hovered. */
+.pdf-viewer__link-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.pdf-viewer__link {
+  position: absolute;
+  display: block;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 120ms ease, outline-color 120ms ease;
+  outline: 1px solid transparent;
+}
+
+.pdf-viewer__link:hover {
+  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 22%, transparent);
+  outline-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 55%, transparent);
+}
+
+.pdf-viewer__link:focus-visible {
+  outline: 2px solid var(--app-accent, #9ab8ff);
+  outline-offset: 1px;
+}
+
 .pdf-viewer__text-layer .endOfContent {
   display: block;
   position: absolute;

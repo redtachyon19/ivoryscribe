@@ -87,6 +87,36 @@ function collectMatchRanges(container: HTMLElement, needle: string): Range[] {
 const MAX_CANVAS_PIXELS = 2 ** 25
 const ZOOM_RERENDER_DELAY_MS = 180
 
+type PdfDestination = string | unknown[] | null
+
+// A destination is either a named string that has to be looked up, or an explicit
+// array whose first entry is a page reference. Shared by the outline and by link
+// annotations, which use the same encoding.
+async function resolveDestinationPage(doc: PDFDocumentProxy, dest: PdfDestination): Promise<number | null> {
+  try {
+    const explicit = typeof dest === "string" ? await doc.getDestination(dest) : dest
+    if (!Array.isArray(explicit) || explicit.length === 0) return null
+    const ref = explicit[0]
+    if (!ref || typeof ref !== "object") return null
+    const pageIndex = await doc.getPageIndex(ref as Parameters<PDFDocumentProxy["getPageIndex"]>[0])
+    return pageIndex + 1
+  } catch {
+    return null
+  }
+}
+
+// pdf.js only populates `url` for protocols it considers safe, but this is the last
+// gate before a link can reach shell.openExternal, so re-check it here.
+const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"])
+
+function isSafeExternalLink(url: string): boolean {
+  try {
+    return SAFE_LINK_PROTOCOLS.has(new URL(url).protocol)
+  } catch {
+    return false
+  }
+}
+
 // clientWidth includes the horizontal padding the pages are inset by, so fitting a
 // page to it overflows the column and forces a horizontal scrollbar.
 function measureContentWidth(el: HTMLElement): number {
@@ -112,12 +142,15 @@ function applyZoomToPdfWrapper(
     canvas.style.height = `${displayH}px`
   }
 
-  const textLayer = wrapper.querySelector<HTMLDivElement>(".pdf-viewer__text-layer")
-  if (textLayer) {
-    textLayer.style.width = `${baseW}px`
-    textLayer.style.height = `${baseH}px`
-    textLayer.style.transform = `scale(${zoom})`
-    textLayer.style.transformOrigin = "0 0"
+  // The text and link layers are both laid out at fit-width size and scaled into
+  // place, so their geometry never has to be recomputed on zoom.
+  for (const selector of [".pdf-viewer__text-layer", ".pdf-viewer__link-layer"]) {
+    const layer = wrapper.querySelector<HTMLDivElement>(selector)
+    if (!layer) continue
+    layer.style.width = `${baseW}px`
+    layer.style.height = `${baseH}px`
+    layer.style.transform = `scale(${zoom})`
+    layer.style.transformOrigin = "0 0"
   }
 }
 
@@ -156,6 +189,31 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
         applyZoomToPdfWrapper(wrapper, baseW, baseH, zoom)
       }
     }
+  }, [])
+
+  const getTopVisiblePage = useCallback((): number => {
+    const pagesEl = pagesRef.current
+    const scrollEl = scrollRef.current
+    if (!pagesEl || !scrollEl) return 1
+    const sr = scrollEl.getBoundingClientRect()
+    for (const wrapper of pagesEl.querySelectorAll<HTMLElement>(".pdf-viewer__page-wrapper")) {
+      const wr = wrapper.getBoundingClientRect()
+      if (wr.bottom > sr.top + 1) return Number(wrapper.dataset.pageNumber) || 1
+    }
+    return 1
+  }, [])
+
+  const scrollToPage = useCallback((pageNumber: number) => {
+    const pagesEl = pagesRef.current
+    const scrollEl = scrollRef.current
+    if (!pagesEl || !scrollEl) return
+    const wrapper = pagesEl.querySelector<HTMLDivElement>(
+      `.pdf-viewer__page-wrapper[data-page-number="${pageNumber}"]`,
+    )
+    if (!wrapper) return
+    const wr = wrapper.getBoundingClientRect()
+    const sr = scrollEl.getBoundingClientRect()
+    scrollEl.scrollTo({ top: scrollEl.scrollTop + (wr.top - sr.top), behavior: "smooth" })
   }, [])
 
   const searchQueryRef = useRef("")
@@ -247,26 +305,13 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
     if (!doc || !documentId) return
     let cancelled = false
 
-    type RawOutlineItem = { title: string; dest: string | unknown[] | null; items?: RawOutlineItem[] }
-
-    const resolveDestPage = async (dest: RawOutlineItem["dest"]): Promise<number | null> => {
-      try {
-        const explicit = typeof dest === "string" ? await doc.getDestination(dest) : dest
-        if (!Array.isArray(explicit) || explicit.length === 0) return null
-        const ref = explicit[0]
-        if (!ref || typeof ref !== "object") return null
-        const pageIndex = await doc.getPageIndex(ref as Parameters<PDFDocumentProxy["getPageIndex"]>[0])
-        return pageIndex + 1
-      } catch {
-        return null
-      }
-    }
+    type RawOutlineItem = { title: string; dest: PdfDestination; items?: RawOutlineItem[] }
 
     const buildTree = async (items: RawOutlineItem[]): Promise<PdfBookmark[]> => {
       const out: PdfBookmark[] = []
       for (const item of items) {
         if (cancelled) break
-        const pageNumber = await resolveDestPage(item.dest)
+        const pageNumber = await resolveDestinationPage(doc, item.dest)
         const children = item.items && item.items.length > 0 ? await buildTree(item.items) : []
         out.push({
           id: createBookmarkId(),
@@ -305,16 +350,7 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
     let rafId: number | null = null
     const compute = () => {
       rafId = null
-      const sr = scrollEl.getBoundingClientRect()
-      let topPage = 1
-      for (const wrapper of pagesEl.querySelectorAll<HTMLElement>(".pdf-viewer__page-wrapper")) {
-        const wr = wrapper.getBoundingClientRect()
-        if (wr.bottom > sr.top + 1) {
-          topPage = Number(wrapper.dataset.pageNumber) || 1
-          break
-        }
-      }
-      reportCurrentPage(documentId, topPage)
+      reportCurrentPage(documentId, getTopVisiblePage())
     }
     const onScroll = () => {
       if (rafId == null) rafId = requestAnimationFrame(compute)
@@ -325,27 +361,18 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       scrollEl.removeEventListener("scroll", onScroll)
       if (rafId != null) cancelAnimationFrame(rafId)
     }
-  }, [doc, documentId])
+  }, [doc, documentId, getTopVisiblePage])
 
   useEffect(() => {
     if (!documentId) return
     const onNavigate = (event: Event) => {
       const detail = (event as CustomEvent<PdfBookmarkNavigateDetail>).detail
       if (!detail || detail.documentId !== documentId) return
-      const pagesEl = pagesRef.current
-      const scrollEl = scrollRef.current
-      if (!pagesEl || !scrollEl) return
-      const wrapper = pagesEl.querySelector<HTMLDivElement>(
-        `.pdf-viewer__page-wrapper[data-page-number="${detail.pageNumber}"]`,
-      )
-      if (!wrapper) return
-      const wr = wrapper.getBoundingClientRect()
-      const sr = scrollEl.getBoundingClientRect()
-      scrollEl.scrollTo({ top: scrollEl.scrollTop + (wr.top - sr.top), behavior: "smooth" })
+      scrollToPage(detail.pageNumber)
     }
     window.addEventListener(APP_PDF_BOOKMARK_NAVIGATE_EVENT, onNavigate as EventListener)
     return () => window.removeEventListener(APP_PDF_BOOKMARK_NAVIGATE_EVENT, onNavigate as EventListener)
-  }, [documentId])
+  }, [documentId, scrollToPage])
 
   useEffect(() => {
     const pagesEl = pagesRef.current
@@ -576,6 +603,92 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       return { background, foreground }
     }
 
+    type LinkAnnotation = {
+      subtype?: string
+      rect?: number[]
+      url?: string
+      dest?: PdfDestination
+      action?: string
+      newWindow?: boolean
+    }
+
+    const goToNamedAction = (action: string) => {
+      switch (action) {
+        case "FirstPage": scrollToPage(1); break
+        case "LastPage": scrollToPage(doc.numPages); break
+        case "NextPage": scrollToPage(Math.min(doc.numPages, getTopVisiblePage() + 1)); break
+        case "PrevPage": scrollToPage(Math.max(1, getTopVisiblePage() - 1)); break
+        default: break
+      }
+    }
+
+    // Link annotations only — the surrounding viewer has no form/widget support, and
+    // pdf.js already paints every annotation's appearance onto the canvas, so this
+    // layer exists purely to make the painted links hittable.
+    const buildLinkLayer = (
+      annotations: LinkAnnotation[],
+      fitViewport: ReturnType<PDFPageProxy["getViewport"]>,
+      baseW: number,
+      baseH: number,
+    ): HTMLDivElement | null => {
+      const layer = document.createElement("div")
+      layer.className = "pdf-viewer__link-layer"
+      layer.style.width = `${baseW}px`
+      layer.style.height = `${baseH}px`
+
+      let count = 0
+      for (const annotation of annotations) {
+        if (annotation.subtype !== "Link") continue
+        if (!Array.isArray(annotation.rect) || annotation.rect.length < 4) continue
+
+        const link = document.createElement("a")
+        link.className = "pdf-viewer__link"
+
+        if (annotation.url && isSafeExternalLink(annotation.url)) {
+          link.href = annotation.url
+          link.title = annotation.url
+          // Electron's window-open handler sends external URLs to the system browser.
+          link.target = "_blank"
+          link.rel = "noopener noreferrer"
+        } else if (annotation.dest) {
+          const dest = annotation.dest
+          link.href = "#"
+          link.addEventListener("click", (event) => {
+            event.preventDefault()
+            void (async () => {
+              const target = await resolveDestinationPage(doc, dest)
+              if (target) scrollToPage(target)
+            })()
+          })
+        } else if (annotation.action) {
+          const action = annotation.action
+          link.href = "#"
+          link.addEventListener("click", (event) => {
+            event.preventDefault()
+            goToNamedAction(action)
+          })
+        } else {
+          continue
+        }
+
+        const [x1, y1, x2, y2] = fitViewport.convertToViewportRectangle(annotation.rect)
+        const left = Math.min(x1, x2)
+        const top = Math.min(y1, y2)
+        const width = Math.abs(x2 - x1)
+        const height = Math.abs(y2 - y1)
+        if (width <= 0 || height <= 0) continue
+        link.style.left = `${left}px`
+        link.style.top = `${top}px`
+        link.style.width = `${width}px`
+        link.style.height = `${height}px`
+
+        layer.appendChild(link)
+        count++
+      }
+
+      return count > 0 ? layer : null
+    }
+
     const renderPage = async (pageNumber: number, myGen: number, zoom: number) => {
       if (cancelled || myGen !== generation) return
       const wrapper = wrapperFor(pageNumber)
@@ -710,6 +823,21 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
           await textLayer.render()
           if (cancelled || myGen !== generation) return
           applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
+        } catch {
+        }
+      }
+
+      if (!wrapper.querySelector(".pdf-viewer__link-layer")) {
+        try {
+          const annotations = await page.getAnnotations({ intent: "display" })
+          if (cancelled || myGen !== generation) return
+          if (records.get(pageNumber) !== record) return
+          if (wrapper.querySelector(".pdf-viewer__link-layer")) return
+          const linkLayer = buildLinkLayer(annotations, fitViewport, baseW, baseH)
+          if (linkLayer) {
+            wrapper.appendChild(linkLayer)
+            applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
+          }
         } catch {
         }
       }
@@ -882,7 +1010,7 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       io.disconnect()
       ro.disconnect()
     }
-  }, [doc, matchPalette, paletteNonce, projectId])
+  }, [doc, matchPalette, paletteNonce, projectId, getTopVisiblePage, scrollToPage])
 
   if (error) {
     return (
