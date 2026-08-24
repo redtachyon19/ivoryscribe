@@ -50,6 +50,13 @@ Railway builds the `backend/Dockerfile` and injects `DATABASE_URL` from a manage
 Postgres. Config lives in [`backend/railway.json`](backend/railway.json)
 (`DOCKERFILE` builder + `/health` health check).
 
+The backend sources are TypeScript and ship **uncompiled** — there is no build
+step and no `dist/`. The image runs `node src/server.ts` and relies on Node's
+built-in type stripping, which needs Node ≥ 22.18 (the Dockerfile pins
+`node:24-bookworm-slim`). If you ever change that base image, keep it at or
+above that version or the container will fail to start. The Node 22 pins
+further down are for the Cloudflare Pages *frontend* build and are unrelated.
+
 ### One-time setup
 
 1. Create a Railway project → **New Project**.

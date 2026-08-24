@@ -1,11 +1,67 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 
 const router = Router();
+
+type ProjectTab = { id: string; title: string; children?: ProjectTab[] };
+
+type SanitizedProject = {
+  name: string;
+  kind: string;
+  tabs: ProjectTab[];
+  activeId: string | null;
+  contentById: Record<string, unknown>;
+};
+
+type ContextTab = { tabId: string; tabTitle: string; fullContent: string; plainContent: string };
+type ScoredTab = ContextTab & { score: number };
+
+type ModelEdit = {
+  id: string;
+  tabId: string;
+  tabTitle: string;
+  summary: string;
+  before: string;
+  after: string;
+  isNew?: boolean;
+};
+
+type ProviderId = "gpt" | "claude" | "grok";
+type RequestedProvider = ProviderId | "auto";
+type ProviderCall = (prompt: string, apiKey: string, modelName: string) => Promise<string>;
+type ProviderConfig = { provider: ProviderId; modelName: string; apiKey: string; call: ProviderCall };
+type ProviderResult = {
+  text: string;
+  provider: ProviderId;
+  modelName: string;
+  fellBackFrom: ProviderId | null;
+};
+
+type ChatBody = {
+  provider?: unknown;
+  message?: unknown;
+  project?: unknown;
+  mode?: unknown;
+};
+
+const REQUESTED_PROVIDERS: RequestedProvider[] = ["auto", "gpt", "claude", "grok"];
+
+function isRequestedProvider(value: unknown): value is RequestedProvider {
+  return typeof value === "string" && (REQUESTED_PROVIDERS as string[]).includes(value);
+}
+
+/** Provider responses arrive as untyped JSON; read them through this. */
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
 
 const MAX_CONTEXT_CHARS_PER_TAB = 30_000;
 const MAX_TOTAL_CONTEXT_CHARS = 250_000;
 
-function stripHtml(value) {
+function stripHtml(value: unknown): string {
   return String(value)
     .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
@@ -18,19 +74,19 @@ function stripHtml(value) {
     .trim();
 }
 
-function flattenTabs(tabs) {
-  const result = [];
-  const visit = (nodes) => {
+function flattenTabs(tabs: unknown): { id: string; title: string }[] {
+  const result: { id: string; title: string }[] = [];
+  const visit = (nodes: ProjectTab[]): void => {
     for (const tab of nodes) {
       result.push({ id: tab.id, title: tab.title });
       visit(tab.children ?? []);
     }
   };
-  visit(Array.isArray(tabs) ? tabs : []);
+  visit(Array.isArray(tabs) ? (tabs as ProjectTab[]) : []);
   return result;
 }
 
-function tokenize(input) {
+function tokenize(input: unknown): string[] {
   return String(input)
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
@@ -39,7 +95,7 @@ function tokenize(input) {
     .filter((token) => token.length >= 3);
 }
 
-function scoreTabForPrompt(promptTokens, title, content) {
+function scoreTabForPrompt(promptTokens: string[], title: string, content: string): number {
   if (promptTokens.length === 0) {
     return 0;
   }
@@ -65,7 +121,7 @@ function scoreTabForPrompt(promptTokens, title, content) {
   return score;
 }
 
-function selectRelevantTabs(project, userMessage) {
+function selectRelevantTabs(project: SanitizedProject, userMessage: string): ScoredTab[] {
   const flatTabs = flattenTabs(project.tabs ?? []);
   const promptTokens = tokenize(userMessage);
   const ranked = flatTabs
@@ -92,7 +148,7 @@ function selectRelevantTabs(project, userMessage) {
   return ranked.slice(0, Math.min(3, ranked.length));
 }
 
-function gatherProjectContext(project) {
+function gatherProjectContext(project: SanitizedProject): ContextTab[] {
   const flatTabs = flattenTabs(project.tabs ?? []);
   return flatTabs.map((tab) => {
     const fullContent = String(project.contentById?.[tab.id] ?? "");
@@ -106,24 +162,28 @@ function gatherProjectContext(project) {
   });
 }
 
-function extractCharacterCandidates(input) {
-  const names = new Set();
+function extractCharacterCandidates(input: string): string[] {
+  const names = new Set<string>();
   const phraseMatches = String(input).matchAll(/\bcharacter\s+([A-Z][a-zA-Z'-]+)/g);
   for (const match of phraseMatches) {
-    names.add(match[1]);
+    const captured = match[1];
+    if (captured) {
+      names.add(captured);
+    }
   }
 
   const properNouns = String(input).matchAll(/\b([A-Z][a-zA-Z'-]{2,})\b/g);
   for (const match of properNouns) {
-    if (match[1].toLowerCase() !== "chapter") {
-      names.add(match[1]);
+    const captured = match[1];
+    if (captured && captured.toLowerCase() !== "chapter") {
+      names.add(captured);
     }
   }
 
   return Array.from(names).slice(0, 3);
 }
 
-function detectCharacterLine(content, name) {
+function detectCharacterLine(content: string, name: string): string | null {
   const lines = content.split(/\r?\n/);
   const loweredName = name.toLowerCase();
 
@@ -143,7 +203,7 @@ function detectCharacterLine(content, name) {
   return null;
 }
 
-function buildFallbackEdit(tab, userMessage, projectName) {
+function buildFallbackEdit(tab: ContextTab, userMessage: string, projectName: string): ModelEdit {
   const names = extractCharacterCandidates(userMessage);
   const likelyName = names.find((name) => tab.plainContent.toLowerCase().includes(name.toLowerCase())) ?? names[0] ?? null;
 
@@ -171,7 +231,7 @@ function buildFallbackEdit(tab, userMessage, projectName) {
   };
 }
 
-function parseJsonFromText(value) {
+function parseJsonFromText(value: string): unknown {
   const trimmed = String(value).trim();
   try {
     return JSON.parse(trimmed);
@@ -190,18 +250,20 @@ function parseJsonFromText(value) {
   }
 }
 
-function makeNewTabId() {
+function makeNewTabId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `ai-new-${crypto.randomUUID()}`;
   }
   return `ai-new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function normalizeModelEdits(raw, availableTabsById) {
-  const edits = Array.isArray(raw?.edits) ? raw.edits : [];
+function normalizeModelEdits(raw: unknown, availableTabsById: Map<string, ContextTab>): ModelEdit[] {
+  const rawEdits = asRecord(raw).edits;
+  const edits: unknown[] = Array.isArray(rawEdits) ? rawEdits : [];
 
   return edits
-    .map((edit, index) => {
+    .map((rawEdit, index): ModelEdit | null => {
+      const edit = asRecord(rawEdit);
       const after = typeof edit?.after === "string" ? edit.after : null;
       if (!after) return null;
 
@@ -246,10 +308,10 @@ function normalizeModelEdits(raw, availableTabsById) {
         isNew: false,
       };
     })
-    .filter(Boolean);
+    .filter((edit): edit is ModelEdit => edit !== null);
 }
 
-function buildInstructionPrompt({ provider, modelName, userMessage, project, contextTabs, scoredTabIds }) {
+function buildInstructionPrompt({ provider, modelName, userMessage, project, contextTabs, scoredTabIds }: { provider: ProviderId; modelName: string; userMessage: string; project: SanitizedProject; contextTabs: ContextTab[]; scoredTabIds: Set<string> }): string {
   const orderedForBudget = [...contextTabs].sort((a, b) => {
     const aRanked = scoredTabIds.has(a.tabId) ? 1 : 0;
     const bRanked = scoredTabIds.has(b.tabId) ? 1 : 0;
@@ -257,7 +319,7 @@ function buildInstructionPrompt({ provider, modelName, userMessage, project, con
   });
 
   let usedChars = 0;
-  const allocatedById = new Map();
+  const allocatedById = new Map<string, { content: string; truncated: boolean }>();
   for (const tab of orderedForBudget) {
     if (usedChars >= MAX_TOTAL_CONTEXT_CHARS) {
       allocatedById.set(tab.tabId, { content: "", truncated: true });
@@ -345,7 +407,7 @@ Important:
 - Use existing tab IDs as listed above. For new chapters, use isNew:true (no tabId).`;
 }
 
-async function callOpenAi(prompt, apiKey, modelName) {
+const callOpenAi: ProviderCall = async (prompt, apiKey, modelName) => {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -364,16 +426,19 @@ async function callOpenAi(prompt, apiKey, modelName) {
     throw new Error(`OpenAI request failed (${response.status}): ${details.slice(0, 240)}`);
   }
 
-  const payload = await response.json();
-  const fromOutputText = payload?.output_text;
+  const payload = asRecord(await response.json());
+  const fromOutputText = payload.output_text;
   if (typeof fromOutputText === "string" && fromOutputText.trim()) {
     return fromOutputText;
   }
 
-  const chunks = Array.isArray(payload?.output) ? payload.output : [];
+  const chunks: unknown[] = Array.isArray(payload.output) ? payload.output : [];
   const contentText = chunks
-    .flatMap((item) => (Array.isArray(item?.content) ? item.content : []))
-    .map((part) => (typeof part?.text === "string" ? part.text : ""))
+    .flatMap((item): unknown[] => {
+      const content = asRecord(item).content;
+      return Array.isArray(content) ? content : [];
+    })
+    .map((part) => asString(asRecord(part).text))
     .join("\n")
     .trim();
 
@@ -382,10 +447,10 @@ async function callOpenAi(prompt, apiKey, modelName) {
   }
 
   return contentText;
-}
+};
 
 class ProviderModerationError extends Error {
-  constructor(message) {
+  constructor(message: string) {
     super(message);
     this.name = "ProviderModerationError";
   }
@@ -399,12 +464,12 @@ const CLAUDE_REFUSAL_PATTERNS = [
   /i must decline/i,
 ];
 
-function looksLikeClaudeRefusal(text) {
+function looksLikeClaudeRefusal(text: string): boolean {
   const sample = String(text).slice(0, 600);
   return CLAUDE_REFUSAL_PATTERNS.some((pattern) => pattern.test(sample));
 }
 
-async function callAnthropic(prompt, apiKey, modelName) {
+const callAnthropic: ProviderCall = async (prompt, apiKey, modelName) => {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -427,13 +492,14 @@ async function callAnthropic(prompt, apiKey, modelName) {
     throw new Error(`Anthropic request failed (${response.status}): ${details.slice(0, 240)}`);
   }
 
-  const payload = await response.json();
-  if (payload?.stop_reason === "refusal") {
+  const payload = asRecord(await response.json());
+  if (payload.stop_reason === "refusal") {
     throw new ProviderModerationError("Anthropic returned stop_reason=refusal");
   }
 
-  const text = (Array.isArray(payload?.content) ? payload.content : [])
-    .map((part) => (typeof part?.text === "string" ? part.text : ""))
+  const contentParts: unknown[] = Array.isArray(payload.content) ? payload.content : [];
+  const text = contentParts
+    .map((part) => asString(asRecord(part).text))
     .join("\n")
     .trim();
 
@@ -446,9 +512,9 @@ async function callAnthropic(prompt, apiKey, modelName) {
   }
 
   return text;
-}
+};
 
-async function callXAi(prompt, apiKey, modelName) {
+const callXAi: ProviderCall = async (prompt, apiKey, modelName) => {
   const response = await fetch("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -468,20 +534,18 @@ async function callXAi(prompt, apiKey, modelName) {
     throw new Error(`xAI request failed (${response.status}): ${details.slice(0, 240)}`);
   }
 
-  const payload = await response.json();
-  const text =
-    payload?.choices?.[0]?.message?.content && typeof payload.choices[0].message.content === "string"
-      ? payload.choices[0].message.content
-      : "";
+  const payload = asRecord(await response.json());
+  const choices: unknown[] = Array.isArray(payload.choices) ? payload.choices : [];
+  const text = asString(asRecord(asRecord(choices[0]).message).content);
 
   if (!text.trim()) {
     throw new Error("xAI response did not include message content");
   }
 
   return text;
-}
+};
 
-function resolveProviderConfig(provider) {
+function resolveProviderConfig(provider: ProviderId): ProviderConfig {
   if (provider === "claude") {
     return {
       provider: "claude",
@@ -506,10 +570,14 @@ function resolveProviderConfig(provider) {
   };
 }
 
-async function callWithModerationFallback(initialProvider, prompt) {
+async function callWithModerationFallback(initialProvider: ProviderId, prompt: string): Promise<ProviderResult> {
   const primary = resolveProviderConfig(initialProvider);
   if (!primary.apiKey) {
-    const error = new Error(`No API key configured for provider ${initialProvider}.`);
+    // `code` is set but never read anywhere in the codebase; preserved as-is
+    // rather than dropped, since removing it would be a behaviour change.
+    const error: Error & { code?: string } = new Error(
+      `No API key configured for provider ${initialProvider}.`,
+    );
     error.code = "NO_API_KEY";
     throw error;
   }
@@ -542,7 +610,7 @@ async function callWithModerationFallback(initialProvider, prompt) {
   }
 }
 
-async function generateModelEdits({ provider, userMessage, project, contextTabs, scoredTabIds, fallbackTabsForLocal }) {
+async function generateModelEdits({ provider, userMessage, project, contextTabs, scoredTabIds, fallbackTabsForLocal }: { provider: ProviderId; userMessage: string; project: SanitizedProject; contextTabs: ContextTab[]; scoredTabIds: Set<string>; fallbackTabsForLocal: ContextTab[] }) {
   const availableTabsById = new Map(contextTabs.map((tab) => [tab.tabId, tab]));
   const prompt = buildInstructionPrompt({
     provider,
@@ -553,7 +621,7 @@ async function generateModelEdits({ provider, userMessage, project, contextTabs,
     scoredTabIds,
   });
 
-  let result;
+  let result: ProviderResult;
   try {
     result = await callWithModerationFallback(provider, prompt);
   } catch (error) {
@@ -593,7 +661,7 @@ async function generateModelEdits({ provider, userMessage, project, contextTabs,
   };
 }
 
-function buildChatPrompt({ userMessage, project, contextTabs, scoredTabIds }) {
+function buildChatPrompt({ userMessage, project, contextTabs, scoredTabIds }: { userMessage: string; project: SanitizedProject; contextTabs: ContextTab[]; scoredTabIds: Set<string> }): string {
   const orderedForBudget = [...contextTabs].sort((a, b) => {
     const aRanked = scoredTabIds.has(a.tabId) ? 1 : 0;
     const bRanked = scoredTabIds.has(b.tabId) ? 1 : 0;
@@ -638,7 +706,7 @@ All tabs in the project (document order):
 ${JSON.stringify(tabContext, null, 2)}`;
 }
 
-async function generateModelChat({ provider, userMessage, project, contextTabs, scoredTabIds }) {
+async function generateModelChat({ provider, userMessage, project, contextTabs, scoredTabIds }: { provider: ProviderId; userMessage: string; project: SanitizedProject; contextTabs: ContextTab[]; scoredTabIds: Set<string> }) {
   const prompt = buildChatPrompt({ userMessage, project, contextTabs, scoredTabIds });
 
   try {
@@ -665,34 +733,37 @@ async function generateModelChat({ provider, userMessage, project, contextTabs, 
   }
 }
 
-router.post("/chat", async (req, res) => {
+router.post("/chat", async (req: Request<unknown, unknown, ChatBody>, res: Response) => {
   try {
     const requestedProvider = req.body?.provider;
     const userMessage = req.body?.message;
-    const project = req.body?.project;
+    const rawProject = req.body?.project;
     const mode = req.body?.mode === "chat" ? "chat" : "edit";
 
-    if (!["auto", "gpt", "claude", "grok"].includes(requestedProvider)) {
+    if (!isRequestedProvider(requestedProvider)) {
       return res.status(400).json({ message: "Invalid provider" });
     }
 
-    const provider = requestedProvider === "auto" ? "claude" : requestedProvider;
+    const provider: ProviderId = requestedProvider === "auto" ? "claude" : requestedProvider;
 
     if (typeof userMessage !== "string" || !userMessage.trim()) {
       return res.status(400).json({ message: "Message is required" });
     }
 
-    if (!project || typeof project !== "object") {
+    if (!rawProject || typeof rawProject !== "object") {
       return res.status(400).json({ message: "Project context is required" });
     }
 
+    const project = asRecord(rawProject);
     const projectName = typeof project.name === "string" ? project.name : "Untitled Project";
     const projectKind = typeof project.kind === "string" ? project.kind : "Book";
-    const projectTabs = Array.isArray(project.tabs) ? project.tabs : [];
+    const projectTabs: ProjectTab[] = Array.isArray(project.tabs) ? (project.tabs as ProjectTab[]) : [];
     const projectContentById =
-      project.contentById && typeof project.contentById === "object" ? project.contentById : {};
+      project.contentById && typeof project.contentById === "object"
+        ? (project.contentById as Record<string, unknown>)
+        : {};
 
-    const sanitizedProject = {
+    const sanitizedProject: SanitizedProject = {
       name: projectName,
       kind: projectKind,
       tabs: projectTabs,

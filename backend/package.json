@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "start:lan": "HOST=0.0.0.0 ENABLE_LAN_CORS=true node src/server.js",
-    "dev": "node --watch src/server.js",
-    "dev:lan": "HOST=0.0.0.0 ENABLE_LAN_CORS=true node --watch src/server.js"
+    "start": "node src/server.ts",
+    "start:lan": "HOST=0.0.0.0 ENABLE_LAN_CORS=true node src/server.ts",
+    "dev": "node --watch src/server.ts",
+    "dev:lan": "HOST=0.0.0.0 ENABLE_LAN_CORS=true node --watch src/server.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -23,6 +24,13 @@
     "stripe": "^22.3.2"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.18.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.13.3",
+    "typescript": "~6.0.3"
   }
 }

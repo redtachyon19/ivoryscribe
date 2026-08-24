@@ -1,4 +1,4 @@
-import { Sequelize } from "sequelize";
+import { Sequelize, type Options } from "sequelize";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,7 +15,7 @@ const {
   DB_SSL = "false",
 } = process.env;
 
-const shouldLog = DB_LOGGING === "true" ? console.log : false;
+const shouldLog: Options["logging"] = DB_LOGGING === "true" ? console.log : false;
 const sslEnabled = String(DB_SSL).toLowerCase() === "true";
 
 const normalizedDialect = DATABASE_URL ? "postgres" : String(DB_DIALECT).toLowerCase();
@@ -25,7 +25,7 @@ const __dirname = path.dirname(__filename);
 
 const postgresSsl = sslEnabled ? { require: true, rejectUnauthorized: false } : false;
 
-function createSqliteSequelize() {
+function createSqliteSequelize(): Sequelize {
   const resolvedStorage = path.resolve(__dirname, "../../", DB_STORAGE);
 
   return new Sequelize({
@@ -35,8 +35,8 @@ function createSqliteSequelize() {
   });
 }
 
-function createPostgresSequelize() {
-  const options = {
+function createPostgresSequelize(): Sequelize {
+  const options: Options = {
     dialect: "postgres",
     logging: shouldLog,
     dialectOptions: postgresSsl ? { ssl: postgresSsl } : {},

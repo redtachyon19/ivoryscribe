@@ -1,9 +1,9 @@
-import sequelize from "../config/database.js";
-import createUserModel from "./user.js";
-import createDocumentModel from "./document.js";
-import createPreferenceModel from "./preference.js";
-import createPurchaseModel from "./purchase.js";
-import createShareModel from "./share.js";
+import sequelize from "../config/database.ts";
+import createUserModel from "./user.ts";
+import createDocumentModel from "./document.ts";
+import createPreferenceModel from "./preference.ts";
+import createPurchaseModel from "./purchase.ts";
+import createShareModel from "./share.ts";
 
 const User = createUserModel(sequelize);
 const Document = createDocumentModel(sequelize);

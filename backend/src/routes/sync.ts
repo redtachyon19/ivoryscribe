@@ -1,9 +1,29 @@
-import { Router } from "express";
-import { Document, Preference } from "../models/index.js";
+import { Router, type Request, type Response } from "express";
+import { Document, Preference } from "../models/index.ts";
+import { errorMessage } from "../lib/errors.ts";
 
 const router = Router();
 
-router.get("/", async (req, res) => {
+type DocumentInput = {
+  id?: string;
+  title?: string;
+  content?: string;
+  theme?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+type PreferencesInput = {
+  theme?: Record<string, unknown>;
+  editorSettings?: Record<string, unknown>;
+  uiSettings?: Record<string, unknown>;
+};
+
+type PushBody = {
+  documents?: DocumentInput[];
+  preferences?: PreferencesInput | null;
+};
+
+router.get("/", async (req: Request, res: Response) => {
   try {
     const [documents, preferences] = await Promise.all([
       Document.findAll({ where: { userId: req.user.id }, order: [["updatedAt", "DESC"]] }),
@@ -15,14 +35,14 @@ router.get("/", async (req, res) => {
       preferences,
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to sync user data", details: error.message });
+    return res.status(500).json({ message: "Failed to sync user data", details: errorMessage(error) });
   }
 });
 
-router.post("/push", async (req, res) => {
+router.post("/push", async (req: Request<unknown, unknown, PushBody>, res: Response) => {
   try {
-    const docsInput = Array.isArray(req.body.documents) ? req.body.documents : [];
-    const prefsInput = req.body.preferences;
+    const docsInput = Array.isArray(req.body?.documents) ? req.body.documents : [];
+    const prefsInput = req.body?.preferences;
 
     for (const docInput of docsInput) {
       if (docInput?.id) {
@@ -68,7 +88,7 @@ router.post("/push", async (req, res) => {
 
     return res.status(200).json({ documents, preferences });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to push sync data", details: error.message });
+    return res.status(500).json({ message: "Failed to push sync data", details: errorMessage(error) });
   }
 });
 

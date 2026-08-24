@@ -1,11 +1,15 @@
 /*
  * Rendered-markdown surface for the preview pane.
  *
- * Everything here is driven off the app palette tokens (--editor-text,
- * --app-accent, --menu-*) so the viewer follows ivory / elephant / midnight /
- * custom themes without per-palette overrides. The one deliberate exception is
- * the code slab, which stays a dark card on every palette so syntax colours
- * keep a single, tuned contrast baseline.
+ * Prose chrome (borders, surfaces, tables, alerts) is driven off the app
+ * palette tokens (--editor-text, --app-accent) so it follows every theme,
+ * including custom, with no per-palette rules.
+ *
+ * The code block is split in two: the slab itself is a dark grey derived from
+ * --app-bg and carries no accent, while the syntax tokens carry the palette's
+ * character. Each named palette overrides only the --md-syn-* ramp at the
+ * bottom of this file; the values here are the baseline used by elephant and
+ * by custom palettes.
  */
 
 .markdown-editor__preview {
@@ -18,12 +22,18 @@
   --md-surface-strong: color-mix(in srgb, var(--md-ink) 8%, transparent);
   --md-accent: var(--app-accent, #9ab8ff);
 
-  /* Code slab — fixed dark, faintly tinted by the palette accent. */
-  --md-code-bg: color-mix(in srgb, #0e1118 92%, var(--md-accent) 8%);
-  --md-code-bar: color-mix(in srgb, #191d27 92%, var(--md-accent) 8%);
+  /* Code slab — the page's own background pushed down to a dark card. The
+     neutral mix below is the floor for browsers without relative colour
+     syntax; the oklch block further down takes --app-bg's hue and chroma and
+     re-lights it, so a coloured page (sunset, woodland, glacier, ivory) keeps
+     its cast and a neutral page (midnight, elephant) stays grey. The accent
+     is never mixed in — at slab strength a hue that isn't the page's own
+     reads as a colour cast rather than a card. */
+  --md-code-bg: color-mix(in srgb, #121212 92%, var(--app-bg, #121212) 8%);
+  --md-code-bar: color-mix(in srgb, #1e1e1e 92%, var(--app-bg, #121212) 8%);
   --md-code-edge: color-mix(in srgb, #ffffff 10%, transparent);
-  --md-code-fg: #d5dce8;
-  --md-code-muted: #8792a6;
+  --md-code-fg: #dededd;
+  --md-code-muted: #8d8d8c;
 
   /* Syntax tokens. */
   --md-syn-comment: #6d7c9c;
@@ -49,6 +59,27 @@
   line-height: 1.72;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+
+/*
+ * Re-light the page background into a code slab: keep --app-bg's hue, pin
+ * lightness to a fixed dark step, and cap chroma. The cap is the whole trick —
+ * chroma in oklch is absolute, so carrying a page's full chroma down to L=0.2
+ * multiplies its *relative* saturation and the card turns into a colour block
+ * (that is what made the earlier ivory and sunset slabs read as orange). 0.016
+ * is the step where sunset/woodland/glacier read clearly as their own colour
+ * while ivory is still a warm dark rather than an olive — one notch up and
+ * ivory tips over. A neutral page has chroma 0, so midnight and elephant stay
+ * exactly grey for free.
+ *
+ * Custom-property fallbacks fail at use time rather than parse time, so this
+ * has to be gated on @supports instead of a second declaration.
+ */
+@supports (background: oklch(from red l c h)) {
+  .markdown-editor__preview {
+    --md-code-bg: oklch(from var(--app-bg, #121212) 0.205 min(c, 0.016) h);
+    --md-code-bar: oklch(from var(--app-bg, #121212) 0.275 min(c, 0.016) h);
+  }
 }
 
 .markdown-editor__preview > :first-child {
@@ -599,4 +630,84 @@
   .markdown-editor__preview .md-link {
     transition: none;
   }
+}
+
+/* ------------------------------------------------ per-palette syntax ramps */
+/*
+ * Tokens only — the slab stays the same dark grey on every palette. Each ramp
+ * is drawn from that palette's accent family (--app-accent,
+ * --app-accent-secondary, --app-accent-complementary, --app-accent-gold),
+ * brightened to hold contrast against the slab. Elephant and custom palettes
+ * intentionally have no block here — they use the baseline above.
+ */
+
+/* Ivory — pink accent + violet + gold. */
+.app--palette-ivory .markdown-editor__preview {
+  --md-syn-comment: #93816a;
+  --md-syn-keyword: #ff6f92;
+  --md-syn-string: #dcb96f;
+  --md-syn-number: #f79a63;
+  --md-syn-func: #bda3ff;
+  --md-syn-type: #cfd6e0;
+  --md-syn-attr: #e7c9a0;
+  --md-syn-tag: #ff6f92;
+  --md-syn-meta: #bda3ff;
+  --md-syn-regexp: #f0a878;
+}
+
+/* Moon & Midnight — white-grey body with the accent red, a brighter red,
+   orange and violet on top. */
+.app--palette-midnight .markdown-editor__preview {
+  --md-syn-comment: #857f7d;
+  --md-syn-keyword: #ff3d72;
+  --md-syn-string: #ff9d5c;
+  --md-syn-number: #ff6b6b;
+  --md-syn-func: #b490ff;
+  --md-syn-type: #d9d5d3;
+  --md-syn-attr: #c9a6ff;
+  --md-syn-tag: #ff3d72;
+  --md-syn-meta: #d2a248;
+  --md-syn-regexp: #ff9d5c;
+}
+
+/* Sunset Savannah — rose, peach, amber and dusk lilac. */
+.app--palette-sunset .markdown-editor__preview {
+  --md-syn-comment: #96776a;
+  --md-syn-keyword: #ff8fb1;
+  --md-syn-string: #e8c07f;
+  --md-syn-number: #ffb38a;
+  --md-syn-func: #cfa4de;
+  --md-syn-type: #ffd9b8;
+  --md-syn-attr: #e9bdd2;
+  --md-syn-tag: #ff8fb1;
+  --md-syn-meta: #cfa4de;
+  --md-syn-regexp: #e8c07f;
+}
+
+/* Woodland Forrest — bark, leaf, moss and parchment. */
+.app--palette-woodland .markdown-editor__preview {
+  --md-syn-comment: #778a70;
+  --md-syn-keyword: #cd9d70;
+  --md-syn-string: #8fc487;
+  --md-syn-number: #d9b06e;
+  --md-syn-func: #e0d4b6;
+  --md-syn-type: #82bfa6;
+  --md-syn-attr: #bcd39a;
+  --md-syn-tag: #cd9d70;
+  --md-syn-meta: #82bfa6;
+  --md-syn-regexp: #8fc487;
+}
+
+/* Glaciers & Waterfalls — white, ice blue, glacial mint and a warm gold. */
+.app--palette-glacier .markdown-editor__preview {
+  --md-syn-comment: #6c8695;
+  --md-syn-keyword: #7fd2f5;
+  --md-syn-string: #9fd8c4;
+  --md-syn-number: #e0b978;
+  --md-syn-func: #f4fbff;
+  --md-syn-type: #c5d8e3;
+  --md-syn-attr: #a8c8ff;
+  --md-syn-tag: #7fd2f5;
+  --md-syn-meta: #e0b978;
+  --md-syn-regexp: #9fd8c4;
 }

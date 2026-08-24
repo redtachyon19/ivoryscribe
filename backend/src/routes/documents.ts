@@ -1,10 +1,22 @@
-import { Router } from "express";
-import { Document, Share } from "../models/index.js";
-import { Op } from "sequelize";
+import { Router, type Request, type Response } from "express";
+import { Document, Share } from "../models/index.ts";
+import { errorMessage } from "../lib/errors.ts";
 
 const router = Router();
 
-router.get("/", async (req, res) => {
+type DocumentBody = {
+  title?: string;
+  content?: string;
+  theme?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+type IdParams = { id: string };
+
+const UPDATABLE_FIELDS = ["title", "content", "theme", "metadata"] as const;
+type UpdatableField = (typeof UPDATABLE_FIELDS)[number];
+
+router.get("/", async (req: Request, res: Response) => {
   try {
     const documents = await Document.findAll({
       where: { userId: req.user.id },
@@ -13,13 +25,13 @@ router.get("/", async (req, res) => {
 
     return res.status(200).json({ documents });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch documents", details: error.message });
+    return res.status(500).json({ message: "Failed to fetch documents", details: errorMessage(error) });
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", async (req: Request<unknown, unknown, DocumentBody>, res: Response) => {
   try {
-    const { title, content, theme, metadata } = req.body;
+    const { title, content, theme, metadata } = req.body ?? {};
 
     const document = await Document.create({
       userId: req.user.id,
@@ -31,11 +43,11 @@ router.post("/", async (req, res) => {
 
     return res.status(201).json({ document });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to create document", details: error.message });
+    return res.status(500).json({ message: "Failed to create document", details: errorMessage(error) });
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req: Request<IdParams>, res: Response) => {
   try {
     let document = await Document.findOne({
       where: { id: req.params.id, userId: req.user.id },
@@ -61,11 +73,11 @@ router.get("/:id", async (req, res) => {
 
     return res.status(200).json({ document });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch document", details: error.message });
+    return res.status(500).json({ message: "Failed to fetch document", details: errorMessage(error) });
   }
 });
 
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", async (req: Request<IdParams, unknown, DocumentBody>, res: Response) => {
   try {
     let document = await Document.findOne({
       where: { id: req.params.id, userId: req.user.id },
@@ -95,12 +107,17 @@ router.patch("/:id", async (req, res) => {
       return res.status(404).json({ message: "Document not found" });
     }
 
-    const updates = {};
-    const allowedFields = ["title", "content", "theme", "metadata"];
+    const body = req.body ?? {};
+    const updates: Partial<Pick<DocumentBody, UpdatableField>> = {};
 
-    for (const field of allowedFields) {
-      if (Object.hasOwn(req.body, field)) {
-        updates[field] = req.body[field];
+    for (const field of UPDATABLE_FIELDS) {
+      if (Object.hasOwn(body, field)) {
+        // Narrowed per key so the assignment stays typed rather than going
+        // through an index signature.
+        if (field === "title") updates.title = body.title;
+        else if (field === "content") updates.content = body.content;
+        else if (field === "theme") updates.theme = body.theme;
+        else updates.metadata = body.metadata;
       }
     }
 
@@ -108,11 +125,11 @@ router.patch("/:id", async (req, res) => {
 
     return res.status(200).json({ document });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to update document", details: error.message });
+    return res.status(500).json({ message: "Failed to update document", details: errorMessage(error) });
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", async (req: Request<IdParams>, res: Response) => {
   try {
     const deleted = await Document.destroy({
       where: { id: req.params.id, userId: req.user.id },
@@ -124,7 +141,7 @@ router.delete("/:id", async (req, res) => {
 
     return res.status(204).send();
   } catch (error) {
-    return res.status(500).json({ message: "Failed to delete document", details: error.message });
+    return res.status(500).json({ message: "Failed to delete document", details: errorMessage(error) });
   }
 });
 
