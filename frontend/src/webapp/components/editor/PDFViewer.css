@@ -29,6 +29,8 @@
     0 8px 24px rgba(0, 0, 0, 0.55);
   border-radius: var(--radius-xs);
   overflow: hidden;
+  /* Confines the link-hover blend to this page's own canvas and paper. */
+  isolation: isolate;
 }
 
 .pdf-viewer__pages[data-match-palette="on"] .pdf-viewer__page-wrapper {
@@ -108,20 +110,65 @@
   display: block;
   pointer-events: auto;
   cursor: pointer;
-  border-radius: 2px;
-  background: transparent;
-  transition: background-color 120ms ease, outline-color 120ms ease;
-  outline: 1px solid transparent;
 }
 
-.pdf-viewer__link:hover {
-  background: color-mix(in srgb, var(--app-accent, #9ab8ff) 22%, transparent);
-  outline-color: color-mix(in srgb, var(--app-accent, #9ab8ff) 55%, transparent);
+/* Hovering lights the words up instead of boxing them in. The glyphs themselves live
+   in the canvas bitmap, so they are re-tinted by blending: an accent rectangle set to
+   `lighten` leaves pale paper alone and pulls the dark text up to the accent. Dark
+   pages need the mirror image, so the viewer stamps the page tone on the pages
+   container and `darken` takes over there. */
+.pdf-viewer__pages {
+  --pdf-link-accent: color-mix(in srgb, var(--app-accent, #9ab8ff) 82%, #000);
+}
+
+.pdf-viewer__pages[data-page-tone="dark"] {
+  --pdf-link-accent: color-mix(in srgb, var(--app-accent, #9ab8ff) 88%, #fff);
+}
+
+/* The tints get a layer of their own: a blend only reaches back as far as its nearest
+   stacking context, and the link layer above has to carry a z-index to win the click,
+   which would wall the blend off from the canvas it needs to read. */
+.pdf-viewer__link-tint-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pdf-viewer__link-tint {
+  position: absolute;
+  background: var(--pdf-link-accent, #9ab8ff);
+  mix-blend-mode: lighten;
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.pdf-viewer__pages[data-page-tone="dark"] .pdf-viewer__link-tint {
+  mix-blend-mode: darken;
+}
+
+.pdf-viewer__link-tint--lit {
+  opacity: 1;
+}
+
+/* Canvas glyphs cannot be emboldened, so the weight and the halo come from the text
+   layer's own transparent copy of the same words: a shadow is painted from the glyph
+   shapes even though the fill stays invisible. The hover handler tags the spans that
+   fall inside the link's rect. */
+.pdf-viewer__text-layer .pdf-viewer__link-glow {
+  /* Blur in em, so the halo tracks the type size the same way at any zoom. The
+     softest stop stays wider than the text layer's usual drift from the canvas
+     glyphs underneath, which keeps the halo from reading as doubled text. */
+  text-shadow:
+    0 0 0.1em color-mix(in srgb, var(--pdf-link-accent, #9ab8ff) 50%, transparent),
+    0 0 0.22em color-mix(in srgb, var(--pdf-link-accent, #9ab8ff) 55%, transparent),
+    0 0 0.55em color-mix(in srgb, var(--pdf-link-accent, #9ab8ff) 30%, transparent);
+  transition: text-shadow 110ms ease;
 }
 
 .pdf-viewer__link:focus-visible {
   outline: 2px solid var(--app-accent, #9ab8ff);
   outline-offset: 1px;
+  border-radius: 2px;
 }
 
 .pdf-viewer__text-layer .endOfContent {

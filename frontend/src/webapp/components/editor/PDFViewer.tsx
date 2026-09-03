@@ -38,6 +38,29 @@ type PDFViewerProps = {
 const MIN_ZOOM = 0.25
 const MAX_ZOOM = 8
 
+// Whether a page is painted on dark stock, which decides the direction the link
+// hover blend has to run. Handles the forms the palette tokens actually use.
+function isDarkColor(color: string): boolean {
+  const value = color.trim()
+  let r: number, g: number, b: number
+  if (/^#[0-9a-f]{3}$/i.test(value)) {
+    r = parseInt(value[1] + value[1], 16)
+    g = parseInt(value[2] + value[2], 16)
+    b = parseInt(value[3] + value[3], 16)
+  } else if (/^#[0-9a-f]{6}$/i.test(value)) {
+    r = parseInt(value.slice(1, 3), 16)
+    g = parseInt(value.slice(3, 5), 16)
+    b = parseInt(value.slice(5, 7), 16)
+  } else {
+    const parts = value.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i)
+    if (!parts) return false
+    r = Number(parts[1])
+    g = Number(parts[2])
+    b = Number(parts[3])
+  }
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5
+}
+
 function collectMatchRanges(container: HTMLElement, needle: string): Range[] {
   const ranges: Range[] = []
   if (!needle) return ranges
@@ -151,6 +174,16 @@ function applyZoomToPdfWrapper(
     layer.style.height = `${baseH}px`
     layer.style.transform = `scale(${zoom})`
     layer.style.transformOrigin = "0 0"
+  }
+
+  // The hover tints cannot ride that transform: a transform would make their layer a
+  // stacking context, and a blend never reaches past one to the canvas it has to read.
+  // They are re-laid out in display pixels from the fit-width geometry instead.
+  for (const tint of wrapper.querySelectorAll<HTMLDivElement>(".pdf-viewer__link-tint")) {
+    tint.style.left = `${Number(tint.dataset.baseLeft) * zoom}px`
+    tint.style.top = `${Number(tint.dataset.baseTop) * zoom}px`
+    tint.style.width = `${Number(tint.dataset.baseWidth) * zoom}px`
+    tint.style.height = `${Number(tint.dataset.baseHeight) * zoom}px`
   }
 }
 
@@ -603,6 +636,55 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       return { background, foreground }
     }
 
+    const applyPageTone = () => {
+      const paletteHost = scrollContainer.closest(".app") ?? document.body
+      const background = matchPalette
+        ? getComputedStyle(paletteHost).getPropertyValue("--app-bg").trim() || "#111111"
+        : "#ffffff"
+      pagesContainer.dataset.pageTone = isDarkColor(background) ? "dark" : "light"
+    }
+    applyPageTone()
+
+    // Hovering a link tints the canvas glyphs through the overlay's blend mode, and
+    // haloes them by tagging the text layer's transparent copy of the same words.
+    // Which spans a link covers only changes when the text layer is rebuilt, so the
+    // lookup is cached against the layer it was measured in.
+    const LINK_GLOW_CLASS = "pdf-viewer__link-glow"
+    const glowTargets = new WeakMap<HTMLElement, { layer: Element; spans: HTMLElement[] }>()
+    const linkTints = new WeakMap<HTMLElement, HTMLElement>()
+
+    const glowSpansFor = (link: HTMLElement): HTMLElement[] => {
+      const layer = link
+        .closest(".pdf-viewer__page-wrapper")
+        ?.querySelector(".pdf-viewer__text-layer")
+      if (!layer) return []
+      const cached = glowTargets.get(link)
+      if (cached && cached.layer === layer) return cached.spans
+
+      // Both layers are laid out at fit-width size under the same zoom transform, so
+      // client rects compare directly without undoing either.
+      const box = link.getBoundingClientRect()
+      const spans: HTMLElement[] = []
+      for (const span of layer.querySelectorAll<HTMLElement>("span")) {
+        const rect = span.getBoundingClientRect()
+        if (rect.width <= 0 || rect.height <= 0) continue
+        const overlapW = Math.min(rect.right, box.right) - Math.max(rect.left, box.left)
+        const overlapH = Math.min(rect.bottom, box.bottom) - Math.max(rect.top, box.top)
+        if (overlapW <= 0 || overlapH <= 0) continue
+        // Most of the span has to sit inside the annotation rect, so a neighbouring
+        // word that merely grazes its edge stays dark.
+        if ((overlapW * overlapH) / (rect.width * rect.height) < 0.5) continue
+        spans.push(span)
+      }
+      glowTargets.set(link, { layer, spans })
+      return spans
+    }
+
+    const setLinkGlow = (link: HTMLElement, on: boolean) => {
+      linkTints.get(link)?.classList.toggle("pdf-viewer__link-tint--lit", on)
+      for (const span of glowSpansFor(link)) span.classList.toggle(LINK_GLOW_CLASS, on)
+    }
+
     type LinkAnnotation = {
       subtype?: string
       rect?: number[]
@@ -623,18 +705,21 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
     }
 
     // Link annotations only — the surrounding viewer has no form/widget support, and
-    // pdf.js already paints every annotation's appearance onto the canvas, so this
-    // layer exists purely to make the painted links hittable.
-    const buildLinkLayer = (
+    // pdf.js already paints every annotation's appearance onto the canvas, so these
+    // layers exist to make the painted links hittable and to light them on hover.
+    const buildLinkLayers = (
       annotations: LinkAnnotation[],
       fitViewport: ReturnType<PDFPageProxy["getViewport"]>,
       baseW: number,
       baseH: number,
-    ): HTMLDivElement | null => {
+    ): { links: HTMLDivElement; tints: HTMLDivElement } | null => {
       const layer = document.createElement("div")
       layer.className = "pdf-viewer__link-layer"
       layer.style.width = `${baseW}px`
       layer.style.height = `${baseH}px`
+
+      const tintLayer = document.createElement("div")
+      tintLayer.className = "pdf-viewer__link-tint-layer"
 
       let count = 0
       for (const annotation of annotations) {
@@ -682,11 +767,28 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
         link.style.width = `${width}px`
         link.style.height = `${height}px`
 
+        const tint = document.createElement("div")
+        tint.className = "pdf-viewer__link-tint"
+        tint.dataset.baseLeft = String(left)
+        tint.dataset.baseTop = String(top)
+        tint.dataset.baseWidth = String(width)
+        tint.dataset.baseHeight = String(height)
+        tintLayer.appendChild(tint)
+        linkTints.set(link, tint)
+
+        link.addEventListener("pointerenter", () => setLinkGlow(link, true))
+        link.addEventListener("pointerleave", () => setLinkGlow(link, false))
+        // Mirrors the :focus-visible ring, so keyboard traversal lights the words too.
+        link.addEventListener("focus", () => {
+          if (link.matches(":focus-visible")) setLinkGlow(link, true)
+        })
+        link.addEventListener("blur", () => setLinkGlow(link, false))
+
         layer.appendChild(link)
         count++
       }
 
-      return count > 0 ? layer : null
+      return count > 0 ? { links: layer, tints: tintLayer } : null
     }
 
     const renderPage = async (pageNumber: number, myGen: number, zoom: number) => {
@@ -833,9 +935,10 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
           if (cancelled || myGen !== generation) return
           if (records.get(pageNumber) !== record) return
           if (wrapper.querySelector(".pdf-viewer__link-layer")) return
-          const linkLayer = buildLinkLayer(annotations, fitViewport, baseW, baseH)
-          if (linkLayer) {
-            wrapper.appendChild(linkLayer)
+          const built = buildLinkLayers(annotations, fitViewport, baseW, baseH)
+          if (built) {
+            wrapper.appendChild(built.tints)
+            wrapper.appendChild(built.links)
             applyZoomToPdfWrapper(wrapper, baseW, baseH, pendingZoomRef.current)
           }
         } catch {
