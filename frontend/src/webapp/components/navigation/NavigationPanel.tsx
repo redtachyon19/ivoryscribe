@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState, type Dispatch, type MouseEvent, type SetStateAction } from "react"
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type MouseEvent, type SetStateAction } from "react"
 import { ArrowLeft, BookmarkPlus, BookPlus, FileCode, FilePlus2, FileType, FolderPlus, ListPlus, PanelLeft, Presentation } from "lucide-react"
 import DocumentTabsPanel from "./DocumentTabsPanel"
 import ProjectBrowserPanel from "./ProjectBrowserPanel"
 import { requestPdfBookmarkNavigate } from "../../../core/events/editorEvents"
 import {
   usePdfBookmarks,
+  usePdfCurrentPage,
   addPdfBookmark,
   setPdfBookmarks,
   findBookmark,
+  findBookmarkForPage,
   getCurrentPage,
   type PdfBookmark,
 } from "../../../core/pdf/pdfBookmarkStore"
@@ -127,7 +129,17 @@ export default function NavigationPanel({
   const isSingleDoc = isSingleDocumentKind(projectKind)
   const pdfDocumentId = project?.kind === "PDF" ? project.activeId : null
   const pdfBookmarks = usePdfBookmarks(pdfDocumentId)
+  const pdfCurrentPage = usePdfCurrentPage(pdfDocumentId)
   const [selectedBookmarkId, setSelectedBookmarkId] = useState<string | null>(null)
+  // The highlight follows the page being read, so scrolling the PDF walks the list.
+  // A click still wins while the reader is on that bookmark's own page, since several
+  // bookmarks can share a page and they picked one of them.
+  const activeBookmarkId = useMemo(() => {
+    const bookmarks = pdfBookmarks ?? []
+    const selected = selectedBookmarkId ? findBookmark(bookmarks, selectedBookmarkId) : null
+    if (selected && selected.pageNumber === pdfCurrentPage) return selected.id
+    return findBookmarkForPage(bookmarks, pdfCurrentPage)?.id ?? null
+  }, [pdfBookmarks, selectedBookmarkId, pdfCurrentPage])
   const handleAddBookmark = useCallback(() => {
     if (!pdfDocumentId) return
     const page = getCurrentPage(pdfDocumentId)
@@ -436,7 +448,8 @@ export default function NavigationPanel({
                 tabs={(pdfBookmarks ?? []) as unknown as DocumentTab[]}
                 projectKind={project.kind}
                 project={project}
-                activeId={selectedBookmarkId}
+                activeId={activeBookmarkId}
+                followActiveId
                 isVisible={isOpen && sidebarSlide === 2}
                 entryTerms={BOOKMARK_ENTRY_TERMS}
                 onTabsChange={(updater) => {

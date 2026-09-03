@@ -15,6 +15,9 @@ type DocState = {
 const states = new Map<string, DocState>()
 const listeners = new Map<string, Set<() => void>>()
 const currentPageByDoc = new Map<string, number>()
+// Kept apart from the tree listeners: the page changes as the reader scrolls, and the
+// bookmark list itself is unaffected by it.
+const pageListeners = new Map<string, Set<() => void>>()
 
 function getState(documentId: string): DocState {
   let s = states.get(documentId)
@@ -43,6 +46,19 @@ function subscribe(documentId: string, listener: () => void): () => void {
   }
 }
 
+function subscribePage(documentId: string, listener: () => void): () => void {
+  let set = pageListeners.get(documentId)
+  if (!set) {
+    set = new Set()
+    pageListeners.set(documentId, set)
+  }
+  set.add(listener)
+  return () => {
+    set?.delete(listener)
+    if (set && set.size === 0) pageListeners.delete(documentId)
+  }
+}
+
 function insertInTree(
   nodes: PdfBookmark[],
   parentId: string | null,
@@ -53,6 +69,21 @@ function insertInTree(
     if (n.id === parentId) return { ...n, children: [...n.children, node] }
     return { ...n, children: insertInTree(n.children, parentId, node) }
   })
+}
+
+// The bookmark a reader is sitting inside on a given page: a bookmark's section runs
+// until the next one starts, so it is the one with the highest page at or before this
+// page — the last of them in tree order when several share that page.
+export function findBookmarkForPage(nodes: PdfBookmark[], pageNumber: number): PdfBookmark | null {
+  let match: PdfBookmark | null = null
+  const walk = (list: PdfBookmark[]): void => {
+    for (const n of list) {
+      if (n.pageNumber <= pageNumber && (!match || n.pageNumber >= match.pageNumber)) match = n
+      walk(n.children)
+    }
+  }
+  walk(nodes)
+  return match
 }
 
 export function findBookmark(nodes: PdfBookmark[], id: string): PdfBookmark | null {
@@ -119,7 +150,11 @@ export function initPdfBookmarks(
 }
 
 export function reportCurrentPage(documentId: string, pageNumber: number): void {
+  // Fires on every scroll frame, so only a page boundary is worth waking anyone for.
+  if (currentPageByDoc.get(documentId) === pageNumber) return
   currentPageByDoc.set(documentId, pageNumber)
+  const set = pageListeners.get(documentId)
+  if (set) for (const fn of set) fn()
 }
 
 export function getCurrentPage(documentId: string): number {
@@ -157,6 +192,12 @@ export function clearPdfBookmarks(documentId: string): void {
 export function createBookmarkId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID()
   return `bm-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+export function usePdfCurrentPage(documentId: string | null): number {
+  const sub = (cb: () => void) => (documentId ? subscribePage(documentId, cb) : () => {})
+  const snapshot = () => (documentId ? currentPageByDoc.get(documentId) ?? 1 : 1)
+  return useSyncExternalStore(sub, snapshot, snapshot)
 }
 
 export function usePdfBookmarks(documentId: string | null): PdfBookmark[] | null {
