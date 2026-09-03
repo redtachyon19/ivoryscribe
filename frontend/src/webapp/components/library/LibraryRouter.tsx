@@ -4,7 +4,7 @@ import ArchiveView from "../../pages/Archive"
 import TrashView from "../../pages/Trash"
 import Library, { type ProjectFolder } from "../../pages/Library"
 import type { Project } from "../../../core/utils/projects"
-import type { PendingShareRequest } from "../../../core/api"
+import type { PendingShareRequest } from "@shared/api"
 import type { VersionSettingsEntry } from "../../../core/state/versioning"
 import type { LibrarySection } from "./useLibraryNavigation"
 

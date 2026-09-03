@@ -33,7 +33,7 @@ import { useNativeTextEntryCommandBus } from "./useNativeTextEntryCommandBus"
 import { getStoredBoolean, writeStoredPreferences } from "../state/preferencesStorage"
 
 import { useTuskBilling } from "./useTuskBilling"
-import { getPendingShareRequests, respondToShareRequest, type PendingShareRequest } from "../api"
+import { getPendingShareRequests, respondToShareRequest, type PendingShareRequest } from "@shared/api"
 import type { ProjectFolder } from "../../webapp/pages/Library"
 
 export function useAppOrchestration() {

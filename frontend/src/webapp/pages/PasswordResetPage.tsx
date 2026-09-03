@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { getPasswordResetInfo, resetPasswordFromToken } from "../../core/api"
+import { getPasswordResetInfo, resetPasswordFromToken } from "@shared/api"
 import GlobalCaretOverlay from "../components/layout/GlobalCaretOverlay"
 import "./AuthPage.css"
 

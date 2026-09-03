@@ -8,11 +8,6 @@ import UpdateBanner from "./webapp/components/layout/UpdateBanner"
 import GlobalSettings from "./webapp/components/settings/GlobalSettings"
 import GlobalCaretOverlay from "./webapp/components/layout/GlobalCaretOverlay"
 import VersionHistory from "./webapp/components/version-history/VersionHistory"
-import AlphaBanner from "./landing/components/AlphaBanner"
-import Home from "./landing/pages/Home"
-import AboutPage from "./landing/pages/AboutPage"
-import TransparencyPage from "./landing/pages/TransparencyPage"
-import DownloadPage from "./landing/pages/DownloadPage.tsx"
 import AuthPage from "./webapp/pages/AuthPage"
 import Editor from "./webapp/pages/Editor"
 import VersionPreviewPage from "./webapp/pages/VersionPreviewPage"
@@ -64,14 +59,6 @@ export default function App() {
     content = <PasswordResetPage {...app.passwordResetProps} />
   } else if (app.isAuthBootstrapping) {
     content = <section className="app-loading"><p>Loading workspace...</p></section>
-  } else if (app.currentPathname === "/") {
-    content = <Home {...app.homeProps} />
-  } else if (app.currentPathname === "/about") {
-    content = <AboutPage {...app.homeProps} />
-  } else if (app.currentPathname === "/transparency") {
-    content = <TransparencyPage {...app.homeProps} />
-  } else if (app.currentPathname === "/download") {
-    content = <DownloadPage {...app.homeProps} />
   } else if (app.currentPathname === "/auth" || !app.session) {
     content = <AuthPage {...app.authProps} />
   } else {
@@ -85,30 +72,14 @@ export default function App() {
     )
   }
 
-  const landingRoutes = ["/", "/about", "/transparency", "/download", "/auth", "/reset-password"]
-  const isWorkspace = isElectron || (app.session && !landingRoutes.includes(app.currentPathname))
+  // Marketing routes ( /, /about, /transparency, /download ) now live in the
+  // standalone website/ app. The product app's only unauthenticated routes are
+  // auth and password reset.
+  const publicRoutes = ["/auth", "/reset-password"]
+  const isWorkspace = isElectron || (app.session && !publicRoutes.includes(app.currentPathname))
 
-  const marketingRoutes = ["/", "/about", "/transparency", "/download"]
-  const isMarketing =
-    !isVersionPreview && !isElectron && !app.isAuthBootstrapping && marketingRoutes.includes(app.currentPathname)
-  if (isMarketing) {
-    content = (
-      <>
-        <AlphaBanner />
-        {content}
-      </>
-    )
-  }
-
-  const isMarketingRoute = !isElectron && marketingRoutes.includes(app.currentPathname)
-  const layoutPalette = isMarketingRoute ? "elephant" : app.style.palette
-  const layoutStyleVariables = (
-    isMarketingRoute
-      ? Object.fromEntries(
-          Object.entries(app.style.appStyleVariables).filter(([key]) => key.endsWith("-font")),
-        )
-      : app.style.appStyleVariables
-  ) as CSSProperties
+  const layoutPalette = app.style.palette
+  const layoutStyleVariables = app.style.appStyleVariables as CSSProperties
 
   return (
     <AppLayout

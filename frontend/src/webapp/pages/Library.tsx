@@ -23,7 +23,7 @@ import { setFolderMeta } from "../../core/state/folderMetaStorage"
 import useMultiSelect from "../components/library/useMultiSelect"
 import ShareDialog from "../components/settings/ShareDialog"
 import ShareRequestList from "../components/library/ShareRequestList"
-import type { PendingShareRequest } from "../../core/api"
+import type { PendingShareRequest } from "@shared/api"
 import "./Library.css"
 
 type LibraryContextMenuState =

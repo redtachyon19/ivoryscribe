@@ -1,6 +1,6 @@
-import { createDocument } from "../api"
-import { getDocumentShares, createShare, revokeShare } from "../api"
-import type { ShareRecord } from "../api"
+import { createDocument } from "@shared/api"
+import { getDocumentShares, createShare, revokeShare } from "@shared/api"
+import type { ShareRecord } from "@shared/api"
 import { PROJECT_RECORD_TYPE } from "../state/versioning"
 import type { Project } from "../utils/projects"
 

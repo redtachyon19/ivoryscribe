@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ApiError, login, register, resendEmailVerification, verifyEmail } from "../../core/api"
+import { ApiError, login, register, resendEmailVerification, verifyEmail } from "@shared/api"
 import GlobalCaretOverlay from "../components/layout/GlobalCaretOverlay"
 import "./AuthPage.css"
 

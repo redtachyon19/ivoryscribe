@@ -4,7 +4,7 @@ import {
   requestTuskAiChat,
   requestTuskAiEdits,
   type TuskAiProvider,
-} from "../../../core/api"
+} from "@shared/api"
 import type { Project } from "../../../core/utils/projects"
 import type { ProposedEdit } from "./proposedEditsTypes"
 import "./TuskAiTab.css"

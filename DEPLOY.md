@@ -115,8 +115,8 @@ site is hosted.
 ## 3. The downloadable app / site → backend (already wired)
 
 The frontend resolves its API base from `VITE_API_URL` at **build time**
-(`frontend/src/core/api/request.ts`). This is already committed in
-[`frontend/.env.production`](frontend/.env.production):
+(`shared/src/api/request.ts`, shared with the website and mobile clients). This
+is already committed in [`frontend/.env.production`](frontend/.env.production):
 
 ```bash
 VITE_API_URL=https://api.ivoryscribe.com
@@ -143,34 +143,50 @@ other, not both, to avoid double deploys.
 
 ---
 
-## 5. Marketing site → ivoryscribe.com (Cloudflare Pages)
+## 5. Marketing site + browser app (two separate deploys)
 
-The marketing site + browser app is the frontend web build (`npm run build` →
-`frontend/dist`). It's hosted on **Cloudflare Pages**, which auto-deploys on every
-push to the production branch. Two committed files make this work:
+As of the monorepo restructure, the **marketing site** and the **browser app** are
+two independent Vite builds that deploy separately:
 
-- [`frontend/public/_redirects`](frontend/public/_redirects) — SPA fallback so deep
-  links like `/download` serve `index.html` (the app routes client-side).
-- [`frontend/.node-version`](frontend/.node-version) — pins Node 22 for the build.
+| Surface | Package | Build output | Suggested host/domain |
+| --- | --- | --- | --- |
+| Marketing site (`/`, `/about`, `/transparency`, `/download`) | `website/` | `website/dist` | `ivoryscribe.com` / `www` |
+| Browser app (auth + workspace) | `frontend/` | `frontend/dist` | `app.ivoryscribe.com` |
 
-`VITE_API_URL` is already baked in via `frontend/.env.production`, so the deployed
-site talks to `https://api.ivoryscribe.com` with no env config needed on Pages.
+Both are static SPAs on **Cloudflare Pages** (auto-deploy on push to the production
+branch). Each ships a `public/_redirects` SPA fallback so deep links serve
+`index.html` and the client routes them.
 
-### One-time setup (Cloudflare dashboard)
+The marketing site links to the browser app for auth and the dashboard via
+`VITE_APP_URL` (see `website/src/App.tsx`). Set it at build time on the website's
+Pages project, e.g. `VITE_APP_URL=https://app.ivoryscribe.com`. In dev it falls
+back to `http://localhost:5180` (the frontend dev server).
 
-1. **Workers & Pages → Create → Pages → Connect to Git** → pick the `ivoryscribe` repo.
-2. Build settings:
-   - **Production branch:** `main`
-   - **Root directory:** `frontend`
-   - **Build command:** `npm run build`
-   - **Build output directory:** `dist`
-   - **Environment variable:** `NODE_VERSION` = `22`
-3. **Save and Deploy.**
-4. Project → **Custom domains** → add `ivoryscribe.com` and `www.ivoryscribe.com`.
-   DNS is already on Cloudflare, so the records are created automatically.
+> **CLIENT_ORIGIN:** when the browser app moves to its own subdomain, add it to the
+> backend's `CLIENT_ORIGIN` (§2) — e.g.
+> `https://ivoryscribe.com,https://www.ivoryscribe.com,https://app.ivoryscribe.com`.
 
-After that, every push to `main` rebuilds and redeploys the site. `api.` (Railway)
-and the apex/`www` (Pages) are independent — no conflict.
+### One-time setup (Cloudflare dashboard) — repeat per project
+
+Create **two** Pages projects from the same `ivoryscribe` repo:
+
+**Marketing site**
+- **Root directory:** `website`
+- **Build command:** `npm run build`
+- **Build output directory:** `dist`
+- **Environment variables:** `NODE_VERSION` = `22`, `VITE_APP_URL` = `https://app.ivoryscribe.com`
+- **Custom domains:** `ivoryscribe.com`, `www.ivoryscribe.com`
+
+**Browser app**
+- **Root directory:** `frontend`
+- **Build command:** `npm run build`
+- **Build output directory:** `dist`
+- **Environment variable:** `NODE_VERSION` = `22`
+- **Custom domain:** `app.ivoryscribe.com`
+
+`VITE_API_URL` is baked into both via `frontend/.env.production` (frontend) — the
+website carries no API calls of its own. `api.` (Railway), the apex/`www`
+(marketing), and `app.` (browser app) are all independent — no conflict.
 
 ---
 
@@ -183,7 +199,7 @@ file of that exact name, so the links never change across versions:
 - macOS: `https://github.com/redtachyon19/ivoryscribe/releases/latest/download/Ivoryscribe-arm64.dmg`
 - Windows: `https://github.com/redtachyon19/ivoryscribe/releases/latest/download/Ivoryscribe-x64.exe`
 
-(URLs are defined in `frontend/src/landing/pages/DownloadPage.tsx`.)
+(URLs are defined in `website/src/pages/DownloadPage.tsx`.)
 
 ### Automated builds (GitHub Actions)
 

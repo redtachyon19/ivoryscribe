@@ -1,0 +1,253 @@
+.btn {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  flex-shrink: 0;
+
+  box-sizing: border-box;
+  padding: 9px var(--space-6);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+
+  background: transparent;
+  color: var(--text-muted);
+
+  font-family: var(--app-ui-font);
+  font-size: var(--text-md);
+  font-weight: inherit;
+  line-height: var(--leading-snug);
+  white-space: nowrap;
+
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.btn:focus-visible {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.btn:disabled:hover,
+.btn[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.btn--sm {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+  gap: var(--space-3);
+}
+
+.btn--lg {
+  padding: 11px var(--space-7);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn--icon {
+  width: var(--control-h-md);
+  height: var(--control-h-md);
+  padding: 0;
+  border-radius: var(--radius-sm);
+  gap: 0;
+}
+
+.btn--icon.btn--sm {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+}
+
+.btn--pill {
+  border-radius: var(--radius-pill);
+}
+
+.btn svg {
+  flex-shrink: 0;
+}
+
+.btn--icon svg {
+  display: block;
+}
+
+.btn--primary {
+  border-color: var(--accent-border);
+  background: var(--accent-fill);
+  color: var(--text-strong);
+}
+
+.btn--primary:hover,
+.btn--primary:focus-visible {
+  border-color: var(--accent-border-hover);
+  background: var(--accent-fill-hover);
+}
+
+.btn--danger {
+  color: var(--danger);
+}
+
+.btn--danger:hover,
+.btn--danger:focus-visible {
+  background: var(--danger-fill-hover);
+  color: var(--danger-hover);
+}
+
+.btn--outline {
+  border-color: var(--border-normal);
+  color: var(--text-subtle);
+}
+
+.btn--outline:hover,
+.btn--outline:focus-visible {
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+}
+
+.btn--field {
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-color: var(--border-normal);
+  background: var(--surface-field);
+  color: var(--text-strong);
+  text-align: left;
+}
+
+.btn--field:hover,
+.btn--field:focus-visible {
+  background: var(--surface-hover);
+  border-color: var(--accent-ring);
+}
+
+.btn--raised {
+  border-color: var(--border-subtle);
+  background: var(--surface-panel);
+  color: var(--text-normal);
+}
+
+.btn--raised:hover,
+.btn--raised:focus-visible {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.btn--floating-close {
+  position: absolute;
+  top: -30px;
+  right: 0;
+  background: var(--surface-panel);
+  color: var(--text-subtle);
+}
+
+.btn--active {
+  background: var(--surface-active);
+  color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px var(--text-ghost);
+}
+
+.btn--active:hover,
+.btn--active:focus-visible {
+  background: var(--surface-hover);
+}
+
+.btn--spin-icon:hover svg,
+.btn--spin-icon:focus-visible svg {
+  animation: icon-spin var(--dur-slower) var(--ease-out) 1;
+  transform-origin: 50% 50%;
+}
+
+.btn--spin-nudge:hover svg,
+.btn--spin-nudge:focus-visible svg {
+  animation: icon-spin-nudge var(--dur-slower) var(--ease-out) 1;
+  transform-origin: 50% 50%;
+}
+
+.btn__label {
+  position: absolute;
+  top: 50%;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--dur-fast) var(--ease-standard),
+    transform var(--dur-med) var(--ease-standard);
+}
+
+.btn__label--left {
+  right: calc(100% + var(--space-4));
+  transform: translate3d(6px, -50%, 0);
+}
+
+.btn__label--right {
+  left: calc(100% + var(--space-4));
+  transform: translate3d(-6px, -50%, 0);
+}
+
+.btn:hover .btn__label,
+.btn:focus-visible .btn__label {
+  opacity: 0.64;
+  transform: translate3d(0, -50%, 0);
+}
+
+.btn__icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: rotate(90deg) scale(0.6);
+  transition:
+    opacity var(--dur-med) var(--ease-out),
+    transform var(--dur-med) var(--ease-out);
+}
+
+.btn__icon svg {
+  display: block;
+}
+
+.btn__icon--visible {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
+.btn--spin-icon:hover .btn__icon--visible,
+.btn--spin-icon:focus-visible .btn__icon--visible {
+  animation: icon-spin var(--dur-slower) var(--ease-out) 1;
+  transform-origin: 50% 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn--spin-icon:hover svg,
+  .btn--spin-icon:focus-visible svg,
+  .btn--spin-nudge:hover svg,
+  .btn--spin-nudge:focus-visible svg,
+  .btn--spin-icon:hover .btn__icon--visible,
+  .btn--spin-icon:focus-visible .btn__icon--visible {
+    animation: none;
+  }
+}

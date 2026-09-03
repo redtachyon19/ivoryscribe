@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import electron from 'vite-plugin-electron/simple'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
 
@@ -12,6 +13,11 @@ export default defineConfig(({ command }) => {
   return {
     define: {
       __APP_VERSION__: JSON.stringify(pkgVersion),
+    },
+    resolve: {
+      alias: {
+        '@shared': fileURLToPath(new URL('../shared/src', import.meta.url)),
+      },
     },
     plugins: [
       react(),

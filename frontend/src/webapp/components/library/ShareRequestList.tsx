@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Check, X, Eye, Pencil } from "lucide-react"
-import type { PendingShareRequest } from "../../../core/api"
+import type { PendingShareRequest } from "@shared/api"
 import "./ShareRequestList.css"
 
 type ShareRequestListProps = {

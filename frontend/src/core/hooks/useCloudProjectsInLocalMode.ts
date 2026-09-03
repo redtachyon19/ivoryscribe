@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
-import { getDocuments, getSharedWithMe, updateDocument } from "../api"
+import { getDocuments, getSharedWithMe, updateDocument } from "@shared/api"
 import type { UserSession } from "../state/session"
 import { PROJECT_RECORD_TYPE } from "../state/versioning"
 import { parseProjectFromDocument, type Project } from "../utils/projects"

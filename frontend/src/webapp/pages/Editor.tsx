@@ -22,7 +22,7 @@ import {
   type Project,
 } from "../../core/utils/projects"
 import type { ProjectFolder } from "./Library"
-import type { PendingShareRequest } from "../../core/api"
+import type { PendingShareRequest } from "@shared/api"
 import type { VersionSettingsEntry } from "../../core/state/versioning"
 import "./Library.css"
 import "./Editor.css"

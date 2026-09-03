@@ -12,7 +12,7 @@ import {
   getSharedWithMe,
   updateDocument,
   updatePreferences,
-} from "../api"
+} from "@shared/api"
 import type { Palette } from "../utils/appearance"
 import { applyPreferences, type PreferencesPayload } from "../utils/preferences"
 import {

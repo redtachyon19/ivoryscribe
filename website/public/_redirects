@@ -1,0 +1,5 @@
+# SPA fallback for Cloudflare Pages / Netlify: the marketing site does
+# client-side routing (/, /about, /transparency, /download), so any path that
+# isn't a real static asset must serve index.html and let the app render the
+# right page. Real files (/assets/*, etc.) are served directly and skip this.
+/*    /index.html   200

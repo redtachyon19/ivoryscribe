@@ -2,7 +2,11 @@ import './core/devPerfMeasureGuard'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './styles/index.css'
+import { initWebApiConfig } from './webApiConfig'
 import App from './App.tsx'
+
+// Configure @shared/api before anything renders or fires a request.
+initWebApiConfig()
 
 const rootElement = document.getElementById('root')
 

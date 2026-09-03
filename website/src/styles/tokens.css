@@ -1,0 +1,107 @@
+:root {
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 16px;
+  --space-8: 20px;
+  --space-9: 24px;
+  --space-10: 32px;
+
+  --text-3xs: 11px;
+  --text-2xs: 12px;
+  --text-xs: 13px;
+  --text-sm: 15px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+
+  --leading-tight: 1.1;
+  --leading-snug: 1.2;
+  --leading-normal: 1.5;
+
+  --app-mono-font: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --label-tracking: 0.08em;
+
+  --dur-quick: 120ms;
+  --dur-fast: 160ms;
+  --dur-med: 240ms;
+  --dur-slow: 320ms;
+  --dur-slower: 420ms;
+
+  --ease-standard: ease;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --stagger-1: 40ms;
+  --stagger-2: 80ms;
+  --stagger-3: 120ms;
+
+  --transition-control:
+    background-color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.45);
+
+  --control-h-sm: 30px;
+  --control-h-md: 34px;
+  --control-h-lg: 40px;
+
+  --z-dropdown: 100;
+  --z-overlay: 200;
+  --z-panel: 201;
+  --z-panel-close: 202;
+  --z-toast: 300;
+}
+
+.app,
+[class*="app--palette-"],
+.auth-gateway-page {
+  --text-strong: var(--menu-button, #ededed);
+  --text-normal: color-mix(in srgb, var(--menu-button, #ededed) 86%, transparent);
+  --text-muted: color-mix(in srgb, var(--menu-button, #ededed) 72%, transparent);
+  --text-subtle: color-mix(in srgb, var(--menu-button, #ededed) 58%, transparent);
+  --text-faint: color-mix(in srgb, var(--menu-button, #ededed) 40%, transparent);
+  --text-ghost: color-mix(in srgb, var(--menu-button, #ededed) 20%, transparent);
+
+  --surface-hover: color-mix(in srgb, var(--menu-button-hover-bg, #2a2a2a) 80%, transparent);
+  --surface-active: color-mix(in srgb, var(--menu-button, #ededed) 10%, transparent);
+  --surface-panel: color-mix(in srgb, var(--menu-dropdown-bg, #151515) 96%, transparent);
+  --surface-raised: var(--menu-dropdown-bg, #151515);
+  --surface-sunken: color-mix(in srgb, var(--menu-bg, #1d1d1d) 78%, transparent);
+  --surface-field: var(--menu-bg, #1d1d1d);
+  --surface-backdrop: rgba(8, 8, 8, 0.48);
+
+  --border-strong: var(--menu-dropdown-border, #2a2a2a);
+  --border-normal: color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 72%, transparent);
+  --border-subtle: color-mix(in srgb, var(--menu-dropdown-border, #2a2a2a) 40%, transparent);
+
+  --accent: var(--app-accent, #9ab8ff);
+  --accent-fill: color-mix(in srgb, var(--app-accent, #9ab8ff) 18%, transparent);
+  --accent-fill-hover: color-mix(in srgb, var(--app-accent, #9ab8ff) 26%, transparent);
+  --accent-border: color-mix(in srgb, var(--app-accent, #9ab8ff) 52%, transparent);
+  --accent-border-hover: color-mix(in srgb, var(--app-accent, #9ab8ff) 68%, transparent);
+  --accent-ring: color-mix(in srgb, var(--app-accent, #9ab8ff) 70%, transparent);
+
+  --danger: #d38d8d;
+  --danger-hover: #ff9f9f;
+  --danger-fill-hover: rgba(255, 123, 123, 0.18);
+  --danger-text: #f3b3b3;
+
+  --focus-ring: 0 0 0 2px var(--accent-ring);
+}

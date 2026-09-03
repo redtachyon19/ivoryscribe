@@ -9,7 +9,7 @@ import {
   revokeShare,
   transferOwnership,
   type ShareRecord,
-} from "../../../core/api"
+} from "@shared/api"
 import "./ShareDialog.css"
 
 type SharePanelProps = {

@@ -8,7 +8,7 @@ import {
   confirmAccountEmailChange as apiConfirmAccountEmailChange,
   requestAccountDeletion as apiRequestAccountDeletion,
   confirmAccountDeletionCode,
-} from "../api"
+} from "@shared/api"
 
 export function useSession(options?: {
   onLogin?: () => void

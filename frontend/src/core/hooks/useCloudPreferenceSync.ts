@@ -1,5 +1,5 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react"
-import { getPreferences, updatePreferences } from "../api"
+import { getPreferences, updatePreferences } from "@shared/api"
 import type { Palette } from "../utils/appearance"
 import { applyPreferences } from "../utils/preferences"
 import type { UserSession } from "../state/session"
