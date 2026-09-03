@@ -1,16 +1,42 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { randomBytes, randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import authMiddleware from "../middleware/auth.js";
-import { Preference, User } from "../models/index.js";
+import jwt, { type SignOptions } from "jsonwebtoken";
+import authMiddleware from "../middleware/auth.ts";
+import { Preference, User } from "../models/index.ts";
+import type { User as UserModel } from "../models/user.ts";
 import {
   sendAccountDeletionEmail,
   sendEmailChangeCurrentEmailVerificationEmail,
   sendEmailChangeNewEmailVerificationEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
-} from "../services/email.js";
+} from "../services/email.ts";
+import { errorMessage } from "../lib/errors.ts";
+import type { AuthResponse, EmailVerificationPendingResponse } from "../types/api.ts";
+
+/**
+ * Request body shapes describe what clients are expected to send. Every
+ * runtime guard below is unchanged — these annotations only stop req.body
+ * being `any`, they do not validate.
+ */
+type RegisterBody = { firstName?: unknown; lastName?: unknown; email?: unknown; password?: string };
+type LoginBody = { email?: unknown; password?: string };
+type UserIdCodeBody = { userId?: unknown; code?: unknown };
+type CodeBody = { code?: unknown };
+type AccountPatchBody = { firstName?: unknown; lastName?: unknown };
+type EmailBody = { email?: unknown };
+type ResetPasswordBody = { token?: unknown; newPassword?: unknown };
+
+type EmailChangeChallenge = {
+  currentEmail: string;
+  newEmail: string;
+  currentCode: string;
+  newCode: string;
+  currentToken: string;
+  newToken: string;
+  isCurrentVerified: boolean;
+};
 
 const router = Router();
 const { JWT_SECRET = "replace-this-with-a-secure-secret", JWT_EXPIRES_IN = "7d" } = process.env;
@@ -19,8 +45,8 @@ const ACCOUNT_DELETION_TTL_MINUTES = 15;
 const PASSWORD_RESET_TTL_MINUTES = 15;
 const { BACKEND_PUBLIC_URL = "http://localhost:4000", FRONTEND_PUBLIC_URL = "http://localhost:5173" } = process.env;
 
-function buildAuthResponse(user) {
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+function buildAuthResponse(user: UserModel): AuthResponse {
+  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"] });
   const fallbackName = sanitizeName(user.name);
   const [fallbackFirst = "", ...fallbackLastParts] = fallbackName.split(/\s+/).filter(Boolean);
   const firstName = sanitizeName(user.firstName) || fallbackFirst;
@@ -38,7 +64,7 @@ function buildAuthResponse(user) {
   };
 }
 
-function maskEmail(email) {
+function maskEmail(email: string | null): string {
   const [localPart = "", domain = ""] = String(email).split("@");
   if (!localPart || !domain) {
     return "";
@@ -50,7 +76,7 @@ function maskEmail(email) {
   return `${safeLocal}@${domain}`;
 }
 
-function buildVerificationPendingResponse(user) {
+function buildVerificationPendingResponse(user: UserModel): EmailVerificationPendingResponse {
   return {
     requiresEmailVerification: true,
     verification: {
@@ -61,15 +87,15 @@ function buildVerificationPendingResponse(user) {
   };
 }
 
-function sanitizeName(input) {
+function sanitizeName(input: unknown): string {
   return typeof input === "string" ? input.trim().slice(0, 80) : "";
 }
 
-function sanitizeEmail(input) {
+function sanitizeEmail(input: unknown): string {
   return typeof input === "string" ? input.trim().toLowerCase() : "";
 }
 
-function buildInternalUsernameFromEmail(email) {
+function buildInternalUsernameFromEmail(email: string): string {
   const localPart = String(email).split("@")[0] ?? "writer";
   const alphanumeric = localPart.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const base = (alphanumeric || "writer").slice(0, 20);
@@ -77,49 +103,49 @@ function buildInternalUsernameFromEmail(email) {
   return `${base}${suffix}`.slice(0, 32);
 }
 
-function isValidEmail(email) {
+function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function generateVerificationCode() {
+function generateVerificationCode(): string {
   return String(randomInt(100000, 1000000));
 }
 
-function generateDeletionToken() {
+function generateDeletionToken(): string {
   return randomBytes(32).toString("hex");
 }
 
-function buildDeletionConfirmUrl(token) {
+function buildDeletionConfirmUrl(token: string): string {
   const normalizedBase = String(BACKEND_PUBLIC_URL).replace(/\/$/, "");
   return `${normalizedBase}/api/auth/confirm-account-deletion?token=${encodeURIComponent(token)}`;
 }
 
-function buildPasswordResetUrl(token) {
+function buildPasswordResetUrl(token: string): string {
   const normalizedBase = String(FRONTEND_PUBLIC_URL).replace(/\/$/, "");
   return `${normalizedBase}/reset-password?token=${encodeURIComponent(token)}`;
 }
 
-function generateEmailChangeToken() {
+function generateEmailChangeToken(): string {
   return randomBytes(32).toString("hex");
 }
 
-function buildEmailChangeLink(step, userId, token) {
+function buildEmailChangeLink(step: string, userId: string, token: string): string {
   const normalizedBase = String(BACKEND_PUBLIC_URL).replace(/\/$/, "");
   const safeStep = step === "current" ? "current" : "new";
   return `${normalizedBase}/api/auth/verify-email-change-link?step=${safeStep}&userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
 }
 
-function buildEmailChangeChallenge(input) {
+function buildEmailChangeChallenge(input: EmailChangeChallenge): string {
   return JSON.stringify(input);
 }
 
-function parseEmailChangeChallenge(value) {
+function parseEmailChangeChallenge(value: unknown): EmailChangeChallenge | null {
   if (typeof value !== "string" || !value.trim()) {
     return null;
   }
 
   try {
-    const parsed = JSON.parse(value);
+    const parsed = JSON.parse(value) as Record<string, unknown>;
     const currentEmail = typeof parsed?.currentEmail === "string" ? sanitizeEmail(parsed.currentEmail) : "";
     const newEmail = typeof parsed?.newEmail === "string" ? sanitizeEmail(parsed.newEmail) : "";
     const currentCode = typeof parsed?.currentCode === "string" ? parsed.currentCode.trim() : "";
@@ -138,7 +164,7 @@ function parseEmailChangeChallenge(value) {
   }
 }
 
-async function issueVerificationCode(user) {
+async function issueVerificationCode(user: UserModel): Promise<string> {
   const code = generateVerificationCode();
   user.emailVerificationCode = code;
   user.emailVerificationExpiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MINUTES * 60 * 1000);
@@ -146,7 +172,7 @@ async function issueVerificationCode(user) {
   return code;
 }
 
-async function issueAccountDeletionChallenge(user) {
+async function issueAccountDeletionChallenge(user: UserModel): Promise<{ token: string; code: string }> {
   const token = generateDeletionToken();
   const code = generateVerificationCode();
 
@@ -158,7 +184,7 @@ async function issueAccountDeletionChallenge(user) {
   return { token, code };
 }
 
-async function issuePasswordResetToken(user) {
+async function issuePasswordResetToken(user: UserModel): Promise<string> {
   const token = randomBytes(32).toString("hex");
   user.passwordResetToken = token;
   user.passwordResetExpiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60 * 1000);
@@ -166,7 +192,7 @@ async function issuePasswordResetToken(user) {
   return token;
 }
 
-router.post("/register", async (req, res) => {
+router.post("/register", async (req: Request<unknown, unknown, RegisterBody>, res: Response) => {
   try {
     const firstName = sanitizeName(req.body?.firstName);
     const lastName = sanitizeName(req.body?.lastName);
@@ -206,11 +232,11 @@ router.post("/register", async (req, res) => {
     const code = await issueVerificationCode(user);
 
     try {
-      await sendVerificationEmail({ to: user.email, firstName, code });
+      await sendVerificationEmail({ to: email, firstName, code });
     } catch (mailError) {
       return res.status(502).json({
         message: "Account created but failed to send verification email. Please try resend.",
-        details: mailError.message,
+        details: errorMessage(mailError),
         ...buildVerificationPendingResponse(user),
       });
     }
@@ -220,11 +246,11 @@ router.post("/register", async (req, res) => {
       ...buildVerificationPendingResponse(user),
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to register user", details: error.message });
+    return res.status(500).json({ message: "Failed to register user", details: errorMessage(error) });
   }
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", async (req: Request<unknown, unknown, LoginBody>, res: Response) => {
   try {
     const email = sanitizeEmail(req.body?.email);
     const { password } = req.body;
@@ -253,11 +279,11 @@ router.post("/login", async (req, res) => {
 
     return res.status(200).json(buildAuthResponse(user));
   } catch (error) {
-    return res.status(500).json({ message: "Failed to log in", details: error.message });
+    return res.status(500).json({ message: "Failed to log in", details: errorMessage(error) });
   }
 });
 
-router.post("/verify-email", async (req, res) => {
+router.post("/verify-email", async (req: Request<unknown, unknown, UserIdCodeBody>, res: Response) => {
   try {
     const userId = typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
     const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
@@ -295,11 +321,11 @@ router.post("/verify-email", async (req, res) => {
 
     return res.status(200).json(buildAuthResponse(user));
   } catch (error) {
-    return res.status(500).json({ message: "Failed to verify email", details: error.message });
+    return res.status(500).json({ message: "Failed to verify email", details: errorMessage(error) });
   }
 });
 
-router.post("/resend-verification", async (req, res) => {
+router.post("/resend-verification", async (req: Request<unknown, unknown, { userId?: unknown }>, res: Response) => {
   try {
     const userId = typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
     if (!userId) {
@@ -327,11 +353,11 @@ router.post("/resend-verification", async (req, res) => {
       ...buildVerificationPendingResponse(user),
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to resend verification email", details: error.message });
+    return res.status(500).json({ message: "Failed to resend verification email", details: errorMessage(error) });
   }
 });
 
-router.get("/account", authMiddleware, async (req, res) => {
+router.get("/account", authMiddleware, async (req: Request, res: Response) => {
   const fallbackName = sanitizeName(req.user.name);
   const [fallbackFirst = "", ...fallbackLastParts] = fallbackName.split(/\s+/).filter(Boolean);
 
@@ -346,7 +372,7 @@ router.get("/account", authMiddleware, async (req, res) => {
   });
 });
 
-router.patch("/account", authMiddleware, async (req, res) => {
+router.patch("/account", authMiddleware, async (req: Request<unknown, unknown, AccountPatchBody>, res: Response) => {
   try {
     const nextFirstName = sanitizeName(req.body?.firstName);
     const nextLastName = sanitizeName(req.body?.lastName);
@@ -374,11 +400,11 @@ router.patch("/account", authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to update account", details: error.message });
+    return res.status(500).json({ message: "Failed to update account", details: errorMessage(error) });
   }
 });
 
-router.post("/request-email-change", authMiddleware, async (req, res) => {
+router.post("/request-email-change", authMiddleware, async (req: Request<unknown, unknown, EmailBody>, res: Response) => {
   try {
     const nextEmail = sanitizeEmail(req.body?.email);
 
@@ -437,11 +463,11 @@ router.post("/request-email-change", authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to request email change", details: error.message });
+    return res.status(500).json({ message: "Failed to request email change", details: errorMessage(error) });
   }
 });
 
-router.post("/verify-current-email-change", authMiddleware, async (req, res) => {
+router.post("/verify-current-email-change", authMiddleware, async (req: Request<unknown, unknown, CodeBody>, res: Response) => {
   try {
     const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
     if (!code) {
@@ -495,11 +521,11 @@ router.post("/verify-current-email-change", authMiddleware, async (req, res) => 
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to verify current email", details: error.message });
+    return res.status(500).json({ message: "Failed to verify current email", details: errorMessage(error) });
   }
 });
 
-router.get("/verify-email-change-link", async (req, res) => {
+router.get("/verify-email-change-link", async (req: Request, res: Response) => {
   try {
     const step = typeof req.query?.step === "string" ? req.query.step.trim().toLowerCase() : "";
     const userId = typeof req.query?.userId === "string" ? req.query.userId.trim() : "";
@@ -570,11 +596,11 @@ router.get("/verify-email-change-link", async (req, res) => {
 
     return res.status(400).send("Invalid email change verification step.");
   } catch (error) {
-    return res.status(500).send(`Failed to verify email change: ${error.message}`);
+    return res.status(500).send(`Failed to verify email change: ${errorMessage(error)}`);
   }
 });
 
-router.post("/confirm-email-change", authMiddleware, async (req, res) => {
+router.post("/confirm-email-change", authMiddleware, async (req: Request<unknown, unknown, CodeBody>, res: Response) => {
   try {
     const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
     if (!code) {
@@ -625,17 +651,17 @@ router.post("/confirm-email-change", authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to confirm email change", details: error.message });
+    return res.status(500).json({ message: "Failed to confirm email change", details: errorMessage(error) });
   }
 });
 
-router.patch("/password", authMiddleware, async (req, res) => {
+router.patch("/password", authMiddleware, async (_req: Request, res: Response) => {
   return res.status(405).json({
     message: "Direct password updates are disabled. Use /api/auth/request-password-reset instead.",
   });
 });
 
-router.post("/request-password-reset", authMiddleware, async (req, res) => {
+router.post("/request-password-reset", authMiddleware, async (req: Request, res: Response) => {
   try {
     if (!req.user.email) {
       return res.status(400).json({ message: "An email address is required to change this password" });
@@ -659,11 +685,11 @@ router.post("/request-password-reset", authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to start password reset", details: error.message });
+    return res.status(500).json({ message: "Failed to start password reset", details: errorMessage(error) });
   }
 });
 
-router.get("/password-reset-info", async (req, res) => {
+router.get("/password-reset-info", async (req: Request, res: Response) => {
   try {
     const token = typeof req.query?.token === "string" ? req.query.token.trim() : "";
     if (!token) {
@@ -686,11 +712,11 @@ router.get("/password-reset-info", async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to inspect password reset", details: error.message });
+    return res.status(500).json({ message: "Failed to inspect password reset", details: errorMessage(error) });
   }
 });
 
-router.post("/reset-password", async (req, res) => {
+router.post("/reset-password", async (req: Request<unknown, unknown, ResetPasswordBody>, res: Response) => {
   try {
     const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
     const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
@@ -720,11 +746,11 @@ router.post("/reset-password", async (req, res) => {
 
     return res.status(200).json({ message: "Password updated" });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to reset password", details: error.message });
+    return res.status(500).json({ message: "Failed to reset password", details: errorMessage(error) });
   }
 });
 
-router.post("/request-account-deletion", authMiddleware, async (req, res) => {
+router.post("/request-account-deletion", authMiddleware, async (req: Request, res: Response) => {
   try {
     if (!req.user.email) {
       return res.status(400).json({ message: "An email address is required to delete this account" });
@@ -748,11 +774,11 @@ router.post("/request-account-deletion", authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to start account deletion", details: error.message });
+    return res.status(500).json({ message: "Failed to start account deletion", details: errorMessage(error) });
   }
 });
 
-router.post("/confirm-account-deletion-code", async (req, res) => {
+router.post("/confirm-account-deletion-code", async (req: Request<unknown, unknown, UserIdCodeBody>, res: Response) => {
   try {
     const userId = typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
     const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
@@ -782,11 +808,11 @@ router.post("/confirm-account-deletion-code", async (req, res) => {
     await user.destroy();
     return res.status(200).json({ message: "Account deleted" });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to confirm account deletion", details: error.message });
+    return res.status(500).json({ message: "Failed to confirm account deletion", details: errorMessage(error) });
   }
 });
 
-router.get("/confirm-account-deletion", async (req, res) => {
+router.get("/confirm-account-deletion", async (req: Request, res: Response) => {
   try {
     const token = typeof req.query?.token === "string" ? req.query.token.trim() : "";
 
@@ -807,11 +833,11 @@ router.get("/confirm-account-deletion", async (req, res) => {
     await user.destroy();
     return res.status(200).send("Your IvoryScribe account has been deleted.");
   } catch (error) {
-    return res.status(500).send(`Failed to delete account: ${error.message}`);
+    return res.status(500).send(`Failed to delete account: ${errorMessage(error)}`);
   }
 });
 
-router.delete("/account", authMiddleware, async (req, res) => {
+router.delete("/account", authMiddleware, async (_req: Request, res: Response) => {
   return res.status(405).json({
     message: "Direct account deletion is disabled. Use /api/auth/request-account-deletion instead.",
   });

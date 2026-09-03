@@ -34,4 +34,7 @@ COPY --chown=node:node src ./src
 
 USER node
 EXPOSE 8080
-CMD ["node", "src/server.js"]
+# The sources are TypeScript and ship uncompiled — node:24 strips types at load
+# time, so there is no build step and no dist/. Node must be >= 22.18 for this
+# to work without a flag (see "engines" in package.json).
+CMD ["node", "src/server.ts"]

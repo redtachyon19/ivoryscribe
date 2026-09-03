@@ -4,6 +4,8 @@ const LIBRARY_LOCATION_KEY = "ivoryscribe.lastLibraryLocation"
 export type LastEditorLocation = {
   view: "projects" | "editor"
   projectId: string | null
+  // Optional because entries written before this field existed are still on disk.
+  tabId?: string | null
 }
 
 export type LastLibraryLocation = {

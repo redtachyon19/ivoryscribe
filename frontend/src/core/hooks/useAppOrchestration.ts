@@ -377,26 +377,81 @@ export function useAppOrchestration() {
   useEffect(() => { activeProjectRef.current = activeProject }, [activeProject])
   useEffect(() => { if (!activeProjectId && projects[0]) setActiveProjectId(projects[0].id) }, [projects, activeProjectId])
 
+  // Set once the ?projectId= handoff has been resolved one way or another. The URL
+  // sync effect below waits on this so it can't clear the params in the same commit
+  // that this effect is restoring from them.
+  const urlRestoreSettledRef = useRef(false)
+
   useEffect(() => {
-    if (!isWorkspaceHydrated || currentPathname !== "/app" || !requestedProjectId) return
-    if (!projects.some((p) => p.id === requestedProjectId)) return
+    if (!isWorkspaceHydrated || currentPathname !== "/app") return
+    if (!requestedProjectId) { urlRestoreSettledRef.current = true; return }
+    if (!projects.some((p) => p.id === requestedProjectId)) {
+      // Projects are loaded but nothing matches — deleted, or someone else's link.
+      // Settle anyway so the sync effect isn't held hostage by a dead id.
+      if (projects.length > 0) urlRestoreSettledRef.current = true
+      return
+    }
     setActiveProjectId(requestedProjectId)
     setView("editor")
     if (requestedTabId) {
-      setProjects((cur) => cur.map((p) => {
-        if (p.id !== requestedProjectId) return p
-        const tabIds = p.tabs.flatMap(function collect(t): string[] { return [t.id, ...t.children.flatMap(collect)] })
-        if (!tabIds.includes(requestedTabId)) return p
-        return { ...p, activeId: requestedTabId }
-      }))
+      setProjects((cur) => {
+        // Returning `cur` untouched matters: cur.map() would hand back a fresh array
+        // on every run, and `projects` is a dependency here, so an unconditional map
+        // re-triggers this effect forever once the URL actually carries a tabId.
+        const target = cur.find((p) => p.id === requestedProjectId)
+        if (!target || target.activeId === requestedTabId) return cur
+        const tabIds = target.tabs.flatMap(function collect(t): string[] { return [t.id, ...t.children.flatMap(collect)] })
+        if (!tabIds.includes(requestedTabId)) return cur
+        return cur.map((p) => p.id === requestedProjectId ? { ...p, activeId: requestedTabId } : p)
+      })
     }
+    urlRestoreSettledRef.current = true
   }, [currentPathname, isWorkspaceHydrated, projects, requestedProjectId, requestedTabId])
 
+  // The write half of the URL round-trip. useRouting has always parsed ?projectId=
+  // and ?tabId= off /app, and the effect above has always consumed them — but
+  // nothing ever produced them (every navigate call is a bare "/app"), so reload
+  // dumped you in the library with the open document forgotten. Mirroring the
+  // selection into the URL fixes reload in the browser and in Electron alike,
+  // rather than only under isLocalMode the way the localStorage path does.
+  //
+  // Derived as a plain string so this doesn't re-run off the `projects` array on
+  // every keystroke.
+  const activeTabId = activeProject?.activeId ?? ""
+  useEffect(() => {
+    if (!isWorkspaceHydrated || currentPathname !== "/app") return
+    if (!urlRestoreSettledRef.current) return
+
+    const url = new URL(window.location.href)
+    if (view === "editor" && activeProjectId) {
+      url.searchParams.set("projectId", activeProjectId)
+      if (activeTabId) url.searchParams.set("tabId", activeTabId)
+      else url.searchParams.delete("tabId")
+    } else {
+      // Back in the library — drop them, otherwise reloading from the library
+      // bounces you into whichever document you last had open.
+      url.searchParams.delete("projectId")
+      url.searchParams.delete("tabId")
+    }
+
+    // Editing the existing URL rather than rebuilding it keeps params we don't own,
+    // notably the checkout/session_id pair useTuskBilling reads on return.
+    const next = `${url.pathname}${url.search}`
+    if (next === `${window.location.pathname}${window.location.search}`) return
+    // Replace, not push: switching tabs shouldn't stack up history entries.
+    navigateReplace(next)
+  }, [isWorkspaceHydrated, currentPathname, view, activeProjectId, activeTabId, navigateReplace])
+
+  // Deliberately NOT gated on isLocalMode. Electron loads the dev-server root or
+  // file://…/index.html, never "/app", so the ?projectId= path above is inert in the
+  // desktop app — this is the only restore it ever gets. Gating on isLocalMode
+  // (Electron *with a local folder open*) meant cloud mode persisted nothing at all.
   const lastLocationRestoredRef = useRef(false)
   useEffect(() => {
     if (lastLocationRestoredRef.current) return
-    if (!isWorkspaceHydrated || !isLocalMode) return
+    if (!isWorkspaceHydrated) return
 
+    // On the web the URL wins when it carries a target; don't fight it.
     if (currentPathname === "/app" && requestedProjectId) {
       lastLocationRestoredRef.current = true
       return
@@ -409,19 +464,37 @@ export function useAppOrchestration() {
     }
 
     const target = projects.find((p) => p.id === saved.projectId)
-    if (!target) return
+    if (!target) {
+      // The saved id no longer resolves — project deleted, or a cloud project that
+      // isn't present in this mode. Settle anyway once projects have actually
+      // loaded: leaving the ref false permanently blocks the write effect below,
+      // so one dead id freezes persistence forever and the stale entry can never
+      // be overwritten. That deadlock is why this silently stopped working.
+      if (projects.length > 0) lastLocationRestoredRef.current = true
+      return
+    }
 
     lastLocationRestoredRef.current = true
     setActiveProjectId(saved.projectId)
     if (saved.view === "editor") setView("editor")
-  }, [isWorkspaceHydrated, isLocalMode, projects, currentPathname, requestedProjectId])
+
+    if (saved.tabId) {
+      setProjects((cur) => {
+        const project = cur.find((p) => p.id === saved.projectId)
+        if (!project || project.activeId === saved.tabId) return cur
+        const tabIds = project.tabs.flatMap(function collect(t): string[] { return [t.id, ...t.children.flatMap(collect)] })
+        if (!tabIds.includes(saved.tabId!)) return cur
+        return cur.map((p) => p.id === saved.projectId ? { ...p, activeId: saved.tabId! } : p)
+      })
+    }
+  }, [isWorkspaceHydrated, projects, currentPathname, requestedProjectId])
 
   useEffect(() => {
-    if (!isLocalMode || !isWorkspaceHydrated) return
+    if (!isWorkspaceHydrated) return
     if (!lastLocationRestoredRef.current) return
     if (!activeProjectId && view === "projects") return
-    writeLastEditorLocation({ view, projectId: activeProjectId })
-  }, [isLocalMode, isWorkspaceHydrated, view, activeProjectId])
+    writeLastEditorLocation({ view, projectId: activeProjectId, tabId: activeTabId || null })
+  }, [isWorkspaceHydrated, view, activeProjectId, activeTabId])
 
   const openLocalFilePath = useCallback(async (filePath: string) => {
     if (!localFsHandle) return

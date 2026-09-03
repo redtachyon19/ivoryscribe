@@ -1,18 +1,30 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { Op } from "sequelize";
-import { Share, Document, User } from "../models/index.js";
+import { Share, Document, User } from "../models/index.ts";
+import type { SharePermission } from "../models/share.ts";
+import { errorMessage } from "../lib/errors.ts";
 
 const router = Router();
 
-router.post("/", async (req, res) => {
+/**
+ * Request bodies describe the shape the client is expected to send. The
+ * handlers keep their original runtime guards — these annotations do not
+ * validate anything at runtime, they only stop `req.body` being `any`.
+ */
+type CreateShareBody = { documentId?: string; recipientEmail?: string; permission?: string };
+type TransferOwnershipBody = { documentId?: string; recipientEmail?: string };
+type PatchShareBody = { permission?: string };
+type RespondBody = { action?: string };
+
+router.post("/", async (req: Request<unknown, unknown, CreateShareBody>, res: Response) => {
   try {
-    const { documentId, recipientEmail, permission } = req.body;
+    const { documentId, recipientEmail, permission } = req.body ?? {};
 
     if (!documentId || !recipientEmail) {
       return res.status(400).json({ message: "documentId and recipientEmail are required" });
     }
 
-    const normalizedPermission = permission === "view" ? "view" : "edit";
+    const normalizedPermission: SharePermission = permission === "view" ? "view" : "edit";
 
     const document = await Document.findOne({
       where: { id: documentId, userId: req.user.id },
@@ -66,11 +78,11 @@ router.post("/", async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to create share", details: error.message });
+    return res.status(500).json({ message: "Failed to create share", details: errorMessage(error) });
   }
 });
 
-router.get("/document/:documentId", async (req, res) => {
+router.get("/document/:documentId", async (req: Request<{ documentId: string }>, res: Response) => {
   try {
     const document = await Document.findOne({
       where: { id: req.params.documentId, userId: req.user.id },
@@ -101,13 +113,13 @@ router.get("/document/:documentId", async (req, res) => {
       })),
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch shares", details: error.message });
+    return res.status(500).json({ message: "Failed to fetch shares", details: errorMessage(error) });
   }
 });
 
-router.post("/transfer-ownership", async (req, res) => {
+router.post("/transfer-ownership", async (req: Request<unknown, unknown, TransferOwnershipBody>, res: Response) => {
   try {
-    const { documentId, recipientEmail } = req.body;
+    const { documentId, recipientEmail } = req.body ?? {};
 
     if (!documentId || !recipientEmail) {
       return res.status(400).json({ message: "documentId and recipientEmail are required" });
@@ -134,8 +146,21 @@ router.post("/transfer-ownership", async (req, res) => {
       return res.status(404).json({ message: "No accepted collaborator found with that email" });
     }
 
+    // Both of these columns are NOT NULL on shares, but recipientId and the
+    // owner's email are both nullable on their own tables. Previously a null
+    // here reached the INSERT and surfaced as an opaque validation failure
+    // after the document had already been reassigned; failing first keeps the
+    // transfer atomic. The throw lands in the same catch, so the response
+    // shape is unchanged.
     const newOwnerId = share.recipientId;
+    if (!newOwnerId) {
+      throw new Error("Collaborator has no linked account to receive ownership");
+    }
+
     const oldOwnerEmail = req.user.email;
+    if (!oldOwnerEmail) {
+      throw new Error("Current owner has no email address to record on the new share");
+    }
 
     await document.update({ userId: newOwnerId });
 
@@ -153,11 +178,11 @@ router.post("/transfer-ownership", async (req, res) => {
 
     return res.status(200).json({ message: "Ownership transferred successfully" });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to transfer ownership", details: error.message });
+    return res.status(500).json({ message: "Failed to transfer ownership", details: errorMessage(error) });
   }
 });
 
-router.patch("/:shareId", async (req, res) => {
+router.patch("/:shareId", async (req: Request<{ shareId: string }, unknown, PatchShareBody>, res: Response) => {
   try {
     const share = await Share.findOne({
       where: { id: req.params.shareId, ownerId: req.user.id },
@@ -167,10 +192,11 @@ router.patch("/:shareId", async (req, res) => {
       return res.status(404).json({ message: "Share not found" });
     }
 
-    const updates = {};
+    const updates: { permission?: SharePermission } = {};
+    const requestedPermission = req.body?.permission;
 
-    if (req.body.permission && ["view", "edit"].includes(req.body.permission)) {
-      updates.permission = req.body.permission;
+    if (requestedPermission === "view" || requestedPermission === "edit") {
+      updates.permission = requestedPermission;
     }
 
     await share.update(updates);
@@ -187,11 +213,11 @@ router.patch("/:shareId", async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to update share", details: error.message });
+    return res.status(500).json({ message: "Failed to update share", details: errorMessage(error) });
   }
 });
 
-router.delete("/:shareId", async (req, res) => {
+router.delete("/:shareId", async (req: Request<{ shareId: string }>, res: Response) => {
   try {
     const share = await Share.findOne({
       where: { id: req.params.shareId, ownerId: req.user.id },
@@ -205,13 +231,13 @@ router.delete("/:shareId", async (req, res) => {
 
     return res.status(200).json({ message: "Share access revoked" });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to revoke share", details: error.message });
+    return res.status(500).json({ message: "Failed to revoke share", details: errorMessage(error) });
   }
 });
 
-router.post("/:shareId/respond", async (req, res) => {
+router.post("/:shareId/respond", async (req: Request<{ shareId: string }, unknown, RespondBody>, res: Response) => {
   try {
-    const { action } = req.body;
+    const { action } = req.body ?? {};
 
     if (!action || !["accept", "reject"].includes(action)) {
       return res.status(400).json({ message: "action must be 'accept' or 'reject'" });
@@ -262,11 +288,11 @@ router.post("/:shareId/respond", async (req, res) => {
     await share.update({ status: "rejected" });
     return res.status(200).json({ message: "Share request rejected" });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to respond to share request", details: error.message });
+    return res.status(500).json({ message: "Failed to respond to share request", details: errorMessage(error) });
   }
 });
 
-router.post("/:shareId/leave", async (req, res) => {
+router.post("/:shareId/leave", async (req: Request<{ shareId: string }>, res: Response) => {
   try {
     const share = await Share.findOne({
       where: {
@@ -284,11 +310,11 @@ router.post("/:shareId/leave", async (req, res) => {
 
     return res.status(200).json({ message: "You have left this shared project" });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to leave shared project", details: error.message });
+    return res.status(500).json({ message: "Failed to leave shared project", details: errorMessage(error) });
   }
 });
 
-router.get("/pending-requests", async (req, res) => {
+router.get("/pending-requests", async (req: Request, res: Response) => {
   try {
     const shares = await Share.findAll({
       where: {
@@ -316,11 +342,11 @@ router.get("/pending-requests", async (req, res) => {
       })),
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch pending requests", details: error.message });
+    return res.status(500).json({ message: "Failed to fetch pending requests", details: errorMessage(error) });
   }
 });
 
-router.get("/shared-with-me", async (req, res) => {
+router.get("/shared-with-me", async (req: Request, res: Response) => {
   try {
     const shares = await Share.findAll({
       where: {
@@ -358,7 +384,7 @@ router.get("/shared-with-me", async (req, res) => {
       })),
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch shared documents", details: error.message });
+    return res.status(500).json({ message: "Failed to fetch shared documents", details: errorMessage(error) });
   }
 });
 

@@ -29,6 +29,8 @@
     0 8px 24px rgba(0, 0, 0, 0.55);
   border-radius: var(--radius-xs);
   overflow: hidden;
+  /* Confines the link-hover blend to this page's own canvas and paper. */
+  isolation: isolate;
 }
 
 .pdf-viewer__pages[data-match-palette="on"] .pdf-viewer__page-wrapper {
@@ -91,6 +93,84 @@
 }
 .pdf-viewer__text-layer br::-moz-selection {
   background: transparent;
+}
+
+/* Sits above the text layer so a link wins the click, matching how pdf.js's own
+   viewer stacks its annotation layer. The page's link artwork is already painted
+   on the canvas, so these boxes stay invisible until hovered. */
+.pdf-viewer__link-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.pdf-viewer__link {
+  position: absolute;
+  display: block;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Hovering lights the words up instead of boxing them in. The glyphs themselves live
+   in the canvas bitmap, so they are re-tinted by blending: an accent rectangle set to
+   `lighten` leaves pale paper alone and pulls the dark text up to the accent. Dark
+   pages need the mirror image, so the viewer stamps the page tone on the pages
+   container and `darken` takes over there. */
+.pdf-viewer__pages {
+  --pdf-link-accent: color-mix(in srgb, var(--app-accent, #9ab8ff) 82%, #000);
+}
+
+.pdf-viewer__pages[data-page-tone="dark"] {
+  --pdf-link-accent: color-mix(in srgb, var(--app-accent, #9ab8ff) 88%, #fff);
+}
+
+/* The tints get a layer of their own: a blend only reaches back as far as its nearest
+   stacking context, and the link layer above has to carry a z-index to win the click,
+   which would wall the blend off from the canvas it needs to read. */
+.pdf-viewer__link-tint-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pdf-viewer__link-tint {
+  position: absolute;
+  background: var(--pdf-link-accent, #9ab8ff);
+  mix-blend-mode: lighten;
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.pdf-viewer__pages[data-page-tone="dark"] .pdf-viewer__link-tint {
+  mix-blend-mode: darken;
+}
+
+.pdf-viewer__link-tint--lit {
+  opacity: 1;
+}
+
+/* The halo is cut from the page bitmap itself: the hovered link's rectangle is copied
+   off the canvas, every pixel recoloured to the accent with the page's own ink as the
+   alpha, and the result blurred. Casting it from the canvas is what keeps it centred on
+   the word — the text layer's glyphs are a fallback font stretched to match the PDF's
+   widths, so a shadow cast from those lands beside the real word and reads as a drop
+   shadow rather than a glow. */
+.pdf-viewer__link-glow {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.pdf-viewer__link-glow--lit {
+  opacity: 1;
+}
+
+.pdf-viewer__link:focus-visible {
+  outline: 2px solid var(--app-accent, #9ab8ff);
+  outline-offset: 1px;
+  border-radius: 2px;
 }
 
 .pdf-viewer__text-layer .endOfContent {

@@ -29,6 +29,7 @@ type DocumentTabsProps = {
   project: Project
   activeId: string | null
   isVisible?: boolean
+  followActiveId?: boolean
   pendingEditTabIds?: Set<string>
   entryTerms?: ProjectEntryTerms
   onTabsChange: (updater: (current: DocumentTab[]) => DocumentTab[]) => void
@@ -38,6 +39,21 @@ type DocumentTabsProps = {
   onCreatePlainText: () => void
   onOpenTabInNewTab?: (tabId: string) => void
   onDuplicateTab?: (tabId: string) => void
+}
+
+// Breathing room kept between the followed row and the edge of the scroll viewport.
+const FOLLOW_SCROLL_MARGIN = 24
+
+function findScrollParent(element: HTMLElement): HTMLElement | null {
+  let node = element.parentElement
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY
+    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) {
+      return node
+    }
+    node = node.parentElement
+  }
+  return null
 }
 
 type TabsContextMenuState =
@@ -51,6 +67,7 @@ export default function DocumentTabsPanel({
   project,
   activeId,
   isVisible = true,
+  followActiveId = false,
   pendingEditTabIds,
   entryTerms,
   onTabsChange,
@@ -173,6 +190,42 @@ export default function DocumentTabsPanel({
 
     delete rowRefs.current[id]
   }
+
+  useEffect(() => {
+    if (!followActiveId || !isVisible || !activeId) return
+
+    let frame: number | null = null
+    let attempts = 0
+    const run = () => {
+      frame = null
+      const row = rowRefs.current[activeId]
+      // A nested row only exists once its ancestors have expanded, which happens in a
+      // pass of its own.
+      if (!row) {
+        if (attempts++ < 3) frame = requestAnimationFrame(run)
+        return
+      }
+      // Scrolled by hand rather than through scrollIntoView, which would also shift
+      // the rail's horizontal slide out from under the panel.
+      const scroller = findScrollParent(row)
+      if (!scroller) return
+      const rowRect = row.getBoundingClientRect()
+      const viewRect = scroller.getBoundingClientRect()
+      let delta = 0
+      if (rowRect.top < viewRect.top + FOLLOW_SCROLL_MARGIN) {
+        delta = rowRect.top - viewRect.top - FOLLOW_SCROLL_MARGIN
+      } else if (rowRect.bottom > viewRect.bottom - FOLLOW_SCROLL_MARGIN) {
+        delta = rowRect.bottom - viewRect.bottom + FOLLOW_SCROLL_MARGIN
+      }
+      if (delta === 0) return
+      scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: "smooth" })
+    }
+
+    frame = requestAnimationFrame(run)
+    return () => {
+      if (frame != null) cancelAnimationFrame(frame)
+    }
+  }, [followActiveId, isVisible, activeId])
 
   useLayoutEffect(() => {
     if (!isVisible) {

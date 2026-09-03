@@ -1,6 +1,7 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import Stripe from "stripe";
-import { Purchase, User } from "../models/index.js";
+import { Purchase, User } from "../models/index.ts";
+import { errorMessage } from "../lib/errors.ts";
 
 const checkoutRouter = Router();
 const webhookRouter = Router();
@@ -17,23 +18,34 @@ const TUSK_PRODUCT_KEY = "tusk_ai_lifetime";
 
 const stripe = STRIPE_SECRET_KEY
   ? new Stripe(STRIPE_SECRET_KEY, {
-      apiVersion: STRIPE_API_VERSION,
+      // NOTE: stripe@22 types `apiVersion` as its own pinned LatestApiVersion
+      // ("2026-06-24.dahlia"), but this account is pinned to acacia. The value
+      // is sent verbatim as the Stripe-Version header, so the SDK's response
+      // and webhook types below describe a newer API shape than the one this
+      // code actually receives. Preserved as-is because changing it would
+      // change live billing payloads; the cast is what makes that explicit.
+      apiVersion: STRIPE_API_VERSION as Stripe.LatestApiVersion,
     })
   : null;
 
-function getAppBaseUrl() {
+function getAppBaseUrl(): string {
   return String(FRONTEND_PUBLIC_URL).replace(/\/$/, "");
 }
 
-function toNullableId(value) {
+/**
+ * Stripe expands several of these fields into full objects, so the union is
+ * `string | Stripe.SomeResource | null`. Anything that is not a non-empty
+ * string is treated as absent.
+ */
+function toNullableId(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function isPurchasePaid(session) {
+function isPurchasePaid(session: Stripe.Checkout.Session): boolean {
   return session.payment_status === "paid" || session.status === "complete";
 }
 
-async function activateTuskAiFromSession(session) {
+async function activateTuskAiFromSession(session: Stripe.Checkout.Session): Promise<void> {
   const userId = toNullableId(session.metadata?.userId);
   if (!userId) {
     throw new Error("Checkout session metadata.userId is missing");
@@ -83,7 +95,7 @@ async function activateTuskAiFromSession(session) {
   }
 }
 
-checkoutRouter.get("/status", async (req, res) => {
+checkoutRouter.get("/status", async (req: Request, res: Response) => {
   try {
     const purchase = await Purchase.findOne({
       where: {
@@ -108,13 +120,13 @@ checkoutRouter.get("/status", async (req, res) => {
         : null,
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch billing status", details: error.message });
+    return res.status(500).json({ message: "Failed to fetch billing status", details: errorMessage(error) });
   }
 });
 
-checkoutRouter.post("/checkout-session", async (req, res) => {
+checkoutRouter.post("/checkout-session", async (req: Request, res: Response) => {
   try {
-    const missingConfig = [];
+    const missingConfig: string[] = [];
     if (!STRIPE_SECRET_KEY) {
       missingConfig.push("STRIPE_SECRET_KEY");
     }
@@ -165,11 +177,13 @@ checkoutRouter.post("/checkout-session", async (req, res) => {
       checkoutSessionId: session.id,
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to create checkout session", details: error.message });
+    return res.status(500).json({ message: "Failed to create checkout session", details: errorMessage(error) });
   }
 });
 
-checkoutRouter.post("/confirm-session", async (req, res) => {
+type ConfirmSessionBody = { sessionId?: unknown };
+
+checkoutRouter.post("/confirm-session", async (req: Request<unknown, unknown, ConfirmSessionBody>, res: Response) => {
   try {
     if (!stripe) {
       return res.status(503).json({ message: "Stripe is not configured on server" });
@@ -199,13 +213,13 @@ checkoutRouter.post("/confirm-session", async (req, res) => {
       paymentStatus: session.payment_status,
     });
   } catch (error) {
-    return res.status(500).json({ message: "Failed to confirm checkout session", details: error.message });
+    return res.status(500).json({ message: "Failed to confirm checkout session", details: errorMessage(error) });
   }
 });
 
-webhookRouter.post("/", async (req, res) => {
+webhookRouter.post("/", async (req: Request, res: Response) => {
   try {
-    const missingConfig = [];
+    const missingConfig: string[] = [];
     if (!STRIPE_SECRET_KEY) {
       missingConfig.push("STRIPE_SECRET_KEY");
     }
@@ -225,11 +239,18 @@ webhookRouter.post("/", async (req, res) => {
       return res.status(400).json({ message: "Missing Stripe signature" });
     }
 
-    let event;
+    // This router is mounted behind express.raw in server.ts, so req.body is a
+    // Buffer here rather than parsed JSON — signature verification depends on
+    // the exact bytes.
+    if (!Buffer.isBuffer(req.body)) {
+      return res.status(400).json({ message: "Webhook body must be a raw buffer" });
+    }
+
+    let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(req.body, signature, STRIPE_WEBHOOK_SECRET);
     } catch (error) {
-      return res.status(400).json({ message: "Invalid webhook signature", details: error.message });
+      return res.status(400).json({ message: "Invalid webhook signature", details: errorMessage(error) });
     }
 
     if (event.type === "checkout.session.completed") {
@@ -238,7 +259,7 @@ webhookRouter.post("/", async (req, res) => {
 
     return res.status(200).json({ received: true });
   } catch (error) {
-    return res.status(500).json({ message: "Webhook handling failed", details: error.message });
+    return res.status(500).json({ message: "Webhook handling failed", details: errorMessage(error) });
   }
 });
 

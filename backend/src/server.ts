@@ -1,17 +1,18 @@
-import "./config/loadEnv.js";
+import "./config/loadEnv.ts";
 import cors from "cors";
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import os from "node:os";
 import { DataTypes } from "sequelize";
-import authRoutes from "./routes/auth.js";
-import documentsRoutes from "./routes/documents.js";
-import preferencesRoutes from "./routes/preferences.js";
-import syncRoutes from "./routes/sync.js";
-import aiRoutes from "./routes/ai.js";
-import sharesRoutes from "./routes/shares.js";
-import { checkoutRouter as billingRoutes, webhookRouter as billingWebhookRoutes } from "./routes/billing.js";
-import authMiddleware from "./middleware/auth.js";
-import { sequelize } from "./models/index.js";
+import authRoutes from "./routes/auth.ts";
+import documentsRoutes from "./routes/documents.ts";
+import preferencesRoutes from "./routes/preferences.ts";
+import syncRoutes from "./routes/sync.ts";
+import aiRoutes from "./routes/ai.ts";
+import sharesRoutes from "./routes/shares.ts";
+import { checkoutRouter as billingRoutes, webhookRouter as billingWebhookRoutes } from "./routes/billing.ts";
+import authMiddleware from "./middleware/auth.ts";
+import { sequelize } from "./models/index.ts";
+import { errorMessage } from "./lib/errors.ts";
 
 const app = express();
 const {
@@ -31,13 +32,17 @@ const configuredOrigins = String(CLIENT_ORIGIN)
 
 const allowedOrigins = new Set(configuredOrigins.length > 0 ? configuredOrigins : ["http://localhost:5173"]);
 
-function isPrivateIpv4Address(hostname) {
+function isPrivateIpv4Address(hostname: string): boolean {
   const octets = hostname.split(".").map((part) => Number(part));
   if (octets.length !== 4 || octets.some((octet) => Number.isNaN(octet) || octet < 0 || octet > 255)) {
     return false;
   }
 
   const [first, second] = octets;
+  if (first === undefined || second === undefined) {
+    return false;
+  }
+
   return (
     first === 10 ||
     (first === 172 && second >= 16 && second <= 31) ||
@@ -45,7 +50,7 @@ function isPrivateIpv4Address(hostname) {
   );
 }
 
-function isLanOrigin(origin) {
+function isLanOrigin(origin: string): boolean {
   try {
     const parsedUrl = new URL(origin);
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
@@ -63,8 +68,8 @@ function isLanOrigin(origin) {
   }
 }
 
-function getNetworkUrls(port) {
-  const urls = [];
+function getNetworkUrls(port: number): string[] {
+  const urls: string[] = [];
   for (const addresses of Object.values(os.networkInterfaces())) {
     if (!addresses) {
       continue;
@@ -82,7 +87,7 @@ function getNetworkUrls(port) {
   return urls;
 }
 
-function isAllowedOrigin(origin) {
+function isAllowedOrigin(origin: string): boolean {
   if (allowedOrigins.has(origin)) {
     return true;
   }
@@ -100,7 +105,7 @@ function isAllowedOrigin(origin) {
 
 app.use(
   cors({
-    origin(origin, callback) {
+    origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
       if (!origin || isAllowedOrigin(origin)) {
         callback(null, true);
         return;
@@ -114,7 +119,7 @@ app.use(
 app.use("/api/billing/webhook", express.raw({ type: "application/json" }), billingWebhookRoutes);
 app.use(express.json({ limit: "2mb" }));
 
-app.get("/health", (_req, res) => {
+app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok" });
 });
 
@@ -126,13 +131,13 @@ app.use("/api/ai", authMiddleware, aiRoutes);
 app.use("/api/shares", authMiddleware, sharesRoutes);
 app.use("/api/billing", authMiddleware, billingRoutes);
 
-app.use((err, _req, res, _next) => {
-  res.status(500).json({ message: "Internal server error", details: err.message });
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  res.status(500).json({ message: "Internal server error", details: errorMessage(err) });
 });
 
-async function ensureUsersBillingColumns() {
+async function ensureUsersBillingColumns(): Promise<void> {
   const queryInterface = sequelize.getQueryInterface();
-  let usersTable;
+  let usersTable: Awaited<ReturnType<typeof queryInterface.describeTable>>;
 
   try {
     usersTable = await queryInterface.describeTable("users");
@@ -167,9 +172,9 @@ async function ensureUsersBillingColumns() {
   }
 }
 
-async function ensureSharesColumnMigrations() {
+async function ensureSharesColumnMigrations(): Promise<void> {
   const queryInterface = sequelize.getQueryInterface();
-  let sharesTable;
+  let sharesTable: Awaited<ReturnType<typeof queryInterface.describeTable>>;
 
   try {
     sharesTable = await queryInterface.describeTable("shares");
@@ -186,7 +191,7 @@ async function ensureSharesColumnMigrations() {
   }
 }
 
-async function startServer() {
+async function startServer(): Promise<void> {
   try {
     await sequelize.authenticate();
     await ensureUsersBillingColumns();

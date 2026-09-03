@@ -1,8 +1,44 @@
-import { DataTypes } from "sequelize";
+import {
+  DataTypes,
+  Model,
+  type CreationOptional,
+  type InferAttributes,
+  type InferCreationAttributes,
+  type Sequelize,
+} from "sequelize";
 
-export default function createUserModel(sequelize) {
-  return sequelize.define(
-    "User",
+/**
+ * `sequelize.define` returns `ModelStatic<Model<any, any>>`, which makes every
+ * attribute access an implicit `any` — so the models are declared as classes
+ * with `Model.init` instead. `declare` fields are type-only and erase cleanly,
+ * which matters because Node strips types rather than compiling them; a real
+ * class field here would shadow Sequelize's attribute getters at runtime.
+ */
+export class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
+  declare id: CreationOptional<string>;
+  declare username: CreationOptional<string>;
+  declare email: string | null;
+  declare firstName: string | null;
+  declare lastName: string | null;
+  declare isEmailVerified: CreationOptional<boolean>;
+  declare emailVerificationCode: string | null;
+  declare emailVerificationExpiresAt: Date | null;
+  declare accountDeletionToken: string | null;
+  declare accountDeletionCode: string | null;
+  declare accountDeletionExpiresAt: Date | null;
+  declare passwordResetToken: string | null;
+  declare passwordResetExpiresAt: Date | null;
+  declare name: CreationOptional<string>;
+  declare passwordHash: string;
+  declare stripeCustomerId: string | null;
+  declare tuskAiActivated: CreationOptional<boolean>;
+  declare tuskAiActivatedAt: Date | null;
+  declare createdAt: CreationOptional<Date>;
+  declare updatedAt: CreationOptional<Date>;
+}
+
+export default function createUserModel(sequelize: Sequelize): typeof User {
+  User.init(
     {
       id: {
         type: DataTypes.UUID,
@@ -95,9 +131,18 @@ export default function createUserModel(sequelize) {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      // Sequelize adds these automatically; declaring them keeps the attribute
+      // map exhaustive for InferAttributes. allowNull mirrors what Sequelize
+      // generates on its own, so the schema is unchanged.
+      createdAt: { type: DataTypes.DATE, allowNull: false },
+      updatedAt: { type: DataTypes.DATE, allowNull: false },
     },
     {
+      sequelize,
+      modelName: "User",
       tableName: "users",
     },
   );
+
+  return User;
 }

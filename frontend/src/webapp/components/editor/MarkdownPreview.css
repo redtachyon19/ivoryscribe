@@ -1,0 +1,713 @@
+/*
+ * Rendered-markdown surface for the preview pane.
+ *
+ * Prose chrome (borders, surfaces, tables, alerts) is driven off the app
+ * palette tokens (--editor-text, --app-accent) so it follows every theme,
+ * including custom, with no per-palette rules.
+ *
+ * The code block is split in two: the slab itself is a dark grey derived from
+ * --app-bg and carries no accent, while the syntax tokens carry the palette's
+ * character. Each named palette overrides only the --md-syn-* ramp at the
+ * bottom of this file; the values here are the baseline used by elephant and
+ * by custom palettes.
+ */
+
+.markdown-editor__preview {
+  --md-ink: var(--editor-text, #f5f5f5);
+  --md-muted: color-mix(in srgb, var(--md-ink) 60%, transparent);
+  --md-faint: color-mix(in srgb, var(--md-ink) 40%, transparent);
+  --md-border: color-mix(in srgb, var(--md-ink) 18%, transparent);
+  --md-border-soft: color-mix(in srgb, var(--md-ink) 10%, transparent);
+  --md-surface: color-mix(in srgb, var(--md-ink) 4%, transparent);
+  --md-surface-strong: color-mix(in srgb, var(--md-ink) 8%, transparent);
+  --md-accent: var(--app-accent, #9ab8ff);
+
+  /* Code slab — the page's own background pushed down to a dark card. The
+     neutral mix below is the floor for browsers without relative colour
+     syntax; the oklch block further down takes --app-bg's hue and chroma and
+     re-lights it, so a coloured page (sunset, woodland, glacier, ivory) keeps
+     its cast and a neutral page (midnight, elephant) stays grey. The accent
+     is never mixed in — at slab strength a hue that isn't the page's own
+     reads as a colour cast rather than a card. */
+  --md-code-bg: color-mix(in srgb, #121212 92%, var(--app-bg, #121212) 8%);
+  --md-code-bar: color-mix(in srgb, #1e1e1e 92%, var(--app-bg, #121212) 8%);
+  --md-code-edge: color-mix(in srgb, #ffffff 10%, transparent);
+  --md-code-fg: #dededd;
+  --md-code-muted: #8d8d8c;
+
+  /* Syntax tokens. */
+  --md-syn-comment: #6d7c9c;
+  --md-syn-keyword: #f2789f;
+  --md-syn-string: #9ece6a;
+  --md-syn-number: #ff9e64;
+  --md-syn-func: #7aa2f7;
+  --md-syn-type: #e0af68;
+  --md-syn-attr: #bb9af7;
+  --md-syn-tag: #f7768e;
+  --md-syn-meta: #7dcfff;
+  --md-syn-regexp: #97e6de;
+  --md-syn-added: #7ee787;
+  --md-syn-deleted: #ff7b72;
+
+  min-height: min(72vh, 920px);
+  overflow: visible;
+  box-sizing: border-box;
+  padding: 28px 10px 10px;
+  color: var(--md-ink);
+  font-family: var(--app-body-font);
+  font-size: var(--markdown-preview-font-size, 22px);
+  line-height: 1.72;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Re-light the page background into a code slab: keep --app-bg's hue, pin
+ * lightness to a fixed dark step, and cap chroma. The cap is the whole trick —
+ * chroma in oklch is absolute, so carrying a page's full chroma down to L=0.2
+ * multiplies its *relative* saturation and the card turns into a colour block
+ * (that is what made the earlier ivory and sunset slabs read as orange). 0.016
+ * is the step where sunset/woodland/glacier read clearly as their own colour
+ * while ivory is still a warm dark rather than an olive — one notch up and
+ * ivory tips over. A neutral page has chroma 0, so midnight and elephant stay
+ * exactly grey for free.
+ *
+ * Custom-property fallbacks fail at use time rather than parse time, so this
+ * has to be gated on @supports instead of a second declaration.
+ */
+@supports (background: oklch(from red l c h)) {
+  .markdown-editor__preview {
+    --md-code-bg: oklch(from var(--app-bg, #121212) 0.205 min(c, 0.016) h);
+    --md-code-bar: oklch(from var(--app-bg, #121212) 0.275 min(c, 0.016) h);
+  }
+}
+
+.markdown-editor__preview > :first-child {
+  margin-top: 0;
+}
+
+.markdown-editor__preview > :last-child {
+  margin-bottom: 0;
+}
+
+/* ---------------------------------------------------------------- headings */
+
+.markdown-editor__preview .md-heading {
+  font-family: var(--app-display-font);
+  font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.012em;
+  margin: 1.5em 0 0.5em;
+  scroll-margin-top: 24px;
+}
+
+.markdown-editor__preview .md-heading--1 {
+  font-size: 1.95em;
+  letter-spacing: -0.022em;
+  padding-bottom: 0.28em;
+  border-bottom: 1px solid var(--md-border-soft);
+}
+
+.markdown-editor__preview .md-heading--2 {
+  font-size: 1.52em;
+  letter-spacing: -0.018em;
+  padding-bottom: 0.24em;
+  border-bottom: 1px solid var(--md-border-soft);
+}
+
+.markdown-editor__preview .md-heading--3 { font-size: 1.26em; }
+.markdown-editor__preview .md-heading--4 { font-size: 1.1em; }
+.markdown-editor__preview .md-heading--5 { font-size: 1em; }
+
+.markdown-editor__preview .md-heading--6 {
+  font-size: 0.9em;
+  color: var(--md-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--label-tracking, 0.08em);
+}
+
+/* ------------------------------------------------------------------- flow */
+
+.markdown-editor__preview p {
+  margin: 0 0 0.9em;
+}
+
+.markdown-editor__preview strong {
+  font-weight: 700;
+}
+
+.markdown-editor__preview del {
+  color: var(--md-faint);
+  text-decoration-thickness: 1px;
+}
+
+.markdown-editor__preview mark {
+  background: color-mix(in srgb, var(--app-accent-gold, #b88b3f) 34%, transparent);
+  color: inherit;
+  padding: 0.08em 0.2em;
+  border-radius: var(--radius-xs);
+}
+
+.markdown-editor__preview kbd {
+  font-family: var(--app-mono-font);
+  font-size: 0.82em;
+  padding: 0.14em 0.42em;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--md-border);
+  border-bottom-width: 2px;
+  background: var(--md-surface-strong);
+}
+
+.markdown-editor__preview .md-link {
+  color: color-mix(in srgb, var(--md-accent) 82%, var(--md-ink));
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--md-accent) 42%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: color var(--dur-fast) ease, text-decoration-color var(--dur-fast) ease;
+}
+
+.markdown-editor__preview .md-link:hover {
+  color: var(--md-accent);
+  text-decoration-color: currentColor;
+}
+
+.markdown-editor__preview .md-rule {
+  border: 0;
+  height: 1px;
+  margin: 2em 0;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--md-border) 18%,
+    var(--md-border) 82%,
+    transparent
+  );
+}
+
+.markdown-editor__preview .md-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.1em 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--md-border-soft);
+}
+
+/* ------------------------------------------------------------------ lists */
+
+.markdown-editor__preview ul,
+.markdown-editor__preview ol {
+  margin: 0 0 0.9em;
+  padding-left: 1.5em;
+}
+
+.markdown-editor__preview li {
+  margin: 0.28em 0;
+}
+
+.markdown-editor__preview li::marker {
+  color: color-mix(in srgb, var(--md-accent) 34%, var(--md-muted));
+  font-weight: 600;
+}
+
+.markdown-editor__preview li > ul,
+.markdown-editor__preview li > ol {
+  margin: 0.28em 0 0.3em;
+}
+
+.markdown-editor__preview li > p {
+  margin: 0 0 0.4em;
+}
+
+/* Task lists: marked emits a disabled checkbox as the item's first child
+   (wrapped in a <p> when the list is loose), so both shapes are handled. */
+.markdown-editor__preview li:has(> input[type="checkbox"]),
+.markdown-editor__preview li:has(> p > input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.5em;
+  padding-left: 1.5em;
+  position: relative;
+}
+
+/* Marked emits these as `disabled`, which the native control renders as a washed
+   out grey box — checked and unchecked end up indistinguishable, so draw it. */
+.markdown-editor__preview li input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 0.82em;
+  height: 0.82em;
+  margin: 0;
+  padding: 0;
+  opacity: 1;
+  border: 1.5px solid color-mix(in srgb, var(--md-ink) 34%, transparent);
+  border-radius: 0.22em;
+  background: var(--md-surface-strong);
+  cursor: default;
+}
+
+.markdown-editor__preview li input[type="checkbox"]:checked {
+  border-color: var(--md-accent);
+  background: var(--md-accent);
+}
+
+.markdown-editor__preview li input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 0.2em;
+  height: 0.42em;
+  border: solid var(--app-bg, #101010);
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -56%) rotate(45deg);
+}
+
+.markdown-editor__preview li:has(> input[type="checkbox"]:checked),
+.markdown-editor__preview li:has(> p > input[type="checkbox"]:checked) {
+  color: var(--md-muted);
+}
+
+/* ------------------------------------------------------------- blockquote */
+
+.markdown-editor__preview .md-quote {
+  margin: 1.1em 0;
+  padding: 0.55em 0 0.55em 1em;
+  border-left: 3px solid color-mix(in srgb, var(--md-accent) 62%, transparent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--md-surface);
+  color: color-mix(in srgb, var(--md-ink) 84%, transparent);
+}
+
+.markdown-editor__preview .md-quote > :last-child {
+  margin-bottom: 0;
+}
+
+/* ----------------------------------------------------------------- alerts */
+
+.markdown-editor__preview .md-alert {
+  --md-alert-hue: var(--md-accent);
+  margin: 1.2em 0;
+  padding: 0.85em 1.05em;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--md-alert-hue) 38%, transparent);
+  border-left-width: 3px;
+  background: color-mix(in srgb, var(--md-alert-hue) 11%, transparent);
+}
+
+.markdown-editor__preview .md-alert--note { --md-alert-hue: #4d8fd6; }
+.markdown-editor__preview .md-alert--tip { --md-alert-hue: #3fa45b; }
+.markdown-editor__preview .md-alert--important { --md-alert-hue: #9070e0; }
+.markdown-editor__preview .md-alert--warning { --md-alert-hue: #cf9526; }
+.markdown-editor__preview .md-alert--caution { --md-alert-hue: #dc5a52; }
+
+.markdown-editor__preview .md-alert__head {
+  display: flex;
+  align-items: center;
+  gap: 0.42em;
+  margin: 0 0 0.4em;
+  font-family: var(--app-ui-font);
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--md-alert-hue) 78%, var(--md-ink));
+}
+
+.markdown-editor__preview .md-alert__icon {
+  display: inline-flex;
+}
+
+.markdown-editor__preview .md-alert__icon svg {
+  width: 1.05em;
+  height: 1.05em;
+}
+
+.markdown-editor__preview .md-alert__body > :last-child {
+  margin-bottom: 0;
+}
+
+/* ----------------------------------------------------------------- tables */
+
+.markdown-editor__preview .md-table-wrap {
+  margin: 1.2em 0;
+  overflow-x: auto;
+  border: 1px solid var(--md-border-soft);
+  border-radius: var(--radius-md);
+  background: var(--md-surface);
+}
+
+.markdown-editor__preview .md-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.92em;
+}
+
+.markdown-editor__preview .md-table th,
+.markdown-editor__preview .md-table td {
+  padding: 0.5em 0.85em;
+  text-align: left;
+  border-bottom: 1px solid var(--md-border-soft);
+}
+
+.markdown-editor__preview .md-table th + th,
+.markdown-editor__preview .md-table td + td {
+  border-left: 1px solid var(--md-border-soft);
+}
+
+.markdown-editor__preview .md-table thead th {
+  background: var(--md-surface-strong);
+  font-family: var(--app-ui-font);
+  font-weight: 700;
+  font-size: 0.94em;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.markdown-editor__preview .md-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--md-ink) 3%, transparent);
+}
+
+.markdown-editor__preview .md-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ------------------------------------------------------------ inline code */
+
+.markdown-editor__preview .md-inline-code {
+  font-family: var(--app-mono-font);
+  font-size: 0.85em;
+  padding: 0.14em 0.4em;
+  border-radius: var(--radius-xs);
+  border: 1px solid color-mix(in srgb, var(--md-ink) 12%, transparent);
+  background: color-mix(in srgb, var(--md-ink) 7%, transparent);
+  color: color-mix(in srgb, var(--md-accent) 34%, var(--md-ink));
+  white-space: break-spaces;
+}
+
+/* ------------------------------------------------------------- code block */
+
+.markdown-editor__preview .md-code {
+  margin: 1.2em 0;
+  border: 1px solid var(--md-code-edge);
+  border-radius: var(--radius-md);
+  background: var(--md-code-bg);
+  overflow: hidden;
+  box-shadow: 0 1px 0 color-mix(in srgb, #ffffff 6%, transparent) inset;
+}
+
+.markdown-editor__preview .md-code__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px 6px 14px;
+  background: var(--md-code-bar);
+  border-bottom: 1px solid var(--md-code-edge);
+}
+
+.markdown-editor__preview .md-code__lang {
+  font-family: var(--app-ui-font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: var(--label-tracking, 0.08em);
+  text-transform: uppercase;
+  color: var(--md-code-muted);
+  user-select: none;
+}
+
+.markdown-editor__preview .md-code__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, #ffffff 12%, transparent);
+  background: color-mix(in srgb, #ffffff 6%, transparent);
+  color: var(--md-code-muted);
+  font-family: var(--app-ui-font);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.markdown-editor__preview .md-code__copy:hover {
+  background: color-mix(in srgb, #ffffff 13%, transparent);
+  color: var(--md-code-fg);
+  border-color: color-mix(in srgb, #ffffff 22%, transparent);
+}
+
+.markdown-editor__preview .md-code__copy:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--md-accent) 70%, transparent);
+  outline-offset: 1px;
+}
+
+.markdown-editor__preview .md-code__copy.is-copied {
+  color: var(--md-syn-added);
+  border-color: color-mix(in srgb, var(--md-syn-added) 42%, transparent);
+  background: color-mix(in srgb, var(--md-syn-added) 14%, transparent);
+}
+
+.markdown-editor__preview .md-code__copy.is-failed {
+  color: var(--md-syn-deleted);
+  border-color: color-mix(in srgb, var(--md-syn-deleted) 42%, transparent);
+  background: color-mix(in srgb, var(--md-syn-deleted) 14%, transparent);
+}
+
+.markdown-editor__preview .md-code__copy-icons {
+  position: relative;
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+}
+
+.markdown-editor__preview .md-code__copy .md-icon {
+  position: absolute;
+  inset: 0;
+  width: 13px;
+  height: 13px;
+  transition: opacity var(--dur-quick) ease;
+}
+
+.markdown-editor__preview .md-code__copy .md-icon--check,
+.markdown-editor__preview .md-code__copy.is-copied .md-icon--copy {
+  opacity: 0;
+}
+
+.markdown-editor__preview .md-code__copy.is-copied .md-icon--check {
+  opacity: 1;
+}
+
+.markdown-editor__preview .md-code__pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  background: transparent;
+  color: var(--md-code-fg);
+  font-size: 0.84em;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.markdown-editor__preview .md-code__pre code {
+  font-family: var(--app-mono-font);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  white-space: pre;
+}
+
+.markdown-editor__preview .md-code__pre::-webkit-scrollbar {
+  height: 9px;
+}
+
+.markdown-editor__preview .md-code__pre::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, #ffffff 16%, transparent);
+}
+
+/* --------------------------------------------------- highlight.js tokens */
+
+.markdown-editor__preview .hljs-comment,
+.markdown-editor__preview .hljs-quote {
+  color: var(--md-syn-comment);
+  font-style: italic;
+}
+
+.markdown-editor__preview .hljs-keyword,
+.markdown-editor__preview .hljs-selector-tag,
+.markdown-editor__preview .hljs-subst,
+.markdown-editor__preview .hljs-doctag {
+  color: var(--md-syn-keyword);
+}
+
+.markdown-editor__preview .hljs-string,
+.markdown-editor__preview .hljs-char.escape_,
+.markdown-editor__preview .hljs-meta .hljs-string {
+  color: var(--md-syn-string);
+}
+
+.markdown-editor__preview .hljs-number,
+.markdown-editor__preview .hljs-literal,
+.markdown-editor__preview .hljs-variable.constant_,
+.markdown-editor__preview .hljs-symbol,
+.markdown-editor__preview .hljs-bullet {
+  color: var(--md-syn-number);
+}
+
+.markdown-editor__preview .hljs-title,
+.markdown-editor__preview .hljs-title.function_,
+.markdown-editor__preview .hljs-section {
+  color: var(--md-syn-func);
+}
+
+.markdown-editor__preview .hljs-title.class_,
+.markdown-editor__preview .hljs-type,
+.markdown-editor__preview .hljs-built_in,
+.markdown-editor__preview .hljs-class .hljs-title {
+  color: var(--md-syn-type);
+}
+
+.markdown-editor__preview .hljs-attr,
+.markdown-editor__preview .hljs-attribute,
+.markdown-editor__preview .hljs-variable,
+.markdown-editor__preview .hljs-template-variable,
+.markdown-editor__preview .hljs-property,
+.markdown-editor__preview .hljs-params,
+.markdown-editor__preview .hljs-selector-class,
+.markdown-editor__preview .hljs-selector-id,
+.markdown-editor__preview .hljs-selector-attr,
+.markdown-editor__preview .hljs-selector-pseudo {
+  color: var(--md-syn-attr);
+}
+
+.markdown-editor__preview .hljs-name,
+.markdown-editor__preview .hljs-tag {
+  color: var(--md-syn-tag);
+}
+
+.markdown-editor__preview .hljs-meta,
+.markdown-editor__preview .hljs-meta .hljs-keyword,
+.markdown-editor__preview .hljs-link {
+  color: var(--md-syn-meta);
+}
+
+.markdown-editor__preview .hljs-regexp {
+  color: var(--md-syn-regexp);
+}
+
+.markdown-editor__preview .hljs-operator,
+.markdown-editor__preview .hljs-punctuation {
+  color: color-mix(in srgb, var(--md-code-fg) 76%, transparent);
+}
+
+.markdown-editor__preview .hljs-addition {
+  color: var(--md-syn-added);
+  background: color-mix(in srgb, var(--md-syn-added) 12%, transparent);
+  display: inline-block;
+  width: 100%;
+}
+
+.markdown-editor__preview .hljs-deletion {
+  color: var(--md-syn-deleted);
+  background: color-mix(in srgb, var(--md-syn-deleted) 12%, transparent);
+  display: inline-block;
+  width: 100%;
+}
+
+.markdown-editor__preview .hljs-emphasis { font-style: italic; }
+.markdown-editor__preview .hljs-strong { font-weight: 700; }
+
+/* ------------------------------------------------------------------ katex */
+
+.markdown-editor__preview .katex-display {
+  margin: 1.1em 0;
+  padding: 0.35em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-editor__preview .katex {
+  color: inherit;
+  font-size: 1.05em;
+}
+
+.markdown-editor__preview .katex-error {
+  color: #e55353;
+  font-family: var(--app-mono-font);
+  font-size: 0.9em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-editor__preview .md-code__copy,
+  .markdown-editor__preview .md-code__copy .md-icon,
+  .markdown-editor__preview .md-link {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------ per-palette syntax ramps */
+/*
+ * Tokens only — the slab stays the same dark grey on every palette. Each ramp
+ * is drawn from that palette's accent family (--app-accent,
+ * --app-accent-secondary, --app-accent-complementary, --app-accent-gold),
+ * brightened to hold contrast against the slab. Elephant and custom palettes
+ * intentionally have no block here — they use the baseline above.
+ */
+
+/* Ivory — pink accent + violet + gold. */
+.app--palette-ivory .markdown-editor__preview {
+  --md-syn-comment: #93816a;
+  --md-syn-keyword: #ff6f92;
+  --md-syn-string: #dcb96f;
+  --md-syn-number: #f79a63;
+  --md-syn-func: #bda3ff;
+  --md-syn-type: #cfd6e0;
+  --md-syn-attr: #e7c9a0;
+  --md-syn-tag: #ff6f92;
+  --md-syn-meta: #bda3ff;
+  --md-syn-regexp: #f0a878;
+}
+
+/* Moon & Midnight — white-grey body with the accent red, a brighter red,
+   orange and violet on top. */
+.app--palette-midnight .markdown-editor__preview {
+  --md-syn-comment: #857f7d;
+  --md-syn-keyword: #ff3d72;
+  --md-syn-string: #ff9d5c;
+  --md-syn-number: #ff6b6b;
+  --md-syn-func: #b490ff;
+  --md-syn-type: #d9d5d3;
+  --md-syn-attr: #c9a6ff;
+  --md-syn-tag: #ff3d72;
+  --md-syn-meta: #d2a248;
+  --md-syn-regexp: #ff9d5c;
+}
+
+/* Sunset Savannah — rose, peach, amber and dusk lilac. */
+.app--palette-sunset .markdown-editor__preview {
+  --md-syn-comment: #96776a;
+  --md-syn-keyword: #ff8fb1;
+  --md-syn-string: #e8c07f;
+  --md-syn-number: #ffb38a;
+  --md-syn-func: #cfa4de;
+  --md-syn-type: #ffd9b8;
+  --md-syn-attr: #e9bdd2;
+  --md-syn-tag: #ff8fb1;
+  --md-syn-meta: #cfa4de;
+  --md-syn-regexp: #e8c07f;
+}
+
+/* Woodland Forrest — bark, leaf, moss and parchment. */
+.app--palette-woodland .markdown-editor__preview {
+  --md-syn-comment: #778a70;
+  --md-syn-keyword: #cd9d70;
+  --md-syn-string: #8fc487;
+  --md-syn-number: #d9b06e;
+  --md-syn-func: #e0d4b6;
+  --md-syn-type: #82bfa6;
+  --md-syn-attr: #bcd39a;
+  --md-syn-tag: #cd9d70;
+  --md-syn-meta: #82bfa6;
+  --md-syn-regexp: #8fc487;
+}
+
+/* Glaciers & Waterfalls — white, ice blue, glacial mint and a warm gold. */
+.app--palette-glacier .markdown-editor__preview {
+  --md-syn-comment: #6c8695;
+  --md-syn-keyword: #7fd2f5;
+  --md-syn-string: #9fd8c4;
+  --md-syn-number: #e0b978;
+  --md-syn-func: #f4fbff;
+  --md-syn-type: #c5d8e3;
+  --md-syn-attr: #a8c8ff;
+  --md-syn-tag: #7fd2f5;
+  --md-syn-meta: #e0b978;
+  --md-syn-regexp: #9fd8c4;
+}

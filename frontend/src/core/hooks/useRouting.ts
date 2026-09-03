@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 export function useRouting() {
   const [currentLocation, setCurrentLocation] = useState(() =>
@@ -70,19 +70,22 @@ export function useRouting() {
     return url.searchParams.get("token")?.trim() ?? ""
   }, [currentLocation, currentPathname])
 
-  const navigateTo = (path: string) => {
+  // Stable identities: these are effect dependencies (the /app URL sync in
+  // useAppOrchestration), and a fresh closure each render would re-run those
+  // effects on every keystroke.
+  const navigateTo = useCallback((path: string) => {
     if (typeof window !== "undefined") {
       window.history.pushState({}, "", path)
       setCurrentLocation(path)
     }
-  }
+  }, [])
 
-  const navigateReplace = (path: string) => {
+  const navigateReplace = useCallback((path: string) => {
     if (typeof window !== "undefined") {
       window.history.replaceState({}, "", path)
       setCurrentLocation(path)
     }
-  }
+  }, [])
 
   return {
     currentLocation,

@@ -1,5 +1,8 @@
 import { Resend } from "resend";
 
+type Recipient = { to: string; firstName: string | null };
+type CodeEmail = Recipient & { code: string };
+
 const {
   RESEND_API_KEY = "",
   RESEND_FROM_EMAIL = "IvoryScribe <noreply@ivoryscribe.com>",
@@ -7,11 +10,11 @@ const {
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
-export function isEmailServiceConfigured() {
+export function isEmailServiceConfigured(): boolean {
   return Boolean(resend);
 }
 
-export async function sendVerificationEmail({ to, firstName, code }) {
+export async function sendVerificationEmail({ to, firstName, code }: CodeEmail): Promise<void> {
   if (!resend) {
     throw new Error("Resend is not configured. Set RESEND_API_KEY in backend/.env");
   }
@@ -24,7 +27,7 @@ export async function sendVerificationEmail({ to, firstName, code }) {
   });
 }
 
-export async function sendAccountDeletionEmail({ to, firstName, code, confirmUrl }) {
+export async function sendAccountDeletionEmail({ to, firstName, code, confirmUrl }: CodeEmail & { confirmUrl: string }): Promise<void> {
   if (!resend) {
     throw new Error("Resend is not configured. Set RESEND_API_KEY in backend/.env");
   }
@@ -42,7 +45,7 @@ export async function sendAccountDeletionEmail({ to, firstName, code, confirmUrl
   });
 }
 
-export async function sendPasswordResetEmail({ to, firstName, username, resetUrl }) {
+export async function sendPasswordResetEmail({ to, firstName, username, resetUrl }: Recipient & { username: string; resetUrl: string }): Promise<void> {
   if (!resend) {
     throw new Error("Resend is not configured. Set RESEND_API_KEY in backend/.env");
   }
@@ -60,7 +63,7 @@ export async function sendPasswordResetEmail({ to, firstName, username, resetUrl
   });
 }
 
-export async function sendEmailChangeCurrentEmailVerificationEmail({ to, firstName, code, newEmail, verifyUrl }) {
+export async function sendEmailChangeCurrentEmailVerificationEmail({ to, firstName, code, newEmail, verifyUrl }: CodeEmail & { newEmail: string; verifyUrl: string }): Promise<void> {
   if (!resend) {
     throw new Error("Resend is not configured. Set RESEND_API_KEY in backend/.env");
   }
@@ -78,7 +81,7 @@ export async function sendEmailChangeCurrentEmailVerificationEmail({ to, firstNa
   });
 }
 
-export async function sendEmailChangeNewEmailVerificationEmail({ to, firstName, code, verifyUrl }) {
+export async function sendEmailChangeNewEmailVerificationEmail({ to, firstName, code, verifyUrl }: CodeEmail & { verifyUrl: string }): Promise<void> {
   if (!resend) {
     throw new Error("Resend is not configured. Set RESEND_API_KEY in backend/.env");
   }

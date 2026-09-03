@@ -10,6 +10,10 @@ const publicTarget = join(frontendRoot, "public", "pdfjs")
 const pairs = [
   { src: join(pdfjsRoot, "cmaps"), dest: join(publicTarget, "cmaps") },
   { src: join(pdfjsRoot, "standard_fonts"), dest: join(publicTarget, "standard_fonts") },
+  // JPEG 2000 / JBIG2 image decoding and CMYK colour management run in WebAssembly.
+  // Without these, pdf.js silently drops every JPX/JBIG2 image and stalls the render.
+  { src: join(pdfjsRoot, "wasm"), dest: join(publicTarget, "wasm") },
+  { src: join(pdfjsRoot, "iccs"), dest: join(publicTarget, "iccs") },
 ]
 
 async function exists(path) {
