@@ -150,19 +150,21 @@
   opacity: 1;
 }
 
-/* Canvas glyphs cannot be emboldened, so the weight and the halo come from the text
-   layer's own transparent copy of the same words: a shadow is painted from the glyph
-   shapes even though the fill stays invisible. The hover handler tags the spans that
-   fall inside the link's rect. */
-.pdf-viewer__text-layer .pdf-viewer__link-glow {
-  /* Blur in em, so the halo tracks the type size the same way at any zoom. The
-     softest stop stays wider than the text layer's usual drift from the canvas
-     glyphs underneath, which keeps the halo from reading as doubled text. */
-  text-shadow:
-    0 0 0.1em color-mix(in srgb, var(--pdf-link-accent, #9ab8ff) 50%, transparent),
-    0 0 0.22em color-mix(in srgb, var(--pdf-link-accent, #9ab8ff) 55%, transparent),
-    0 0 0.55em color-mix(in srgb, var(--pdf-link-accent, #9ab8ff) 30%, transparent);
-  transition: text-shadow 110ms ease;
+/* The halo is cut from the page bitmap itself: the hovered link's rectangle is copied
+   off the canvas, every pixel recoloured to the accent with the page's own ink as the
+   alpha, and the result blurred. Casting it from the canvas is what keeps it centred on
+   the word — the text layer's glyphs are a fallback font stretched to match the PDF's
+   widths, so a shadow cast from those lands beside the real word and reads as a drop
+   shadow rather than a glow. */
+.pdf-viewer__link-glow {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.pdf-viewer__link-glow--lit {
+  opacity: 1;
 }
 
 .pdf-viewer__link:focus-visible {

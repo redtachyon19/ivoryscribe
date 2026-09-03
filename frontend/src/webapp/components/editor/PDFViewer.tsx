@@ -38,27 +38,34 @@ type PDFViewerProps = {
 const MIN_ZOOM = 0.25
 const MAX_ZOOM = 8
 
-// Whether a page is painted on dark stock, which decides the direction the link
-// hover blend has to run. Handles the forms the palette tokens actually use.
-function isDarkColor(color: string): boolean {
+// Handles the forms the palette tokens actually use.
+function parseColor(color: string): [number, number, number] | null {
   const value = color.trim()
-  let r: number, g: number, b: number
   if (/^#[0-9a-f]{3}$/i.test(value)) {
-    r = parseInt(value[1] + value[1], 16)
-    g = parseInt(value[2] + value[2], 16)
-    b = parseInt(value[3] + value[3], 16)
-  } else if (/^#[0-9a-f]{6}$/i.test(value)) {
-    r = parseInt(value.slice(1, 3), 16)
-    g = parseInt(value.slice(3, 5), 16)
-    b = parseInt(value.slice(5, 7), 16)
-  } else {
-    const parts = value.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i)
-    if (!parts) return false
-    r = Number(parts[1])
-    g = Number(parts[2])
-    b = Number(parts[3])
+    return [
+      parseInt(value[1] + value[1], 16),
+      parseInt(value[2] + value[2], 16),
+      parseInt(value[3] + value[3], 16),
+    ]
   }
-  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5
+  if (/^#[0-9a-f]{6}$/i.test(value)) {
+    return [
+      parseInt(value.slice(1, 3), 16),
+      parseInt(value.slice(3, 5), 16),
+      parseInt(value.slice(5, 7), 16),
+    ]
+  }
+  const parts = value.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i)
+  if (!parts) return null
+  return [Number(parts[1]), Number(parts[2]), Number(parts[3])]
+}
+
+// Whether a page is painted on dark stock, which decides the direction the link
+// hover blend has to run, and which end of the page the ink sits at.
+function isDarkColor(color: string): boolean {
+  const rgb = parseColor(color)
+  if (!rgb) return false
+  return (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255 < 0.5
 }
 
 function collectMatchRanges(container: HTMLElement, needle: string): Range[] {
@@ -185,6 +192,10 @@ function applyZoomToPdfWrapper(
     tint.style.width = `${Number(tint.dataset.baseWidth) * zoom}px`
     tint.style.height = `${Number(tint.dataset.baseHeight) * zoom}px`
   }
+
+  // A halo is cut from the bitmap at one zoom, so it cannot survive a change of zoom.
+  // Dropping it leaves the next hover to cut a fresh one at the new scale.
+  for (const glow of wrapper.querySelectorAll(".pdf-viewer__link-glow")) glow.remove()
 }
 
 export default function PDFViewer({ workspaceRoot, relativePath, projectId, documentId, matchPalette = false }: PDFViewerProps) {
@@ -660,44 +671,114 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
     }
     applyPageTone()
 
-    // Hovering a link tints the canvas glyphs through the overlay's blend mode, and
-    // haloes them by tagging the text layer's transparent copy of the same words.
-    // Which spans a link covers only changes when the text layer is rebuilt, so the
-    // lookup is cached against the layer it was measured in.
-    const LINK_GLOW_CLASS = "pdf-viewer__link-glow"
-    const glowTargets = new WeakMap<HTMLElement, { layer: Element; spans: HTMLElement[] }>()
+    // Hovering a link recolours the canvas glyphs through the tint's blend mode, and
+    // haloes them with a copy cut from the page bitmap. The halo has to come from the
+    // canvas: the text layer's glyphs are a fallback font stretched to the PDF's widths,
+    // so a shadow cast from those sits beside the real word and reads as a drop shadow.
     const linkTints = new WeakMap<HTMLElement, HTMLElement>()
+    // A link's rect in fit-width (base) coordinates — the space both the bitmap and the
+    // display box are derived from, so neither sampling nor placement depends on zoom.
+    const linkBaseRects = new WeakMap<HTMLElement, { left: number; top: number; width: number; height: number }>()
+    const linkGlows = new WeakMap<HTMLElement, HTMLElement>()
 
-    const glowSpansFor = (link: HTMLElement): HTMLElement[] => {
-      const layer = link
-        .closest(".pdf-viewer__page-wrapper")
-        ?.querySelector(".pdf-viewer__text-layer")
-      if (!layer) return []
-      const cached = glowTargets.get(link)
-      if (cached && cached.layer === layer) return cached.spans
+    // The accent the halo is painted in, matched to the `--pdf-link-accent` mix the CSS
+    // uses, so the halo and the tint agree on colour.
+    const accentRgb = (): [number, number, number] => {
+      const paletteHost = scrollContainer.closest(".app") ?? document.body
+      const accent = parseColor(getComputedStyle(paletteHost).getPropertyValue("--app-accent").trim()) ?? [154, 184, 255]
+      const onDark = pagesContainer.dataset.pageTone === "dark"
+      const toward = onDark ? 255 : 0
+      const weight = onDark ? 0.88 : 0.82
+      return [
+        Math.round(accent[0] * weight + toward * (1 - weight)),
+        Math.round(accent[1] * weight + toward * (1 - weight)),
+        Math.round(accent[2] * weight + toward * (1 - weight)),
+      ]
+    }
 
-      // Both layers are laid out at fit-width size under the same zoom transform, so
-      // client rects compare directly without undoing either.
-      const box = link.getBoundingClientRect()
-      const spans: HTMLElement[] = []
-      for (const span of layer.querySelectorAll<HTMLElement>("span")) {
-        const rect = span.getBoundingClientRect()
-        if (rect.width <= 0 || rect.height <= 0) continue
-        const overlapW = Math.min(rect.right, box.right) - Math.max(rect.left, box.left)
-        const overlapH = Math.min(rect.bottom, box.bottom) - Math.max(rect.top, box.top)
-        if (overlapW <= 0 || overlapH <= 0) continue
-        // Most of the span has to sit inside the annotation rect, so a neighbouring
-        // word that merely grazes its edge stays dark.
-        if ((overlapW * overlapH) / (rect.width * rect.height) < 0.5) continue
-        spans.push(span)
+    const buildLinkGlow = (link: HTMLElement): HTMLElement | null => {
+      const wrapper = link.closest<HTMLElement>(".pdf-viewer__page-wrapper")
+      const rect = linkBaseRects.get(link)
+      const canvas = wrapper?.querySelector<HTMLCanvasElement>(".pdf-viewer__page")
+      const baseW = Number(wrapper?.dataset.baseWidth) || 0
+      if (!wrapper || !rect || !canvas || baseW <= 0 || canvas.width <= 0) return null
+
+      // The bitmap's own mapping from base coordinates, and the zoom the wrapper is
+      // currently laid out at — read back rather than assumed, so a re-render mid-zoom
+      // cannot put the halo somewhere the page is not.
+      const baseToDevice = canvas.width / baseW
+      const zoom = (parseFloat(wrapper.style.width) || baseW) / baseW
+
+      const blurBase = Math.min(10, Math.max(1.2, rect.height * 0.16))
+      const padBase = Math.ceil(blurBase * 3)
+
+      const sx = Math.max(0, Math.round((rect.left - padBase) * baseToDevice))
+      const sy = Math.max(0, Math.round((rect.top - padBase) * baseToDevice))
+      const sw = Math.min(canvas.width, Math.round((rect.left + rect.width + padBase) * baseToDevice)) - sx
+      const sh = Math.min(canvas.height, Math.round((rect.top + rect.height + padBase) * baseToDevice)) - sy
+      if (sw <= 0 || sh <= 0) return null
+
+      const off = document.createElement("canvas")
+      off.width = sw
+      off.height = sh
+      const octx = off.getContext("2d", { willReadFrequently: true })
+      if (!octx) return null
+      octx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh)
+
+      let image: ImageData
+      try {
+        image = octx.getImageData(0, 0, sw, sh)
+      } catch {
+        // A tainted canvas would throw; drop the halo rather than break the hover.
+        return null
       }
-      glowTargets.set(link, { layer, spans })
-      return spans
+
+      const [ar, ag, ab] = accentRgb()
+      const onDark = pagesContainer.dataset.pageTone === "dark"
+      const data = image.data
+      for (let i = 0; i < data.length; i += 4) {
+        const lum = (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255
+        // Ink is whatever departs from the stock: dark marks on pale paper, light on dark.
+        const ink = onDark ? lum : 1 - lum
+        data[i] = ar
+        data[i + 1] = ag
+        data[i + 2] = ab
+        data[i + 3] = Math.round(Math.max(0, Math.min(1, ink)) * 255)
+      }
+      octx.putImageData(image, 0, 0)
+      off.style.display = "block"
+      off.style.width = "100%"
+      off.style.height = "100%"
+
+      const glow = document.createElement("div")
+      glow.className = "pdf-viewer__link-glow"
+      glow.style.left = `${(sx / baseToDevice) * zoom}px`
+      glow.style.top = `${(sy / baseToDevice) * zoom}px`
+      glow.style.width = `${(sw / baseToDevice) * zoom}px`
+      glow.style.height = `${(sh / baseToDevice) * zoom}px`
+      glow.style.filter = `blur(${blurBase * zoom}px)`
+      glow.appendChild(off)
+      return glow
     }
 
     const setLinkGlow = (link: HTMLElement, on: boolean) => {
       linkTints.get(link)?.classList.toggle("pdf-viewer__link-tint--lit", on)
-      for (const span of glowSpansFor(link)) span.classList.toggle(LINK_GLOW_CLASS, on)
+
+      linkGlows.get(link)?.remove()
+      linkGlows.delete(link)
+      if (!on) return
+
+      const glow = buildLinkGlow(link)
+      if (!glow) return
+      // Painted under the tints, which share the layer's untransformed display pixels,
+      // so the blend that recolours the glyphs runs over the halo as well.
+      const tintLayer = link
+        .closest(".pdf-viewer__page-wrapper")
+        ?.querySelector(".pdf-viewer__link-tint-layer")
+      if (!tintLayer) return
+      tintLayer.insertBefore(glow, tintLayer.firstChild)
+      linkGlows.set(link, glow)
+      requestAnimationFrame(() => glow.classList.add("pdf-viewer__link-glow--lit"))
     }
 
     type LinkAnnotation = {
@@ -793,6 +874,7 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
         tint.dataset.baseHeight = String(height)
         tintLayer.appendChild(tint)
         linkTints.set(link, tint)
+        linkBaseRects.set(link, { left, top, width, height })
 
         link.addEventListener("pointerenter", () => setLinkGlow(link, true))
         link.addEventListener("pointerleave", () => setLinkGlow(link, false))
@@ -982,6 +1064,8 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
         canvas.remove()
       }
       wrapper.querySelector(".pdf-viewer__text-layer")?.remove()
+      // The halo was cut from the bitmap being dropped here, so it goes too.
+      for (const glow of wrapper.querySelectorAll(".pdf-viewer__link-glow")) glow.remove()
       scheduleHighlightRefreshRef.current?.()
     }
 
