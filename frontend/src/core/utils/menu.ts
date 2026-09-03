@@ -59,9 +59,13 @@ const editMenuItem: MenuItem = {
       },
     },
     {
+      // The native role matters: without it this item owns ⌘C in the desktop build and
+      // swallows the keystroke, so nothing outside the Tiptap editor — a PDF's text
+      // layer, say — could ever be copied. The action still serves the in-app menu.
       label: "Copy",
       icon: "copy",
       shortcut: "⌘C",
+      electronRole: "copy",
       action: () => {
         requestEditorCommand("copy")
       },

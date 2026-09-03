@@ -509,11 +509,26 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
       if (selectAllPdfText()) event.preventDefault()
     }
 
+    const copyPdfSelection = (): boolean => {
+      const selection = window.getSelection()
+      if (!selection || selection.isCollapsed || selection.rangeCount === 0) return false
+      if (!scrollEl.contains(selection.getRangeAt(0).commonAncestorContainer)) return false
+      if (!selection.toString().trim()) return false
+      return document.execCommand("copy")
+    }
+
     const onEditorCommand = (event: Event) => {
       const command = (event as CustomEvent<{ command: EditorCommand }>).detail?.command
-      if (command !== "select-all") return
-      if (!viewerOwnsFocus()) return
-      selectAllPdfText()
+      if (command === "select-all") {
+        if (!viewerOwnsFocus()) return
+        selectAllPdfText()
+        return
+      }
+      // ⌘C in the desktop build is handled by the menu's native copy role; this is the
+      // in-app menu's path. It is gated on where the selection is rather than on focus,
+      // because reaching that menu moves focus off the viewer while its text stays
+      // selected.
+      if (command === "copy") copyPdfSelection()
     }
 
     scrollEl.addEventListener("keydown", onKeyDown)
@@ -728,6 +743,9 @@ export default function PDFViewer({ workspaceRoot, relativePath, projectId, docu
 
         const link = document.createElement("a")
         link.className = "pdf-viewer__link"
+        // Anchors drag by default, which would hijack a text selection that starts on
+        // top of a link instead of sweeping across the words.
+        link.draggable = false
 
         if (annotation.url && isSafeExternalLink(annotation.url)) {
           link.href = annotation.url
