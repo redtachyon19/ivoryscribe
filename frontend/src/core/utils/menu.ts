@@ -13,6 +13,7 @@ import {
   requestEditorFontSizeChange,
 } from "../events/editorEvents"
 import { FONT_OPTIONS, PALETTE_OPTIONS } from "./appearance"
+import { isElectronEnv } from "../electron/localWorkspace"
 
 export type MenuItem = {
   label: string
@@ -22,7 +23,26 @@ export type MenuItem = {
   shortcut?: string
   icon?: string
   electronRole?: "paste" | "pasteAndMatchStyle" | "copy" | "cut" | "undo" | "redo" | "selectAll"
+  // Handled by the Electron main process instead of being routed back here. The
+  // `action` below still serves the in-app menu bar, which never leaves the renderer.
+  electronCommand?: "open-file-window"
 }
+
+// Picking a file only means anything where there is a filesystem and a window manager
+// to put the result in, so the browser build simply doesn't get the entry.
+const openFileMenuItems: MenuItem[] = isElectronEnv()
+  ? [
+      {
+        label: "Open File…",
+        icon: "folder",
+        shortcut: "⌘O",
+        electronCommand: "open-file-window",
+        action: () => {
+          window.electronAPI?.openFileInNewWindow?.()
+        },
+      },
+    ]
+  : []
 
 const editMenuItem: MenuItem = {
   label: "Edit",
@@ -305,6 +325,7 @@ export const projectWorkspaceMenu: MenuItem[] = [
   {
     label: "File",
     submenu: [
+      ...openFileMenuItems,
       {
         label: "New Folder",
         icon: "folder",
@@ -370,6 +391,7 @@ export function getAppMenu(options?: { markdownDocumentActive?: boolean }): Menu
     {
       label: "File",
       submenu: [
+        ...openFileMenuItems,
         {
           label: "New Document",
           action: () => {
@@ -449,6 +471,7 @@ export type NativeMenuItem = {
   disabled?: boolean
   shortcut?: string
   role?: string
+  appCommand?: string
 }
 
 export function serializeMenuForElectron(
@@ -476,10 +499,14 @@ export function serializeMenuForElectron(
 
       return {
         label: item.label,
-        id: item.action ? id : undefined,
+        // A main-handled item must not also carry an id: the native menu would then
+        // fire both the main-process handler and the renderer action, opening two
+        // dialogs for one click.
+        id: item.action && !item.electronCommand ? id : undefined,
         disabled: item.disabled,
         shortcut: item.shortcut,
         role: item.electronRole,
+        appCommand: item.electronCommand,
       }
     })
   }

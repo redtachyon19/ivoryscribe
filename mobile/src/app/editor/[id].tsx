@@ -1,17 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import { useSession } from '@/lib/session';
-import { colors, spacing } from '@/lib/theme';
+import { colors, font, size, space } from '@/lib/theme';
+import { AppText } from '@/components/ui';
 import { getDocument, updateDocument } from '@shared/api';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -94,9 +88,9 @@ export default function EditorScreen() {
           title: '',
           headerRight: () => (
             <Pressable onPress={save} hitSlop={8} disabled={saving || state !== 'ready'}>
-              <Text style={[styles.save, (saving || state !== 'ready') && styles.saveDisabled]}>
+              <AppText style={[styles.save, (saving || state !== 'ready') && styles.saveDisabled]}>
                 {saving ? 'Saving…' : 'Save'}
-              </Text>
+              </AppText>
             </Pressable>
           ),
         }}
@@ -110,7 +104,9 @@ export default function EditorScreen() {
 
       {state === 'error' && (
         <View style={styles.center}>
-          <Text style={styles.error}>{error ?? 'Something went wrong.'}</Text>
+          <AppText variant="muted" style={styles.errorText}>
+            {error ?? 'Something went wrong.'}
+          </AppText>
         </View>
       )}
 
@@ -121,15 +117,16 @@ export default function EditorScreen() {
             value={title}
             onChangeText={setTitle}
             placeholder="Untitled"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={colors.inkFaint}
+            selectionColor={colors.accent}
           />
           <View style={styles.statusRow}>
             {error ? (
-              <Text style={styles.error}>{error}</Text>
-            ) : savedAt ? (
-              <Text style={styles.status}>Saved at {savedAt}</Text>
+              <AppText variant="small" style={styles.errorText}>
+                {error}
+              </AppText>
             ) : (
-              <Text style={styles.status}>Draft</Text>
+              <AppText variant="small">{savedAt ? `Saved at ${savedAt}` : 'Draft · not yet saved'}</AppText>
             )}
           </View>
           <WebView
@@ -146,9 +143,9 @@ export default function EditorScreen() {
   );
 }
 
-// Minimal contentEditable editor served into the WebView. This is the seam where
-// the real TipTap bundle will live — same bridge contract (seed innerHTML, post
-// { type: 'content', html } on input).
+// Minimal contentEditable editor served into the WebView, styled to match the
+// app's ivory paper. This is the seam where the real TipTap bundle will live —
+// same bridge contract (seed innerHTML, post { type: 'content', html } on input).
 function buildEditorHtml(initial: string): string {
   const seed = JSON.stringify(initial || '<p><br></p>');
   return `<!doctype html>
@@ -157,28 +154,29 @@ function buildEditorHtml(initial: string): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <style>
-  :root { color-scheme: dark; }
   * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: ${colors.bg}; }
-  body { display: flex; flex-direction: column; font-family: Georgia, 'Times New Roman', serif; }
+  body { display: flex; flex-direction: column; }
   #toolbar {
-    display: flex; gap: 6px; padding: 8px 10px; flex-wrap: wrap;
+    display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap;
     background: ${colors.surface}; border-bottom: 1px solid ${colors.border};
     position: sticky; top: 0;
   }
   #toolbar button {
-    background: ${colors.surfaceRaised}; color: ${colors.text};
+    background: transparent; color: ${colors.ink};
     border: 1px solid ${colors.border}; border-radius: 6px;
-    font-size: 15px; min-width: 38px; height: 34px; padding: 0 8px;
+    font-family: Georgia, serif; font-size: 15px; min-width: 40px; height: 34px; padding: 0 10px;
   }
-  #toolbar button:active { background: ${colors.accent}; color: #fff; }
+  #toolbar button:active { background: ${colors.accent}; color: #fff; border-color: ${colors.accent}; }
   #editor {
-    flex: 1; overflow-y: auto; padding: 18px 18px 60px;
-    color: ${colors.text}; font-size: 18px; line-height: 1.6; outline: none;
+    flex: 1; overflow-y: auto; padding: 22px 20px 80px;
+    color: ${colors.ink}; font-family: Georgia, 'Times New Roman', serif;
+    font-size: 19px; line-height: 1.65; outline: none; caret-color: ${colors.accent};
   }
-  #editor:empty::before { content: 'Start writing…'; color: ${colors.muted}; }
-  #editor h1 { font-size: 26px; } #editor h2 { font-size: 22px; }
-  #editor p { margin: 0 0 12px; }
+  #editor:empty::before { content: 'Start writing…'; color: ${colors.inkFaint}; }
+  #editor h1 { font-size: 30px; margin: 0 0 12px; } #editor h2 { font-size: 24px; margin: 0 0 10px; }
+  #editor p { margin: 0 0 14px; }
+  #editor ul { padding-left: 22px; }
 </style>
 </head>
 <body>
@@ -210,18 +208,17 @@ function buildEditorHtml(initial: string): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl },
   title: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: '700',
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    color: colors.ink,
+    fontFamily: font.serifBold,
+    fontSize: size.xxl,
+    paddingHorizontal: space.md,
+    paddingTop: space.xs,
   },
-  statusRow: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
-  status: { color: colors.muted, fontSize: 12 },
-  error: { color: colors.danger, fontSize: 13 },
+  statusRow: { paddingHorizontal: space.md, paddingBottom: space.xs },
+  errorText: { color: colors.danger },
   webview: { flex: 1, backgroundColor: colors.bg },
-  save: { color: colors.accent, fontSize: 16, fontWeight: '600', paddingHorizontal: spacing.xs },
-  saveDisabled: { color: colors.muted },
+  save: { color: colors.accent, fontFamily: font.uiBold, fontSize: size.md, paddingHorizontal: space.xs },
+  saveDisabled: { color: colors.inkSubtle },
 });

@@ -1,17 +1,10 @@
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 
 import { useSession } from '@/lib/session';
-import { colors, radius, spacing } from '@/lib/theme';
+import { colors, font, radius, size, space } from '@/lib/theme';
+import { AppText } from '@/components/ui';
 import { createDocument, getDocuments, type DocumentRecord } from '@shared/api';
 
 export default function LibraryScreen() {
@@ -38,7 +31,6 @@ export default function LibraryScreen() {
     }
   }, [token]);
 
-  // Reload every time the screen regains focus (e.g. returning from the editor).
   useFocusEffect(
     useCallback(() => {
       load();
@@ -64,14 +56,12 @@ export default function LibraryScreen() {
         options={{
           headerLeft: () => (
             <Pressable onPress={signOut} hitSlop={8}>
-              <Text style={styles.headerAction}>Sign out</Text>
+              <AppText variant="muted">Sign out</AppText>
             </Pressable>
           ),
           headerRight: () => (
-            <Pressable onPress={newDocument} hitSlop={8} disabled={creating}>
-              <Text style={[styles.headerAction, styles.headerActionAccent]}>
-                {creating ? '…' : '+ New'}
-              </Text>
+            <Pressable onPress={newDocument} hitSlop={8} disabled={creating} style={styles.newButton}>
+              <AppText style={styles.newButtonText}>{creating ? '···' : '+ New'}</AppText>
             </Pressable>
           ),
         }}
@@ -93,14 +83,24 @@ export default function LibraryScreen() {
                 setRefreshing(true);
                 load();
               }}
-              tintColor={colors.muted}
+              tintColor={colors.inkMuted}
             />
           }
-          ListHeaderComponent={error ? <Text style={styles.error}>{error}</Text> : null}
+          ListHeaderComponent={
+            docs.length > 0 ? (
+              <AppText variant="label" style={styles.sectionLabel}>
+                {docs.length} {docs.length === 1 ? 'document' : 'documents'}
+              </AppText>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={styles.emptyTitle}>No documents yet</Text>
-              <Text style={styles.emptyBody}>Tap “+ New” to start writing.</Text>
+              <AppText variant="title" style={styles.emptyTitle}>
+                A blank page.
+              </AppText>
+              <AppText variant="muted" style={styles.emptyBody}>
+                Tap “+ New” to start your first document.
+              </AppText>
             </View>
           }
           renderItem={({ item }) => (
@@ -108,13 +108,21 @@ export default function LibraryScreen() {
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               onPress={() => router.push(`/editor/${item.id}`)}
             >
-              <Text style={styles.rowTitle} numberOfLines={1}>
+              <AppText variant="heading" numberOfLines={1} style={styles.rowTitle}>
                 {item.title || 'Untitled'}
-              </Text>
-              <Text style={styles.rowMeta}>{formatDate(item.updatedAt)}</Text>
+              </AppText>
+              <AppText variant="small">Edited {formatDate(item.updatedAt)}</AppText>
             </Pressable>
           )}
         />
+      )}
+
+      {error && (
+        <View style={styles.errorBar}>
+          <AppText variant="small" style={styles.errorText}>
+            {error}
+          </AppText>
+        </View>
       )}
     </View>
   );
@@ -128,24 +136,40 @@ function formatDate(iso: string): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.xs },
-  listContent: { padding: spacing.md, gap: spacing.sm },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.xs },
+  listContent: { padding: space.md, gap: space.sm },
   emptyContent: { flexGrow: 1 },
-  headerAction: { color: colors.text, fontSize: 16, paddingHorizontal: spacing.xs },
-  headerActionAccent: { color: colors.accent, fontWeight: '600' },
+  sectionLabel: { marginBottom: space.sm, marginLeft: space.xs },
+  newButton: {
+    backgroundColor: colors.accentSoft,
+    paddingHorizontal: space.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  newButtonText: { color: colors.accent, fontFamily: font.uiBold, fontSize: size.sm },
   row: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
     gap: 4,
   },
-  rowPressed: { backgroundColor: colors.surfaceRaised },
-  rowTitle: { color: colors.text, fontSize: 17, fontWeight: '500' },
-  rowMeta: { color: colors.muted, fontSize: 13 },
-  emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '600' },
-  emptyBody: { color: colors.muted, fontSize: 14 },
-  error: { color: colors.danger, fontSize: 14, marginBottom: spacing.sm },
+  rowPressed: { backgroundColor: colors.surfaceActive },
+  rowTitle: { fontSize: size.lg },
+  emptyTitle: { textAlign: 'center' },
+  emptyBody: { textAlign: 'center' },
+  errorBar: {
+    position: 'absolute',
+    left: space.md,
+    right: space.md,
+    bottom: space.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: space.sm,
+  },
+  errorText: { color: colors.danger, textAlign: 'center' },
 });

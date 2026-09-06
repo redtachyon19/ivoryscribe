@@ -38,6 +38,7 @@ declare global {
       onMenuCommand: (callback: (commandId: string) => void) => () => void
       onOpenPath?: (callback: (filePath: string) => void) => () => void
       notifyOpenPathReady?: () => void
+      openFileInNewWindow?: () => void
 
       getVersion: () => Promise<string>
 

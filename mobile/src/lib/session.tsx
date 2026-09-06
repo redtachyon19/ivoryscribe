@@ -7,8 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { login as apiLogin, register as apiRegister, type AuthResponse } from '@shared/api';
+import { secureStorage } from '@/lib/storage';
 
 type User = AuthResponse['user'];
 export type Session = { token: string; user: User };
@@ -40,7 +40,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let active = true;
     (async () => {
       try {
-        const raw = await SecureStore.getItemAsync(SESSION_KEY);
+        const raw = await secureStorage.getItem(SESSION_KEY);
         if (active && raw) {
           setSession(JSON.parse(raw) as Session);
         }
@@ -58,9 +58,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const persist = useCallback(async (next: Session | null) => {
     setSession(next);
     if (next) {
-      await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(next));
+      await secureStorage.setItem(SESSION_KEY, JSON.stringify(next));
     } else {
-      await SecureStore.deleteItemAsync(SESSION_KEY);
+      await secureStorage.removeItem(SESSION_KEY);
     }
   }, []);
 

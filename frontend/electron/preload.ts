@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   notifyOpenPathReady: () => {
     ipcRenderer.send("app:open-path-ready")
   },
+  openFileInNewWindow: () => {
+    ipcRenderer.send("app:open-file-window")
+  },
 
   getVersion: () => ipcRenderer.invoke("app:getVersion") as Promise<string>,
 

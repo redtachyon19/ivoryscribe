@@ -1,20 +1,17 @@
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSession } from '@/lib/session';
-import { colors, radius, spacing } from '@/lib/theme';
+import { colors, space } from '@/lib/theme';
+import { AppText, Card, Field, PrimaryButton, TextButton } from '@/components/ui';
 
 type Mode = 'login' | 'register';
 
@@ -58,31 +55,34 @@ export default function AuthScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.brand}>ivoryscribe</Text>
-          <Text style={styles.tagline}>A focused space to write.</Text>
+          <View style={styles.brandBlock}>
+            <AppText variant="display" style={styles.brand}>
+              ivoryscribe
+            </AppText>
+            <AppText variant="muted" style={styles.tagline}>
+              A focused space to write.
+            </AppText>
+          </View>
 
-          <View style={styles.card}>
-            <Text style={styles.heading}>{isRegister ? 'Create account' : 'Welcome back'}</Text>
+          <Card>
+            <AppText variant="heading" style={styles.cardHeading}>
+              {isRegister ? 'Create your account' : 'Welcome back'}
+            </AppText>
 
             {isRegister && (
-              <View style={styles.row}>
-                <TextInput
-                  style={[styles.input, styles.flex]}
+              <View style={styles.nameRow}>
+                <Field
+                  style={styles.flex}
                   placeholder="First name"
-                  placeholderTextColor={colors.muted}
                   autoCapitalize="words"
                   value={firstName}
                   onChangeText={setFirstName}
                 />
-                <TextInput
-                  style={[styles.input, styles.flex]}
+                <Field
+                  style={styles.flex}
                   placeholder="Last name"
-                  placeholderTextColor={colors.muted}
                   autoCapitalize="words"
                   value={lastName}
                   onChangeText={setLastName}
@@ -90,53 +90,51 @@ export default function AuthScreen() {
               </View>
             )}
 
-            <TextInput
-              style={styles.input}
+            <Field
               placeholder="Email"
-              placeholderTextColor={colors.muted}
               autoCapitalize="none"
               autoComplete="email"
               keyboardType="email-address"
               value={email}
               onChangeText={setEmail}
+              style={styles.stackedField}
             />
-            <TextInput
-              style={styles.input}
+            <Field
               placeholder="Password"
-              placeholderTextColor={colors.muted}
               secureTextEntry
               value={password}
               onChangeText={setPassword}
+              style={styles.stackedField}
             />
 
-            {error && <Text style={styles.error}>{error}</Text>}
-            {notice && <Text style={styles.notice}>{notice}</Text>}
+            {error && (
+              <AppText variant="small" style={styles.error}>
+                {error}
+              </AppText>
+            )}
+            {notice && (
+              <AppText variant="small" style={styles.notice}>
+                {notice}
+              </AppText>
+            )}
 
-            <Pressable
-              style={({ pressed }) => [styles.button, (busy || pressed) && styles.buttonPressed]}
+            <PrimaryButton
+              label={isRegister ? 'Create account' : 'Sign in'}
+              busy={busy}
               onPress={submit}
-              disabled={busy}
-            >
-              {busy ? (
-                <ActivityIndicator color={colors.accentText} />
-              ) : (
-                <Text style={styles.buttonText}>{isRegister ? 'Create account' : 'Sign in'}</Text>
-              )}
-            </Pressable>
+              style={styles.submit}
+            />
 
-            <Pressable
+            <TextButton
+              label={isRegister ? 'Have an account?  Sign in' : 'New here?  Create an account'}
               onPress={() => {
                 setMode(isRegister ? 'login' : 'register');
                 setError(null);
                 setNotice(null);
               }}
-              hitSlop={8}
-            >
-              <Text style={styles.switch}>
-                {isRegister ? 'Have an account? Sign in' : "New here? Create an account"}
-              </Text>
-            </Pressable>
-          </View>
+              style={styles.switch}
+            />
+          </Card>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -145,46 +143,21 @@ export default function AuthScreen() {
 
 function cleanError(e: unknown): string {
   const raw = e instanceof Error ? e.message : 'Something went wrong';
-  // request() prefixes network/status noise like "[NETWORK]" / "[401]".
   return raw.replace(/^\[[^\]]+\]\s*/, '');
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg, gap: spacing.sm },
-  brand: { color: colors.text, fontSize: 34, fontWeight: '700', textAlign: 'center' },
-  tagline: { color: colors.muted, fontSize: 15, textAlign: 'center', marginBottom: spacing.lg },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  heading: { color: colors.text, fontSize: 20, fontWeight: '600', marginBottom: spacing.xs },
-  row: { flexDirection: 'row', gap: spacing.sm },
-  input: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    color: colors.text,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  buttonPressed: { opacity: 0.85 },
-  buttonText: { color: colors.accentText, fontSize: 16, fontWeight: '600' },
-  switch: { color: colors.muted, textAlign: 'center', marginTop: spacing.sm },
-  error: { color: colors.danger, fontSize: 14 },
-  notice: { color: colors.accent, fontSize: 14 },
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: space.lg, gap: space.xl },
+  brandBlock: { alignItems: 'center', gap: space.xs },
+  brand: { textAlign: 'center' },
+  tagline: { textAlign: 'center' },
+  cardHeading: { marginBottom: space.md },
+  nameRow: { flexDirection: 'row', gap: space.sm, marginBottom: space.sm },
+  stackedField: { marginBottom: space.sm },
+  submit: { marginTop: space.xs },
+  switch: { marginTop: space.md },
+  error: { color: colors.danger },
+  notice: { color: colors.accent },
 });

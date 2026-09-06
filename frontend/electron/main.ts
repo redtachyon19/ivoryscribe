@@ -20,9 +20,19 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 const isMac = process.platform === "darwin"
 
 const OPEN_PATH_CHANNEL = "app:open-path"
-const SUPPORTED_OPEN_EXTENSIONS = new Set([".tusk", ".tusks", ".md", ".txt"])
+const SUPPORTED_OPEN_EXTENSIONS = new Set([".tusk", ".tusks", ".md", ".txt", ".pdf"])
 const pendingOpenPaths: string[] = []
 let isRendererReady = false
+
+// Menu items carrying this command are handled here rather than round-tripped to the
+// renderer: the Dock menu fires with no window at all, and on macOS the menu bar stays
+// up after the last window closes, so a renderer-owned handler would be dead in exactly
+// the cases where "open a file" is the only thing left to do.
+const OPEN_FILE_WINDOW_COMMAND = "open-file-window"
+const OPEN_FILE_DIALOG_FILTERS = [
+  { name: "Ivoryscribe Documents", extensions: ["tusk", "tusks", "md", "txt", "pdf"] },
+]
+let lastOpenDialogDirectory: string | null = null
 
 function hasSupportedExtension(filePath: string): boolean {
   return SUPPORTED_OPEN_EXTENSIONS.has(path.extname(filePath).toLowerCase())
@@ -112,6 +122,7 @@ type RendererMenuItem = {
   disabled?: boolean
   shortcut?: string
   role?: string
+  appCommand?: string
 }
 
 function toAccelerator(shortcut: string): string | undefined {
@@ -131,6 +142,15 @@ function buildNativeMenu(items: RendererMenuItem[], sendCommand: (id: string) =>
         label: item.label,
         enabled: !item.disabled,
         submenu: buildNativeMenu(item.submenu, sendCommand),
+      }
+    }
+
+    if (item.appCommand === OPEN_FILE_WINDOW_COMMAND) {
+      return {
+        label: item.label,
+        enabled: !item.disabled,
+        accelerator: item.shortcut ? toAccelerator(item.shortcut) : undefined,
+        click: () => { void promptOpenFileInNewWindow() },
       }
     }
 
@@ -205,6 +225,82 @@ function createWindow() {
     void mainWindow.loadFile(path.join(process.env.DIST!, "index.html"))
   }
 }
+
+// A throwaway window scoped to one file. It rides the same two query params a
+// Finder-opened file outside the workspace already travels on, so the renderer needs
+// no new plumbing: rootOverride makes the file's own folder the workspace for this
+// window only, and openFile tells it which document to land in. Deliberately not
+// assigned to mainWindow — closing a temp window must not tear down the open-path
+// bridge the primary window owns.
+function createDocumentWindow(filePath: string): BrowserWindow {
+  const win = new BrowserWindow(makeBrowserWindowOptions())
+  const query = { rootOverride: path.dirname(filePath), openFile: filePath }
+
+  win.webContents.on("preload-error", (_event, preload, error) => {
+    console.error("[ivoryscribe] PRELOAD ERROR:", preload, error)
+  })
+
+  if (VITE_DEV_SERVER_URL) {
+    const url = new URL(VITE_DEV_SERVER_URL)
+    url.searchParams.set("rootOverride", query.rootOverride)
+    url.searchParams.set("openFile", query.openFile)
+    void win.loadURL(url.toString())
+  } else {
+    void win.loadFile(path.join(process.env.DIST!, "index.html"), { query })
+  }
+
+  return win
+}
+
+async function promptOpenFileInNewWindow(parent?: BrowserWindow | null) {
+  if (!app.isReady()) return
+
+  const owner = parent && !parent.isDestroyed() ? parent : BrowserWindow.getFocusedWindow()
+  const options: Electron.OpenDialogOptions = {
+    title: "Open File",
+    buttonLabel: "Open",
+    defaultPath: lastOpenDialogDirectory ?? app.getPath("documents"),
+    properties: ["openFile", "multiSelections"],
+    filters: OPEN_FILE_DIALOG_FILTERS,
+  }
+
+  const result = owner
+    ? await dialog.showOpenDialog(owner, options)
+    : await dialog.showOpenDialog(options)
+  if (result.canceled) return
+
+  const openable = result.filePaths.filter(hasSupportedExtension)
+  const unopenable = result.filePaths.filter((p) => !hasSupportedExtension(p))
+
+  if (openable.length > 0) {
+    lastOpenDialogDirectory = path.dirname(openable[openable.length - 1])
+    for (const filePath of openable) createDocumentWindow(filePath)
+  }
+
+  // The filters normally make this unreachable, but a path typed straight into the
+  // panel can slip past them, and silently doing nothing would read as a hang.
+  if (unopenable.length > 0) {
+    void dialog.showMessageBox({
+      type: "warning",
+      message: unopenable.length === 1
+        ? "Ivoryscribe can’t open that file"
+        : "Ivoryscribe can’t open some of those files",
+      detail: `${unopenable.map((p) => path.basename(p)).join("\n")}\n\nOpen a .tusk, .tusks, .md, .txt or .pdf file instead.`,
+      buttons: ["OK"],
+    })
+  }
+}
+
+function applyDockMenu() {
+  if (!isMac || !app.dock) return
+  app.dock.setMenu(Menu.buildFromTemplate([
+    { label: "Open File…", click: () => { void promptOpenFileInNewWindow() } },
+  ]))
+}
+
+ipcMain.on("app:open-file-window", (event) => {
+  void promptOpenFileInNewWindow(BrowserWindow.fromWebContents(event.sender))
+})
 
 ipcMain.on("window:minimize", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize()
@@ -622,6 +718,7 @@ if (!gotSingleInstanceLock) {
   void app.whenReady().then(() => {
     createWindow()
     applyNativeMenu([])
+    applyDockMenu()
     initAutoUpdater(() => mainWindow)
   })
 }
