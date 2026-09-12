@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react"
 import usePanelMarquee from "./usePanelMarquee"
+import { scrollRowIntoView } from "./panelScroll"
 
 type UsePanelSelectionOptions = {
   getOrderedIds: () => string[]
@@ -26,6 +27,8 @@ export default function usePanelSelection({
 
   const anchorRef = useRef<string | null>(null)
   const leadRef = useRef<string | null>(null)
+  // The row arrow navigation last focused, kept only while the keyboard owns the panel.
+  const keyboardLeadRef = useRef<string | null>(null)
 
   const cbsRef = useRef({ getOrderedIds, getActiveId, onActivate, onDelete })
   useEffect(() => {
@@ -40,10 +43,47 @@ export default function usePanelSelection({
       const focusable = node.matches("button, [tabindex]")
         ? node
         : node.querySelector<HTMLElement>("button, [tabindex], a")
+      // Native focus scrolling would drag the rail's horizontal slide along with it,
+      // so the row is brought into view by hand instead.
       focusable?.focus({ preventScroll: true })
+      scrollRowIntoView(node)
+      keyboardLeadRef.current = id
     },
     [marqueeContainerRef],
   )
+
+  // Activating a row re-renders the tree that owns it, and a render that replaces the
+  // focused node leaves the browser with nowhere to put focus, so it falls back to
+  // <body>. The panel's key handler is bound to the shell, so once that happens every
+  // later arrow press is swallowed and navigation appears to stop after one step.
+  // A focusout carrying no relatedTarget is exactly that signature; put focus back.
+  const handleFocusOut = useCallback(
+    (event: React.FocusEvent<HTMLElement>) => {
+      if (event.relatedTarget) return
+      const lead = keyboardLeadRef.current
+      if (!lead) return
+
+      // A timer rather than a frame: the restore has to run even when the window is
+      // hidden or backgrounded, where rAF never fires.
+      window.setTimeout(() => {
+        if (keyboardLeadRef.current !== lead || !document.hasFocus()) return
+        const active = document.activeElement
+        if (active && active !== document.body) return
+        focusItem(lead)
+      }, 0)
+    },
+    [focusItem],
+  )
+
+  // Any pointer interaction hands the panel back to the mouse, so a later orphaned
+  // focus must not be pulled back here.
+  useEffect(() => {
+    const onPointerDown = () => {
+      keyboardLeadRef.current = null
+    }
+    document.addEventListener("mousedown", onPointerDown, true)
+    return () => document.removeEventListener("mousedown", onPointerDown, true)
+  }, [])
 
   const selectSingle = useCallback(
     (id: string) => {
@@ -79,6 +119,16 @@ export default function usePanelSelection({
       setMarqueeSelectedIds(new Set([id]))
     },
     [setMarqueeSelectedIds],
+  )
+
+  // Arrow keys only reach the panel while the shell holds focus, and the marquee's
+  // preventDefault suppresses the click's own focus, so it is set here explicitly.
+  const handleMouseDown = useCallback(
+    (event: React.MouseEvent) => {
+      marqueeContainerRef.current?.focus({ preventScroll: true })
+      marquee.handleMouseDown(event)
+    },
+    [marquee, marqueeContainerRef],
   )
 
   const handleKeyDown = useCallback(
@@ -182,6 +232,8 @@ export default function usePanelSelection({
     selectSingle,
     selectRange,
     armSelection,
+    handleMouseDown,
     handleKeyDown,
+    handleFocusOut,
   }
 }

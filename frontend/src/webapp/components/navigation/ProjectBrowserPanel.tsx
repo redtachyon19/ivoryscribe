@@ -105,7 +105,9 @@ export default function ProjectBrowserPanel({
     selectSingle,
     selectRange,
     armSelection,
+    handleMouseDown,
     handleKeyDown,
+    handleFocusOut,
   } = usePanelSelection({
     marqueeIgnoreSelector: "input, textarea, select, [draggable='true']",
     getOrderedIds: () => visibleItemIds,
@@ -811,8 +813,9 @@ export default function ProjectBrowserPanel({
         ref={marqueeContainerRef}
         className={`project-browser__list-shell ${marquee.isActive ? "project-browser__list-shell--marquee" : ""}`.trim()}
         tabIndex={-1}
-        onMouseDown={marquee.handleMouseDown}
+        onMouseDown={handleMouseDown}
         onKeyDown={handleKeyDown}
+        onBlur={handleFocusOut}
       >
         {marquee.isActive && marquee.rect ? (
           <div

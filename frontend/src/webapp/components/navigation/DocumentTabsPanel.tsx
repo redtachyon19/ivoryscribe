@@ -19,6 +19,7 @@ import {
   findAncestorIds,
   moveNodes,
 } from "./tabTreeUtils"
+import { scrollRowIntoView } from "./panelScroll"
 import "./navPanelShared.css"
 import "./DocumentTabsPanel.css"
 
@@ -39,21 +40,6 @@ type DocumentTabsProps = {
   onCreatePlainText: () => void
   onOpenTabInNewTab?: (tabId: string) => void
   onDuplicateTab?: (tabId: string) => void
-}
-
-// Breathing room kept between the followed row and the edge of the scroll viewport.
-const FOLLOW_SCROLL_MARGIN = 24
-
-function findScrollParent(element: HTMLElement): HTMLElement | null {
-  let node = element.parentElement
-  while (node) {
-    const overflowY = getComputedStyle(node).overflowY
-    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) {
-      return node
-    }
-    node = node.parentElement
-  }
-  return null
 }
 
 type TabsContextMenuState =
@@ -90,7 +76,9 @@ export default function DocumentTabsPanel({
     selectSingle,
     selectRange,
     armSelection,
+    handleMouseDown,
     handleKeyDown,
+    handleFocusOut,
   } = usePanelSelection({
     getOrderedIds: () => flattenVisibleTabIds(tabs, expandedById),
     getActiveId: () => activeId,
@@ -205,20 +193,7 @@ export default function DocumentTabsPanel({
         if (attempts++ < 3) frame = requestAnimationFrame(run)
         return
       }
-      // Scrolled by hand rather than through scrollIntoView, which would also shift
-      // the rail's horizontal slide out from under the panel.
-      const scroller = findScrollParent(row)
-      if (!scroller) return
-      const rowRect = row.getBoundingClientRect()
-      const viewRect = scroller.getBoundingClientRect()
-      let delta = 0
-      if (rowRect.top < viewRect.top + FOLLOW_SCROLL_MARGIN) {
-        delta = rowRect.top - viewRect.top - FOLLOW_SCROLL_MARGIN
-      } else if (rowRect.bottom > viewRect.bottom - FOLLOW_SCROLL_MARGIN) {
-        delta = rowRect.bottom - viewRect.bottom + FOLLOW_SCROLL_MARGIN
-      }
-      if (delta === 0) return
-      scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: "smooth" })
+      scrollRowIntoView(row, "smooth")
     }
 
     frame = requestAnimationFrame(run)
@@ -439,8 +414,9 @@ export default function DocumentTabsPanel({
         ref={marqueeContainerRef}
         className={`doc-tabs__list-shell ${marquee.isActive ? "doc-tabs__list-shell--marquee" : ""}`.trim()}
         tabIndex={-1}
-        onMouseDown={marquee.handleMouseDown}
+        onMouseDown={handleMouseDown}
         onKeyDown={handleKeyDown}
+        onBlur={handleFocusOut}
       >
         {marquee.isActive && marquee.rect ? (
           <div
